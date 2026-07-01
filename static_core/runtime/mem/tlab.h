@@ -139,7 +139,7 @@ public:
 
     bool IsUninitialized()
     {
-        return (memoryStartAddr_ == nullptr) || (curFreePosition_ == nullptr) || (memoryEndAddr_ == nullptr);
+        return (memoryStartAddr_ == 0) || (curFreePosition_ == 0) || (memoryEndAddr_ == 0);
     }
 
     NO_MOVE_SEMANTIC(TLAB);
@@ -191,35 +191,43 @@ public:
 
     void *GetStartAddr() const
     {
-        return memoryStartAddr_;
+        return ToVoidPtr(memoryStartAddr_);
     }
 
     void *GetEndAddr() const
     {
-        return memoryEndAddr_;
+        return ToVoidPtr(memoryEndAddr_);
     }
 
     void *GetCurPos() const
     {
-        return curFreePosition_;
+        return ToVoidPtr(curFreePosition_);
     }
 
     size_t GetOccupiedSize() const
     {
-        ASSERT(ToUintPtr(curFreePosition_) >= ToUintPtr(memoryStartAddr_));
-        return ToUintPtr(curFreePosition_) - ToUintPtr(memoryStartAddr_);
+        ASSERT(curFreePosition_ >= memoryStartAddr_);
+        return curFreePosition_ - memoryStartAddr_;
+    }
+
+    size_t GetAndResetNewAllocatedBytes()
+    {
+        ASSERT(curFreePosition_ >= lastRecordedPosition_);
+        size_t newAllocatedBytes = curFreePosition_ - lastRecordedPosition_;
+        lastRecordedPosition_ = curFreePosition_;
+        return newAllocatedBytes;
     }
 
     size_t GetFreeSize() const
     {
-        ASSERT(ToUintPtr(curFreePosition_) >= ToUintPtr(memoryStartAddr_));
-        ASSERT(ToUintPtr(curFreePosition_) <= ToUintPtr(memoryEndAddr_));
-        return ToUintPtr(memoryEndAddr_) - ToUintPtr(curFreePosition_);
+        ASSERT(curFreePosition_ >= memoryStartAddr_);
+        ASSERT(curFreePosition_ <= memoryEndAddr_);
+        return memoryEndAddr_ - curFreePosition_;
     }
 
     MemRange GetMemRangeForOccupiedMemory() const
     {
-        return MemRange(ToUintPtr(memoryStartAddr_), ToUintPtr(curFreePosition_) - 1);
+        return MemRange(memoryStartAddr_, curFreePosition_ - 1);
     }
 
     static constexpr size_t TLABStartAddrOffset()
@@ -246,8 +254,8 @@ public:
 
     size_t GetSize()
     {
-        ASSERT(ToUintPtr(memoryEndAddr_) >= ToUintPtr(memoryStartAddr_));
-        return ToUintPtr(memoryEndAddr_) - ToUintPtr(memoryStartAddr_);
+        ASSERT(memoryEndAddr_ >= memoryStartAddr_);
+        return memoryEndAddr_ - memoryStartAddr_;
     }
 
     float GetFillFraction()
@@ -264,10 +272,11 @@ public:
     }
 
 private:
-    // NOTE(aemelenko): Maybe use OBJECT_POINTER_SIZE here for heap allocation.
-    void *memoryStartAddr_ {nullptr};
-    void *memoryEndAddr_ {nullptr};
-    void *curFreePosition_ {nullptr};
+    ObjectPointerType memoryStartAddr_ {0};
+    ObjectPointerType memoryEndAddr_ {0};
+    ObjectPointerType curFreePosition_ {0};
+    // Allocation position up to which TLAB bytes have been recorded in MemStats.
+    ObjectPointerType lastRecordedPosition_ {0};
 };
 
 #undef LOG_TLAB_ALLOCATOR

@@ -222,10 +222,6 @@ public:
         return nullptr;
     }
 
-    static void Initialize();
-
-    static void Shutdown();
-
     ark::mem::StackFrameAllocator *GetStackFrameAllocator() const
     {
         return stackFrameAllocator_;
@@ -245,16 +241,6 @@ public:
     {
         return internalLocalAllocator_;
     }
-
-    mem::TLAB *GetTLAB() const
-    {
-        ASSERT(tlab_ != nullptr);
-        return tlab_;
-    }
-
-    void UpdateTLAB(mem::TLAB *tlab);
-
-    void ClearTLAB();
 
     void SetStringClassPtr(void *p)
     {
@@ -305,11 +291,6 @@ public:
     ark::panda_file::SourceLang GetThreadLang() const
     {
         return threadLang_;
-    }
-
-    WeightedAdaptiveTlabAverage *GetWeightedTlabAverage() const
-    {
-        return weightedAdaptiveTlabAverage_;
     }
 
     PANDA_PUBLIC_API LanguageContext GetLanguageContext();
@@ -367,10 +348,6 @@ public:
     static constexpr uint32_t GetNativePcOffset()
     {
         return MEMBER_OFFSET(ManagedThread, nativePc_);
-    }
-    static constexpr uint32_t GetTLABOffset()
-    {
-        return MEMBER_OFFSET(ManagedThread, tlab_);
     }
     static constexpr uint32_t GetTlsStringClassPointerOffset()
     {
@@ -601,9 +578,6 @@ public:
     /// Clears the pre/post barrier buffers (and other resources) without deallocation.
     void CleanupInternalResources();
 
-    /// Collect TLAB metrics for memstats
-    void CollectTLABMetrics();
-
     void InitForStackOverflowCheck(size_t nativeStackReservedSize, size_t nativeStackProtectedSize);
     virtual void DisableStackOverflowCheck();
     virtual void EnableStackOverflowCheck();
@@ -795,7 +769,6 @@ private:
     // Can cause data races if child thread's UpdateId is executed concurrently with GetNativeThreadId
     std::atomic<ThreadId> id_;
 
-    static mem::TLAB *zeroTlab_;
     EntrypointsTable *entrypointsTable_ {nullptr};
     Frame *frame_ {nullptr};
     uintptr_t nativePc_ {};
@@ -803,7 +776,6 @@ private:
     ObjectHeader *exception_ {nullptr};
     void *languageExtensionData_ {nullptr};
     PandaVector<ObjectHeader **> localObjects_;
-    WeightedAdaptiveTlabAverage *weightedAdaptiveTlabAverage_ {nullptr};
 
     // Something like custom TLS - it is faster to access via ManagedThread than via thread_local
     InterpreterCache interpreterCache_;
@@ -817,7 +789,6 @@ private:
     ObjectHeader *floatToStringCache_ {nullptr};
     ObjectHeader *longToStringCache_ {nullptr};
 
-    mem::TLAB *tlab_ {nullptr};
     // Thread local storages to avoid locks in heap manager
     mem::StackFrameAllocator *stackFrameAllocator_;
     mem::InternalAllocator<>::LocalSmallObjectAllocator *internalLocalAllocator_;

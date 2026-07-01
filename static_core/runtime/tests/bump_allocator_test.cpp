@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -38,7 +38,7 @@ public:
         seed_ = 0x0BADDEAD;
 #endif
         srand(seed_);
-        ark::mem::MemConfig::Initialize(0, 8_MB, 0, 0, 0, 0);
+        ark::mem::MemConfig::Initialize(8_MB, 0, 0, 0, 0, 0);
         PoolManager::Initialize();
     }
 
@@ -114,7 +114,7 @@ DEATH_TEST_F(BumpAllocatorTest, AlignedAlloc)
     testing::FLAGS_gtest_death_test_style = "threadsafe";
     constexpr size_t BUFF_SIZE = 1_MB;
     constexpr size_t ARRAY_SIZE = 1024;
-    auto pool = PoolManager::GetMmapMemPool()->AllocPool(BUFF_SIZE, SpaceType::SPACE_TYPE_INTERNAL,
+    auto pool = PoolManager::GetMmapMemPool()->AllocPool(BUFF_SIZE, SpaceType::SPACE_TYPE_OBJECT,
                                                          AllocatorType::BUMP_ALLOCATOR);
     mem::MemStatsType memStats;
     NonObjectBumpAllocator<false> bpAllocator(pool, SpaceType::SPACE_TYPE_INTERNAL, &memStats);
@@ -150,6 +150,7 @@ DEATH_TEST_F(BumpAllocatorTest, AlignedAlloc)
     ptr = bpAllocator.Alloc(1_MB);
     ASSERT_EQ(ptr, nullptr) << "Here Alloc with allocation size = 1 MB should return nullptr"
                             << ", seed:" << seed_;
+    PoolManager::GetMmapMemPool()->FreePool(pool.GetMem(), pool.GetSize());
 }
 
 TEST_F(BumpAllocatorTest, CreateTLABAndAlloc)
@@ -163,7 +164,7 @@ TEST_F(BumpAllocatorTest, CreateTLABAndAlloc)
 
     std::array<AllocType *, TLAB_ALLOC_COUNT_SIZE> tlabElements {};
     std::array<AllocType *, COMMON_ALLOC_COUNT_SIZE> commonElements {};
-    auto pool = PoolManager::GetMmapMemPool()->AllocPool(TLAB_SIZE + COMMON_BUFFER_SIZE, SpaceType::SPACE_TYPE_INTERNAL,
+    auto pool = PoolManager::GetMmapMemPool()->AllocPool(TLAB_SIZE + COMMON_BUFFER_SIZE, SpaceType::SPACE_TYPE_OBJECT,
                                                          AllocatorType::BUMP_ALLOCATOR);
     mem::MemStatsType memStats;
     NonObjectBumpAllocator<true> allocator(pool, SpaceType::SPACE_TYPE_OBJECT, &memStats, 1U);
@@ -192,13 +193,14 @@ TEST_F(BumpAllocatorTest, CreateTLABAndAlloc)
         CheckAlloc(tlabElements);
         CheckAlloc(commonElements);
     }
+    PoolManager::GetMmapMemPool()->FreePool(pool.GetMem(), pool.GetSize());
 }
 
 TEST_F(BumpAllocatorTest, CreateTooManyTLABS)
 {
     constexpr size_t TLAB_SIZE = 1_MB;
     constexpr size_t TLAB_COUNT = 3;
-    auto pool = PoolManager::GetMmapMemPool()->AllocPool(TLAB_SIZE * TLAB_COUNT, SpaceType::SPACE_TYPE_INTERNAL,
+    auto pool = PoolManager::GetMmapMemPool()->AllocPool(TLAB_SIZE * TLAB_COUNT, SpaceType::SPACE_TYPE_OBJECT,
                                                          AllocatorType::BUMP_ALLOCATOR);
     mem::MemStatsType memStats;
     NonObjectBumpAllocator<true> allocator(pool, SpaceType::SPACE_TYPE_OBJECT, &memStats, TLAB_COUNT - 1);
@@ -219,6 +221,7 @@ TEST_F(BumpAllocatorTest, CreateTooManyTLABS)
         TLAB *tlab = allocator.CreateNewTLAB(TLAB_SIZE);
         ASSERT_TRUE(tlab == nullptr) << ", seed:" << seed_;
     }
+    PoolManager::GetMmapMemPool()->FreePool(pool.GetMem(), pool.GetSize());
 }
 
 }  // namespace ark::mem

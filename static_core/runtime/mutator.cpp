@@ -15,7 +15,8 @@
 
 #include "runtime/include/mutator.h"
 
-#include "include/mutator_status.h"
+#include "runtime/include/mem/tlab_keeper.h"
+#include "runtime/include/mutator_status.h"
 #include "libarkbase/os/mutex.h"
 #include "runtime/include/managed_thread.h"
 #include "runtime/include/panda_vm.h"
@@ -93,6 +94,9 @@ Mutator::Mutator(PandaVM *vm, MutatorType type) : vm_(vm), type_(type)
     }
     ASSERT(type_ != MutatorType::NONE);
     InitializeMutatorFlag();
+
+    tlab_ = zeroTlab_;
+    tlabKeeper_ = nullptr;
 }
 
 Mutator::~Mutator()
@@ -100,6 +104,12 @@ Mutator::~Mutator()
     // Internal resources should be deleted in OnMutatorTerminate, if GC created them
     ASSERT(satbBuff_ == nullptr);
     ASSERT(g1PostBarrierRingBuffer_ == nullptr);
+    if (tlabKeeper_ != nullptr && GetMutatorType() != MutatorType::COMPILER) {
+        ASSERT(ark::mem::TLABKeeper::GetCurrent() == tlabKeeper_);
+        MoveTLABKeeper()->DecreaseRefCounter();
+    }
+    // For managed threads tlab must be finilized correctly written to the mem stats and zeroed after
+    ASSERT(GetMutatorType() != Mutator::MutatorType::MANAGED || tlab_ == zeroTlab_ || zeroTlab_ == nullptr);
 }
 
 void Mutator::AllocateSatbBuff(mem::InternalAllocatorPtr allocator)
@@ -239,6 +249,9 @@ void Mutator::TransitionFromSuspendedToRunning()
     StoreStatus<CHECK_SAFEPOINT, READLOCK>(MutatorStatus::RUNNING);
     if (HaveRefCleanupRequest()) {
         HandleReferencesCleanupRequest();
+    }
+    if (tlabKeeper_ == nullptr) {
+        tlabKeeper_ = mem::TLABKeeper::IncreaseRefCounterAndGetCurrent();
     }
 }
 
@@ -414,6 +427,50 @@ void Mutator::HandleReferencesCleanupRequest()
 void Mutator::MakeTSANHappyForThreadState()
 {
     TSAN_ANNOTATE_HAPPENS_AFTER(&fms_);
+}
+
+mem::TLAB *Mutator::zeroTlab_ = nullptr;
+
+void Mutator::UpdateTLAB(mem::TLAB *tlab)
+{
+    ASSERT(tlab_ != nullptr);
+    ASSERT(tlab != nullptr);
+    tlab_ = tlab;
+}
+
+void Mutator::ClearTLAB()
+{
+    ASSERT(zeroTlab_ != nullptr);
+    tlab_ = zeroTlab_;
+}
+
+void Mutator::SetUpTlabKeeper()
+{
+    ASSERT(tlabKeeper_ == nullptr);
+    tlabKeeper_ = ark::mem::TLABKeeper::IncreaseRefCounterAndGetCurrent();
+}
+
+/* static */
+void Mutator::Initialize()
+{
+    ASSERT(!Mutator::GetCurrent());
+    ASSERT(!zeroTlab_);
+    mem::InternalAllocatorPtr allocator = Runtime::GetCurrent()->GetInternalAllocator();
+    zeroTlab_ = allocator->New<mem::TLAB>(nullptr, 0U);
+    InitializeInitMutatorFlag();
+}
+
+/* static */
+void Mutator::Shutdown()
+{
+    ASSERT(zeroTlab_);
+    Mutator::SetCurrent(nullptr);
+    mem::InternalAllocatorPtr allocator = Runtime::GetCurrent()->GetInternalAllocator();
+    allocator->Delete(zeroTlab_);
+    zeroTlab_ = nullptr;
+    /* @sync 1
+     * @description: Runtime is terminated at this point and we cannot create new threads
+     * */
 }
 
 }  // namespace ark

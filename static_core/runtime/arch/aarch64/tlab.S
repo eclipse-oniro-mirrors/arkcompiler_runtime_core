@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -19,13 +19,18 @@
 
 // Load tlab start and tlab size from TLAB structure. Relies on fact that tlab start and tlab end are neighbours in TLAB structure.
 .macro LOAD_TLAB_INFO reg_tlab_start, reg_tlab_size
-  .if TLAB_CUR_FREE_POSITION_OFFSET - TLAB_MEMORY_END_ADDR_OFFSET != 8
+  .if (TLAB_CUR_FREE_POSITION_OFFSET - TLAB_MEMORY_END_ADDR_OFFSET) != 8 && (TLAB_CUR_FREE_POSITION_OFFSET - TLAB_MEMORY_END_ADDR_OFFSET) != 4
     // we need it to be able to load pair of values with one instruction
     .err
   .endif
 
   ldr \reg_tlab_size, [THREAD_REG, #MANAGED_THREAD_TLAB_OFFSET]
-  ldp \reg_tlab_size, \reg_tlab_start, [\reg_tlab_size, #TLAB_MEMORY_END_ADDR_OFFSET]
+  .if (TLAB_CUR_FREE_POSITION_OFFSET - TLAB_MEMORY_END_ADDR_OFFSET) == 8
+    ldp \reg_tlab_size, \reg_tlab_start, [\reg_tlab_size, #TLAB_MEMORY_END_ADDR_OFFSET]
+  .else
+	// Use 32 bit load for 32 bit pointers
+    ldp w\reg_tlab_size, w\reg_tlab_start, [\reg_tlab_size, #TLAB_MEMORY_END_ADDR_OFFSET]
+  .endif
   sub \reg_tlab_size, \reg_tlab_size, \reg_tlab_start
 .endm
 

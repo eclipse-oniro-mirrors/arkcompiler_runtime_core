@@ -600,6 +600,13 @@ size_t RegionAllocator<AllocConfigT, LockConfigT>::PromoteYoungRegionToTargetAll
     }
     // We set not actual value here but we will update it later
     region->SetLiveBytes(region->GetAllocatedBytes());
+    // Registering tlabs into memstats
+    if (!PANDA_TRACK_TLAB_ALLOCATIONS && region->IsTLAB()) {
+        auto newAllocated = region->GetAndResetNewAllocatedBytesInTLABs();
+        if (newAllocated != 0) {
+            this->memStats_->RecordAllocateObject(newAllocated, SpaceType::SPACE_TYPE_OBJECT);
+        }
+    }
     this->GetSpace()->PromoteYoungRegionToTargetSpace(region, targetAlloc->GetSpace(), &this->regionLock_,
                                                       &targetAlloc->regionLock_);
     return aliveMoveCount;
@@ -607,12 +614,19 @@ size_t RegionAllocator<AllocConfigT, LockConfigT>::PromoteYoungRegionToTargetAll
 
 template <typename AllocConfigT, typename LockConfigT>
 template <typename F>
-void RegionAllocator<AllocConfigT, LockConfigT>::ResetAllYoungRegions(const F &onRegionDestroy)
+void RegionAllocator<AllocConfigT, LockConfigT>::ResetAllYoungRegionsAndRegisterTLABs(const F &onRegionDestroy)
 {
     ResetCurrentRegion<false, RegionFlag::IS_EDEN>();
     this->GetSpace()->IterateRegions([&](Region *region) {
         if (!region->IsYoung()) {
             return;
+        }
+        // Registering tlabs into memstats
+        if (!PANDA_TRACK_TLAB_ALLOCATIONS && region->IsTLAB()) {
+            auto bytes = region->GetAndResetNewAllocatedBytesInTLABs();
+            if (bytes != 0) {
+                this->memStats_->RecordAllocateObject(bytes, SpaceType::SPACE_TYPE_OBJECT);
+            }
         }
         this->GetSpace()
             ->template FreeRegion<RegionSpace::ReleaseRegionsPolicy::NoRelease, OSPagesPolicy::IMMEDIATE_RETURN, F>(

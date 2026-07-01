@@ -12,7 +12,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "include/mem/panda_containers.h"
 #if defined(ARK_USE_COMMON_RUNTIME)
 
 #include <iomanip>
@@ -21,6 +20,7 @@
 #include "runtime/mem/gc/cmc/heap/heap_manager.h"
 #include "runtime/mem/gc/gc_adaptive_stack_inl.h"
 #include "runtime/mem/gc/gc_stats.h"
+#include "runtime/mem/heap_manager.h"
 
 #include "common_components/base/globals.h"
 #include "runtime/mem/gc/cmc/heap/verification.h"
@@ -35,6 +35,7 @@
 #include "libarkbase/utils/math_helpers.h"
 #include "runtime/include/runtime.h"
 #include "runtime/include/panda_vm.h"
+#include "runtime/include/mem/tlab_keeper.h"
 #include "runtime/trace.h"
 #include "runtime/mem/gc/reference-processor/reference_processor.h"
 #include "runtime/mem/object-references-iterator-inl.h"
@@ -1241,6 +1242,13 @@ void CmcGC<LanguageConfig>::OnMutatorTerminate(Mutator *mutator, [[maybe_unused]
         size_t satbBuffSize = mutator->GetSatbBuffSize();
         ObjectPointerType *satbBuff = mutator->MoveSatbBuff();
         mutator->PushSatbBuff({satbBuff, satbBuffSize});
+        auto *keeper = mutator->MoveTLABKeeper();
+        if (keeper != nullptr) {
+            keeper->DecreaseRefCounter([this](TLAB *tlab) {
+                this->GetPandaVm()->GetHeapManager()->RegisterTLAB(tlab);
+                static_cast<CMCObjectAllocator *>(this->GetObjectAllocator())->CollectTLAB(tlab);
+            });
+        }
         return true;
     });
 }
@@ -1336,7 +1344,7 @@ bool CmcGC<LanguageConfig>::PushRootToWorkStack(CmcGCMarkingStack &collectStack,
     bool marked = regionInfo->MarkObject(baseObj);
     if (!marked) {
         DCHECK(!regionInfo->IsGarbageRegion());
-        LOG(DEBUG, GC) << "mark obj " << obj << "<" << baseObj->GetTypeInfo() << ">(" << baseObj->GetSize()
+        LOG(DEBUG, GC) << "mark root obj " << obj << "<" << baseObj->GetTypeInfo() << ">(" << baseObj->GetSize()
                        << ") in region " << regionInfo << "(" << static_cast<size_t>(regionInfo->GetRegionType())
                        << ")@0x" << std::hex << regionInfo->GetRegionStart() << std::dec << ", live "
                        << regionInfo->GetLiveByteCount();

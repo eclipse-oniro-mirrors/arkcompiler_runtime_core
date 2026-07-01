@@ -20,6 +20,7 @@
 #include "runtime/mem/region_allocator.h"
 #include "runtime/mem/region_allocator-inl.h"
 #include "runtime/mem/gc/g1/g1-allocator_constants.h"
+#include "runtime/include/mem/tlab_keeper.h"
 
 namespace ark::mem {
 class ObjectAllocConfigWithCrossingMap;
@@ -142,18 +143,25 @@ public:
     template <typename F>
     void ResetYoungAllocator(const F &onRegionDestroy)
     {
-        auto callback = [](ManagedThread *thread) {
-            thread->CollectTLABMetrics();
-            if (Runtime::GetOptions().IsAdaptiveTlabSize()) {
-                thread->GetWeightedTlabAverage()->ComputeNewSumAndResetSamples();
+        auto *vm = Mutator::GetCurrent()->GetVM();
+        vm->GetMutatorManager()->ForEachMutator([](Mutator *mutator) {
+            mutator->ClearTLAB();
+            auto *keeper = mutator->GetTLABKeeper();
+            if (keeper == nullptr) {
+                return true;
             }
-            // Here we should not collect current TLAB fill statistics for adaptive size
-            // since it may not be completely filled before resetting
-            thread->ClearTLAB();
+            // Write tlab into metrics
+            auto *zeroTlab = Mutator::GetZeroTLAB();
+            mem::TLAB *keptTlab = keeper->GetTLAB();
+            if (keptTlab != nullptr && keptTlab != zeroTlab) {
+                if (Runtime::GetOptions().IsAdaptiveTlabSize()) {
+                    keeper->GetWeightedTlabAverage()->ComputeNewSumAndResetSamples();
+                }
+            }
+            keeper->SetTLAB(zeroTlab);
             return true;
-        };
-        Mutator::GetCurrent()->GetVM()->GetThreadManager()->EnumerateThreads(callback);
-        objectYoungAllocator_->ResetAllYoungRegions(onRegionDestroy);
+        });
+        objectYoungAllocator_->ResetAllYoungRegionsAndRegisterTLABs(onRegionDestroy);
     }
 
     template <RegionFlag REGIONS_TYPE, RegionSpace::ReleaseRegionsPolicy REGIONS_RELEASE_POLICY,

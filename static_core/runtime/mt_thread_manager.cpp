@@ -241,7 +241,6 @@ bool MTThreadManager::UnregisterExitedThread(MTManagedThread *thread)
         }
         thread->UpdateStatus(MutatorStatus::TERMINATING);
 
-        thread->CollectTLABMetrics();
         thread->ClearTLAB();
         thread->DestroyInternalResources();
 

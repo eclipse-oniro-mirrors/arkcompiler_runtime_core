@@ -39,6 +39,7 @@
 #include "runtime/mem/refstorage/global_object_storage.h"
 #include "runtime/mem/gc/g1/g1-evacuate-regions-worker-state-inl.h"
 #include "runtime/mem/gc/g1/xgc-extension-data.h"
+#include "runtime/mem/heap_manager.h"
 
 namespace ark::mem {
 
@@ -2406,6 +2407,15 @@ bool G1GC<LanguageConfig>::HaveEnoughRegionsToMove(size_t num)
 }
 
 template <class LanguageConfig>
+void G1GC<LanguageConfig>::RegisterTLABOfTerminatingMutator(Mutator *mutator)
+{
+    auto *keeper = mutator->MoveTLABKeeper();
+    if (keeper != nullptr) {
+        keeper->DecreaseRefCounter([this](TLAB *tlab) { this->GetPandaVm()->GetHeapManager()->RegisterTLAB(tlab); });
+    }
+}
+
+template <class LanguageConfig>
 void G1GC<LanguageConfig>::OnMutatorTerminate(Mutator *mutator, mem::BuffersKeepingFlag keepBuffers)
 {
     // The method must be called while the lock which guards thread/coroutine list is hold
@@ -2446,7 +2456,7 @@ void G1GC<LanguageConfig>::OnMutatorTerminate(Mutator *mutator, mem::BuffersKeep
                 mutator->ResetG1PostBarrierBuffer();
             }
         }
-
+        RegisterTLABOfTerminatingMutator(mutator);
         return true;
     });
 }

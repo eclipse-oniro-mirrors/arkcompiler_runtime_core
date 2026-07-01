@@ -32,11 +32,13 @@ TLAB::TLAB(void *address, size_t size)
 
 void TLAB::Fill(void *address, size_t size)
 {
+    ASSERT(ToUintPtr(address) + size <= std::numeric_limits<ObjectPointerType>::max());
     ASSERT(ToUintPtr(address) == AlignUp(ToUintPtr(address), DEFAULT_ALIGNMENT_IN_BYTES));
-    memoryStartAddr_ = address;
-    memoryEndAddr_ = ToVoidPtr(ToUintPtr(address) + size);
-    curFreePosition_ = address;
-    ASAN_POISON_MEMORY_REGION(memoryStartAddr_, GetSize());
+    memoryStartAddr_ = ToUintPtr(address);
+    memoryEndAddr_ = ToUintPtr(address) + size;
+    curFreePosition_ = ToUintPtr(address);
+    lastRecordedPosition_ = curFreePosition_;
+    ASAN_POISON_MEMORY_REGION(ToVoidPtr(memoryStartAddr_), GetSize());
     LOG_TLAB_ALLOCATOR(DEBUG) << "Fill a TLAB with buffer at addr " << std::hex << address << " with size " << std::dec
                               << size;
 }
@@ -50,7 +52,7 @@ TLAB::~TLAB()
 void TLAB::Destroy()
 {
     LOG_TLAB_ALLOCATOR(DEBUG) << "Destroy the TLAB at addr " << std::hex << this;
-    ASAN_UNPOISON_MEMORY_REGION(memoryStartAddr_, GetSize());
+    ASAN_UNPOISON_MEMORY_REGION(ToVoidPtr(memoryStartAddr_), GetSize());
 }
 
 void *TLAB::Alloc(size_t size)
@@ -59,10 +61,10 @@ void *TLAB::Alloc(size_t size)
     size_t freeSize = GetFreeSize();
     size_t requestedSize = GetAlignedObjectSize(size);
     if (requestedSize <= freeSize) {
-        ASSERT(ToUintPtr(curFreePosition_) == AlignUp(ToUintPtr(curFreePosition_), DEFAULT_ALIGNMENT_IN_BYTES));
-        ret = curFreePosition_;
+        ASSERT(curFreePosition_ == AlignUp(curFreePosition_, DEFAULT_ALIGNMENT_IN_BYTES));
+        ret = ToVoidPtr(curFreePosition_);
         ASAN_UNPOISON_MEMORY_REGION(ret, size);
-        curFreePosition_ = ToVoidPtr(ToUintPtr(curFreePosition_) + requestedSize);
+        curFreePosition_ = curFreePosition_ + requestedSize;
     }
     LOG_TLAB_ALLOCATOR(DEBUG) << "Alloc size = " << size << " at addr = " << ret;
     return ret;
@@ -71,8 +73,8 @@ void *TLAB::Alloc(size_t size)
 void TLAB::IterateOverObjects(const std::function<void(ObjectHeader *objectHeader)> &objectVisitor)
 {
     LOG_TLAB_ALLOCATOR(DEBUG) << "IterateOverObjects started";
-    auto *curPtr = memoryStartAddr_;
-    void *endPtr = curFreePosition_;
+    void *curPtr = ToVoidPtr(memoryStartAddr_);
+    void *endPtr = ToVoidPtr(curFreePosition_);
     while (curPtr < endPtr) {
         auto objectHeader = static_cast<ObjectHeader *>(curPtr);
         size_t objectSize = GetObjectSize(curPtr);
@@ -89,8 +91,8 @@ void TLAB::IterateOverObjectsInRange(const std::function<void(ObjectHeader *obje
     if (GetOccupiedSize() == 0 || !GetMemRangeForOccupiedMemory().IsIntersect(memRange)) {
         return;
     }
-    void *currentPtr = memoryStartAddr_;
-    void *endPtr = ToVoidPtr(std::min(ToUintPtr(curFreePosition_), memRange.GetEndAddress() + 1));
+    void *currentPtr = ToVoidPtr(memoryStartAddr_);
+    void *endPtr = ToVoidPtr(std::min<ObjectPointerType>(curFreePosition_, memRange.GetEndAddress() + 1));
     void *startIteratePos = ToVoidPtr(std::max(ToUintPtr(currentPtr), memRange.GetStartAddress()));
     while (currentPtr < startIteratePos) {
         size_t objectSize = GetObjectSize(static_cast<ObjectHeader *>(currentPtr));
@@ -107,7 +109,7 @@ void TLAB::IterateOverObjectsInRange(const std::function<void(ObjectHeader *obje
 
 bool TLAB::ContainObject(const ObjectHeader *obj)
 {
-    return (ToUintPtr(curFreePosition_) > ToUintPtr(obj)) && (ToUintPtr(memoryStartAddr_) <= ToUintPtr(obj));
+    return (curFreePosition_ > ToUintPtr(obj)) && (memoryStartAddr_ <= ToUintPtr(obj));
 }
 
 bool TLAB::IsLive(const ObjectHeader *obj)
@@ -117,7 +119,7 @@ bool TLAB::IsLive(const ObjectHeader *obj)
 }
 
 // tlab cur addr and tlab end addr are neighbours in TLAB structure
-static_assert(TLAB::TLABFreePointerOffset() - TLAB::TLABEndAddrOffset() == sizeof(void *));
+static_assert(TLAB::TLABFreePointerOffset() - TLAB::TLABEndAddrOffset() == sizeof(ObjectPointerType));
 
 #undef LOG_TLAB_ALLOCATOR
 

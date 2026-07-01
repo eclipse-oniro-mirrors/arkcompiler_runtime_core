@@ -90,16 +90,13 @@ public:
 
     bool CreateNewTLAB(ManagedThread *thread);
 
+    /// Records allocations made in the TLAB since its previous registration.
+    void RegisterTLAB(TLAB *tlab);
+
     size_t GetTLABMaxAllocSize()
     {
         return UseTLABForAllocations() ? objectAllocator_.AsObjectAllocator()->GetTLABMaxAllocSize() : 0;
     }
-
-    /**
-     * Register TLAB information in MemStats during changing TLAB in a thread
-     * or during thread destroying.
-     */
-    void RegisterTLAB(const TLAB *tlab);
 
     /**
      * Prepare the heap before the fork process, The main function is to compact zygote space for fork subprocess
@@ -291,6 +288,8 @@ private:
     template <bool TRIGGER_GC>
     void *AllocateMemoryForObject(size_t size, Alignment align, ManagedThread *thread,
                                   ObjectAllocatorBase::ObjMemInitPolicy objInitType, bool pinned = false);
+
+    void *AllocateWithTLABFromKeeper(size_t size, ManagedThread *thread, mem::TLAB *&currentTlab);
 
     ObjectAllocatorPtr GetObjectAllocator() const;
 

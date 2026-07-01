@@ -241,6 +241,7 @@ int RunApp(ani_vm *vm)
         return 1;
     }
 
+    vm->DestroyVM();
     return 0;
 }
 // NOLINTEND(cppcoreguidelines-pro-type-vararg)

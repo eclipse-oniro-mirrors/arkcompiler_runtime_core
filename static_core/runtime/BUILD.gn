@@ -271,6 +271,7 @@ _libarkruntime_calculated_sources = [
   "mem/rendezvous.cpp",
   "mem/runslots.cpp",
   "mem/tlab.cpp",
+  "mem/tlab_keeper.cpp",
   "method.cpp",
   "methodtrace/trace.cpp",
   "monitor.cpp",

@@ -107,6 +107,7 @@ TLAB *ObjectAllocatorG1<MT_MODE>::CreateNewTLAB([[maybe_unused]] size_t tlabSize
             MemoryInitialize(newTlab->GetStartAddr(), newTlab->GetSize());
             ASAN_POISON_MEMORY_REGION(newTlab->GetStartAddr(), newTlab->GetSize());
         }
+        TLABKeeper::GetCurrent()->SetTLAB(newTlab);
     }
     return newTlab;
 }

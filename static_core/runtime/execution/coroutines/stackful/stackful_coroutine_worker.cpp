@@ -479,6 +479,7 @@ void StackfulCoroutineWorker::ThreadProc()
     Coroutine::SetCurrent(schedulerLoopCtx);
     schedulerLoopCtx->RequestResume();
     AddRunningCoroutine(schedulerLoopCtx);
+    schedulerLoopCtx->SetUpTlabKeeper();
     schedulerLoopCtx->NativeCodeBegin();
     coroManager_->OnWorkerStartup(this);
 

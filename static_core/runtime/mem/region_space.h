@@ -118,6 +118,8 @@ public:
 
     uint32_t GetAllocatedBytes() const;
 
+    size_t GetAndResetNewAllocatedBytesInTLABs();
+
     double GetFragmentation() const;
 
     uint32_t GetGarbageBytes() const

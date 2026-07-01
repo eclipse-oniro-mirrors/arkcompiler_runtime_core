@@ -14,6 +14,7 @@
  */
 
 #include "runtime/mem/heap_manager.h"
+#include "runtime/include/mem/tlab_keeper.h"
 #include "runtime/mem/lock_config_helper.h"
 #include "runtime/mem/internal_allocator-inl.h"
 
@@ -191,6 +192,19 @@ void *HeapManager::TryGCAndAlloc(size_t size, Alignment align, ManagedThread *th
     return mem;
 }
 
+void *HeapManager::AllocateWithTLABFromKeeper(size_t size, ManagedThread *thread, mem::TLAB *&currentTlab)
+{
+    auto *tlabKeeper = thread->GetTLABKeeper();
+    ASSERT(tlabKeeper != nullptr);
+    auto *keptTlab = tlabKeeper->GetTLAB();
+    if (keptTlab != nullptr && keptTlab != currentTlab) {
+        thread->UpdateTLAB(keptTlab);
+        currentTlab = keptTlab;
+        return keptTlab->Alloc(size);
+    }
+    return nullptr;
+}
+
 template <bool TRIGGER_GC>
 void *HeapManager::AllocateMemoryForObject(size_t size, Alignment align, ManagedThread *thread,
                                            ObjectAllocatorBase::ObjMemInitPolicy objInitType, bool pinned)
@@ -204,6 +218,10 @@ void *HeapManager::AllocateMemoryForObject(size_t size, Alignment align, Managed
         TLAB *currentTlab = thread->GetTLAB();
         ASSERT(currentTlab != nullptr);  // A thread's TLAB must be initialized at least via some ZERO tlab values.
         mem = currentTlab->Alloc(size);
+        if (mem == nullptr) {
+            mem = AllocateWithTLABFromKeeper(size, thread, currentTlab);
+        }
+
         bool shouldAllocNewTlab =
             !isAdaptiveTlabSize_ || currentTlab->GetFillFraction() >= TLAB::MIN_DESIRED_FILL_FRACTION;
         if (mem == nullptr && shouldAllocNewTlab) {
@@ -315,34 +333,39 @@ bool HeapManager::CreateNewTLAB(ManagedThread *thread)
     ASSERT(GetGC()->IsMutatorAllowed());
     ASSERT(thread != nullptr);
     size_t newTlabSize = 0;
+    auto *tlabKeeper = thread->GetTLABKeeper();
+    ASSERT(tlabKeeper == TLABKeeper::GetCurrent());
     TLAB *oldTlab = thread->GetTLAB();
-    ASSERT(oldTlab != nullptr);
-    [[maybe_unused]] size_t oldTlabAllocatedBytes = oldTlab->GetOccupiedSize();
+
     if (!isAdaptiveTlabSize_) {
         // Using initial tlab size
         newTlabSize = Runtime::GetOptions().GetInitTlabSize();
     } else {
-        thread->GetWeightedTlabAverage()->StoreNewSample(oldTlab->GetOccupiedSize(), oldTlab->GetSize());
-        newTlabSize = AlignUp(thread->GetWeightedTlabAverage()->GetLastCountedSumInSizeT(), DEFAULT_ALIGNMENT_IN_BYTES);
+        auto *tlabAverage = tlabKeeper->GetWeightedTlabAverage();
+        tlabAverage->StoreNewSample(oldTlab->GetOccupiedSize(), oldTlab->GetSize());
+        newTlabSize = AlignUp(tlabAverage->GetLastCountedSumInSizeT(), DEFAULT_ALIGNMENT_IN_BYTES);
     }
     LOG(DEBUG, ALLOC) << "Allocating new tlab with size: " << newTlabSize;
     ASSERT(newTlabSize != 0);
+    RegisterTLAB(oldTlab);
     TLAB *newTlab = objectAllocator_.AsObjectAllocator()->CreateNewTLAB(newTlabSize);
     if (newTlab != nullptr) {
-        if (!PANDA_TRACK_TLAB_ALLOCATIONS && oldTlabAllocatedBytes != 0) {
-            memStats_->RecordAllocateObject(oldTlabAllocatedBytes, SpaceType::SPACE_TYPE_OBJECT);
-        }
+        // Object allocator must update tlab in keeper
+        ASSERT(newTlab == tlabKeeper->GetTLAB());
         thread->UpdateTLAB(newTlab);
         return true;
     }
     return false;
 }
 
-void HeapManager::RegisterTLAB(const TLAB *tlab)
+void HeapManager::RegisterTLAB(TLAB *tlab)
 {
     ASSERT(tlab != nullptr);
-    if (!PANDA_TRACK_TLAB_ALLOCATIONS && (tlab->GetOccupiedSize() != 0)) {
-        memStats_->RecordAllocateObject(tlab->GetOccupiedSize(), SpaceType::SPACE_TYPE_OBJECT);
+    if (!PANDA_TRACK_TLAB_ALLOCATIONS && tlab != Mutator::GetZeroTLAB()) {
+        auto newAllocatedBytes = tlab->GetAndResetNewAllocatedBytes();
+        if (newAllocatedBytes != 0) {
+            memStats_->RecordAllocateObject(newAllocatedBytes, SpaceType::SPACE_TYPE_OBJECT);
+        }
     }
 }
 

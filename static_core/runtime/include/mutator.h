@@ -35,6 +35,7 @@ namespace ark {
 class PandaVM;
 namespace mem {
 class GCBarrierSet;
+class TLABKeeper;
 }  // namespace mem
 class ObjectHeader;
 
@@ -78,6 +79,10 @@ public:
      */
     PANDA_PUBLIC_API static void SetCurrent(Mutator *mutator);
 
+    static void Initialize();
+
+    static void Shutdown();
+
     static constexpr size_t GetVmOffset()
     {
         return MEMBER_OFFSET(Mutator, vm_);
@@ -116,6 +121,11 @@ public:
     static constexpr uint32_t GetTlsReadBarrierEntrypointOffset()
     {
         return MEMBER_OFFSET(Mutator, readBarrierEntrypoint_);
+    }
+
+    static constexpr uint32_t GetTLABOffset()
+    {
+        return MEMBER_OFFSET(Mutator, tlab_);
     }
 
     ALWAYS_INLINE MutatorLock *GetMutatorLock() const
@@ -324,6 +334,35 @@ public:
 
     static constexpr size_t PRE_BUFF_CAPACITY = 1024U;
 
+    mem::TLAB *GetTLAB() const
+    {
+        ASSERT(tlab_ != nullptr);
+        return tlab_;
+    }
+
+    void UpdateTLAB(mem::TLAB *tlab);
+
+    void ClearTLAB();
+
+    void SetUpTlabKeeper();
+
+    mem::TLABKeeper *MoveTLABKeeper()
+    {
+        auto *keeper = tlabKeeper_;
+        tlabKeeper_ = nullptr;
+        return keeper;
+    }
+
+    mem::TLABKeeper *GetTLABKeeper()
+    {
+        return tlabKeeper_;
+    }
+
+    static mem::TLAB *GetZeroTLAB()
+    {
+        return zeroTlab_;
+    }
+
 private:
     // NO_THREAD_SAFETY_ANALYSIS due to TSAN not being able to determine lock status
     void TransitionFromRunningToSuspended(enum MutatorStatus status) NO_THREAD_SAFETY_ANALYSIS;
@@ -493,6 +532,11 @@ private:
 
     PandaList<std::pair<ObjectPointerType *, size_t>> *satbBuffList_ = nullptr;
     os::memory::Mutex *satbBuffMutex_ = nullptr;
+
+protected:
+    mem::TLAB *tlab_;              // NOLINT(misc-non-private-member-variables-in-classes)
+    mem::TLABKeeper *tlabKeeper_;  // NOLINT(misc-non-private-member-variables-in-classes)
+    static mem::TLAB *zeroTlab_;   // NOLINT(misc-non-private-member-variables-in-classes)
 };
 
 /**

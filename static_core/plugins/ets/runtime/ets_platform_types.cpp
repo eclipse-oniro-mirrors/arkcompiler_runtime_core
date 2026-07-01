@@ -15,8 +15,8 @@
 
 #include "plugins/ets/runtime/ets_platform_types.h"
 #include "ets_class_linker_extension.h"
-#include "include/managed_thread.h"
-#include "include/thread_scopes.h"
+#include "runtime/include/managed_thread.h"
+#include "runtime/include/thread_scopes.h"
 #include "plugins/ets/runtime/ets_class_linker.h"
 #include "plugins/ets/runtime/ets_panda_file_items.h"
 #include "plugins/ets/runtime/types/ets_class.h"
@@ -187,6 +187,8 @@ EtsPlatformTypes::EtsPlatformTypes([[maybe_unused]] EtsExecutionContext *executi
     }
 
     if (LIKELY(Runtime::GetOptions().IsUseStringCaches())) {
+        // Any allocations must be in running state of mutator
+        ScopedManagedCodeThread scope(executionCtx->GetMT());
         CreateAndInitializeCaches();
     }
 }

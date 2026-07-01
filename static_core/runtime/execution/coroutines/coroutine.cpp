@@ -23,6 +23,7 @@
 #include "runtime/include/thread_scopes.h"
 
 #include "runtime/trace.h"
+#include "runtime/include/mem/tlab_keeper.h"
 
 namespace ark {
 
@@ -92,6 +93,26 @@ Coroutine::Status Coroutine::GetCoroutineStatus() const
 void Coroutine::SetCoroutineStatus(Coroutine::Status newStatus)
 {
     context_->SetStatus(newStatus);
+}
+
+void Coroutine::OnHostWorkerChanged([[maybe_unused]] JobWorkerThread *oldWorker,
+                                    [[maybe_unused]] JobWorkerThread *newWorker)
+{
+    // If oldWorker == nullptr, than coroutine was never running and its tlabKeeper must be nullptr
+    if (oldWorker == nullptr) {
+        ASSERT(this->GetTLABKeeper() == nullptr);
+        return;
+    }
+
+    // If oldWorker != nullptr, than its tlabKeeper must be either nullptr, or same as workers scheduler coroutine
+    // Scheduler coroutine of worker will always keep at least one reference to tlabKeeper and hence, DecreaseRefCounter
+    // must not call callback here
+    this->ClearTLAB();
+    auto *oldKeeper = this->MoveTLABKeeper();
+    if (oldKeeper != nullptr) {
+        ASSERT(oldWorker->GetSchedulerExecutionCtx()->GetTLABKeeper() == oldKeeper);
+        oldKeeper->DecreaseRefCounter();
+    }
 }
 
 void Coroutine::OnStatusChanged(Status oldStatus, Status newStatus)
@@ -215,7 +236,7 @@ void Coroutine::SetWorker(JobWorkerThread *w)
     auto *oldWorker = GetWorker();
     JobExecutionContext::SetWorker(w);
     if (w != oldWorker) {
-        OnHostWorkerChanged();
+        OnHostWorkerChanged(oldWorker, w);
     }
     // being ACTIVE requires an assigned worker!
     if ((oldWorker == nullptr) && (w != nullptr)) {

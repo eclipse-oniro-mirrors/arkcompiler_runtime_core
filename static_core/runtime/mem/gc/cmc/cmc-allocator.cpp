@@ -19,6 +19,8 @@
 #include "runtime/mem/runslots_allocator-inl.h"
 #if defined(ARK_USE_COMMON_RUNTIME)
 #include "runtime/mem/gc/cmc/heap/heap_allocator.h"
+#include "runtime/include/mem/tlab_keeper.h"
+#include "heap/allocator/regional_heap.h"
 #include "common_interfaces/objects/base_object.h"
 #include "common_interfaces/objects/base_state_word.h"
 #include "runtime/mem/gc/cmc/heap/heap.h"
@@ -130,9 +132,36 @@ void CMCObjectAllocator::IterateOverObjectsSafe([[maybe_unused]] const ObjectVis
 TLAB *CMCObjectAllocator::CreateNewTLAB([[maybe_unused]] size_t size)
 {
 #if defined(ARK_USE_COMMON_RUNTIME)
-    return reinterpret_cast<TLAB *>(ark::common_vm::HeapAllocator::CreateTLAB());
+
+    auto *tlabKeeper = mem::TLABKeeper::GetCurrent();
+    ASSERT(tlabKeeper != nullptr);
+    TLAB *oldTlab = tlabKeeper->GetTLAB();
+    if (oldTlab != nullptr) {
+        this->CollectTLAB(oldTlab);
+    }
+    auto *tlab = ark::common_vm::HeapAllocator::CreateTLAB();
+    tlabKeeper->SetTLAB(tlab);
+    return tlab;
 #else
     return nullptr;
+#endif
+}
+
+void CMCObjectAllocator::CollectTLAB([[maybe_unused]] TLAB *tlab)
+{
+#if defined(ARK_USE_COMMON_RUNTIME)
+    common_vm::AllocationBuffer *buffer = common_vm::AllocationBuffer::GetOrCreateAllocBuffer();
+    auto *region = buffer->GetRegion();
+    if (region != RegionDesc::NullRegion()) {
+        ASSERT(region->GetTLAB() == tlab);
+        buffer->SetRegion(RegionDesc::NullRegion());
+        auto &heap = reinterpret_cast<common_vm::RegionalHeap &>(Heap::GetHeap().GetAllocator());
+        region->SetRegionAllocPtr(ToUintPtr(tlab->GetCurPos()));
+        region->DetachTLAB();
+        heap.HandleFullThreadLocalRegion<common_vm::AllocBufferType::YOUNG>(region);
+    } else {
+        ASSERT(tlab->IsUninitialized());
+    }
 #endif
 }
 
