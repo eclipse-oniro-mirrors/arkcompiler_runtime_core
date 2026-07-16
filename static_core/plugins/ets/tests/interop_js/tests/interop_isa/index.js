@@ -19,6 +19,18 @@ function testCallRange(a, b) {
     return a + b;
 }
 
+function testCallRange1(a) {
+    return a;
+}
+
+function testCallRange0() {
+    return 0;
+}
+
+function testCallRange5(a, b, c, d, e) {
+    return a + b + c + d + e;
+}
+
 function testCall0() {
     return 1;
 }
@@ -70,10 +82,15 @@ class TestNewShort {
 let testInstanceOf = etsVm.getFunction('Ltest-static/ETSGLOBAL;', 'testIsInstance');
 
 let doTestCallRange = etsVm.getFunction('Ltest-static/ETSGLOBAL;', 'doTestCallRange');
+let doTestCallRange1 = etsVm.getFunction('Ltest-static/ETSGLOBAL;', 'doTestCallRange1');
+let doTestCallRange0 = etsVm.getFunction('Ltest-static/ETSGLOBAL;', 'doTestCallRange0');
+let doTestCallRange5 = etsVm.getFunction('Ltest-static/ETSGLOBAL;', 'doTestCallRange5');
 let doTestCall0 = etsVm.getFunction('Ltest-static/ETSGLOBAL;', 'doTestCall0');
 let doTestNew0 = etsVm.getFunction('Ltest-static/ETSGLOBAL;', 'doTestNew0');
 let doTestNewRange = etsVm.getFunction('Ltest-static/ETSGLOBAL;', 'doTestNewRange');
+let doTestNewRange0 = etsVm.getFunction('Ltest-static/ETSGLOBAL;', 'doTestNewRange0');
 let doTestCallThis0 = etsVm.getFunction('Ltest-static/ETSGLOBAL;', 'doTestCallThis0');
+let doTestCallThisRange0 = etsVm.getFunction('Ltest-static/ETSGLOBAL;', 'doTestCallThisRange0');
 let doTestCallThisRange = etsVm.getFunction('Ltest-static/ETSGLOBAL;', 'doTestCallThisRange');
 let doTestCallShort = etsVm.getFunction('Ltest-static/ETSGLOBAL;', 'doTestCallShort');
 let doTestCallThisShort = etsVm.getFunction('Ltest-static/ETSGLOBAL;', 'doTestCallThisShort');
@@ -113,6 +130,18 @@ function anyCallRangeTest() {
     ASSERT_EQ(doTestCallRange(testCallRange, 0, 1), 1);
 }
 
+function anyCallRange1Test() {
+    ASSERT_EQ(doTestCallRange1(testCallRange1, 1), 1);
+}
+
+function anyCallRange0Test() {
+    ASSERT_EQ(doTestCallRange0(testCallRange0), 0);
+}
+
+function anyCallRange5Test() {
+    ASSERT_EQ(doTestCallRange5(testCallRange5, 1, 2, 3, 4, 5), 15);
+}
+
 function anyCall0Test() {
     ASSERT_EQ(doTestCall0(testCall0), 1);
 }
@@ -131,6 +160,11 @@ function anyCallThis0Test() {
     ASSERT_EQ(doTestCallThis0(obj), 1);
 }
 
+function anyCallThisRange0Test() {
+    let obj = new TestNewRange(0, 1);
+    ASSERT_EQ(doTestCallThisRange0(obj), 1);
+}
+
 function anyCallThisShortTest() {
     let obj = new TestNewRange(0, 1);
     ASSERT_EQ(doTestCallThisShort(obj, 0), 1);
@@ -144,6 +178,11 @@ function anyCallNewRangeTest() {
 
 function anyCallNew0Test() {
     let obj = doTestNew0(TestNew0);
+    ASSERT_EQ(obj.field1, 0);
+}
+
+function anyCallNewRange0Test() {
+    let obj = doTestNewRange0(TestNew0);
     ASSERT_EQ(obj.field1, 0);
 }
 
@@ -272,12 +311,17 @@ function etsStrictEqualsTest() {
 anyInstanceOfTest();
 
 anyCallRangeTest();
+anyCallRange1Test();
+anyCallRange0Test();
+anyCallRange5Test();
 anyCall0Test();
 anyCallShortTest();
 anyCallThisRangeTest();
+anyCallThisRange0Test();
 anyCallThis0Test();
 anyCallThisShortTest();
 anyCallNewRangeTest();
+anyCallNewRange0Test();
 anyCallNew0Test();
 anyCallNewShortTest();
 

@@ -1702,6 +1702,7 @@ void InstBuilder::BuildLoadFromAnyByName(const BytecodeInstruction *bcInst)
         UpdateDefinitionAcc(intrinsic);
     } else {
         UpdateDefinition(bcInst->GetVReg(0), intrinsic);
+        intrinsic->ClearFlag(inst_flags::ACC_WRITE);
     }
 }
 
@@ -1732,6 +1733,10 @@ void InstBuilder::BuildStoreFromAnyByName(const BytecodeInstruction *bcInst)
     intrinsic->SetSlotId(icSlot);
 
     AddInstruction(saveState, intrinsic);
+
+    if (!IS_ACC_READ) {
+        intrinsic->ClearFlag(inst_flags::ACC_READ);
+    }
 }
 
 // NOLINTNEXTLINE(misc-definitions-in-headers)
@@ -1837,11 +1842,7 @@ void InstBuilder::BuildAnyCallHelper(const BytecodeInstruction *bcInst, RuntimeI
                                      uint64_t argc)
 {
     auto bcAddr = GetPc(bcInst->GetAddress());
-
-    // Technically `any.call.range v0, v2, 1` would be a legal usage
-    auto isRange = intrinsicId == RuntimeInterface::IntrinsicId::INTRINSIC_COMPILER_ANY_CALL_RANGE ||
-                   intrinsicId == RuntimeInterface::IntrinsicId::INTRINSIC_COMPILER_ANY_CALL_THIS_RANGE ||
-                   intrinsicId == RuntimeInterface::IntrinsicId::INTRINSIC_COMPILER_ANY_CALL_NEW_RANGE;
+    auto isRange = IsCompilerAnyCallRangeIntrinsic(intrinsicId);
 
     // For range opcodes the bytecode carries (imm0=argc, imm1=ic_slot); for non-range the only imm is ic_slot.
     auto icSlot = static_cast<uint32_t>(bcInst->GetImm64(isRange ? 1 : 0));
@@ -1970,13 +1971,6 @@ void InstBuilder::BuildIsInstanceAny(const BytecodeInstruction *bcInst)
 
     AddInstruction(saveState, intrinsic);
     UpdateDefinitionAcc(intrinsic);
-}
-
-// NOLINTNEXTLINE(misc-definitions-in-headers)
-void InstBuilder::UnsupportedAnyInst([[maybe_unused]] const BytecodeInstruction *bcInst)
-{
-    COMPILER_LOG(DEBUG, IR_BUILDER) << "Any bytecode not supported yet, skip current function, inst = " << *bcInst;
-    failed_ = true;
 }
 
 }  // namespace ark::compiler

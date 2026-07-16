@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -12,6 +12,45 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+% any_intrinsics = {
+%   'ANY_LDBYIDX'          => 'AnyLdByIdx',
+%   'ANY_STBYIDX'          => 'AnyStByIdx',
+%   'ANY_LDBYVAL'          => 'AnyLdByVal',
+%   'ANY_STBYVAL'          => 'AnyStByVal',
+%   'ANY_CALL0'            => 'AnyCall0',
+%   'ANY_CALL_RANGE'       => 'AnyCallRange',
+%   'ANY_CALL_SHORT'       => 'AnyCallShort',
+%   'ANY_CALL_THIS0'       => 'AnyCallThis0',
+%   'ANY_CALL_THIS_RANGE'  => 'AnyCallThisRange',
+%   'ANY_CALL_THIS_SHORT'  => 'AnyCallThisShort',
+%   'ANY_CALL_NEW0'        => 'AnyCallNew0',
+%   'ANY_CALL_NEW_RANGE'   => 'AnyCallNewRange',
+%   'ANY_CALL_NEW_SHORT'   => 'AnyCallNewShort',
+%   'ANY_ISINSTANCE'       => 'AnyIsinstance',
+% }
+% any_intrinsics.each do |enum_suffix, method|
+    case compiler::RuntimeInterface::IntrinsicId::INTRINSIC_COMPILER_<%= enum_suffix %>: {
+        BytecodeGen::Visit<%= method %>(visitor, inst);
+        break;
+    }
+% end
+
+% byname_intrinsics = {
+%   'ANY_LDBYNAME' => 'AnyLdByName',
+%   'ANY_STBYNAME' => 'AnyStByName',
+% }
+% byname_intrinsics.each do |enum_suffix, method|
+    case compiler::RuntimeInterface::IntrinsicId::INTRINSIC_COMPILER_<%= enum_suffix %>: {
+        if (!inst->GetFlag(compiler::inst_flags::ACC_WRITE) && !inst->GetFlag(compiler::inst_flags::ACC_READ)) {
+            BytecodeGen::Visit<%= method %>V(visitor, inst);
+            break;
+        }
+
+        BytecodeGen::Visit<%= method %>(visitor, inst);
+        break;
+    }
+% end
 
 % Runtime.intrinsics.select{ |i| i.static && !i.signature.stackrange && !i.is_stub && !i.compiler_only && i.has_impl? &&
 %         !i.clear_flags.include?('call') }.each do |intrinsic|

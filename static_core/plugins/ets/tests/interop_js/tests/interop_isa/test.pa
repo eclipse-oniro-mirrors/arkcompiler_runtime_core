@@ -102,6 +102,35 @@
   return.obj
 }
 
+.function std.core.Object test-static.ETSGLOBAL.doTestCallRange1(std.core.Object a0, std.core.Object a1) <static, access.function=public> {
+  lda.obj a1
+  sta.obj v1
+  any.call.range a0, v1, 0x1, 0x22
+  return.obj
+}
+
+.function std.core.Object test-static.ETSGLOBAL.doTestCallRange0(std.core.Object a0) <static, access.function=public> {
+  lda.obj a0
+  sta.obj v1
+  any.call.range a0, v1, 0x0, 0x22
+  return.obj
+}
+
+.function std.core.Object test-static.ETSGLOBAL.doTestCallRange5(std.core.Object a0, std.core.Object a1, std.core.Object a2, std.core.Object a3, std.core.Object a4, std.core.Object a5) <static, access.function=public> {
+  lda.obj a1
+  sta.obj v1
+  lda.obj a2
+  sta.obj v2
+  lda.obj a3
+  sta.obj v3
+  lda.obj a4
+  sta.obj v4
+  lda.obj a5
+  sta.obj v5
+  any.call.range a0, v1, 0x5, 0x22
+  return.obj
+}
+
 .function std.core.Object test-static.ETSGLOBAL.doTestCallShort(std.core.Object a0, std.core.Object a1) <static, access.function=public> {
   lda.obj a1
   sta.obj v1
@@ -135,6 +164,13 @@
   return.obj
 }
 
+.function std.core.Object test-static.ETSGLOBAL.doTestNewRange0(std.core.Object a0) <static, access.function=public> {
+  lda.obj a0
+  sta.obj v0
+  any.call.new.range v0, v0, 0x0, 0x66
+  return.obj
+}
+
 .function std.core.Object test-static.ETSGLOBAL.doTestNewRange(std.core.Object a0, std.core.Object a1, std.core.Object a2) <static, access.function=public> {
   lda.obj a1
   sta.obj v1
@@ -162,6 +198,13 @@
   lda.obj a2
   sta.obj v2
   any.call.this.range "foo", a0, v1, 0x2, 0xAA
+  return.obj
+}
+
+.function std.core.Object test-static.ETSGLOBAL.doTestCallThisRange0(std.core.Object a0) <static, access.function=public> {
+  lda.obj a0
+  sta.obj v0
+  any.call.this.range "baz", v0, v0, 0x0, 0xAA
   return.obj
 }
 
@@ -339,7 +382,7 @@ jump_label_1:
     movi v1, 0x2
     newarr v0, v1, std.core.Double[]
     fldai.64 0x40d56a8000000000
-    sta.64 v3
+    sta.64 v2
     initobj.short std.core.Double._ctor_:(std.core.Double,f64), v2
     movi v1, 0x0
     starr.obj v0, v1

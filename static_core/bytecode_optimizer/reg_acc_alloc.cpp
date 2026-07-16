@@ -159,26 +159,19 @@ bool RegAccAlloc::CanUserReadAcc(compiler::Inst *inst, compiler::Inst *user) con
         return false;
     }
 
-    bool found = false;
-    // Check if the instrucion occures more times as input.
-    // v2. SUB v0, v1
-    // v3. Add v2, v2
-    for (auto input : user->GetInputs()) {
-        compiler::Inst *uinput = input.GetInst();
-
-        if (uinput != inst) {
-            continue;
-        }
-
-        if (!found) {
-            found = true;
-        } else {
-            return false;
-        }
-    }
-
+    bool moreThanOneTimeAsInput = false;
     for (auto &input : user->GetInputs()) {
         auto inputInst = input.GetInst();
+        // Check if the instruction occurs more than one time as an input.
+        // v2. SUB v0, v1
+        // v3. Add v2, v2
+        if (inputInst == inst) {
+            if (moreThanOneTimeAsInput) {
+                return false;
+            }
+            moreThanOneTimeAsInput = true;
+        }
+
         if (inputInst != user && inputInst->GetDstReg() == compiler::GetAccReg()) {
             return false;
         }
@@ -196,7 +189,10 @@ bool RegAccAlloc::CanUserReadAcc(compiler::Inst *inst, compiler::Inst *user) con
             return user->GetInputsCount() <= (MAX_NUM_NON_RANGE_ARGS);
         }
     }
-
+    if (user->IsIntrinsic() && compiler::IsCompilerAnyIntrinsic(user->CastToIntrinsic()->GetIntrinsicId()) &&
+        user->IsAccRead() && user->GetInput(AccReadIndex(user)).GetInst() != inst) {
+        return false;
+    }
     if (user->IsCallOrIntrinsic()) {
         return user->GetInputsCount() <= (MAX_NUM_NON_RANGE_ARGS + 1U);  // +1 for SaveState
     }
@@ -439,6 +435,9 @@ void RegAccAlloc::MarkInstructions()
                 continue;
             }
             if (IsCall(inst)) {
+                continue;
+            }
+            if (!inst->IsAccRead()) {
                 continue;
             }
 

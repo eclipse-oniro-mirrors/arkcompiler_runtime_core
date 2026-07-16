@@ -15,9 +15,7 @@
 
 #if !defined(INST_GENERATOR_TEST_EXT_H)
 #define INST_GENERATOR_TEST_EXT_H
-if (id == RuntimeInterface::IntrinsicId::INTRINSIC_COMPILER_ANY_CALL_NEW_RANGE ||
-    id == RuntimeInterface::IntrinsicId::INTRINSIC_COMPILER_ANY_CALL_THIS_RANGE ||
-    id == RuntimeInterface::IntrinsicId::INTRINSIC_COMPILER_ANY_CALL_RANGE) {
+if (IsCompilerAnyCallRangeIntrinsic(id)) {
     // Skip it as this intrinsic requires LocationBuilder to be run successfully.
     graph->~Graph();
     graphCreator_.GetAllocator()->Resize(0U);

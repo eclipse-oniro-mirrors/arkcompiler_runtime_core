@@ -82,6 +82,14 @@ class Intrinsic < SimpleDelegator
     respond_to?(:skip_codegen_decl) && skip_codegen_decl == true
   end
 
+  def is_compiler_any?
+    (name).start_with?('CompilerAny') == true
+  end
+
+  def is_compiler_any_call_range?
+    name.start_with?('CompilerAnyCall') && name.end_with?('Range')
+  end
+
 end
 
 module Compiler
