@@ -34,6 +34,7 @@
 #include <memory>
 
 #include "paoc.h"
+#include "paoc_validation.h"
 #ifdef PANDA_LLVM_AOT
 #include "paoc_llvm.h"
 #endif
@@ -133,6 +134,10 @@ public:
             return 1;
         }
 
+        if (!ValidatePaocOptions()) {
+            return -1;
+        }
+
         const std::string parentDir = os::GetParentDir(paoc_->paocOptions_->GetPaocOutput());
         if (!os::IsDirExists(parentDir) && !paoc_->paocOptions_->GetPaocZipPandaFile().empty()) {
             os::CreateDirectories(parentDir);
@@ -157,6 +162,21 @@ public:
     }
 
 private:
+    bool ValidatePaocOptions()
+    {
+        auto error = paoc_->paocOptions_->Validate();
+        if (error) {
+            std::cerr << "Error: " << error->GetMessage() << '\n';
+            return false;
+        }
+        auto profileError = ValidateProfileGuidedPolicy(*paoc_->paocOptions_);
+        if (profileError) {
+            std::cerr << "Error: " << profileError->GetMessage() << '\n';
+            return false;
+        }
+        return true;
+    }
+
     int InitRuntime()
     {
         auto runtimeOptionsErr = paoc_->runtimeOptions_->Validate();
@@ -217,10 +237,6 @@ private:
         auto compilerOptionsErr = ark::compiler::g_options.Validate();
         if (compilerOptionsErr) {
             LOG_PAOC(FATAL) << compilerOptionsErr.value().GetMessage();
-        }
-        auto paocOptionsErr = paoc_->paocOptions_->Validate();
-        if (paocOptionsErr) {
-            LOG_PAOC(FATAL) << paocOptionsErr.value().GetMessage();
         }
     }
 
@@ -380,10 +396,12 @@ int Paoc::Run(const ark::Span<const char *> &args)
     }
     if (!TryLoadAotProfile()) {
         LOG_PAOC(ERROR) << "Can not load AOT profile";
-        if (paocOptions_->IsPaocUseProfileForce()) {
-            LOG_PAOC(FATAL) << "Can not continue execution without profiling file, since 'force' option is set.";
+        if (paocOptions_->IsPaocUseProfileForce() || IsProfileGuidedCompilation()) {
+            LOG_PAOC(FATAL) << "Can not continue execution without a valid profiling file, since "
+                               "'--paoc-use-profile:force' or '--paoc-compilation-policy=profile-guided' is set.";
         }
     }
+    LOG_PAOC(INFO) << "Compilation policy: " << paocOptions_->GetPaocCompilationPolicy();
     bool errorOccurred = !CompileFiles();
     bool attemptedToCompile = (compilationIndex_ != 0);
     errorOccurred |= !attemptedToCompile && !IsCompileTimeLimitExceeded();
@@ -540,6 +558,11 @@ bool Paoc::TryLoadAotProfile()
         return false;
     }
 
+    return LoadAotProfileForPandaFiles(profilingLoader);
+}
+
+bool Paoc::LoadAotProfileForPandaFiles(ProfilingLoader &profilingLoader)
+{
     bool errorOccurred = false;
     loader_->EnumeratePandaFiles([this, &profilingLoader, &errorOccurred](const panda_file::File &pfileRef) {
         std::string locFilePath = FileNameToPaocLocation(pfileRef.GetFilename());
@@ -641,6 +664,11 @@ bool Paoc::TryLoadAotMethodProfile(
     if (!method.InitProfilingData(profilingData)) {
         allocator->Free(profilingData);
         return false;
+    }
+
+    // ProfilingData remains available under either policy.
+    if (IsProfileGuidedCompilation()) {
+        Runtime::GetCurrent()->GetClassLinker()->GetAotManager()->AddProfileGuidedMethod(&method);
     }
 
     if (paocOptions_->IsPaocVerbose()) {
@@ -894,7 +922,7 @@ bool Paoc::Compile(Class *klass, const panda_file::File &pfileRef)
         // in this case it should not be added into AOT file.
         auto methodName = runtime_->GetMethodFullName(&method, g_options.WasSetCompilerRegexWithSignature());
         if (method.GetPandaFile()->GetFilename() == pfileRef.GetFilename() && !Skip(&method) &&
-            IsMethodShouldBeCompiled(methodName) && g_options.MatchesRegex(methodName) &&
+            IsMethodSelectedForCompilation(&method, methodName) && g_options.MatchesRegex(methodName) &&
             !IsCompileTimeLimitExceeded() && !Compile(&method, methodIndex)) {
             errorOccurred = true;
         }
@@ -1165,7 +1193,8 @@ void Paoc::PrintUsage(const ark::PandArgParser &paParser)
                  " the AOT file\n";
     std::cerr << "    --paoc-skip-until           first method to compile, skip all previous\n";
     std::cerr << "    --paoc-compile-until        last method to compile, skip all following\n";
-    std::cerr << "    --paoc-methods-from-file    use white or black lists to filter methods to compile\n";
+    std::cerr << "    --paoc-methods-from-file    use an allowlist or denylist to filter methods to compile\n";
+    std::cerr << "    --paoc-compilation-policy  default or profile-guided (requires --paoc-use-profile:path)\n";
 #ifndef NDEBUG
     std::cerr << "    --paoc-generate-symbols     generate symbols for compiled methods, disabled by default\n";
 #endif
@@ -1175,16 +1204,33 @@ void Paoc::PrintUsage(const ark::PandArgParser &paParser)
     std::cerr << paParser.GetHelpString() << std::endl;
 }
 
-bool Paoc::IsMethodShouldBeCompiled(const std::string &methodFullName)
+bool Paoc::IsMethodSelectedForCompilation(Method *method, const std::string &methodFullName)
 {
-    if (paocOptions_->IsPaocMethodsFromFileIswhite()) {
-        return !paocOptions_->WasSetPaocMethodsFromFilePath() ||
-               (methodsList_.find(methodFullName) != methodsList_.end());
+    const bool isListSelectionEnabled = paocOptions_->WasSetPaocMethodsFromFilePath();
+    const bool isProfileSelectionEnabled = IsProfileGuidedCompilation();
+
+    // Profile-guided selection unions profiled methods with the allowlist, or excludes denylisted methods.
+    if (isListSelectionEnabled) {
+        const bool isInList = methodsList_.find(methodFullName) != methodsList_.end();
+        const bool isAllowList = paocOptions_->IsPaocMethodsFromFileIswhite();
+
+        if (isInList) {
+            return isAllowList;
+        }
+        if (isAllowList && !isProfileSelectionEnabled) {
+            return false;
+        }
     }
-    if (!paocOptions_->IsPaocMethodsFromFileIswhite()) {
-        return !(paocOptions_->WasSetPaocMethodsFromFilePath() &&
-                 (methodsList_.find(methodFullName) != methodsList_.end()));
+
+    if (isProfileSelectionEnabled) {
+        bool isProfiled = runtime_->IsProfileGuidedMethod(method);
+        if (isProfiled) {
+            LOG_PAOC(DEBUG) << "Compiling profiled method (id=" << method->GetFileId()
+                            << "): " << runtime_->GetMethodFullName(method, false);
+        }
+        return isProfiled;
     }
+
     return true;
 }
 

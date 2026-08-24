@@ -934,6 +934,16 @@ public:
         return 0;
     }
 
+    virtual bool IsProfileGuidedMethod([[maybe_unused]] MethodPtr method) const
+    {
+        return false;
+    }
+
+    virtual bool IsProfileGuidedCompilation() const
+    {
+        return false;
+    }
+
     virtual bool IsConstructor([[maybe_unused]] MethodPtr method, [[maybe_unused]] SourceLanguage lang)
     {
         return false;

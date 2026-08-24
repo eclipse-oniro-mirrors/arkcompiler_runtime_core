@@ -321,6 +321,7 @@ set(PANDA_COMPILER_TESTS_SOURCES
     tests/adjust_arefs_test.cpp
     tests/alias_analysis_test.cpp
     tests/aot_test.cpp
+    tests/aot_pgo_test.cpp
     tests/balance_expressions_test.cpp
     tests/basicblock_test.cpp
     tests/bounds_analysis_test.cpp
@@ -609,6 +610,7 @@ endif()
 
 if(NOT PANDA_MINIMAL_VIXL AND PANDA_WITH_TESTS AND PANDA_COMPILER_ENABLE)
   add_dependencies(compiler_unit_tests ark_aot)
+  add_dependencies(compiler_unit_tests arkcompiler_options)
   # TODO(igorban): Enable build in other platforms
   if (PANDA_TARGET_AMD64 OR PANDA_TARGET_ARM64)
     add_dependencies(compiler_unit_tests ark_aotdump)
@@ -625,6 +627,8 @@ if(NOT PANDA_MINIMAL_VIXL AND PANDA_WITH_TESTS AND PANDA_COMPILER_ENABLE)
 
   panda_target_include_directories(compiler_unit_tests
     PUBLIC "$<TARGET_PROPERTY:arkruntime,INTERFACE_INCLUDE_DIRECTORIES>"
+    PUBLIC "${CMAKE_BINARY_DIR}/compiler/ark_aot/generated"
+    PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/tools/paoc"
   )
 
   if(PANDA_TARGET_AMD64 AND PANDA_COMPILER_TARGET_AARCH64 AND PANDA_COMPILER_TARGET_AARCH32 AND

@@ -79,6 +79,7 @@ private:
     bool TryLoadPaocPandaFile(const std::string &fileName, PandaVM *vm);
     bool LoadPandaFiles();
     bool TryLoadAotProfile();
+    bool LoadAotProfileForPandaFiles(ProfilingLoader &profilingLoader);
     bool TryLoadAotFileProfile(ProfilingLoader &profilingLoader, const panda_file::File &pfileRef, size_t pfileIdx);
     bool TryLoadAotMethodProfile(ProfilingLoader &profilingLoader,
                                  PandaMap<uint32_t, ark::pgo::AotProfilingData::AotMethodProfilingData> &methodProfiles,
@@ -100,7 +101,7 @@ private:
     bool FinalizeCompileAot(CompilingContext *ctx, [[maybe_unused]] uintptr_t codeAddress);
     void PrintError(const std::string &error);
     void PrintUsage(const ark::PandArgParser &paParser);
-    bool IsMethodShouldBeCompiled(const std::string &methodFullName);
+    bool IsMethodSelectedForCompilation(Method *method, const std::string &methodFullName);
     bool Skip(Method *method);
     static std::string GetFileLocation(const panda_file::File &pfileRef, std::string location);
     static bool CompareBootFiles(std::string filename, std::string paocLocation);
@@ -118,6 +119,11 @@ private:
     bool IsAotMode()
     {
         return mode_ == PaocMode::AOT || mode_ == PaocMode::LLVM;
+    }
+
+    bool IsProfileGuidedCompilation() const
+    {
+        return paocOptions_->GetPaocCompilationPolicy() == "profile-guided";
     }
 
     bool IsCompileTimeLimitExceeded();

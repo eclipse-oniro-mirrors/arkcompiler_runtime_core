@@ -485,6 +485,13 @@ options:
   recommended_values: [50,2000]
   tags: [perf]
 
+- name: compiler-inlining-max-insts-hot
+  type: uint32_t
+  default: 512
+  description: Maximum number of the IR instructions to be inlined for root methods with loaded profile data, including instructions of the current graph. Effective only under paoc-compilation-policy=profile-guided; never less than compiler-inlining-max-insts.
+  recommended_values: [50,4000]
+  tags: [perf]
+
 - name: compiler-inlining-max-depth
   type: uint32_t
   default: 12
