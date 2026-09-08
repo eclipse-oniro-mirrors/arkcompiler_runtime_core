@@ -281,7 +281,9 @@ async function taskExecutedByOtherApiCannotSetTimeout(): Promise<void> {
     arktest.expectError(() => {
         taskpool.execute(task6, { timeout: 50 });
     }, new Error('taskpool:: task has been executed'));
-    taskpool.cancel(task6);
+    arktest.expectError(() => {
+        taskpool.cancel(task6);
+    }, new Error('taskpool:: task has been executed'));
 }
 
 async function taskGroupExecuteWithinTimeout(): Promise<void> {

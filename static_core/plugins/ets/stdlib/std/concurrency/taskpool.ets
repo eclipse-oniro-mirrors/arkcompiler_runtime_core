@@ -286,6 +286,14 @@ export namespace taskpool {
             return dispatcher !== undefined && dispatcher.hasPendingAcceptedEvents();
         }
 
+        markTaskRegistryReferenceOwned(): void {
+            this.ownsTaskRegistryReference.store(true);
+        }
+
+        takeTaskRegistryReferenceOwnership(): boolean {
+            return this.ownsTaskRegistryReference.exchange(false);
+        }
+
         tryFinalize(): void {
             while (true) {
                 const currentState = this.stateFlags.load();
@@ -318,6 +326,7 @@ export namespace taskpool {
         private readonly resultSlot: AtomicReference<Any> = new AtomicReference<Any>(undefined);
         private readonly onFinalized?: () => void;
         private receiveDispatcher: ReceiveDispatcher | undefined = undefined;
+        private readonly ownsTaskRegistryReference: AtomicBoolean = new AtomicBoolean(false);
 
         private closeDispatchToHost(): void {
             this.stateFlags.fetchOr(EXECUTION_RECORD_DISPATCH_CLOSED);
@@ -338,6 +347,15 @@ export namespace taskpool {
                 console.error(`taskpool:: execution record finalize hook failed: ${e}`);
             }
         }
+    }
+
+    class DelayedExecution {
+        constructor(executionRecord: ExecutionRecord) {
+            this.executionRecord = executionRecord;
+        }
+
+        readonly executionRecord: ExecutionRecord;
+        timerId: int = -1;
     }
 
     class QueuedExecution {
@@ -495,6 +513,7 @@ export namespace taskpool {
                 try {
                     execResult = internalTask.execute(this, queuedExecution.executionRecord);
                 } catch (e) {
+                    this.finishTaskTracking(task);
                     queuedExecution.executionRecord!.markTaskError(e);
                     internalTask.finishExecutionRecord(queuedExecution.executionRecord!);
                     execResult = Promise.reject(e);
@@ -512,6 +531,18 @@ export namespace taskpool {
                     finalize();
                 }
             }
+        }
+
+        finishTaskTracking(task: Task): void {
+            ConcurrencyHelpers.lockGuard(this.currentTasksMutex, () => {
+                const curCount: int | undefined = this.currentTasks.get(task);
+                if (curCount == undefined || curCount <= 1) {
+                    this.currentTasks.delete(task);
+                } else {
+                    this.currentTasks.set(task, curCount - 1);
+                }
+                this.currentPriority = undefined;
+            });
         }
 
         private executeTransient(transientExecution: TransientExecution): void {
@@ -1195,18 +1226,19 @@ export namespace taskpool {
             return this.dependentTasks !== undefined && this.dependentTasks!.size != 0;
         }
 
-        addTaskRegistryReference(): void {
+        addTaskRegistryReference(executionRecord: ExecutionRecord): void {
             if (this.isTransientTask) {
                 return;
             }
             ConcurrencyHelpers.lockGuard(mutex, () => {
                 let count = allTasks.get(this.task) ?? 0;
                 allTasks.set(this.task, count + 1);
+                executionRecord.markTaskRegistryReferenceOwned();
             });
         }
 
-        removeTaskRegistryReference(): void {
-            if (this.isTransientTask) {
+        removeTaskRegistryReference(executionRecord: ExecutionRecord): void {
+            if (this.isTransientTask || !executionRecord.takeTaskRegistryReferenceOwnership()) {
                 return;
             }
             ConcurrencyHelpers.lockGuard(mutex, () => {
@@ -1396,9 +1428,13 @@ export namespace taskpool {
             initWorkerPoolSync();
             removePendingDependencyTask(this.task);
             this.waitForDependencies();
+            const executionRecord = executionRecordArg ?? this.currentExecutionRecord;
+            if (executionRecord === undefined) {
+                throw new Error("taskpool:: missing execution record");
+            }
             if (this.state.compareAndSwap(State.WAITING, State.RUNNING) == State.CANCELED) {
                 this.notifyDependencies();
-                this.removeTaskRegistryReference();
+                this.removeTaskRegistryReference(executionRecord);
                 this.tryTriggerAsyncRunnerAndGroup();
                 this.throwCancelTaskError();
             }
@@ -1435,10 +1471,6 @@ export namespace taskpool {
             let taskError: Error | undefined = undefined;
             this.startTime = Chrono.nanoNow();
             const startCpuTime: long = Chrono.getCpuTime();
-            const executionRecord = executionRecordArg ?? this.currentExecutionRecord;
-            if (executionRecord === undefined) {
-                throw new Error("taskpool:: missing execution record");
-            }
             const previousTaskId = getTaskId();
             const previousSubmissionId = getSubmissionId();
             let tagNamePerform = "Sta TaskPool:Perform:name:" + this.task.name +
@@ -1484,7 +1516,7 @@ export namespace taskpool {
                     this.unregisterRunningExecutionRecord(executionRecord);
                     setSubmissionId(previousSubmissionId);
                     setTaskId(previousTaskId);
-                    this.finishTaskExecution(currentWorker, executionSucceeded);
+                    this.finishTaskExecution(currentWorker, executionSucceeded, executionRecord);
                     this.finishExecutionRecord(executionRecord);
                     if (taskError !== undefined) {
                         executionRecord.completeTaskError(taskError!);
@@ -1506,7 +1538,7 @@ export namespace taskpool {
                     this.unregisterRunningExecutionRecord(executionRecord);
                     setSubmissionId(previousSubmissionId);
                     setTaskId(previousTaskId);
-                    this.finishTaskExecution(currentWorker, executionSucceeded);
+                    this.finishTaskExecution(currentWorker, executionSucceeded, executionRecord);
                     this.finishExecutionRecord(executionRecord);
                 } finally {
                     if (shouldRestoreAsyncStackId) {
@@ -1534,24 +1566,20 @@ export namespace taskpool {
             }
         }
 
-        private finishTaskExecution(currentWorker: GlobalQueueWorker | undefined, executionSucceeded: boolean): void {
+        private finishTaskExecution(
+            currentWorker: GlobalQueueWorker | undefined,
+            executionSucceeded: boolean,
+            executionRecord: ExecutionRecord
+        ): void {
             if (isTaskPoolUseLaunch) {
                 this.notifyDependencies();
             } else {
                 totalExecTime.fetchAdd(this.getDuration());
                 totalExecCount.fetchAdd(1);
             }
-            this.removeTaskRegistryReference();
+            this.removeTaskRegistryReference(executionRecord);
             if (currentWorker !== undefined) {
-                ConcurrencyHelpers.lockGuard(currentWorker!.currentTasksMutex, () => {
-                    const curCount: int | undefined = currentWorker!.currentTasks.get(this.task);
-                    if (curCount == undefined || curCount <= 1) {
-                        currentWorker!.currentTasks.delete(this.task);
-                    } else {
-                        currentWorker!.currentTasks.set(this.task, curCount - 1);
-                    }
-                    currentWorker!.currentPriority = undefined;
-                });
+                currentWorker!.finishTaskTracking(this.task);
             }
             if (this.isTimeout.load()) {
                 this.transitionToFinished();
@@ -1666,53 +1694,65 @@ export namespace taskpool {
             Tracer.startAsyncTrace(tagNameEnqueue, traceId);
             hilogDebug(tagNameEnqueue);
             try {
-                priority = priority === undefined ? Priority.MEDIUM : priority;
-                this.priority = priority;
-                while(true) {
-                    let curState = this.state.load();
-                    if (curState == State.CANCELED) {
-                        break;
-                    }
-                    if (this.state.compareAndSwap(curState, InternalState.WAITING) == curState) {
-                        break;
-                    }
-                }
-                if (!isTaskPoolUseLaunch) {
-                    const executionRecord = executionRecordArg ?? this.currentExecutionRecord;
-                    if (executionRecord === undefined) {
-                        throw new Error("taskpool:: missing execution record");
-                    }
-                    initGlobalTaskQueues();
-                    this.addTaskRegistryReference();
-                    const newWaitingTasksNum = waitingTasksNum.fetchAdd(1) + 1;
-                    while (!globalTaskQueue?.get(normalizeTaskQueuePriority(priority))?.add(
-                        new QueuedExecution(this.task, executionRecord, priority)
-                    )) {
-                        Coroutine.Schedule();
-                    }
-                    if (newWaitingTasksNum > workers.size * 2) {
-                        tryTriggerExpand();
-                    }
-                    // Notify waiting workers using condition variable
-                    ConcurrencyHelpers.lockGuard(globalTaskQueuesMutex, () => {
-                        ConcurrencyHelpers.condVarNotifyOne(globalTaskCondVar, globalTaskQueuesMutex);
-                    });
-                }
-                if (this.onEnqueueCallback !== undefined) {
-                    let tagNameOnEnqueue = "Sta TaskPool:OnEnqueueCallback:taskID:" +
-                        this.task.taskId.toString() +
-                        ", priority:" +
-                        priority.toString();
-                    Tracer.startAsyncTrace(tagNameOnEnqueue, traceId);
-                    hilogDebug(tagNameOnEnqueue);
-                    try {
-                        this.callUserCallback(this.onEnqueueCallback);
-                    } finally {
-                        Tracer.finishAsyncTrace(tagNameOnEnqueue, traceId);
-                    }
-                }
+                const newWaitingTasksNum = this.publishQueuedExecution(priority, executionRecordArg);
+                this.finishQueuedExecutionPublish(newWaitingTasksNum, traceId);
             } finally {
                 Tracer.finishAsyncTrace(tagNameEnqueue, traceId);
+            }
+        }
+
+        private publishQueuedExecution(priority?: Priority, executionRecordArg?: ExecutionRecord): int {
+            priority = priority === undefined ? Priority.MEDIUM : priority;
+            this.priority = priority;
+            while(true) {
+                let curState = this.state.load();
+                if (curState == State.CANCELED) {
+                    break;
+                }
+                if (this.state.compareAndSwap(curState, InternalState.WAITING) == curState) {
+                    break;
+                }
+            }
+            if (!isTaskPoolUseLaunch) {
+                const executionRecord = executionRecordArg ?? this.currentExecutionRecord;
+                if (executionRecord === undefined) {
+                    throw new Error("taskpool:: missing execution record");
+                }
+                initGlobalTaskQueues();
+                this.addTaskRegistryReference(executionRecord);
+                const newWaitingTasksNum = waitingTasksNum.fetchAdd(1) + 1;
+                while (!globalTaskQueue?.get(normalizeTaskQueuePriority(priority))?.add(
+                    new QueuedExecution(this.task, executionRecord, priority)
+                )) {
+                    Coroutine.Schedule();
+                }
+                return newWaitingTasksNum;
+            }
+            return 0;
+        }
+
+        private finishQueuedExecutionPublish(newWaitingTasksNum: int, traceId: int): void {
+            if (!isTaskPoolUseLaunch) {
+                if (newWaitingTasksNum > workers.size * 2) {
+                    tryTriggerExpand();
+                }
+                // Notify waiting workers using condition variable
+                ConcurrencyHelpers.lockGuard(globalTaskQueuesMutex, () => {
+                    ConcurrencyHelpers.condVarNotifyOne(globalTaskCondVar, globalTaskQueuesMutex);
+                });
+            }
+            if (this.onEnqueueCallback !== undefined) {
+                let tagNameOnEnqueue = "Sta TaskPool:OnEnqueueCallback:taskID:" +
+                    this.task.taskId.toString() +
+                    ", priority:" +
+                    this.priority.toString();
+                Tracer.startAsyncTrace(tagNameOnEnqueue, traceId);
+                hilogDebug(tagNameOnEnqueue);
+                try {
+                    this.callUserCallback(this.onEnqueueCallback);
+                } finally {
+                    Tracer.finishAsyncTrace(tagNameOnEnqueue, traceId);
+                }
             }
         }
 
@@ -1726,6 +1766,114 @@ export namespace taskpool {
                 }
             });
             return executionRecord;
+        }
+
+        scheduleDelayedExecution(delayTime: int, priority?: Priority): Promise<Any> {
+            const delayedExecution = new DelayedExecution(this.createExecutionRecord());
+            let canceled = false;
+            ConcurrencyHelpers.lockGuard(this.delayedExecutionsMutex, () => {
+                if (this.state.load() == InternalState.CANCELED.valueOf()) {
+                    canceled = true;
+                    return;
+                }
+                this.delayedExecutions.push(delayedExecution);
+                this.delayedExecutionsCount.store(this.delayedExecutions.length.toInt());
+                ConcurrencyHelpers.lockGuard(mutex, () => {
+                    pendingDelayed.add(this.task);
+                });
+                delayedExecution.timerId = setTimeout(() => {
+                    this.submitDelayedExecution(delayedExecution, delayTime, priority);
+                }, delayTime);
+            });
+            if (canceled) {
+                retireCanceledDelayedExecutions(this.task, [delayedExecution], false);
+            }
+            return delayedExecution.executionRecord.promise;
+        }
+
+        takeDelayedExecutionsForCancellation(): Array<DelayedExecution> {
+            const delayedExecutions = new Array<DelayedExecution>();
+            if (this.delayedExecutionsCount.load() == 0) {
+                return delayedExecutions;
+            }
+            ConcurrencyHelpers.lockGuard(this.delayedExecutionsMutex, () => {
+                while (this.delayedExecutions.length > 0) {
+                    const delayedExecution = this.delayedExecutions.shift();
+                    if (delayedExecution !== undefined) {
+                        delayedExecutions.push(delayedExecution);
+                    }
+                }
+                this.delayedExecutionsCount.store(0);
+                if (delayedExecutions.length > 0) {
+                    ConcurrencyHelpers.lockGuard(mutex, () => {
+                        pendingDelayed.delete(this.task);
+                        pendingDelayedCanceled.add(this.task);
+                    });
+                }
+            });
+            return delayedExecutions;
+        }
+
+        private submitDelayedExecution(
+            delayedExecution: DelayedExecution,
+            delayTime: int,
+            priority?: Priority
+        ): void {
+            let tagNameDelayed = "Sta TaskPool:ExecuteDelayed:taskID:" +
+                this.task.taskId.toString() +
+                ", priority:" +
+                (priority ?? Priority.MEDIUM).toString() +
+                ", delayTime:" +
+                delayTime.toString();
+            hilogDebug(tagNameDelayed);
+            let ownsExecution = false;
+            let canceled = false;
+            let newWaitingTasksNum: int = 0;
+            let enqueueTraceId: int = -1;
+            let tagNameEnqueue = "";
+            try {
+                ConcurrencyHelpers.lockGuard(this.delayedExecutionsMutex, () => {
+                    const delayedIndex = this.delayedExecutions.indexOf(delayedExecution);
+                    if (delayedIndex < 0) {
+                        return;
+                    }
+                    ownsExecution = true;
+                    delayedExecution.timerId = -1;
+                    if (this.state.load() == InternalState.CANCELED.valueOf()) {
+                        canceled = true;
+                    } else if (isTaskPoolUseLaunch) {
+                        launchQueuedExecutionRecord(this, delayedExecution.executionRecord);
+                    } else {
+                        enqueueTraceId = callbackTraceIdSeq.fetchAdd(1);
+                        tagNameEnqueue = "Sta TaskPool:Enqueue:taskID:" +
+                            this.task.taskId.toString() +
+                            ", priority:" +
+                            (priority ?? Priority.MEDIUM).toString();
+                        Tracer.startAsyncTrace(tagNameEnqueue, enqueueTraceId);
+                        hilogDebug(tagNameEnqueue);
+                        newWaitingTasksNum = this.publishQueuedExecution(priority, delayedExecution.executionRecord);
+                    }
+                    this.delayedExecutions.splice(delayedIndex, 1);
+                    this.delayedExecutionsCount.store(this.delayedExecutions.length.toInt());
+                    if (this.delayedExecutions.length == 0) {
+                        ConcurrencyHelpers.lockGuard(mutex, () => {
+                            pendingDelayed.delete(this.task);
+                        });
+                    }
+                });
+                if (!ownsExecution) {
+                    return;
+                }
+                if (canceled) {
+                    retireCanceledDelayedExecutions(this.task, [delayedExecution], false);
+                } else if (!isTaskPoolUseLaunch) {
+                    this.finishQueuedExecutionPublish(newWaitingTasksNum, enqueueTraceId);
+                }
+            } finally {
+                if (enqueueTraceId != -1) {
+                    Tracer.finishAsyncTrace(tagNameEnqueue, enqueueTraceId);
+                }
+            }
         }
 
         submitPeriodicTick(): void {
@@ -1789,9 +1937,14 @@ export namespace taskpool {
         }
 
         registerRunningExecutionRecord(executionRecord: ExecutionRecord): void {
+            let canceled = false;
             ConcurrencyHelpers.lockGuard(this.taskMutex, () => {
                 this.executionRecordsBySubmissionId.set(executionRecord.submissionId, executionRecord);
+                canceled = this.state.load() == InternalState.CANCELED.valueOf();
             });
+            if (canceled) {
+                this.removeTaskRegistryReference(executionRecord);
+            }
         }
 
         unregisterRunningExecutionRecord(executionRecord: ExecutionRecord): void {
@@ -1809,6 +1962,52 @@ export namespace taskpool {
                 executionRecord = this.executionRecordsBySubmissionId.get(submissionId);
             });
             return executionRecord;
+        }
+
+        releaseTaskRegistryReferences(): void {
+            if (this.isTransientTask) {
+                return;
+            }
+            let releasedReferenceCount: int = 0;
+            // Claim record ownership under the task-local lock, then update the global registry once outside it.
+            ConcurrencyHelpers.mutexLock(this.taskMutex);
+            try {
+                const currentExecutionRecord = this.currentExecutionRecord;
+                if (currentExecutionRecord !== undefined &&
+                    currentExecutionRecord.takeTaskRegistryReferenceOwnership()) {
+                    releasedReferenceCount++;
+                }
+                const pendingExecutionRecords = this.pendingExecutionRecords;
+                for (let i: int = 0; i < pendingExecutionRecords.length; i++) {
+                    if (pendingExecutionRecords[i].takeTaskRegistryReferenceOwnership()) {
+                        releasedReferenceCount++;
+                    }
+                }
+                if (this.executionRecordsBySubmissionId.size != 0) {
+                    for (const executionRecord of this.executionRecordsBySubmissionId.values()) {
+                        if (executionRecord.takeTaskRegistryReferenceOwnership()) {
+                            releasedReferenceCount++;
+                        }
+                    }
+                }
+            } finally {
+                ConcurrencyHelpers.mutexUnlock(this.taskMutex);
+            }
+            if (releasedReferenceCount == 0) {
+                return;
+            }
+            ConcurrencyHelpers.mutexLock(mutex);
+            try {
+                const count = allTasks.get(this.task) ?? 0;
+                if (count <= releasedReferenceCount) {
+                    allTasks.delete(this.task);
+                    taskSet.delete(this.task);
+                } else {
+                    allTasks.set(this.task, count - releasedReferenceCount);
+                }
+            } finally {
+                ConcurrencyHelpers.mutexUnlock(mutex);
+            }
         }
 
         getOnReceiveListenerBinding(): ReceiveListenerBinding | undefined {
@@ -1944,7 +2143,7 @@ export namespace taskpool {
         private startTime: long = 0;
         /// the task has been executed periodically
         isPeriodicTask: boolean = false;
-        /// identifier of task which is executeDelayed or executePeriodically
+        /// identifier of task which is executePeriodically
         timerId: int = -1;
         /// id of the coroutine that executes task
         coroId: int = -1;
@@ -1965,6 +2164,9 @@ export namespace taskpool {
         pendingExecutionRecords: Array<ExecutionRecord> = new Array<ExecutionRecord>();
         periodicPendingExecutionRecords: Array<ExecutionRecord> = new Array<ExecutionRecord>();
         executionRecordsBySubmissionId: Map<int, ExecutionRecord> = new Map<int, ExecutionRecord>();
+        private delayedExecutions: Array<DelayedExecution> = new Array<DelayedExecution>();
+        private delayedExecutionsMutex: Object = ConcurrencyHelpers.mutexCreate();
+        private delayedExecutionsCount: AtomicInt = new AtomicInt(0);
 
         priority: Priority;
         periodicPriority: Priority = Priority.MEDIUM;
@@ -2433,6 +2635,7 @@ export namespace taskpool {
         hasTimeout: boolean = false;
         cancelDeferred: GroupCancelDeferred | undefined = undefined;
         resultSettled: boolean = false;
+        cleanupRegistryOnResultSettlement: boolean = false;
         successCallbacks: containers.ConcurrentSet<CallbackFunction> = new containers.ConcurrentSet<CallbackFunction>();
     }
 
@@ -3065,6 +3268,7 @@ export namespace taskpool {
                 if (internalTask.tryTransitionToTimeout() || (internalTask.state.load() == InternalState.CANCELED.valueOf() && internalTask.isRunning)) {
                     internalTask.isTimeout.store(true);
                     executionRecord.markTimedOut();
+                    internalTask.removeTaskRegistryReference(executionRecord);
                     reject(new Error(TASKPOOL_ERROR_TASK_EXECUTE_TIMEOUT, "taskpool:: task has been timeout"));
                 }
             }, internalTask.timeoutMs.toInt());
@@ -3202,7 +3406,9 @@ export namespace taskpool {
                 hilogInfo(tagName);
                 GroupState.of(group).state_.store(InternalState.TIMEOUT.valueOf());
                 GroupState.of(group).tasks.forEach((task: Task) => {
-                    InternalTask.of(task).state.store(InternalState.TIMEOUT.valueOf());
+                    const internalTask = InternalTask.of(task);
+                    internalTask.state.store(InternalState.TIMEOUT.valueOf());
+                    internalTask.releaseTaskRegistryReferences();
                 });
                 reject(new Error(TASKPOOL_ERROR_TASK_EXECUTE_TIMEOUT, "taskpool:: task group has been timeout"));
                 Tracer.finishTrace();
@@ -3230,15 +3436,16 @@ export namespace taskpool {
         return cancelDeferred.promise;
     }
 
-    function tryRejectCanceledGroupResultLocked(groupState: GroupState): void {
+    function tryRejectCanceledGroupResultLocked(groupState: GroupState): boolean {
         const cancelDeferred = groupState.cancelDeferred;
         if (groupState.resultSettled || cancelDeferred === undefined) {
-            return;
+            return false;
         }
         groupState.resultSettled = true;
         cancelDeferred.reject(
             new Error(TASKPOOL_ERROR_GROUP_CANCELED, "taskpool:: taskGroup has been canceled")
         );
+        return true;
     }
 
     function wrapGroupExecutionResult(
@@ -3251,10 +3458,19 @@ export namespace taskpool {
             ? [allPromise, groupCancelPromise]
             : [allPromise, timeoutPromise, groupCancelPromise];
         return Promise.race<Array<Any>>(racePromises).finally(() => {
+            let cleanupRegistry = false;
             ConcurrencyHelpers.lockGuard(groupState.controlMutex, () => {
                 groupState.resultSettled = true;
                 groupState.cancelDeferred = undefined;
+                cleanupRegistry = groupState.cleanupRegistryOnResultSettlement;
+                groupState.cleanupRegistryOnResultSettlement = false;
             });
+            if (cleanupRegistry) {
+                const tasks = groupState.tasks;
+                for (let i: int = 0; i < tasks.length; i++) {
+                    InternalTask.of(tasks[i]).releaseTaskRegistryReferences();
+                }
+            }
         });
     }
 
@@ -3287,55 +3503,16 @@ export namespace taskpool {
         internalTask.checkExecutionForDelayedTask(delayTime);
         internalTask.captureAsyncStack();
         internalTask.isSubmitted = true;
-        ConcurrencyHelpers.lockGuard(mutex, () => {
-            pendingDelayed.add(task);
-        });
         while(true) {
-            let curState = InternalTask.of(task).state.load();
+            let curState = internalTask.state.load();
             if (curState == State.CANCELED) {
                 break;
             }
-            if (InternalTask.of(task).state.compareAndSwap(curState, InternalState.DELAYED) == curState) {
+            if (internalTask.state.compareAndSwap(curState, InternalState.DELAYED) == curState) {
                 break;
             }
         }
-        return new Promise<Any>((resolve, reject) => {
-            InternalTask.of(task).timerId = setTimeout(() => {
-                let tagName = "Sta TaskPool:ExecuteDelayed:taskID:" +
-                    task.taskId.toString() +
-                    ", priority:" +
-                    (priority ?? Priority.MEDIUM).toString() +
-                    ", delayTime:" +
-                    delayTime.toString();
-                hilogDebug(tagName);
-                ConcurrencyHelpers.lockGuard(mutex, () => {
-                    pendingDelayed.delete(task);
-                });
-                if (InternalTask.of(task).timerId == -1 || isCanceled(task)) {
-                    ConcurrencyHelpers.lockGuard(mutex, () => {
-                        pendingDelayedCanceled.delete(task);
-                    });
-                    reject(new Error("taskpool:: task has been canceled"));
-                    return;
-                }
-                if (isTaskPoolUseLaunch) {
-                    launchImpl(task, priority).then((res: Any) => {
-                        resolve(res);
-                    }).catch((e) => {
-                        reject(e);
-                    })
-                } else {
-                    const executionRecord = InternalTask.of(task).createExecutionRecord();
-                    const p = executionRecord.promise;
-                    InternalTask.of(task).enqueue(priority, executionRecord);
-                    p.then((res: Any) => {
-                        resolve(res);
-                    }).catch((e) => {
-                        reject(e);
-                    })
-                }
-            }, delayTime);
-        });
+        return internalTask.scheduleDelayedExecution(delayTime, priority);
     }
 
     /**
@@ -3398,6 +3575,14 @@ export namespace taskpool {
         }
         ConcurrencyHelpers.mutexUnlock(mutex);
         if (task === undefined) {
+            for (let t of taskSet.keys()) {
+                if (t.taskId == taskId) {
+                    task = t;
+                    break;
+                }
+            }
+        }
+        if (task === undefined) {
             task = periodicTasks.get(taskId);
         }
         if (task === undefined) {
@@ -3420,48 +3605,54 @@ export namespace taskpool {
         hilogInfo(tagName);
         try {
             tryCancelDependentTasks(task);
+            const internalTask = InternalTask.of(task);
+            const delayedExecutions = internalTask.takeDelayedExecutionsForCancellation();
             // 1. task has been canceled skip it
             // 2. task is waiting or running, cancel it
             let timerId = -1;
-            if (InternalTask.of(task).timerId !== -1) {
-                timerId = InternalTask.of(task).timerId;
-                if (InternalTask.of(task).isPeriodicTask) {
+            if (internalTask.timerId !== -1) {
+                timerId = internalTask.timerId;
+                if (internalTask.isPeriodicTask) {
                     clearInterval(timerId);
                     periodicTasks.delete(task.taskId);
                 }
             }
             if (timerId != -1) {
-                ConcurrencyHelpers.lockGuard(InternalTask.of(task).taskMutex, () => {
-                    InternalTask.of(task).timerId = -1;
-                    InternalTask.of(task).clearPeriodicPendingExecutionRecordsUnsafe();
+                ConcurrencyHelpers.lockGuard(internalTask.taskMutex, () => {
+                    internalTask.timerId = -1;
+                    internalTask.clearPeriodicPendingExecutionRecordsUnsafe();
                     // canceled task set state to canceled, avoid duplicate execution
-                    InternalTask.of(task).state.store(State.CANCELED.valueOf());
+                    internalTask.state.store(State.CANCELED.valueOf());
                 });
-                InternalTask.of(task).removeTaskRegistryReference();
+                internalTask.releaseTaskRegistryReferences();
+                retireCanceledDelayedExecutions(task, delayedExecutions, true);
                 return;
             }
             while(true) {
-                let curState = InternalTask.of(task).state.load();
+                let curState = internalTask.state.load();
                 if (curState == InternalState.CANCELED) {
+                    retireCanceledDelayedExecutions(task, delayedExecutions, true);
                     return;
                 }
-                if (curState == InternalState.NOT_FOUND) {
+                if (curState == InternalState.NOT_FOUND && delayedExecutions.length == 0) {
                     throw new Error(TASKPOOL_ERROR_TASK_NOT_EXECUTED_TASK, "taskpool:: task is not executed or has been executed");
                 }
-                if (curState == InternalState.FINISHED) {
-                    if (InternalTask.of(task).seqId.load() != 0) {
+                if (curState == InternalState.FINISHED && delayedExecutions.length == 0) {
+                    if (internalTask.seqId.load() != 0) {
                         throw new Error(TASKPOOL_ERROR_SEQ_RUNNER_TASK_EXECUTED, "taskpool:: sequenceRunner task has been executed");
                     }
-                    if (InternalTask.of(task).asyncId.load() != 0) {
+                    if (internalTask.asyncId.load() != 0) {
                         throw new Error(TASKPOOL_ERROR_ASYNC_RUNNER_TASK_EXECUTED, "taskpool:: asyncRunner task has been executed")
                     }
                     throw new Error(TASKPOOL_ERROR_TASK_ALREADY_EXECUTED_BASIC, "taskpool:: task has been executed");
                 }
-                if (InternalTask.of(task).state.compareAndSwap(curState, InternalState.CANCELED) == curState) {
+                if (internalTask.state.compareAndSwap(curState, InternalState.CANCELED) == curState) {
                     cleanupCanceledPendingDependencyTask(task);
-                    if (curState == InternalState.RUNNING.valueOf()) {
-                        cleanupCanceledRunningTask(task);
+                    if (curState == InternalState.RUNNING.valueOf() ||
+                        curState == InternalState.TIMEOUT.valueOf()) {
+                        internalTask.releaseTaskRegistryReferences();
                     }
+                    retireCanceledDelayedExecutions(task, delayedExecutions, true);
                     return;
                 }
             }
@@ -3482,8 +3673,11 @@ export namespace taskpool {
         Tracer.startTrace(tagName);
         hilogInfo(tagName);
         try {
-            ConcurrencyHelpers.lockGuard(groupState.controlMutex, () => {
-                let currentState = groupState.state_.load();
+            const tasks = groupState.tasks;
+            let cleanupRegistrySynchronously = false;
+            ConcurrencyHelpers.mutexLock(groupState.controlMutex);
+            try {
+                const currentState = groupState.state_.load();
                 if (currentState != (InternalState.RUNNING.valueOf()) &&
                     currentState != (InternalState.WAITING.valueOf())) {
                     throw new Error(
@@ -3492,11 +3686,25 @@ export namespace taskpool {
                     );
                 }
                 groupState.state_.store(State.CANCELED.valueOf());
-                groupState.tasks.forEach((task: Task) => {
-                    InternalTask.of(task).state.store(State.CANCELED.valueOf());
-                });
-                tryRejectCanceledGroupResultLocked(groupState);
-            });
+                for (let i: int = 0; i < tasks.length; i++) {
+                    InternalTask.of(tasks[i]).state.store(State.CANCELED.valueOf());
+                }
+                groupState.cleanupRegistryOnResultSettlement = true;
+                // The already-registered group result finalizer normally owns registry cleanup. This keeps
+                // cancel() synchronous work bounded while ensuring cleanup precedes promise settlement.
+                if (!tryRejectCanceledGroupResultLocked(groupState)) {
+                    // A completion race may have settled the result before cancellation acquired the lock.
+                    groupState.cleanupRegistryOnResultSettlement = false;
+                    cleanupRegistrySynchronously = true;
+                }
+            } finally {
+                ConcurrencyHelpers.mutexUnlock(groupState.controlMutex);
+            }
+            if (cleanupRegistrySynchronously) {
+                for (let i: int = 0; i < tasks.length; i++) {
+                    InternalTask.of(tasks[i]).releaseTaskRegistryReferences();
+                }
+            }
         } finally {
             Tracer.finishTrace();
         }
@@ -3520,41 +3728,34 @@ export namespace taskpool {
         ConcurrencyHelpers.mutexLock(mutex);
         // collect all tasks waiting and running
         for (let task of allTasks.keys()) {
-            if (InternalTask.of(task).state.load() == InternalState.FINISHED.valueOf()) {
-                // should not enter this branch, task will be removed from allTasks map after finished
+            let state = InternalTask.of(task).state.load();
+            if (state == InternalState.FINISHED.valueOf() || state == InternalState.DELAYED.valueOf()) {
+                // Finished tasks should already be removed from allTasks. Delayed tasks are kept internally,
+                // but are not exposed by getTaskPoolInfo(), which is consistent with the dynamic taskpool.
                 continue;
             }
             const taskInfo: TaskInfo = new TaskInfo();
             taskInfo.taskId = task.taskId;
             taskInfo.name = task.name;
-            let state = InternalTask.of(task).state.load();
             if (state == 1) {
                 taskInfo.state = State.WAITING;
             } else if (state == 2) {
                 taskInfo.state = State.RUNNING;
             } else if (state == 3) {
                 taskInfo.state = State.CANCELED;
-            } else if (state == 4) {
-                taskInfo.state = State.DELAYED;
             }
             taskInfo.duration = InternalTask.of(task).getTaskInfoDuration();
             taskInfos.push(taskInfo);
         }
-        // Collect delay and canceled tasks info
-        pendingDelayed.forEach((task: Task) => {
+        // Collect canceled delayed tasks info. pendingDelayed remains an internal lifecycle registry.
+        pendingDelayedCanceled.forEach((task: Task) => {
+            if (allTasks.has(task)) {
+                return;
+            }
             const taskInfo: TaskInfo = new TaskInfo();
             taskInfo.taskId = task.taskId;
             taskInfo.name = task.name;
-            let state = InternalTask.of(task).state.load();
-            if (state == State.WAITING.valueOf()) {
-                taskInfo.state = State.WAITING;
-            } else if (state == State.RUNNING.valueOf()) {
-                taskInfo.state = State.RUNNING;
-            } else if (state == State.CANCELED.valueOf()) {
-                taskInfo.state = State.CANCELED;
-            } else if (state == State.DELAYED.valueOf()) {
-                taskInfo.state = State.DELAYED;
-            }
+            taskInfo.state = State.CANCELED;
             taskInfo.duration = InternalTask.of(task).getTaskInfoDuration();
             taskInfos.push(taskInfo);
         });
@@ -3680,10 +3881,6 @@ export namespace taskpool {
         return Array.from(s).filter(cb);
     }
 
-    function isCanceled(task: Task): boolean {
-        return InternalTask.of(task).state.load() == InternalState.CANCELED.valueOf();
-    }
-
     function getTaskCanceledError(internalTask: InternalTask): Error {
         if (internalTask.groupId != 0) {
             return new Error(TASKPOOL_ERROR_GROUP_CANCELED, "taskpool:: taskGroup has been canceled");
@@ -3697,9 +3894,39 @@ export namespace taskpool {
         return new Error(TASKPOOL_ERROR_TASK_CANCELED, "taskpool:: task has been canceled");
     }
 
-    function finishCanceledPendingDependencyTask(task: Task): void {
+    function retireCanceledDelayedExecutions(
+        task: Task,
+        delayedExecutions: Array<DelayedExecution>,
+        retireCanceledSnapshot: boolean
+    ): void {
+        if (delayedExecutions.length == 0) {
+            return;
+        }
+        const internalTask = InternalTask.of(task);
+        const cancelError = new Error("taskpool:: task has been canceled");
+        for (const delayedExecution of delayedExecutions) {
+            const timerId = delayedExecution.timerId;
+            delayedExecution.timerId = -1;
+            if (timerId != -1) {
+                clearTimeout(timerId);
+            }
+            delayedExecution.executionRecord.markCanceled();
+            delayedExecution.executionRecord.rejectPromise(cancelError);
+            internalTask.finishExecutionRecord(delayedExecution.executionRecord);
+        }
+        if (retireCanceledSnapshot) {
+            Promise.resolve().then(() => {
+                ConcurrencyHelpers.lockGuard(mutex, () => {
+                    pendingDelayedCanceled.delete(task);
+                });
+            });
+        }
+    }
+
+    function finishCanceledPendingDependencyTask(queuedExecution: QueuedExecution): void {
+        const task = queuedExecution.task!;
         waitingTasksNum.fetchSub(1);
-        InternalTask.of(task).removeTaskRegistryReference();
+        InternalTask.of(task).removeTaskRegistryReference(queuedExecution.executionRecord!);
 
         let internalTask = InternalTask.of(task);
         let cancelError = getTaskCanceledError(internalTask);
@@ -3714,11 +3941,6 @@ export namespace taskpool {
             }
         });
         internalTask.notifyDependencies();
-    }
-
-    function cleanupCanceledRunningTask(task: Task): void {
-        let internalTask = InternalTask.of(task);
-        internalTask.removeTaskRegistryReference();
     }
 
     function takePendingDependencyQueuedExecution(task: Task): QueuedExecution | undefined {
@@ -3737,7 +3959,7 @@ export namespace taskpool {
         if (queuedExecution == undefined) {
             return false;
         }
-        finishCanceledPendingDependencyTask(task);
+        finishCanceledPendingDependencyTask(queuedExecution);
         return true;
     }
 
@@ -4044,9 +4266,14 @@ export namespace taskpool {
             return undefined;
         }
         ConcurrencyHelpers.lockGuard(globalTaskQueuesMutex, () => {
-            // Double-check after acquiring lock to avoid race condition
-            queuedExecution = getTaskWithAttempts();
+            // Claim a queued execution while holding the condition-variable mutex, but defer dependency
+            // migration and canceled-task cleanup because those paths may acquire this mutex again.
+            queuedExecution = getTaskWithAttempts(true);
         });
+        let claimed = queuedExecution;
+        if (claimed != undefined && claimed.transientExecution === undefined) {
+            queuedExecution = prepareClaimedTaskExecution(claimed);
+        }
         if (queuedExecution != undefined) {
             waitingTasksNum.fetchSub(1);
             return queuedExecution;
@@ -4059,27 +4286,37 @@ export namespace taskpool {
             return undefined;
         }
         addToIdleWorkers(worker);
+        let claimedExecution = false;
         ConcurrencyHelpers.lockGuard(globalTaskQueuesMutex, () => {
             // Re-check after publishing idle state to avoid missing a wake-up.
-            queuedExecution = getTaskWithAttempts();
+            queuedExecution = getTaskWithAttempts(true);
+            claimedExecution = queuedExecution !== undefined;
             if (queuedExecution === undefined && worker.isWorkerActive() && !worker.hasRetireRequested()) {
                 Coroutine.Schedule();
                 ConcurrencyHelpers.condVarWait(globalTaskCondVar, globalTaskQueuesMutex);
             }
         });
-        // After waking up, try again (task might still be undefined due to spurious wakeup)
+        claimed = queuedExecution;
+        if (claimed != undefined && claimed.transientExecution === undefined) {
+            queuedExecution = prepareClaimedTaskExecution(claimed);
+        }
         if (queuedExecution != undefined) {
             waitingTasksNum.fetchSub(1);
             return queuedExecution;
+        }
+        // The claimed execution may have been moved to the dependency map or retired as canceled. In either
+        // case this worker did not wait on the condition variable and must not remain published as idle.
+        if (claimedExecution) {
+            removeFromIdleWorkers(worker);
         }
         worker.tryAdvanceRetireRequest();
         return undefined;
     }
 
-    function getTaskWithAttempts(): QueuedExecution | undefined {
+    function getTaskWithAttempts(deferDependencyCheck: boolean = false): QueuedExecution | undefined {
         let attempts = continuousExecutionCount;
         while (attempts > 0) {
-            let queuedExecution = selectTaskByPriorityNonBlocking();
+            let queuedExecution = selectTaskByPriorityNonBlocking(deferDependencyCheck);
             if (queuedExecution != undefined) {
                 return queuedExecution;
             }
@@ -4091,14 +4328,14 @@ export namespace taskpool {
     * @brief Non-blocking priority-based task selection using LinkedBlockingQueue.poll()
      * Uses poll() instead of pop() to avoid blocking
      */
-    function selectTaskByPriorityNonBlocking(): QueuedExecution | undefined {
+    function selectTaskByPriorityNonBlocking(deferDependencyCheck: boolean): QueuedExecution | undefined {
         let queuedExecution: QueuedExecution | undefined = undefined;
 
         // HIGH priority tasks (with continuous execution limit)
         if (getGlobalTaskQueueSize(Priority.HIGH) > 0) {
             if (globalHighTaskExecuteCount.load() < continuousExecutionCount) {
                 globalHighTaskExecuteCount.fetchAdd(1);
-                queuedExecution = getGlobalTaskImplNonBlocking(Priority.HIGH);
+                queuedExecution = getGlobalTaskImplNonBlocking(Priority.HIGH, deferDependencyCheck);
             } else {
                 globalHighTaskExecuteCount.store(0);
             }
@@ -4108,7 +4345,7 @@ export namespace taskpool {
         if (getGlobalTaskQueueSize(Priority.MEDIUM) > 0 && queuedExecution === undefined) {
             if (globalMediumTaskExecuteCount.load() < continuousExecutionCount) {
                 globalMediumTaskExecuteCount.fetchAdd(1);
-                queuedExecution = getGlobalTaskImplNonBlocking(Priority.MEDIUM);
+                queuedExecution = getGlobalTaskImplNonBlocking(Priority.MEDIUM, deferDependencyCheck);
             } else {
                 globalMediumTaskExecuteCount.store(0);
             }
@@ -4116,12 +4353,12 @@ export namespace taskpool {
 
         // LOW priority tasks
         if (getGlobalTaskQueueSize(Priority.LOW) > 0 && queuedExecution === undefined) {
-            queuedExecution = getGlobalTaskImplNonBlocking(Priority.LOW);
+            queuedExecution = getGlobalTaskImplNonBlocking(Priority.LOW, deferDependencyCheck);
         }
 
         // IDLE priority tasks (non-blocking check)
         if (getGlobalTaskQueueSize(Priority.IDLE) > 0 && queuedExecution === undefined) {
-            queuedExecution = getGlobalTaskImplNonBlocking(Priority.IDLE);
+            queuedExecution = getGlobalTaskImplNonBlocking(Priority.IDLE, deferDependencyCheck);
         }
 
         return queuedExecution;
@@ -4135,18 +4372,24 @@ export namespace taskpool {
      */
     function moveToPendingDependencyQueue(queuedExecution: QueuedExecution): boolean {
         let moved = false;
+        let canceled = false;
         const task = queuedExecution.task!;
         let internalTask = InternalTask.of(task);
-        ConcurrencyHelpers.lockGuard(internalTask.taskMutex, () => {
+        ConcurrencyHelpers.lockGuard(pendingDependencyTasksMutex, () => {
             if (internalTask.taskDependenciesCount.load() == 0) {
                 return;
             }
-            ConcurrencyHelpers.lockGuard(pendingDependencyTasksMutex, () => {
+            if (internalTask.state.load() == InternalState.CANCELED.valueOf()) {
+                canceled = true;
+            } else {
                 pendingDependencyTasks.set(task, queuedExecution);
-            });
-            moved = true;
+                moved = true;
+            }
         });
-        return moved;
+        if (canceled) {
+            finishCanceledPendingDependencyTask(queuedExecution);
+        }
+        return moved || canceled;
     }
 
     function removePendingDependencyTask(task: Task): void {
@@ -4165,25 +4408,57 @@ export namespace taskpool {
             return false;
         }
 
-        let queuedExecution = takePendingDependencyQueuedExecution(task);
-        if (queuedExecution == undefined) {
+        let queuedExecution: QueuedExecution | undefined = undefined;
+        let canceled = false;
+        let activated = false;
+
+        while (true) {
+            let shouldRetry = false;
+            ConcurrencyHelpers.lockGuard(pendingDependencyTasksMutex, () => {
+                if (internalTask.taskDependenciesCount.load() != 0) {
+                    return;
+                }
+                queuedExecution = pendingDependencyTasks.get(task);
+                if (queuedExecution == undefined) {
+                    return;
+                }
+                if (internalTask.state.load() == InternalState.CANCELED.valueOf()) {
+                    canceled = true;
+                    pendingDependencyTasks.delete(task);
+                    return;
+                }
+                const queue = globalTaskQueue.get(
+                    normalizeTaskQueuePriority(queuedExecution!.priority)
+                )!;
+                if (!queue.add(queuedExecution!)) {
+                    shouldRetry = true;
+                    return;
+                }
+                activated = true;
+                pendingDependencyTasks.delete(task);
+            });
+            if (!shouldRetry) {
+                break;
+            }
+            Coroutine.Schedule();
+        }
+
+        if (canceled) {
+            finishCanceledPendingDependencyTask(queuedExecution!);
             return false;
         }
-        if (internalTask.state.load() == InternalState.CANCELED.valueOf()) {
-            finishCanceledPendingDependencyTask(task);
+        if (!activated) {
             return false;
         }
 
-        while (!globalTaskQueue.get(normalizeTaskQueuePriority(queuedExecution.priority))?.add(queuedExecution)) {
-            Coroutine.Schedule();
-        }
         ConcurrencyHelpers.lockGuard(globalTaskQueuesMutex, () => {
             ConcurrencyHelpers.condVarNotifyOne(globalTaskCondVar, globalTaskQueuesMutex);
         });
         return true;
     }
 
-    function getGlobalTaskImplNonBlocking(priority: Priority): QueuedExecution | undefined {
+    function getGlobalTaskImplNonBlocking(priority: Priority,
+                                           deferDependencyCheck: boolean): QueuedExecution | undefined {
         let queue = globalTaskQueue.get(normalizeTaskQueuePriority(priority));
         if (queue == undefined || queue.size == 0) {
             return undefined;
@@ -4193,7 +4468,7 @@ export namespace taskpool {
         if (queuedExecution == undefined) {
             return undefined;
         }
-        if (queuedExecution.transientExecution !== undefined) {
+        if (queuedExecution.transientExecution !== undefined || deferDependencyCheck) {
             return queuedExecution;
         }
         const task = queuedExecution.task!;
@@ -4204,6 +4479,17 @@ export namespace taskpool {
             if (!moveToPendingDependencyQueue(queuedExecution)) {
                 return queuedExecution;
             }
+        }
+        return undefined;
+    }
+
+    function prepareClaimedTaskExecution(queuedExecution: QueuedExecution): QueuedExecution | undefined {
+        const task = queuedExecution.task!;
+        if (InternalTask.of(task).taskDependenciesCount.load() == 0) {
+            return queuedExecution;
+        }
+        if (!moveToPendingDependencyQueue(queuedExecution)) {
+            return queuedExecution;
         }
         return undefined;
     }

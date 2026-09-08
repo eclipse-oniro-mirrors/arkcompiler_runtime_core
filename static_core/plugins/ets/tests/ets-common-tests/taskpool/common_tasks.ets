@@ -144,13 +144,13 @@ async function getDelayedTaskInfoTest(): Promise<void> {
     let p = taskpool.executeDelayed(100, task);
 
     let taskpoolInfo = taskpool.getTaskPoolInfo();
-    let state : int = taskpool.State.WAITING;
+    let taskExists = false;
     for (const taskInfo of taskpoolInfo.taskInfos) {
         if (taskInfo.name === taskName) {
-            state = taskInfo.state.valueOf();
+            taskExists = true;
         }
     }
-    arktest.assertEQ(taskpool.State.DELAYED.valueOf(), state);
+    arktest.assertFalse(taskExists);
 
     arktest.assertEQ(await p, 'success');
 

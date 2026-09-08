@@ -1103,12 +1103,25 @@ async function cancelPeriodicTaskNoRegistryLeak(): Promise<void> {
     arktest.assertEQ(leakedCount, 0, 'periodic tasks should be removed from registry after cancel');
 }
 
+function blockDelayedDependencyRoot(started: AtomicFlag, release: AtomicFlag): void {
+    started.set(true);
+    while (!release.get()) {
+    }
+}
+
 async function cancelDelayedDependencyChainNoLeak(): Promise<void> {
-    let taskA = new taskpool.Task(delay, 50);
-    let taskB = new taskpool.Task(delay, 50);
-    let taskC = new taskpool.Task(delay, 50);
+    const readyTimeoutMs: number = 5000.0;
+    let taskAStarted = new AtomicFlag(false);
+    let releaseTaskA = new AtomicFlag(false);
+    let taskBEnqueued = new AtomicFlag(false);
+    let taskCEnqueued = new AtomicFlag(false);
+    let taskA = new taskpool.Task(blockDelayedDependencyRoot, taskAStarted, releaseTaskA);
+    let taskB = new taskpool.Task(delay, 1);
+    let taskC = new taskpool.Task(delay, 1);
     taskB.addDependency(taskA);
     taskC.addDependency(taskB);
+    taskB.onEnqueued(() => taskBEnqueued.set(true));
+    taskC.onEnqueued(() => taskCEnqueued.set(true));
     let taskIds: long[] = [taskA.taskId, taskB.taskId, taskC.taskId];
 
     let promises: Promise<Any>[] = [
@@ -1117,13 +1130,25 @@ async function cancelDelayedDependencyChainNoLeak(): Promise<void> {
         taskpool.executeDelayed(10, taskC).catch((err: Error) => err),
     ];
 
-    await dependencyStressAsyncSleep(30.0);
-    taskpool.cancel(taskC);
-    taskpool.cancel(taskB);
-    taskpool.cancel(taskA);
+    let readyDeadline: number = Date.now() + readyTimeoutMs;
+    while ((!taskAStarted.get() || !taskBEnqueued.get() || !taskCEnqueued.get()) && Date.now() < readyDeadline) {
+        await yieldSchedulerRounds(1);
+    }
+    let readyToCancel = taskAStarted.get() && taskBEnqueued.get() && taskCEnqueued.get();
+    if (!readyToCancel) {
+        releaseTaskA.set(true);
+    }
+    arktest.assertTrue(readyToCancel, 'delayed dependency chain should be running and enqueued before cancel');
+
+    try {
+        taskpool.cancel(taskC);
+        taskpool.cancel(taskB);
+        taskpool.cancel(taskA);
+    } finally {
+        releaseTaskA.set(true);
+    }
 
     await Promise.allSettled(promises);
-    await dependencyStressAsyncSleep(150.0);
 
     let info = taskpool.getTaskPoolInfo();
     let leakedCount: int = 0;
@@ -1133,6 +1158,132 @@ async function cancelDelayedDependencyChainNoLeak(): Promise<void> {
         }
     }
     arktest.assertEQ(leakedCount, 0, 'dependency chain tasks should be removed from registry after cancel');
+}
+
+async function submitCanceledDelayedDependencyBatch(settledCount: AtomicInt, chainCount: int): Promise<void> {
+    let middleTasks: taskpool.Task[] = [];
+    for (let i: int = 0; i < chainCount; i++) {
+        let rootTask = new taskpool.Task(delay, 1);
+        let middleTask = new taskpool.Task(delay, 1);
+        let leafTask = new taskpool.Task(delay, 1);
+        middleTask.addDependency(rootTask);
+        leafTask.addDependency(middleTask);
+        middleTasks.push(middleTask);
+
+        taskpool.execute(middleTask, taskpool.Priority.HIGH)
+            .then((_res: Any) => settledCount.fetchAdd(1))
+            .catch((_err: Error) => settledCount.fetchAdd(1));
+        taskpool.executeDelayed(2, rootTask, taskpool.Priority.HIGH)
+            .then((_res: Any) => settledCount.fetchAdd(1))
+            .catch((_err: Error) => settledCount.fetchAdd(1));
+        taskpool.execute(leafTask, taskpool.Priority.HIGH)
+            .then((_res: Any) => settledCount.fetchAdd(1))
+            .catch((_err: Error) => settledCount.fetchAdd(1));
+    }
+
+    for (let middleTask of middleTasks) {
+        try {
+            taskpool.cancel(middleTask);
+        } catch (e) {
+            // A task that won the execution race will settle through its original execution promise.
+        }
+    }
+}
+
+async function canceledDelayedDependenciesDoNotDeadlockGlobalQueue(): Promise<void> {
+    if (CoroutineExtras.isTaskpoolUsingLaunchMode()) {
+        return;
+    }
+
+    const outerChainCount: int = 3;
+    const innerChainCount: int = 4;
+    const submissionsPerChain: int = 3;
+    const expectedOuterSettled: int = outerChainCount * submissionsPerChain;
+    const expectedInnerSettled: int = expectedOuterSettled * innerChainCount * submissionsPerChain;
+    const timeoutMs: int = 5000;
+    let innerSettled = new AtomicInt(0);
+    let outerPromises: Promise<Any>[] = [];
+
+    for (let i: int = 0; i < outerChainCount; i++) {
+        let rootTask = new taskpool.Task(submitCanceledDelayedDependencyBatch, innerSettled, innerChainCount);
+        let middleTask = new taskpool.Task(submitCanceledDelayedDependencyBatch, innerSettled, innerChainCount);
+        let leafTask = new taskpool.Task(submitCanceledDelayedDependencyBatch, innerSettled, innerChainCount);
+        middleTask.addDependency(rootTask);
+        leafTask.addDependency(middleTask);
+
+        outerPromises.push(taskpool.executeDelayed(5, rootTask, taskpool.Priority.HIGH));
+        outerPromises.push(taskpool.execute(leafTask, taskpool.Priority.HIGH));
+        outerPromises.push(taskpool.executeDelayed(2, middleTask, taskpool.Priority.HIGH));
+    }
+
+    let timeoutResolve: ((value: boolean) => void) | undefined = undefined;
+    let timeoutPromise = new Promise<boolean>((resolve: (value: boolean) => void) => {
+        timeoutResolve = resolve;
+    });
+    if (timeoutResolve === undefined) {
+        throw new Error('failed to initialize deadlock timeout');
+    }
+    const timeoutId = setTimeout(() => timeoutResolve!(false), timeoutMs);
+    let outerSettled = await Promise.race<boolean>([
+        Promise.allSettled(outerPromises).then((results: PromiseSettledResult<Any>[]) => {
+            return results.length.toInt() == expectedOuterSettled;
+        }),
+        timeoutPromise
+    ]);
+    clearTimeout(timeoutId);
+    arktest.assertTrue(outerSettled, 'canceled dependency cleanup must not deadlock the global task queue');
+
+    let deadline: number = Date.now() + timeoutMs;
+    while (innerSettled.load() < expectedInnerSettled && Date.now() < deadline) {
+        await dependencyStressAsyncSleep(10.0);
+    }
+    arktest.assertEQ(innerSettled.load(), expectedInnerSettled);
+}
+
+function markDelayedTaskExecuted(executed: AtomicFlag): void {
+    executed.set(true);
+}
+
+async function cancelMultipleDelayedSubmissionsImmediately(): Promise<void> {
+    const submissionCount: int = 3;
+    const delayedTimeMs: int = 500;
+    const settleTimeoutMs: number = 200.0;
+    const deadlineMarginMs: number = 50.0;
+    let executed = new AtomicFlag(false);
+    let task = new taskpool.Task(markDelayedTaskExecuted, executed);
+    let promises: Promise<Any>[] = [];
+
+    for (let i: int = 0; i < submissionCount; i++) {
+        promises.push(taskpool.executeDelayed(delayedTimeMs, task).catch((err: Error) => err));
+    }
+    const observeAfterDeadline = Date.now() + delayedTimeMs.toDouble() + deadlineMarginMs;
+
+    taskpool.cancel(task);
+    let settled = await Promise.race<boolean>([
+        Promise.all<Any>(promises).then((_results: Any[]) => true),
+        dependencyStressAsyncSleep(settleTimeoutMs).then(() => false)
+    ]);
+    arktest.assertTrue(settled, 'all delayed promises must reject immediately after cancel');
+
+    let results = await Promise.all<Any>(promises);
+    for (let result of results) {
+        arktest.assertTrue(result instanceof Error);
+        arktest.assertEQ((result as Error).message, 'taskpool:: task has been canceled');
+    }
+    arktest.assertFalse(executed.get());
+
+    // Immediate rejection and timer cancellation are separate requirements. Wait beyond the original
+    // deadline to ensure a stale timeout callback cannot execute the canceled task later.
+    const remainingToDeadline = observeAfterDeadline - Date.now();
+    if (remainingToDeadline > 0) {
+        await dependencyStressAsyncSleep(remainingToDeadline);
+    }
+    arktest.assertFalse(executed.get(), 'canceled delayed task must remain unexecuted after its original deadline');
+
+    let info = taskpool.getTaskPoolInfo();
+    for (let taskInfo of info.taskInfos) {
+        arktest.assertNE(taskInfo.taskId, task.taskId);
+    }
 }
 
 async function testNoEAWorker() {
@@ -1210,6 +1361,10 @@ function main(): int {
     commonTaskSuite.addAsyncTest('cancelPeriodicTaskByIdAfterExecution', cancelPeriodicTaskByIdAfterExecution);
     commonTaskSuite.addAsyncTest('cancelPeriodicTaskNoRegistryLeak', cancelPeriodicTaskNoRegistryLeak);
     commonTaskSuite.addAsyncTest('cancelDelayedDependencyChainNoLeak', cancelDelayedDependencyChainNoLeak);
+    commonTaskSuite.addAsyncTest(
+        'canceledDelayedDependenciesDoNotDeadlockGlobalQueue', canceledDelayedDependenciesDoNotDeadlockGlobalQueue);
+    commonTaskSuite.addAsyncTest(
+        'cancelMultipleDelayedSubmissionsImmediately', cancelMultipleDelayedSubmissionsImmediately);
     commonTaskSuite.addAsyncTest('testNoEAWorker', testNoEAWorker);
 
     let res = commonTaskSuite.run();
