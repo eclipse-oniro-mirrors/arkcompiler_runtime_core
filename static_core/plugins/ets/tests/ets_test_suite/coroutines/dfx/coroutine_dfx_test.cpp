@@ -22,6 +22,8 @@
 #include "plugins/ets/runtime/ets_coroutine.h"
 
 #include "plugins/ets/runtime/ets_vm.h"
+#include "plugins/ets/runtime/integrate/ark_vm_api.h"
+#include "runtime/include/thread_scopes.h"
 #include "plugins/ets/runtime/types/ets_error.h"
 
 #include "runtime/include/class.h"
@@ -157,4 +159,66 @@ TEST_F(EtsCoroutineDFXTest, RWLockReadWaitSnapshotTest)
     coroutineManager->ExecuteJobs();
 }
 
+namespace {
+void CheckCurrentStackRange(void **stackAddr)
+{
+    size_t stackSize = 0;
+    ASSERT_EQ(ARKVM_GetCoroutineStackRange(stackAddr, &stackSize), ARKVM_OK);
+    ASSERT_NE(*stackAddr, nullptr);
+    ASSERT_GT(stackSize, 0U);
+    auto low = reinterpret_cast<uintptr_t>(*stackAddr);
+    auto local = reinterpret_cast<uintptr_t>(&stackSize);
+    ASSERT_GE(local, low);
+    ASSERT_LT(local - low, stackSize);
+}
+}  // namespace
+
+TEST_F(EtsCoroutineDFXTest, RejectsNullOutputs)
+{
+    void *addr = nullptr;
+    size_t size = 0;
+    EXPECT_EQ(ARKVM_GetCoroutineStackRange(nullptr, &size), ARKVM_INVALID_ARGS);
+    EXPECT_EQ(ARKVM_GetCoroutineStackRange(&addr, nullptr), ARKVM_INVALID_ARGS);
+    EXPECT_EQ(ARKVM_GetCoroutineStackRange(nullptr, nullptr), ARKVM_INVALID_ARGS);
+}
+
+TEST_F(EtsCoroutineDFXTest, RejectsUnattachedThreadAndClearsOutputs)
+{
+    std::thread thread([] {
+        size_t size = 1;
+        void *addr = &size;
+        EXPECT_EQ(ARKVM_GetCoroutineStackRange(&addr, &size), ARKVM_INVALID_CONTEXT);
+        EXPECT_EQ(addr, nullptr);
+        EXPECT_EQ(size, 0U);
+    });
+    thread.join();
+}
+
+TEST_F(EtsCoroutineDFXTest, MainCoroutineStackContainsLocalVariable)
+{
+    void *addr = nullptr;
+    CheckCurrentStackRange(&addr);
+}
+
+TEST_F(EtsCoroutineDFXTest, LaunchedCoroutineHasItsOwnStack)
+{
+    void *mainAddr = nullptr;
+    CheckCurrentStackRange(&mainAddr);
+    void *childAddr = nullptr;
+    auto *manager = JobExecutionContext::GetCurrent()->GetManager();
+    auto *job = manager->CreateJob(
+        PandaString {"stack-range-test"},
+        Job::NativeEntrypointInfo {[](void *data) { CheckCurrentStackRange(static_cast<void **>(data)); }, &childAddr});
+    ASSERT_NE(job, nullptr);
+    LaunchParams params(true);
+    {
+        ScopedManagedCodeThread managedScope(ManagedThread::GetCurrent());
+        ASSERT_EQ(manager->Launch(job, params), LaunchResult::OK);
+    }
+    ASSERT_NE(childAddr, nullptr);
+    EXPECT_NE(childAddr, mainAddr);
+    void *resumedAddr = nullptr;
+    CheckCurrentStackRange(&resumedAddr);
+    EXPECT_EQ(resumedAddr, mainAddr);
+}
 }  // namespace ark::ets::test

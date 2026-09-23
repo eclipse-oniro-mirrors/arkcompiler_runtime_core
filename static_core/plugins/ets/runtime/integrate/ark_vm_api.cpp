@@ -112,3 +112,29 @@ extern "C" arkvm_status ARKVM_RegisterProfilePaths(const arkvm_profile_path_info
     }
     return ARKVM_OK;
 }
+
+// CC-OFFNXT(G.FUN.02-CPP) project code style
+extern "C" arkvm_status ARKVM_GetCoroutineStackRange(void **stackAddr, size_t *stackSize)
+{
+    if (stackAddr == nullptr || stackSize == nullptr) {
+        return ARKVM_INVALID_ARGS;
+    }
+    *stackAddr = nullptr;
+    *stackSize = 0;
+    if (ark::Mutator::GetCurrent() == nullptr) {
+        return ARKVM_INVALID_CONTEXT;
+    }
+    auto *coroutine = ark::Coroutine::GetCurrent();
+    if (coroutine == nullptr) {
+        return ARKVM_INVALID_CONTEXT;
+    }
+    void *addr = nullptr;
+    size_t size = 0;
+    size_t guardSize = 0;
+    if (!coroutine->RetrieveStackInfo(addr, size, guardSize)) {
+        return ARKVM_ERROR;
+    }
+    *stackAddr = addr;
+    *stackSize = size;
+    return ARKVM_OK;
+}
