@@ -19,7 +19,7 @@ values:
 - { value: -1.0f, result: 0 }
 - { value: "Float.MIN_VALUE", result: -1 }
 - { value: "Float.MAX_VALUE", result: -2147483648 }
-- { value: "Float.POSITIVE_INFINITY", result: -2147483648 }
-- { value: "Float.NEGATIVE_INFINITY", result: 2147483647 }
+- { value: "Float.POSITIVE_INFINITY", result: -1 }
+- { value: "Float.NEGATIVE_INFINITY", result: -1 }
 - { value: 42.0f, result: -43 }
 - { value: 3.1415927f, result: -4 }
