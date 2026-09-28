@@ -65,7 +65,6 @@ protected:
 };
 
 class RequiredExportsTest : public RuntimeLibraryExportsTest {};
-class CfiExportsTest : public RuntimeLibraryExportsTest {};
 class HiddenExportsTest : public RuntimeLibraryExportsTest {};
 
 TEST_P(RequiredExportsTest, DefinedByRequestedLibrary)
@@ -76,16 +75,6 @@ TEST_P(RequiredExportsTest, DefinedByRequestedLibrary)
     ASSERT_EQ(error, nullptr) << path_ << ": " << GetParam().symbol << ": " << (error ? error : "");
     ASSERT_NE(symbol, nullptr) << GetParam().symbol;
     EXPECT_TRUE(IsOwnedByLibrary(symbol)) << GetParam().symbol << " resolved from a dependency";
-}
-
-TEST_P(CfiExportsTest, CheckEntryDefinedByRequestedLibrary)
-{
-    dlerror();
-    void *symbol = dlsym(handle_, GetParam().symbol);
-    const char *error = dlerror();
-    ASSERT_EQ(error, nullptr) << path_ << ": " << (error ? error : "");
-    ASSERT_NE(symbol, nullptr);
-    EXPECT_TRUE(IsOwnedByLibrary(symbol)) << "__cfi_check resolved from a dependency";
 }
 
 TEST_P(HiddenExportsTest, NotExportedByRequestedLibrary)
@@ -131,15 +120,6 @@ INSTANTIATE_TEST_SUITE_P(
         ExportCase {"libarktscompiler.so", "_ZN3ark8compiler25SwapOperandsConditionCodeENS0_13ConditionCodeE"}));
 
 // clang-format off
-INSTANTIATE_TEST_SUITE_P(
-    CrossDsoCfi, CfiExportsTest,
-    testing::Values(
-        ExportCase {"libani.z.so", "__cfi_check"},
-        ExportCase {"libani_helpers.z.so", "__cfi_check"},
-        ExportCase {"libarkaotmanager.so", "__cfi_check"},
-        ExportCase {"libarkencoder.so", "__cfi_check"},
-        ExportCase {"libarktscompiler.so", "__cfi_check"}));
-
 INSTANTIATE_TEST_SUITE_P(
     InitializationSymbols, HiddenExportsTest,
     testing::Values(

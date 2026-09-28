@@ -13,24 +13,31 @@
  * limitations under the License.
  */
 
-/* Preserve the existing ABI; localize only identified implementation exports. */
+/* Whitelist: export only the public ani_helpers API; hide everything else. */
 {
   global:
-    *;
-  local:
-    /* Local stream implementation instances and Ark implementation metadata. */
+    arkts_esvalue_unwrap;
+    arkts_ani_scope_open;
+    arkts_ani_scope_close_n;
+    arkts_napi_scope_open;
+    arkts_napi_scope_close_n;
+    CreateExternalArrayBuffer;
+    CreateFinalizableArrayBuffer;
+    DetachArrayBuffer;
+    IsDetachedArrayBuffer;
+    hybridgref_create_from_ani;
+    hybridgref_create_from_napi;
+    hybridgref_delete_from_ani;
+    hybridgref_delete_from_napi;
+    hybridgref_get_esvalue;
+    hybridgref_get_napi_value;
+
     extern "C++" {
-      std::__h::basic_*buf?char?*?::*;
-      vtable?for?std::__h::*;
-      VTT?for?std::__h::*;
-      construction?vtable?for?std::__h::*;
-      std::__h::__*;
-      vtable?for?ark::Arena;
-      vtable?for?ark::os::Error;
-      ark::ClassHelper::PRIMITIVE_RUNTIME_NAMES;
-      guard?variable?for?ark::ClassHelper::PRIMITIVE_RUNTIME_NAMES;
+      arkts::ani_signature::*;
+      arkts::concurrency_helpers::*;
+      ark::ets::hygref::*;
     };
-    /* CRT entry points are reached through DT_INIT / DT_FINI. */
-    _init;
-    _fini;
+
+  local:
+    *;
 };

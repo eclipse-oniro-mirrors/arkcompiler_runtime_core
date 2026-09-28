@@ -53,4 +53,56 @@
     /* CRT entry points are reached through DT_INIT / DT_FINI. */
     _init;
     _fini;
+
+    /* Private copies from bounds_checking_function:libsec_static.
+     * External securec users depend on libsec_shared.z.so. */
+    GetHwSecureCVersion;
+    SecClearDestBuf;
+    SecClearDestBufW;
+    SecInputS;
+    SecInputSW;
+    SecVsnprintfImpl;
+    SecVswprintfImpl;
+    fscanf_s;
+    fwscanf_s;
+    gets_s;
+    memcpy_s;
+    memcpy_sOptAsm;
+    memcpy_sOptTc;
+    memmove_s;
+    memset_s;
+    memset_sOptAsm;
+    memset_sOptTc;
+    scanf_s;
+    snprintf_s;
+    snprintf_truncated_s;
+    sprintf_s;
+    sscanf_s;
+    strcat_s;
+    strcpy_error;
+    strcpy_s;
+    strncat_s;
+    strncpy_error;
+    strncpy_s;
+    strtok_s;
+    swprintf_s;
+    swscanf_s;
+    vfscanf_s;
+    vfwscanf_s;
+    vscanf_s;
+    vsnprintf_s;
+    vsnprintf_truncated_s;
+    vsprintf_s;
+    vsscanf_s;
+    vswprintf_s;
+    vswscanf_s;
+    vwscanf_s;
+    wcscat_s;
+    wcscpy_s;
+    wcsncat_s;
+    wcsncpy_s;
+    wcstok_s;
+    wmemcpy_s;
+    wmemmove_s;
+    wscanf_s;
 };
