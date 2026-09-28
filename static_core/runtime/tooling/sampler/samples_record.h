@@ -47,7 +47,9 @@ struct CpuProfileNode {
 };
 
 struct ProfileInfo {
+    // Managed thread (coroutine) id, assigned by the runtime.
     uint64_t tid = 0;
+    // Underlying OS thread id (gettid), used for tooling and diagnostics.
     uint32_t osTid = 0;
     uint64_t startTime = 0;
     uint64_t stopTime = 0;
@@ -119,10 +121,24 @@ struct OwnedSampleInfo {
 class SamplesRecord {
 public:
     SamplesRecord() = default;
+    // Not thread-safe against AddSampleInfo: stop the sampler and drain its listener before aggregating.
     PANDA_PUBLIC_API std::unique_ptr<std::vector<std::unique_ptr<ProfileInfo>>> GetAllThreadsProfileInfos();
     void SetThreadStartTime(uint64_t threadStartTime)
     {
         threadStartTime_ = threadStartTime;
+    };
+    // Identifies the main thread in the profile returned for a session without samples
+    // (idle app): the IDE expects the main thread's ids rather than 0/0.
+    void SetMainThreadIds(uint64_t tid, uint32_t osTid)
+    {
+        mainThreadId_ = tid;
+        mainThreadOsTid_ = osTid;
+    };
+    // Actual sampler stop moment (same clock as SetThreadStartTime), used as the endTime of
+    // an idle session's profile; when not recorded, the aggregation moment is used instead.
+    void SetThreadStopTime(uint64_t threadStopTime)
+    {
+        threadStopTime_ = threadStopTime;
     };
     void AddSampleInfo(uint32_t threadId, std::unique_ptr<OwnedSampleInfo> sampleInfo)
     {
@@ -147,6 +163,9 @@ private:
     std::string GetUrlFromClassData(const panda_file::File *pfId, panda_file::File::EntityId classId);
 
     uint64_t threadStartTime_ = 0;
+    uint64_t threadStopTime_ = 0;
+    uint64_t mainThreadId_ = 0;
+    uint32_t mainThreadOsTid_ = 0;
     os::memory::Mutex addSamplInfoLock_;
     std::map<std::string, size_t> scriptIdMap_ = {};
     std::map<SampleInfo::ManagedStackFrameId, FrameInfo> stackInfoMap_;

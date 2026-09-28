@@ -16,6 +16,11 @@
 #include "samples_record.h"
 #include "libarkfile/debug_helpers.h"
 #include "libarkfile/class_data_accessor.h"
+#include "runtime/execution/coroutines/coroutine.h"
+#include "runtime/include/panda_vm.h"
+#include "runtime/include/runtime.h"
+#include "runtime/thread_manager.h"
+#include "runtime/tooling/sampler/sampling_profiler.h"
 #include "runtime/tooling/sampler/stack_walker_base.h"
 #include "runtime/include/tooling/buffer_serializer.h"
 
@@ -27,6 +32,27 @@ static const uintptr_t ROOT_NODE_PTR = (reinterpret_cast<uintptr_t>(reinterpret_
 static const uintptr_t PROGRAM_NODE_PTR =
     (reinterpret_cast<uintptr_t>(reinterpret_cast<void *>(INT_MAX - PROGRAM_NODE_ID)));
 static const uintptr_t IDLE_NODE_PTR = (reinterpret_cast<uintptr_t>(reinterpret_cast<void *>(INT_MAX - IDLE_NODE_ID)));
+
+namespace {
+// Main-thread sample ids (coroutine id when the main thread hosts one, OS thread id otherwise),
+// mirroring the signal handler's SampleInfo::ThreadInfo semantics.
+std::pair<uint64_t, uint32_t> ResolveMainThreadSampleIds()
+{
+    auto *runtime = Runtime::GetCurrent();
+    if (runtime == nullptr || runtime->GetPandaVM() == nullptr) {
+        return {0, 0};
+    }
+    auto *mainThread = runtime->GetPandaVM()->GetThreadManager()->GetMainThread();
+    if (mainThread == nullptr) {
+        return {0, 0};
+    }
+    uint32_t osTid = mainThread->GetId();
+    if (Coroutine::MutatorIsCoroutine(mainThread)) {
+        return {Coroutine::CastFromMutator(mainThread)->GetCoroutineId(), osTid};
+    }
+    return {osTid, osTid};
+}
+}  // namespace
 
 FrameInfo SamplesRecord::BuildDynamicFrameInfo(const uint8_t *buffer, size_t size)
 {
@@ -302,14 +328,29 @@ std::unique_ptr<ProfileInfo> SamplesRecord::GetSingleThreadProfileInfo(const Sam
 /**
  * Generates a collection of ProfileInfo objects for all threads profiling data.
  * @return A unique pointer to a vector of unique pointers to `ProfileInfo` objects, containing profiling data
- *         for all threads. Returns `nullptr` if the `tidToSampleInfosMap_` is empty.
+ *         for all threads. An idle session (no collected samples) yields a vector with a single empty
+ *         ProfileInfo (root/program/idle nodes only), so Profiler stop consumers always receive a
+ *         well-formed profile.
  */
 std::unique_ptr<std::vector<std::unique_ptr<ProfileInfo>>> SamplesRecord::GetAllThreadsProfileInfos()
 {
-    if (tidToSampleInfosMap_.empty()) {
-        return nullptr;
-    }
     auto allThreadsProfileInfos = std::make_unique<std::vector<std::unique_ptr<ProfileInfo>>>();
+    if (tidToSampleInfosMap_.empty()) {
+        // No samples were collected (e.g. the profiled session stayed idle).
+        auto profileInfo = std::make_unique<ProfileInfo>();
+        std::map<NodeKey, int> nodesMap;
+        NodeInit(*profileInfo, nodesMap);
+        if (mainThreadId_ == 0) {
+            auto [mainTid, mainOsTid] = ResolveMainThreadSampleIds();
+            SetMainThreadIds(mainTid, mainOsTid);
+        }
+        profileInfo->tid = mainThreadId_;
+        profileInfo->osTid = mainThreadOsTid_;
+        profileInfo->startTime = threadStartTime_;
+        profileInfo->stopTime = threadStopTime_ != 0 ? threadStopTime_ : Sampler::GetMicrosecondsTimeStamp();
+        allThreadsProfileInfos->emplace_back(std::move(profileInfo));
+        return allThreadsProfileInfos;
+    }
     bool limitLogged = false;
     for (const auto &pair : tidToSampleInfosMap_) {
         auto profileInfo = GetSingleThreadProfileInfo(pair.second, limitLogged);
