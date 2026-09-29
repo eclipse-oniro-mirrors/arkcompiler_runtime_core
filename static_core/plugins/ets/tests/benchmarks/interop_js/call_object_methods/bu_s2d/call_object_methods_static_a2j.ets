@@ -36,56 +36,108 @@ class ValueHolderStatic {
     };
 }
 
+class ValueHolderStatic1 extends ValueHolderStatic {}
+class ValueHolderStatic2 extends ValueHolderStatic {}
+class ValueHolderStatic3 extends ValueHolderStatic {}
+class ValueHolderStatic4 extends ValueHolderStatic {}
+
 
 /**
  * @State
- * @Import {retHolder} from "../../shared/js/libFunctions.js";
+ * @Import {retHolder, ValueHolder} from "../../shared/js/libFunctions.js";
  * @Seamless '../../shared/js/libFunctions.d.ets'
  * @Tags interop, s2s, seamless, static_any
  */
 class CallObjectMethodsStatic {
 
-    private holder = retHolder(new ValueHolderStatic());
+    /**
+     * @Param 1, 2, 3, 4
+     */
+    public morphs: int;
+
+    private holders : ValueHolder[] = [];
+
+    /**
+     * @Setup
+     */
+    public setup(): void {
+        switch(this.morphs) {
+          case 1:
+            this.holders = [retHolder(new ValueHolderStatic1()), retHolder(new ValueHolderStatic1()),
+                            retHolder(new ValueHolderStatic1()), retHolder(new ValueHolderStatic1())];
+            break;
+          case 2:
+            this.holders = [retHolder(new ValueHolderStatic1()), retHolder(new ValueHolderStatic1()),
+                            retHolder(new ValueHolderStatic2()), retHolder(new ValueHolderStatic2())];
+            break;
+          case 3:
+            this.holders = [retHolder(new ValueHolderStatic1()), retHolder(new ValueHolderStatic2()),
+                            retHolder(new ValueHolderStatic1()), retHolder(new ValueHolderStatic3())];
+            break;
+           case 4:
+            this.holders = [retHolder(new ValueHolderStatic1()), retHolder(new ValueHolderStatic2()),
+                            retHolder(new ValueHolderStatic3()), retHolder(new ValueHolderStatic4())];
+            break;
+        }
+    }
 
     /**
      * @Benchmark
      */
     callZero(): Object {
-        return this.holder.jsMethodArg0();
+        let result = 0.0;
+        for (let i = 0; i < this.holders.length; i++) {
+            result += this.holders[i].jsMethodArg0();
+        }
+        return result;
     };
 
     /**
      * @Benchmark
      */
     callShort(): Object {
-        return this.holder.jsMethodArg1(24);
+        let result = 0.0;
+        for (let i = 0; i < this.holders.length; i++) {
+            result += this.holders[i].jsMethodArg1(24);
+        }
+        return result;
     };
 
     /**
      * @Benchmark
      */
     callRange(): Object {
-        return this.holder.jsMethodArg2(42, 24);
+        let result = 0.0;
+        for (let i = 0; i < this.holders.length; i++) {
+            result += this.holders[i].jsMethodArg2(42, 24);
+        }
+        return result;
     };
 
     /**
      * @Benchmark
      */
     callZeroVoid(): void {
-        this.holder.jsMethodArg0V();
+        for (let i = 0; i < this.holders.length; i++) {
+            this.holders[i].jsMethodArg0V()
+        }
     };
 
     /**
      * @Benchmark
      */
     callShortVoid(): void {
-        this.holder.jsMethodArg1V(24);
+        for (let i = 0; i < this.holders.length; i++) {
+            this.holders[i].jsMethodArg1V(24)
+        }
     };
 
     /**
      * @Benchmark
      */
     callRangeVoid(): void {
-        this.holder.jsMethodArg2V(42, 24);
+        for (let i = 0; i < this.holders.length; i++) {
+            this.holders[i].jsMethodArg2V(42, 24);
+        }
     };
 }
