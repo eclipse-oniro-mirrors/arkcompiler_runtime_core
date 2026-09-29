@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -15,6 +15,7 @@
 
 #include "evaluation/evaluation_engine.h"
 
+#include "include/class.h"
 #include "include/tooling/pt_thread.h"
 
 namespace ark::tooling::inspector {
@@ -43,9 +44,20 @@ Expected<std::pair<TypedValue, ObjectHeader *>, Error> PtThreadEvaluationEngine:
     auto *exception = thread_->GetException();
     // Current implementation must clear any occurred exceptions
     if (exception != nullptr) {
+        auto *excClass = exception->ClassAddr<Class>();
+        LOG(ERROR, DEBUGGER) << "PtThreadEvaluationEngine::EvaluateExpression: exception occurred, class="
+                             << (excClass != nullptr ? excClass->GetName() : "null-class");
         thread_->SetException(nullptr);
     }
 
-    return std::make_pair(result.ToTypedValue((*method)->GetReturnType().GetId()), exception);
+    auto typedResult = result.ToTypedValue((*method)->GetReturnType().GetId());
+    if (typedResult.IsReference()) {
+        auto *obj = typedResult.GetAsReference();
+        if (obj != nullptr) {
+            LOG(ERROR, DEBUGGER) << "PtThreadEvaluationEngine::EvaluateExpression: result object class="
+                                 << obj->ClassAddr<Class>()->GetName();
+        }
+    }
+    return std::make_pair(typedResult, exception);
 }
 }  // namespace ark::tooling::inspector

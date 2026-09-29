@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2022-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2022-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -16,6 +16,7 @@
 #ifndef PANDA_TOOLING_INSPECTOR_DEBUG_INFO_CACHE_H
 #define PANDA_TOOLING_INSPECTOR_DEBUG_INFO_CACHE_H
 
+#include <optional>
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
@@ -27,6 +28,13 @@
 #include "runtime/tooling/debugger.h"
 
 namespace ark::tooling::inspector {
+
+struct LocalRegInfo {
+    int32_t regNumber;
+    PtFrame::RegisterKind kind;
+    std::string typeSignature;
+};
+
 class DebugInfoCache final {
 public:
     DebugInfoCache() = default;
@@ -47,6 +55,8 @@ public:
                                          bool restrictToFunction);
 
     std::map<std::string, TypedValue> GetLocals(const PtFrame &frame);
+
+    std::optional<LocalRegInfo> GetLocalRegNumber(const PtFrame &frame, std::string_view name);
 
     std::string GetSourceCode(std::string_view sourceFile);
 

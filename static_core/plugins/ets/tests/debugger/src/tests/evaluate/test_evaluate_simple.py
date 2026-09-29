@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2024-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -132,6 +132,59 @@ function main() {{
         # Run after evaluation point - execution must be finished correctly.
         await anext(walker)
         assert walker.capture.stdout[-1] == arkts_str(f"{AFTER_EVAL_MESSAGE}{expected_string}")
+
+
+async def test_evaluate_set_api_primitive(
+    breakpoint_walker: BreakpointWalkerType,
+):
+    code = f"""
+function main() {{
+    let localInt: int = 10;
+    console.log('{BEFORE_EVAL_MESSAGE}' + localInt);
+    undefined;  // #BP
+    console.log('{AFTER_EVAL_MESSAGE}' + localInt);
+    return 0;   // #BP
+}}
+"""
+    expression = "DebuggerAPI.set(0, 1, \"localInt\", 42 as Object); localInt;"
+
+    async with breakpoint_walker(code) as walker:
+        eval_point = await anext(walker)
+        assert walker.capture.stdout[-1] == arkts_str(f"{BEFORE_EVAL_MESSAGE}10")
+
+        result = await eval_point.evaluate(expression, [walker.script_file.panda_file])
+        assert len(result) == 2
+        assert result[1] is None
+        assert result[0].type_ == "number"
+
+        await anext(walker)
+        assert walker.capture.stdout[-1] == arkts_str(f"{AFTER_EVAL_MESSAGE}42")
+
+
+async def test_evaluate_set_api_string(
+    breakpoint_walker: BreakpointWalkerType,
+):
+    code = f"""
+function main() {{
+    let localString: String = 'Hello';
+    console.log('{BEFORE_EVAL_MESSAGE}' + localString);
+    undefined;  // #BP
+    console.log('{AFTER_EVAL_MESSAGE}' + localString);
+    return 0;   // #BP
+}}
+"""
+    expression = "DebuggerAPI.set(0, 1, \"localString\", \"World\" as Object); localString;"
+
+    async with breakpoint_walker(code) as walker:
+        eval_point = await anext(walker)
+        assert walker.capture.stdout[-1] == arkts_str(f"{BEFORE_EVAL_MESSAGE}Hello")
+
+        result = await eval_point.evaluate(expression, [walker.script_file.panda_file])
+        assert len(result) == 2
+        assert result[1] is None
+
+        await anext(walker)
+        assert walker.capture.stdout[-1] == arkts_str(f"{AFTER_EVAL_MESSAGE}World")
 
 
 @fixture(scope="session")
@@ -300,3 +353,43 @@ function main() {{
             assert breakpoints_counter == upper_bound
 
             process.terminate()
+
+
+async def test_evaluate_reference_array_store_type_mismatch(
+    breakpoint_walker: BreakpointWalkerType,
+):
+    # Evaluate must not put a Bar into a FixedArray<Foo>: both the signed
+    # element-write path (a named typed array variable) and the unsigned
+    # value-receiver path (setElementBuiltin) have to raise ArrayStoreError.
+    code = f"""
+class Foo {{ public x: int = 1 }}
+class Bar {{ public y: int = 2 }}
+function main() {{
+    let arr: FixedArray<Foo> = [new Foo()]
+    let bar: Bar = new Bar()
+    undefined;  // #BP
+    return 0;   // #BP
+}}
+"""
+
+    async with breakpoint_walker(code) as walker:
+        eval_point = await anext(walker)
+
+        # Signed path: the transformer emits setElement for the typed local.
+        result = await eval_point.evaluate("arr[0] = bar", [walker.script_file.panda_file])
+        assert len(result) == 2
+        details = result[1]
+        assert details is not None, "an incompatible element store must raise"
+        texts = [details.text] + ([details.exception.description] if details.exception else [])
+        assert any("cannot be stored in an array of type" in t for t in texts), texts
+
+        # Unsigned path: direct builtin dispatch on the value receiver.
+        result = await eval_point.evaluate(
+            "DebuggerAPI.setElementBuiltin(arr as Object, 0 as Object, bar as Object)",
+            [walker.script_file.panda_file],
+        )
+        assert len(result) == 2
+        details = result[1]
+        assert details is not None, "an incompatible element store must raise"
+        texts = [details.text] + ([details.exception.description] if details.exception else [])
+        assert any("cannot be stored in an array of type" in t for t in texts), texts

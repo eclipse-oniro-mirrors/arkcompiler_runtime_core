@@ -24,7 +24,12 @@
 #include "runtime/include/coretypes/string.h"
 #include "runtime/include/runtime.h"
 #if defined(PANDA_WITH_ETS)
+#include "plugins/ets/runtime/types/ets_base_enum.h"
 #include "plugins/ets/runtime/types/ets_bigint.h"
+#include "plugins/ets/runtime/types/ets_box_primitive.h"
+#include "plugins/ets/runtime/types/ets_box_primitive-inl.h"
+#include "plugins/ets/runtime/types/ets_class.h"
+#include "plugins/ets/runtime/types/ets_primitives.h"
 #endif
 #include "runtime/tooling/bigint_helper.h"
 
@@ -159,6 +164,81 @@ std::optional<std::string> PtStaticDefaultExtension::GetAsBigIntString([[maybe_u
         bytesVec.push_back(static_cast<uint32_t>(bytes->Get(i)));
     }
     return BigIntBytesToDecimalString(bytesVec, sign);
+#else
+    return {};
+#endif
+}
+
+#if defined(PANDA_WITH_ETS)
+template <typename T>
+static std::optional<TypedValue> UnboxToTypedValue(const ObjectHeader *object)
+{
+    auto val = ark::ets::EtsBoxPrimitive<T>::Unbox(
+        const_cast<ark::ets::EtsObject *>(reinterpret_cast<const ark::ets::EtsObject *>(object)));
+    if constexpr (std::is_same_v<T, ark::ets::EtsBoolean>) {
+        return TypedValue::U1(val);
+    } else if constexpr (std::is_same_v<T, ark::ets::EtsByte>) {
+        return TypedValue::I8(val);
+    } else if constexpr (std::is_same_v<T, ark::ets::EtsChar>) {
+        return TypedValue::U16(val);
+    } else if constexpr (std::is_same_v<T, ark::ets::EtsShort>) {
+        return TypedValue::I16(val);
+    } else if constexpr (std::is_same_v<T, ark::ets::EtsInt>) {
+        return TypedValue::I32(val);
+    } else if constexpr (std::is_same_v<T, ark::ets::EtsLong>) {
+        return TypedValue::I64(val);
+    } else if constexpr (std::is_same_v<T, ark::ets::EtsFloat>) {
+        return TypedValue::F32(val);
+    } else if constexpr (std::is_same_v<T, ark::ets::EtsDouble>) {
+        return TypedValue::F64(val);
+    }
+    return {};
+}
+#endif
+
+std::optional<TypedValue> PtStaticDefaultExtension::GetBoxedPrimitiveValue([[maybe_unused]] const ObjectHeader *object)
+{
+#if defined(PANDA_WITH_ETS)
+    auto *etsClass = ark::ets::EtsClass::FromRuntimeClass(object->ClassAddr<Class>());
+    if (etsClass == nullptr || !etsClass->IsBoxed()) {
+        return {};
+    }
+    switch (etsClass->GetBoxedType()) {
+        case ark::ets::EtsClass::BoxedType::BOOLEAN:
+            return UnboxToTypedValue<ark::ets::EtsBoolean>(object);
+        case ark::ets::EtsClass::BoxedType::BYTE:
+            return UnboxToTypedValue<ark::ets::EtsByte>(object);
+        case ark::ets::EtsClass::BoxedType::CHAR:
+            return UnboxToTypedValue<ark::ets::EtsChar>(object);
+        case ark::ets::EtsClass::BoxedType::SHORT:
+            return UnboxToTypedValue<ark::ets::EtsShort>(object);
+        case ark::ets::EtsClass::BoxedType::INT:
+            return UnboxToTypedValue<ark::ets::EtsInt>(object);
+        case ark::ets::EtsClass::BoxedType::LONG:
+            return UnboxToTypedValue<ark::ets::EtsLong>(object);
+        case ark::ets::EtsClass::BoxedType::FLOAT:
+            return UnboxToTypedValue<ark::ets::EtsFloat>(object);
+        case ark::ets::EtsClass::BoxedType::DOUBLE:
+            return UnboxToTypedValue<ark::ets::EtsDouble>(object);
+    }
+#endif
+    return {};
+}
+
+std::optional<TypedValue> PtStaticDefaultExtension::GetEnumValue([[maybe_unused]] const ObjectHeader *object)
+{
+#if defined(PANDA_WITH_ETS)
+    auto *etsClass = ark::ets::EtsClass::FromRuntimeClass(object->ClassAddr<Class>());
+    if (etsClass == nullptr || !etsClass->IsEtsEnum()) {
+        return {};
+    }
+    auto *enumObj = ark::ets::EtsBaseEnum::FromEtsObject(
+        const_cast<ark::ets::EtsObject *>(reinterpret_cast<const ark::ets::EtsObject *>(object)));
+    auto *valueObj = enumObj->GetValue();
+    if (valueObj == nullptr) {
+        return {};
+    }
+    return GetBoxedPrimitiveValue(valueObj->GetCoreType());
 #else
     return {};
 #endif

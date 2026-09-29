@@ -34,8 +34,8 @@ class A {
     }
 };
 
-class evalPatchFunction {
-    private static evalPatchFunction() {
+class EvalPatchFunction {
+    private static EvalPatchFunction() {
         let a_obj = new A(c'c', 123.321);
 
         arktest.assertEQ(a_obj.a, c'c');

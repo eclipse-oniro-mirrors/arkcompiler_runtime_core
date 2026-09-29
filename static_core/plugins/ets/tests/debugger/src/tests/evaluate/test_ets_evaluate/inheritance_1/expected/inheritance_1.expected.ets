@@ -15,8 +15,8 @@
 
 import {A, B, C, test} from "../inheritance_1.base"
 
-class evalPatchFunction {
-    private static evalPatchFunction() {
+class EvalPatchFunction {
+    private static EvalPatchFunction() {
         let variable: A = DebuggerAPI.getLocalObject(0) as A;
 
         variable = new B();

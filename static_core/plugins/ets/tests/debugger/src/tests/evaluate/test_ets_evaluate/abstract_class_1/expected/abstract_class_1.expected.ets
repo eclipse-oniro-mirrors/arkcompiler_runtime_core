@@ -15,8 +15,8 @@
 
 import {D} from "../abstract_class_1.base"
 
-class evalPatchFunction {
-    private static evalPatchFunction() {
+class EvalPatchFunction {
+    private static EvalPatchFunction() {
         let variable = new D();
 
         let x = variable.return_x();

@@ -15,8 +15,8 @@
 
 import { S } from "../local_variable_user_class.base";
 
-class evalPatchFunction {
-    private static evalPatchFunction() {
+class EvalPatchFunction {
+    private static EvalPatchFunction() {
         let a: S = DebuggerAPI.getLocalObject(0) as S;
 
         const localVar = new S();

@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-class evalPatchFunction {
-    private static evalPatchFunction() {
+class EvalPatchFunction {
+    private static EvalPatchFunction() {
         let a: int = DebuggerAPI.getLocalInt(0);
 
         const evalGeneratedResult = (a = a * 2);

@@ -96,6 +96,18 @@ ark_runtime_unittest("arkruntime_buffer_serializer_test") {
   module_out_path = runtime_test_module_out_path
 }
 
+ark_runtime_unittest("arkruntime_utils_test") {
+  sources = [
+    "class_size_test.cpp",
+    "class_helper_test.cpp",
+    "debugger_test.cpp",
+    "frame_test.cpp",
+    "i2c_bridge_test.cpp",
+    "math_helpers_test.cpp",
+  ]
+  module_out_path = runtime_test_module_out_path
+}
+
 ark_unittest_group("runtime_tests") {
   deps = [
     ":arkruntime_buffer_serializer_test",

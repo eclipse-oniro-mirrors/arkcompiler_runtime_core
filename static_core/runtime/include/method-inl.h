@@ -175,55 +175,6 @@ ValueT Method::GetReturnValueFromAcc(interpreter::AccVRegister &aacVreg)
     }
 }
 
-// CC-OFFNXT(G.FUD.06) perf critical
-inline Value Method::InvokeCompiledCode(ManagedThread *thread, uint32_t numArgs, Value *args,
-                                        [[maybe_unused]] CallFlags callFlags)
-{
-    Frame *currentFrame = thread->GetCurrentFrame();
-    Span<Value> argsSpan(args, numArgs);
-    auto frameKind = thread->GetCurrentFrameKind();
-    // Use frame allocator to alloc memory for parameters as thread can be terminated and
-    // InvokeCompiledCodeWithArgArray will not return in this case we will get memory leak with internal
-    // allocator
-    mem::StackFrameAllocator *allocator = thread->GetStackFrameAllocator();
-    auto valuesDeleter = [allocator](int64_t *values) {
-        if (values != nullptr) {
-            allocator->Free(values);
-        }
-    };
-    auto values = PandaUniquePtr<int64_t, decltype(valuesDeleter)>(nullptr, valuesDeleter);
-    if (numArgs > 0) {
-        // In the worse case we are calling a dynamic method in which all arguments are pairs ot int64_t
-        // That is why we allocate 2 x num_actual_args
-        size_t capacity = numArgs * sizeof(int64_t);
-        // All allocations though FrameAllocator must be aligned
-        capacity = AlignUp(capacity, GetAlignmentInBytes(DEFAULT_FRAME_ALIGNMENT));
-        values.reset(reinterpret_cast<int64_t *>(allocator->Alloc(capacity)));
-        Span<int64_t> valuesSpan(values.get(), capacity);
-        for (uint32_t i = 0; i < numArgs; ++i) {
-            if (argsSpan[i].IsReference()) {
-                valuesSpan[i] = reinterpret_cast<int64_t>(argsSpan[i].GetAs<ObjectHeader *>());
-            } else {
-                valuesSpan[i] = argsSpan[i].GetAs<int64_t>();
-            }
-        }
-    }
-
-    uint64_t retValue = 0U;
-    if (UNLIKELY(callFlags.IsResumed())) {
-        retValue = ResumeAsyncCompiledCode(values.get(), currentFrame, this, thread);
-    } else {
-        retValue = InvokeCompiledCodeWithArgArray(values.get(), currentFrame, this, thread);
-    }
-
-    thread->SetCurrentFrameKind(frameKind);
-    thread->SetCurrentFrame(currentFrame);
-    if (UNLIKELY(thread->HasPendingException())) {
-        retValue = 0;
-    }
-    return GetReturnValueFromTaggedValue(retValue);
-}
-
 template <class InvokeHelper, class ValueT>
 ValueT Method::InvokeInterpretedCode(ManagedThread *thread, uint32_t numActualArgs, ValueT *args, CallFlags callFlags)
 {

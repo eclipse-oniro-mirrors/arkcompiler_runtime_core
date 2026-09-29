@@ -141,7 +141,7 @@ export class Method {
      * Gets the number of method parameters.
      *
      * @returns { int } Returns the number of method parameters.
-     * 
+     *
      */
     public getParametersNum(): int {
         return Method.getParametersNumImpl(this.methodPtr)

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -16,6 +16,7 @@
 #include "runtime/tooling/evaluation/expression_loader.h"
 
 #include "libarkbase/utils/span.h"
+#include "libarkbase/utils/utf.h"
 #include "libarkfile/class_data_accessor.h"
 #include "runtime/include/runtime.h"
 
@@ -26,18 +27,21 @@ namespace {
 bool ValidateEvaluationMethod(Method *method)
 {
     if (method == nullptr) {
-        LOG(WARNING, DEBUGGER) << "Evaluate failed to find method";
+        LOG(WARNING, DEBUGGER) << "Evaluate failed to find method: method is null "
+                               << "(likely a cascading failure from class loading)";
         return false;
     }
-    // No arguments can be provided by interface.
-    if (method->GetNumArgs() != 0) {
-        LOG(WARNING, DEBUGGER) << "Evaluation cannot have any arguments, but got " << method->GetNumArgs();
+    // Allow 0 args (legacy) or 2 args (thread: int, frame: int)
+    static constexpr size_t EVALUATION_METHOD_ARGS_COUNT = 2;
+    auto numArgs = method->GetNumArgs();
+    if (numArgs != 0 && numArgs != EVALUATION_METHOD_ARGS_COUNT) {
+        LOG(WARNING, DEBUGGER) << "Evaluation method must have 0 or 2 arguments, but got " << numArgs;
         return false;
     }
-    // Currently support only primitive types
+    // Allow primitive and reference return types
     auto type = method->GetReturnType();
-    if (!type.IsPrimitive()) {
-        LOG(WARNING, DEBUGGER) << "Evaluation method can return only primitive values";
+    if (!type.IsPrimitive() && !type.IsReference()) {
+        LOG(WARNING, DEBUGGER) << "Evaluation method can return only primitive or reference values";
         return false;
     }
 
@@ -45,58 +49,38 @@ bool ValidateEvaluationMethod(Method *method)
 }
 
 /**
- * @brief Checks if class fully-qualified name meets evaluation class requirements.
- * @param demangledClassName tested class name, can be obtained via ClassDataAccessor::DemangledName.
- * @returns name of evaluation package, class and method on success, nullopt otherwise.
- */
-std::optional<std::string> FindEvaluationMethodName(std::string_view demangledClassName)
-{
-    static constexpr std::string_view SUFFIX = "_eval";
-    // CC-OFFNXT(G.NAM.03) project code style
-    static constexpr char DELIMITER = '.';
-
-    // Evaluation class fully-qualified name must consist of package and class
-    // equal names: "<NAME>.<NAME>".
-    auto iter = std::find(demangledClassName.begin(), demangledClassName.end(), DELIMITER);
-    if (iter == demangledClassName.end()) {
-        return {};
-    }
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-    if (std::find(iter + 1, demangledClassName.end(), DELIMITER) != demangledClassName.end()) {
-        return {};
-    }
-    // Check package and class names equality.
-    size_t delimiterPos = iter - demangledClassName.begin();
-    auto expectedMethodName = demangledClassName.substr(0, delimiterPos);
-    if (expectedMethodName != demangledClassName.substr(delimiterPos + 1)) {
-        return {};
-    }
-    // Check expected suffix.
-    if (delimiterPos < SUFFIX.size() || expectedMethodName.substr(delimiterPos - SUFFIX.size()) != SUFFIX) {
-        return {};
-    }
-    return std::string(expectedMethodName);
-}
-
-/**
- * @brief Finds evaluation class according to naming convention.
+ * @brief Finds evaluation class by looking for a static method named "runtime_evaluate".
  * @param pf received panda file.
  * @returns pair of evaluation method name and class data accessor on success, nullopt otherwise.
  */
+static bool HasStaticMethodNamed(const panda_file::File *pf, panda_file::File::EntityId classId,
+                                 std::string_view methodName)
+{
+    panda_file::ClassDataAccessor cda(*pf, classId);
+    bool found = false;
+    cda.EnumerateMethods([&found, &methodName](panda_file::MethodDataAccessor &mda) {
+        if (mda.IsStatic() && !mda.IsExternal()) {
+            auto nameData = mda.GetName();
+            if (utf::IsEqual(utf::CStringAsMutf8(methodName.data()), nameData.data)) {
+                found = true;
+            }
+        }
+    });
+    return found;
+}
+
 std::optional<std::pair<std::string, panda_file::ClassDataAccessor>> FindEvaluationMethodClass(
     const panda_file::File *pf)
 {
+    static constexpr std::string_view ENTRY_METHOD_NAME = "runtime_evaluate";
     for (uint32_t id : pf->GetClasses()) {
         panda_file::File::EntityId entityId(id);
         if (pf->IsExternal(entityId)) {
             continue;
         }
-
-        panda_file::ClassDataAccessor cda(*pf, entityId);
-        std::string className = cda.DemangledName();
-        auto expectedMethodName = FindEvaluationMethodName(className);
-        if (expectedMethodName) {
-            return std::make_pair(*expectedMethodName, cda);
+        if (HasStaticMethodNamed(pf, entityId, ENTRY_METHOD_NAME)) {
+            panda_file::ClassDataAccessor cda(*pf, entityId);
+            return std::make_pair(std::string(ENTRY_METHOD_NAME), std::move(cda));
         }
     }
     return {};
@@ -104,35 +88,33 @@ std::optional<std::pair<std::string, panda_file::ClassDataAccessor>> FindEvaluat
 
 Method *LoadFileAndGetEntryMethod(ClassLinkerContext *ctx, std::unique_ptr<const panda_file::File> &&pf)
 {
-    // Extract information about evaluation entry method. By convention, the passed
-    // bytecode must contain a class with a static method, which both have the same names as panda file has.
     auto optEvalClassInfo = FindEvaluationMethodClass(pf.get());
     if (!optEvalClassInfo) {
-        LOG(WARNING, DEBUGGER) << "Evaluate failed to find entry class";
+        LOG(WARNING, DEBUGGER) << "Evaluate failed to find entry class in the eval bytecode";
         return nullptr;
     }
     auto [methodName, cda] = *optEvalClassInfo;
     auto evalClassId = cda.GetClassId();
     const auto *descriptor = pf->GetStringData(evalClassId).data;
-
-    // Check that the class is not loaded yet.
+    auto descriptorStr = utf::Mutf8AsCString(descriptor);
     auto *linker = Runtime::GetCurrent()->GetClassLinker();
-    if (linker->GetClass(*pf, evalClassId, ctx, nullptr) != nullptr) {
-        LOG(WARNING, DEBUGGER) << "Evaluation class is already loaded, which is not supported";
-        return nullptr;
+    [[maybe_unused]] auto sourceLang = cda.GetSourceLang().value_or(panda_file::SourceLang::PANDA_ASSEMBLY);
+    ASSERT(linker->GetExtension(sourceLang) != nullptr);
+    auto *loadCtx = ctx;
+    auto *existingClass = linker->GetClass(*pf, evalClassId, loadCtx, nullptr);
+    if (existingClass != nullptr) {
+        LOG(INFO, DEBUGGER) << "Evaluation class " << descriptorStr << " already loaded, reusing existing method";
+        return existingClass->GetDirectMethod(utf::CStringAsMutf8(methodName.c_str()));
     }
-
-    // Add panda file into context of the target thread.
-    linker->AddPandaFile(std::move(pf), ctx);
-
-    auto sourceLang = cda.GetSourceLang().value_or(panda_file::SourceLang::PANDA_ASSEMBLY);
-    ClassLinkerExtension *extension = linker->GetExtension(sourceLang);
-    ASSERT(extension != nullptr);
-
-    // Linker must accept nullptr as error handler, otherwise managed exception will occur on failure.
-    auto *klass = linker->GetClass(descriptor, true, extension->ResolveContext(ctx), nullptr);
+    const panda_file::File *rawPf = pf.get();
+    const std::string pfFilename = pf->GetFilename();
+    linker->AddPandaFile(std::move(pf), loadCtx);
+    LOG(INFO, DEBUGGER) << "Evaluate: added panda file " << pfFilename << " to context";
+    LOG(INFO, DEBUGGER) << "Evaluate: loading class " << descriptorStr << " evalClassId=" << evalClassId.GetOffset();
+    auto *klass = linker->LoadClass(*rawPf, evalClassId, loadCtx, nullptr);
+    LOG(INFO, DEBUGGER) << "Evaluate: LoadClass returned " << (klass != nullptr ? "non-null" : "null");
     if (klass == nullptr) {
-        LOG(WARNING, DEBUGGER) << "Evaluate failed to load class";
+        LOG(WARNING, DEBUGGER) << "Evaluate failed to load class " << descriptorStr;
         return nullptr;
     }
     return klass->GetDirectMethod(utf::CStringAsMutf8(methodName.c_str()));

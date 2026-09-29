@@ -456,6 +456,14 @@ public:
                                                  std::function<bool(const PtFrame &)> callback) const = 0;
 
     /**
+     * @brief Get frame at specified depth for a given thread
+     * @param thread Identifier of the thread
+     * @param frameDepth Depth of the frame (0 = current)
+     * @return Frame object or Error
+     */
+    virtual Expected<std::unique_ptr<PtFrame>, Error> GetFrameByThread(PtThread thread, uint32_t frameDepth) const = 0;
+
+    /**
      * @brief Suspend thread
      * @param thread Identifier of the thread
      * @return Error if any errors occur

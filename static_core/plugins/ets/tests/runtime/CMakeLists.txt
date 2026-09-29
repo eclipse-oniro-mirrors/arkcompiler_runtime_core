@@ -160,11 +160,35 @@ panda_ets_add_gtest(
     DEPS_TARGETS etsstdlib
 )
 
+panda_ets_add_gtest(
+    NO_CORES
+    NAME vreg_conversion_runtime_test
+    SOURCES vreg_conversion_test.cpp
+    LIBRARIES arkbase arkfile arkruntime
+    INCLUDE_DIRS ${PANDA_ETS_PLUGIN_SOURCE}/runtime
+    SANITIZERS ${PANDA_SANITIZERS_LIST}
+    PANDA_STD_LIB $<TARGET_PROPERTY:mock_stdlib,FILE>
+    DEPS_TARGETS mock_stdlib
+)
+
+panda_ets_add_gtest(
+    NO_CORES
+    NAME debugger_api_intrinsics_runtime_test
+    SOURCES debugger_api_intrinsics_test.cpp
+    LIBRARIES arkbase arkfile arkruntime
+    INCLUDE_DIRS ${PANDA_ETS_PLUGIN_SOURCE}/runtime
+    SANITIZERS ${PANDA_SANITIZERS_LIST}
+    PANDA_STD_LIB $<TARGET_PROPERTY:mock_stdlib,FILE>
+    DEPS_TARGETS mock_stdlib
+)
+
 add_dependencies(ets_tests_runtime_gtests
     ets_vm_runtime_test_gtests
     static_object_accessor_runtime_test_gtests
     static_type_converter_runtime_test_gtests
-    name_converters_ets_runtime_test_gtests)
+    name_converters_ets_runtime_test_gtests
+    vreg_conversion_runtime_test_gtests
+    debugger_api_intrinsics_runtime_test_gtests)
 
 add_subdirectory(types)
 add_subdirectory(tooling)

@@ -15,9 +15,9 @@
 
 import { globalFunction } from "../global_overloaded_function.base";
 
-class evalPatchFunction {
-    private static evalPatchFunction() {
-        console.log("From patch: " + globalFunction(5));
+class EvalPatchFunction {
+    private static EvalPatchFunction() {
+        console.log('From patch: ' + globalFunction(5));
         globalFunction();
     }
 }

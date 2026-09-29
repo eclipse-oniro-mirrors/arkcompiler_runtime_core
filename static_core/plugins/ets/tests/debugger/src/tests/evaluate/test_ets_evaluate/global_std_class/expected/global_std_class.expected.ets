@@ -15,10 +15,10 @@
 
 import { globalVariable } from "../global_std_class.base";
 
-class evalPatchFunction {
-    private static evalPatchFunction() {
-        console.log("Current value: " + globalVariable);
+class EvalPatchFunction {
+    private static EvalPatchFunction() {
+        console.log('Current value: ' + globalVariable);
         // Result won't be returned due to non-primitive type.
-        globalVariable += ", world!";
+        globalVariable += ', world!';
     }
 }

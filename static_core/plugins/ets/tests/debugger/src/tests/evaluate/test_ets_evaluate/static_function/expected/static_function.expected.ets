@@ -15,8 +15,8 @@
 
 import { A } from "../static_function.base";
 
-class evalPatchFunction {
-    private static evalPatchFunction() {
+class EvalPatchFunction {
+    private static EvalPatchFunction() {
         A.foo(6) == A.goo(3);
         const evalGeneratedResult = (A.foo(5) == 800);
         return evalGeneratedResult;

@@ -144,6 +144,7 @@ set(ETS_RUNTIME_SOURCES
     ${ETS_EXT_SOURCES}/tooling/hprof/session/object_id_map.cpp
     ${ETS_EXT_SOURCES}/tooling/hprof/session/output_stream.cpp
     ${ETS_EXT_SOURCES}/tooling/hprof/session/string_id_pool.cpp
+    ${ETS_EXT_SOURCES}/tooling/helpers.cpp
     ${ETS_EXT_SOURCES}/types/ets_class.cpp
     ${ETS_EXT_SOURCES}/types/ets_arraybuffer.cpp
     ${ETS_EXT_SOURCES}/types/ets_std_core_array.cpp

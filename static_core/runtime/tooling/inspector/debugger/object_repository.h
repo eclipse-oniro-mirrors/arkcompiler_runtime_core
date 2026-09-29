@@ -47,6 +47,11 @@ public:
 
     PtLangExt *GetPtLangExt() const;
 
+    // Extract a human-readable description from an exception object.
+    // Returns "className: message" if the object has a "message" field,
+    // or just "className" if the message is unavailable.
+    std::string GetObjectDescription(ObjectHeader *object);
+
 private:
     static constexpr RemoteObjectId GLOBAL_OBJECT_ID = 0;
 

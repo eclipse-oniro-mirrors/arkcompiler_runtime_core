@@ -43,6 +43,7 @@
 #include "evaluation/base64.h"
 #include "sampler/sampling_profiler.h"
 #include "types/remote_object.h"
+#include "types/remote_object_type.h"
 #include "types/scope.h"
 
 using namespace std::placeholders;  // NOLINT(google-build-using-namespace)
@@ -686,7 +687,17 @@ std::optional<ExceptionDetails> Inspector::CreateExceptionDetails(PtThread threa
     size_t lineNumber;
     debugInfoCache_.GetSourceLocation(*frame.Value(), sourceFile, methodName, lineNumber);
 
-    ExceptionDetails exceptionDetails(GetNewExceptionId(), "", lineNumber, 0);
+    // Extract exception description from the RemoteObject.
+    // For Object-typed RemoteObjects, the description field contains
+    // "ClassName: message" (set by DebuggableThread::EvaluateExpression).
+    // Fall back to the className if no description is available.
+    std::string exceptionText;
+    auto *objT = std::get_if<RemoteObjectType::ObjectT>(&exception.GetValue());
+    if (objT != nullptr) {
+        exceptionText = objT->description.value_or(objT->className);
+    }
+
+    ExceptionDetails exceptionDetails(GetNewExceptionId(), std::move(exceptionText), lineNumber, 0);
     return exceptionDetails.SetUrl(sourceFile).SetExceptionObject(std::move(exception));
 }
 

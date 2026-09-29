@@ -15,8 +15,8 @@
 
 import { boolean_foo, byte_foo, short_foo, int_foo, long_foo, double_foo, float_foo } from "../primitive_types.base";
 
-class evalPatchFunction {
-    private static evalPatchFunction() {
+class EvalPatchFunction {
+    private static EvalPatchFunction() {
         arktest.assertEQ(boolean_foo(true), true);
         arktest.assertEQ(byte_foo(127 as byte), 127);
         arktest.assertEQ(short_foo(32767 as short), 32767);

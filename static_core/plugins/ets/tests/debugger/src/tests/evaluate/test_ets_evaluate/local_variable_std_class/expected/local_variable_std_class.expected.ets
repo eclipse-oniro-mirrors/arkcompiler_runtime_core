@@ -13,12 +13,12 @@
  * limitations under the License.
  */
 
-class evalPatchFunction {
-    private static evalPatchFunction() {
+class EvalPatchFunction {
+    private static EvalPatchFunction() {
         let a: String = DebuggerAPI.getLocalObject(0) as String;
 
         // Result won't be returned due to non-primitive type.
-        a = a + ", world!";
+        a = a + ', world!';
 
         DebuggerAPI.setLocalObject(0, a);
     }

@@ -33,6 +33,8 @@ public:
     void EnumerateProperties(const ObjectHeader *object, const PropertyHandler &handler) override;
     void EnumerateGlobals(const PropertyHandler &handler) override;
     std::optional<std::string> GetAsBigIntString([[maybe_unused]] const ObjectHeader *object) override;
+    std::optional<TypedValue> GetBoxedPrimitiveValue(const ObjectHeader *object) override;
+    std::optional<TypedValue> GetEnumValue(const ObjectHeader *object) override;
 
 private:
     panda_file::SourceLang lang_;

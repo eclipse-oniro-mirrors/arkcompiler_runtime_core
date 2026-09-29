@@ -89,6 +89,9 @@ function(compile_ets_code ETS_SRC OUTPUT_ABC TARGET)
 
     if(TARGET etsstdlib)
         add_dependencies(es2panda etsstdlib)
+        if(TARGET ark_staexpr2abc)
+            add_dependencies(ark_staexpr2abc etsstdlib)
+        endif()
         if (NOT TARGET regenerate_and_check_stdlib AND ${CMAKE_GENERATOR} MATCHES "Ninja")
             # Note(ivan-tyulyandin): -P replaces CMAKE_CURRENT_SOURCE_DIR so using ETS_PLUGIN_SOURCE_DIR
             add_custom_target(regenerate_and_check_stdlib

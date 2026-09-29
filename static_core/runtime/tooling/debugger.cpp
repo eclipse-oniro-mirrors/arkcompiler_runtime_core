@@ -32,7 +32,10 @@
 #include "pt_scoped_managed_code.h"
 #include "pt_thread_info.h"
 #include "runtime/include/mutator.h"
+#include "runtime/include/class_linker.h"
+#include "runtime/include/runtime.h"
 #include "runtime/handle_scope-inl.h"
+#include "include/tooling/pt_lang_extension.h"
 
 namespace ark::tooling {
 // NOTE(maksenov): remove PtProperty class
@@ -188,7 +191,12 @@ static interpreter::StaticVRegisterRef GetThisAddrVRegByPandaFrame(ark::Frame *f
 {
     ASSERT(!frame->IsDynamic());
     ASSERT(frame->GetMethod()->GetNumArgs() > 0);
-    uint32_t thisRegNum = frame->GetSize() - frame->GetMethod()->GetNumArgs();
+    // Parameters (this = argument 0) start at vreg numVregs -- see FillRegisters,
+    // which reads arguments via GetVReg(i + numVregs).  Using
+    // GetSize() - GetNumArgs() is wrong for ETS frames, which may carry extra
+    // slots beyond numVregs + numArgs (verified: frameSize == numVregs + numArgs + 1),
+    // shifting this onto the wrong vreg.
+    uint32_t thisRegNum = frame->GetMethod()->GetNumVregs();
     return StaticFrameHandler(frame).GetVReg(thisRegNum);
 }
 
@@ -267,6 +275,9 @@ std::optional<Error> Debugger::GetThisVariableByFrame(PtThread thread, uint32_t 
     std::optional<Error> nativeError;
 
     auto nativeFrameHandler = [thread, &nativeError, thisPtr](StackWalker *stack) {
+        if (!stack->HasFrame()) {
+            return;
+        }
         if (!stack->GetCFrame().IsNative()) {
             return;
         }
@@ -375,18 +386,22 @@ std::optional<Error> Debugger::SetVariable(PtThread thread, uint32_t frameDepth,
 
 Expected<std::unique_ptr<PtFrame>, Error> Debugger::GetCurrentFrame(PtThread thread) const
 {
+    return GetFrameByThread(thread, 0);
+}
+
+Expected<std::unique_ptr<PtFrame>, Error> Debugger::GetFrameByThread(PtThread thread, uint32_t frameDepth) const
+{
     ManagedThread *managedThread = thread.GetManagedThread();
     ASSERT(managedThread != nullptr);
 
     auto stack = StackWalker::Create(managedThread);
-    Method *method = stack.GetMethod();
-
-    Frame *interpreterFrame = nullptr;
-    if (!stack.IsCFrame()) {
-        interpreterFrame = stack.GetIFrame();
+    Frame *frame = GetPandaFrame(&stack, frameDepth);
+    if (!stack.HasFrame()) {
+        return Unexpected(
+            Error(Error::Type::FRAME_NOT_FOUND, "Frame not found at depth " + std::to_string(frameDepth)));
     }
-
-    return {std::make_unique<PtDebugFrame>(method, interpreterFrame)};
+    Method *method = stack.GetMethod();
+    return std::unique_ptr<PtFrame>(std::make_unique<PtDebugFrame>(method, frame));
 }
 
 std::optional<Error> Debugger::EnumerateFrames(PtThread thread, std::function<bool(const PtFrame &)> callback) const
@@ -445,8 +460,6 @@ std::optional<Error> Debugger::EvaluateExpression(PtThread thread, uint32_t fram
     ASSERT(method != nullptr);
     ASSERT(result != nullptr);
     ASSERT(!thread.GetManagedThread()->HasPendingException());
-    // NOTE(dslynko): support custom frame depth
-    ASSERT(frameNumber == 0);
 
     auto ret = GetPandaFrameByPtThread(thread, frameNumber, nullptr);
     if (!ret) {
@@ -464,17 +477,81 @@ std::optional<Error> Debugger::EvaluateExpression(PtThread thread, uint32_t fram
     return EvaluateExpression(thread, frameNumber, *method, result);
 }
 
-std::optional<Error> Debugger::EvaluateExpression(PtThread thread, [[maybe_unused]] uint32_t frameNumber,
-                                                  Method *method, VRegValue *result) const
+static std::string TryGetMessageString(ark::tooling::PtLangExt *ptLangExt, const TypedValue &value)
+{
+    if (!value.IsReference()) {
+        return "";
+    }
+    auto *obj = value.GetAsReference();
+    if (obj == nullptr) {
+        return "";
+    }
+    auto str = ptLangExt->GetAsString(obj);
+    return str ? std::move(*str) : "";
+}
+
+static void ExtractExceptionMessage(ManagedThread *managedThread, ObjectHeader *exception)
+{
+    auto ptLangExt = managedThread->GetLanguageContext().CreatePtLangExt();
+    if (ptLangExt == nullptr) {
+        return;
+    }
+    auto *extPtr = ptLangExt.get();
+    std::string excMessage;
+    ptLangExt->EnumerateProperties(
+        exception, [&excMessage, extPtr](auto &name, auto value, auto /*isFinal*/, auto /*isAccessor*/) {
+            if ((name == "message" || name == "message_") && excMessage.empty()) {
+                excMessage = TryGetMessageString(extPtr, value);
+            }
+        });
+    if (!excMessage.empty()) {
+        LOG(ERROR, DEBUGGER) << "EvaluateExpression: exception message=" << excMessage;
+    }
+}
+
+static void InitializeEvaluationClasses(ManagedThread *managedThread, ClassLinker *linker, Class *klass)
+{
+    auto ptLangExt = managedThread->GetLanguageContext().CreatePtLangExt();
+    if (ptLangExt != nullptr) {
+        ptLangExt->PrepareEvaluationClasses(managedThread, linker);
+    }
+    if (!klass->IsInitialized()) {
+        linker->InitializeClass(managedThread, klass);
+    }
+}
+
+static Value InvokeEvaluationMethod(ManagedThread *managedThread, Method *method, PtThread thread, uint32_t frameNumber)
+{
+    auto numArgs = method->GetNumArgs();
+    if (numArgs == 0) {
+        return method->Invoke(managedThread, nullptr);
+    }
+    [[maybe_unused]] static constexpr size_t evaluationMethodArgsCount = 2;
+    ASSERT(numArgs == evaluationMethodArgsCount);
+    Value args[] = {Value(static_cast<int64_t>(thread.GetId())), Value(static_cast<int64_t>(frameNumber + 1))};
+    return method->Invoke(managedThread, args);
+}
+
+std::optional<Error> Debugger::EvaluateExpression(PtThread thread, uint32_t frameNumber, Method *method,
+                                                  VRegValue *result) const
 {
     ASSERT_MANAGED_CODE();
     ASSERT(method != nullptr);
     ASSERT(result != nullptr);
     ASSERT(!thread.GetManagedThread()->HasPendingException());
-    // NOTE(dslynko): support custom frame depth
-    ASSERT(frameNumber == 0);
-
-    auto value = method->Invoke(thread.GetManagedThread(), nullptr);
+    auto *klass = method->GetClass();
+    auto *linker = Runtime::GetCurrent()->GetClassLinker();
+    InitializeEvaluationClasses(thread.GetManagedThread(), linker, klass);
+    if (!klass->IsInitialized()) {
+        return Error(Error::Type::INVALID_ENTRY_POINT, "failed to initialize evaluation class");
+    }
+    auto value = InvokeEvaluationMethod(thread.GetManagedThread(), method, thread, frameNumber);
+    if (thread.GetManagedThread()->HasPendingException()) {
+        auto *exception = thread.GetManagedThread()->GetException();
+        if (exception != nullptr) {
+            ExtractExceptionMessage(thread.GetManagedThread(), exception);
+        }
+    }
     *result = VRegValue(value.GetAsLong());
     return {};
 }

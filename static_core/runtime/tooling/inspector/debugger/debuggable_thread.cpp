@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2022-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2022-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -154,7 +154,16 @@ Expected<std::pair<RemoteObject, std::optional<RemoteObject>>, std::string> Debu
             auto [result, exc] = res.Value();
             optResult.emplace(objectRepo.CreateObject(result));
             if (exc != nullptr) {
-                optException.emplace(objectRepo.CreateObject(TypedValue::Reference(exc)));
+                auto excDescription = objectRepo.GetObjectDescription(exc);
+                LOG(ERROR, DEBUGGER) << "EvaluateExpression: exception description=" << excDescription;
+                auto excRemoteObj = objectRepo.CreateObject(TypedValue::Reference(exc));
+                // Override the description with the exception's class name and message
+                // so that ExceptionDetails.text shows a meaningful error string.
+                auto *objT = std::get_if<RemoteObjectType::ObjectT>(&excRemoteObj.GetValue());
+                if (objT != nullptr) {
+                    objT->description = std::move(excDescription);
+                }
+                optException.emplace(std::move(excRemoteObj));
             }
         });
     if (optError) {
@@ -259,9 +268,20 @@ void DebuggableThread::Suspend(ObjectRepository &objectRepository, const std::ve
         ASSERT(suspended_ == request_.has_value());
 
         if (request_) {
-            (*request_)(objectRepository);
-
+            // Release mutex_ while executing the request lambda to avoid
+            // deadlock when the lambda triggers class initialization or
+            // other operations that may need locks (e.g., ClassLinker,
+            // interpreter). The server thread is waiting on
+            // requestDone_ and will not interfere, and IsEvaluating()
+            // guards prevent debugger hooks from acquiring mutex_ during
+            // evaluation.
+            auto localRequest = std::move(*request_);
             request_.reset();
+            mutex_.Unlock();
+
+            localRequest(objectRepository);
+
+            mutex_.Lock();
             GetManagedThread()->Suspend();
 
             requestDone_.Signal();

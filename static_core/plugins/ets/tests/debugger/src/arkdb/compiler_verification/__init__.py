@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2024 Huawei Device Co., Ltd.
+# Copyright (c) 2024-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,7 +20,7 @@ import re
 
 class ExpressionEvaluationNames:
     NON_DIFF_MARKS = set([" ", "?"])
-    EVAL_PATCH_FUNCTION_NAME = "evalPatchFunction"
+    EVAL_PATCH_FUNCTION_NAME = "EvalPatchFunction"
     EVAL_PATCH_RETURN_VALUE = "evalGeneratedResult"
     EVAL_METHOD_GENERATION_PATTERN = r"^eval_[a-zA-Z\-_\d]*_[\d]+_eval"
     EVAL_METHOD_GENERATED_NAME_RE = re.compile(EVAL_METHOD_GENERATION_PATTERN + r"$")
