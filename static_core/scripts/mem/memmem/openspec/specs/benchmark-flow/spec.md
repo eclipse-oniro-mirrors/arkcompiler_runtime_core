@@ -6,11 +6,15 @@ Defines the benchmark CLI, flow schema, app launch behavior, command semantics, 
 ## Requirements
 
 ### Requirement: CLI accepts benchmark flow input
-The system SHALL provide a single user-facing CLI through `run.py` that accepts a required `--flow` argument, an optional `--out-dir` argument, an optional `--repeats` argument, reboot controls `--reboot` and `--no-reboot`, hilog controls `--hilog` and `--no-hilog`, and memmem application logging controls `--memmem-log-level` and `--memmem-log-file`. Reboot SHALL default to disabled. Hilog collection SHALL default to enabled and SHALL mean one run-wide device hilog artifact. Memmem log level SHALL default to `err`. Memmem log file SHALL default to unset (`None`); an empty-string value SHALL be rejected and fail the run before benchmark execution proceeds. Repeats SHALL default to `1` and SHALL be a positive integer; a non-positive value SHALL be rejected at argument parsing. When `--out-dir` is omitted, output SHALL be written to a timestamped `memmem-out-YYYYMMDD_HHMMSS_microseconds` directory. When `--out-dir` is provided, output SHALL be written to the provided directory, and an already existing output directory SHALL be rejected. The CLI SHALL act as an adapter that reads the JSON flow file, validates it into the flow schema, constructs the production device, and delegates execution to the public programmatic API.
+The system SHALL provide a single user-facing CLI through `run.py` that accepts a required `--flow` argument, a `--backend` argument with values `hdc` and `abd`, an optional `--out-dir` argument, an optional `--repeats` argument, reboot controls `--reboot` and `--no-reboot`, hilog controls `--hilog` and `--no-hilog`, and memmem application logging controls `--memmem-log-level` and `--memmem-log-file`. The backend SHALL default to `hdc`. Reboot SHALL default to disabled. Hilog collection SHALL default to enabled and SHALL mean one run-wide device log artifact stored at the existing hilog evidence path. The CLI SHALL read optional HDC and ABD executable paths from `.env` and fail before benchmark execution only when the executable path for the selected backend is missing. The CLI SHALL act as an adapter that reads the JSON flow file, validates it into the flow schema, constructs the selected production device, and delegates execution to the public programmatic API.
+
+#### Scenario: HDC backend is selected by default
+- **WHEN** the user runs `python run.py --flow flow.json` without `--backend`
+- **THEN** the system selects the HDC backend and requires a configured HDC executable path
 
 #### Scenario: User requests help
 - **WHEN** the user runs `python run.py --help`
-- **THEN** the system displays command-line help describing `--flow`, `--out-dir`, `--repeats`, reboot controls, hilog controls, and memmem logging controls
+- **THEN** the system displays command-line help describing flow, backend, output, repeats, reboot, hilog, and memmem logging controls
 
 #### Scenario: User omits flow argument
 - **WHEN** the user runs `python run.py` without `--flow`
@@ -18,70 +22,86 @@ The system SHALL provide a single user-facing CLI through `run.py` that accepts 
 
 #### Scenario: User provides flow input
 - **WHEN** the user runs `python run.py --flow flow.json`
-- **THEN** the system uses a timestamped `memmem-out-YYYYMMDD_HHMMSS_microseconds` output directory and benchmark options disable reboot, enable hilog collection, set repeats to `1`, set memmem log level to `err`, and leave memmem log file unset by default
+- **THEN** the system uses default output, reboot, log collection, repeat, and memmem logging options
 
 #### Scenario: User provides out dir explicitly
-- **WHEN** the user runs `python run.py --flow flow.json --out-dir results/bench1`
+- **WHEN** the user runs with `--out-dir results/bench1`
 - **THEN** the system writes all run output under the provided `results/bench1` directory
 
 #### Scenario: User provides an existing out dir
-- **WHEN** the user runs `python run.py --flow flow.json --out-dir results/bench1` and `results/bench1` already exists
-- **THEN** the run fails before device actions with an error naming the output directory
+- **WHEN** the requested output directory already exists
+- **THEN** the run fails before device actions with an error naming the directory
 
 #### Scenario: User provides repeats explicitly
-- **WHEN** the user runs `python run.py --flow flow.json --repeats 3`
-- **THEN** benchmark options set repeats to `3` and the flow runs once per iteration into iteration output directories
+- **WHEN** the user runs with `--repeats 3`
+- **THEN** benchmark options set repeats to 3 and create iteration output directories
 
 #### Scenario: User provides a non-positive repeats value
-- **WHEN** the user runs `python run.py --flow flow.json --repeats 0` or `--repeats -2`
+- **WHEN** the user provides a non-positive repeats value
 - **THEN** the system exits with an argument validation error
 
 #### Scenario: User requests reboot explicitly
-- **WHEN** the user runs `python run.py --flow flow.json --reboot`
-- **THEN** benchmark options enable reboot before each iteration's AppFlows
+- **WHEN** the user runs with `--reboot`
+- **THEN** benchmark options enable reboot before each iteration
 
 #### Scenario: User disables reboot explicitly
-- **WHEN** the user runs `python run.py --flow flow.json --no-reboot`
-- **THEN** benchmark options disable reboot before AppFlows
+- **WHEN** the user runs with `--no-reboot`
+- **THEN** benchmark options disable reboot
 
 #### Scenario: User enables hilog explicitly
-- **WHEN** the user runs `python run.py --flow flow.json --hilog`
+- **WHEN** the user runs with `--hilog`
 - **THEN** benchmark options enable run-wide device hilog collection
 
 #### Scenario: User disables hilog explicitly
-- **WHEN** the user runs `python run.py --flow flow.json --no-hilog`
-- **THEN** benchmark options disable hilog setup, stream start, stream stop, pending hilog artifact tracking, and hilog receive behavior
+- **WHEN** the user runs with `--no-hilog`
+- **THEN** benchmark options disable log setup, stream lifecycle, artifact tracking, and receive behavior
 
 #### Scenario: User configures memmem log level
-- **WHEN** the user runs `python run.py --flow flow.json --memmem-log-level info`
+- **WHEN** the user runs with `--memmem-log-level info`
 - **THEN** benchmark options set memmem application log level to `info`
 
 #### Scenario: User configures memmem log file
-- **WHEN** the user runs `python run.py --flow flow.json --memmem-log-file memmem.log`
+- **WHEN** the user runs with `--memmem-log-file memmem.log`
 - **THEN** benchmark options route emitted memmem application logs to `memmem.log`
 
 #### Scenario: User provides invalid memmem log level
-- **WHEN** the user runs `python run.py --flow flow.json --memmem-log-level debug`
+- **WHEN** the user provides an unsupported memmem log level
 - **THEN** the system exits with an argument validation error
 
 #### Scenario: User provides removed log controls
-- **WHEN** the user runs `python run.py --flow flow.json` with `--logs` or `--no-logs`
+- **WHEN** the user provides `--logs` or `--no-logs`
 - **THEN** the system exits with an argument validation error
 
 #### Scenario: User provides contradictory boolean controls
-- **WHEN** the user runs `python run.py --flow flow.json` with both members of a boolean control pair such as `--hilog --no-hilog` or `--reboot --no-reboot`
+- **WHEN** the user provides both values of a reboot or hilog boolean pair
 - **THEN** the system exits with an argument validation error
 
 #### Scenario: CLI delegates to public API
-- **WHEN** CLI argument parsing, configuration loading, device construction, and flow validation succeed
-- **THEN** the CLI calls the public programmatic run API with the validated flow, device, resolved output directory, reboot option, hilog option, repeats option, memmem log level, and memmem log file
+- **WHEN** CLI parsing, config loading, device construction, and flow validation succeed
+- **THEN** the CLI calls the public programmatic run API with the validated flow, device, output directory, and runtime options
+
+#### Scenario: ABD backend is selected
+- **WHEN** the user runs `python run.py --flow flow.json --backend abd`
+- **THEN** the system selects the ABD backend and requires a configured ABD executable path
+
+#### Scenario: Unselected backend path is absent
+- **WHEN** the selected backend has a configured executable path and the other backend path is missing or empty
+- **THEN** the system starts benchmark preparation without rejecting the unselected backend path
+
+#### Scenario: Selected backend path is absent
+- **WHEN** the selected backend has a missing or empty executable path
+- **THEN** the system fails before device actions with an error identifying the required configuration value
+
+#### Scenario: Invalid backend is provided
+- **WHEN** the user passes a `--backend` value other than `hdc` or `abd`
+- **THEN** the CLI exits with an argument validation error
 
 ### Requirement: CLI path arguments resolve against the invocation working directory
-The system SHALL resolve the `--flow` path, the `--out-dir` path, the `--memmem-log-file` path, and the `HDC_PATH` configuration value against the working directory of the CLI invocation before any later working directory change.
+The system SHALL resolve the `--flow` path, the `--out-dir` path, the `--memmem-log-file` path, and configured non-empty `HDC_PATH` and `ABD_PATH` values against the working directory of the CLI invocation before any later working directory change.
 
 #### Scenario: Relative path arguments are invariant to the run working directory
 - **WHEN** the user runs `python run.py --flow flow.json --out-dir out` and benchmark execution later changes the process working directory
-- **THEN** the flow file, output directory, and memmem log file still resolve to the paths given at invocation time
+- **THEN** the flow file, output directory, memmem log file, and selected backend executable path still resolve to the paths given at invocation time
 
 ### Requirement: Benchmark execution manages its working directory
 The system SHALL change the working directory to the local output directory immediately after local output initialization and SHALL restore the original working directory after the run, including when the run fails. Local paths supplied to device file-transfer operations SHALL be relative to the run working directory.
@@ -258,11 +278,11 @@ The system SHALL accept `text` commands only with a non-empty string payload and
 - **THEN** expansion replaces the token with the 0-based iteration number in each expanded command
 
 ### Requirement: AppFlow launch stores label identity and PID metadata
-The system SHALL launch each `AppFlow` once when that flow begins, resolve the launched application's current PID immediately, and store app label as the logical identity with PID, bundle, and ability metadata. Multiple unique app labels MAY resolve to the same PID when the device foregrounds an already running process.
+The system SHALL launch each `AppFlow` once when that flow begins, resolve the launched application's current PID immediately, and record app label as the logical identity with PID, bundle, and ability metadata. The system SHALL retain every launched entry for output metadata and SHALL separately track entries eligible for snapshot collection. Multiple unique app labels MAY resolve to the same PID when the device foregrounds an already running process. When an `AppFlow` requests termination, the system SHALL remove that flow's launched label from future snapshot collection while retaining its launch metadata, then request bundle termination after that AppFlow finishes command execution.
 
 #### Scenario: PID resolves after launch
 - **WHEN** an `AppFlow` launch succeeds and a PID is resolved
-- **THEN** the system stores the unique app label and associated PID, bundle, and ability metadata as a tracked launched entry
+- **THEN** the system records the unique app label and associated PID, bundle, and ability metadata as a launched entry that is eligible for snapshot collection
 
 #### Scenario: PID cannot be resolved after launch
 - **WHEN** an `AppFlow` launch completes but no PID can be resolved
@@ -278,11 +298,15 @@ The system SHALL launch each `AppFlow` once when that flow begins, resolve the l
 
 #### Scenario: AppFlow termination is requested
 - **WHEN** an `AppFlow` has `terminate` equal to `True`
-- **THEN** the runner requests bundle termination after that AppFlow finishes command execution
+- **THEN** the runner removes that flow's label from future snapshot collection and requests bundle termination after AppFlow command execution
+
+#### Scenario: Terminated AppFlow metadata is preserved
+- **WHEN** an `AppFlow` with `terminate` equal to `True` has launched successfully
+- **THEN** its PID, label, bundle, and ability remain in output app metadata in launch order
 
 #### Scenario: AppFlow termination is not requested
 - **WHEN** an `AppFlow` has `terminate` equal to `False`
-- **THEN** the runner does not request bundle termination for that AppFlow
+- **THEN** the runner does not request bundle termination for that AppFlow and keeps its label eligible for later snapshots
 
 #### Scenario: Requested AppFlow termination fails
 - **WHEN** an `AppFlow` has `terminate` equal to `True` and bundle termination fails
@@ -460,20 +484,28 @@ The system SHALL accept `key` commands only when the payload specifies one named
 - **THEN** the system fails schema validation before performing device actions
 
 ### Requirement: Snapshot skips invalid stored PIDs
-The system SHALL skip a tracked launched label during snapshot collection when that label's stored `/proc/<pid>` no longer exists.
+The system SHALL collect smaps only for launched labels that remain eligible for snapshot collection. A label that has been removed because its AppFlow requested termination SHALL not be inspected by later snapshots. When an eligible label's stored `/proc/<pid>` no longer exists, the system SHALL remove that label from future snapshot collection, emit a memmem warning that identifies the label and PID, and continue the current snapshot without failing solely for that reason.
+
+#### Scenario: Terminated label is excluded from a later snapshot
+- **WHEN** a later AppFlow executes a snapshot after an earlier successfully launched AppFlow requested termination
+- **THEN** the snapshot does not inspect or collect smaps for the earlier label
 
 #### Scenario: Stored PID is missing during snapshot
-- **WHEN** a snapshot command inspects a tracked label whose stored PID path `/proc/<pid>` is missing
-- **THEN** the system skips that label for that snapshot without failing solely for that reason
+- **WHEN** a snapshot command inspects an eligible label whose stored PID path `/proc/<pid>` is missing
+- **THEN** the system removes that label from future snapshot collection, emits a warning identifying the label and PID, and records no artifact for that label
+
+#### Scenario: Missing PID is not inspected again
+- **WHEN** a snapshot removes an eligible label because its stored PID path is missing and a later snapshot executes
+- **THEN** the later snapshot does not inspect that label again
 
 #### Scenario: Stored PID exists during snapshot
-- **WHEN** a snapshot command inspects a tracked label whose stored PID path `/proc/<pid>` exists
+- **WHEN** a snapshot command inspects an eligible label whose stored PID path `/proc/<pid>` exists
 - **THEN** the system writes `/proc/<pid>/smaps` to `snapshots/<snapshot_label>/<app_label>-<snapshot_label>.smaps` as a device-local snapshot artifact and records it for later transfer
 
 #### Scenario: All stored PIDs are missing during snapshot
-- **WHEN** a snapshot command finds no tracked labels with existing stored PID paths
+- **WHEN** a snapshot command finds no eligible labels with existing stored PID paths
 - **THEN** the system still records snapshot metadata for that snapshot and records no pending artifacts
 
 #### Scenario: App relaunches outside framework control
 - **WHEN** an app relaunches with a different PID outside framework control
-- **THEN** the system does not rediscover the new PID and continues using only stored PIDs
+- **THEN** the system does not rediscover the new PID and continues using only stored PIDs for eligible labels

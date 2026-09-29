@@ -220,7 +220,7 @@ class LibTest(unittest.TestCase):
 
             with self.assertRaises(pydantic.ValidationError):
                 lib.run(scenario, device, out_dir=out_dir,  # type: ignore[arg-type]
-                        hilog=False)
+                        device_log=False)
 
             self.assertFalse(out_dir.exists())
 
@@ -280,8 +280,8 @@ class LibTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             out_dir = pathlib.Path(directory).joinpath("out")
 
-            lib.run(scenario, device, out_dir=out_dir,  # type: ignore[arg-type]
-                    hilog=False)
+            lib.run(scenario, device, out_dir=out_dir,
+                    device_log=False)
 
             self.assertTrue(out_dir.joinpath("flow.json").is_file())
             self.assertTrue(out_dir.joinpath("summary.csv").is_file())
@@ -303,8 +303,8 @@ class LibTest(unittest.TestCase):
             try:
                 os.chdir(root)
 
-                lib.run(scenario, device, out_dir="out",  # type: ignore[arg-type]
-                        hilog=False)
+                lib.run(scenario, device, out_dir="out",
+                        device_log=False)
 
                 self.assertTrue(root.joinpath("out", "flow.json").is_file())
                 self.assertTrue(root.joinpath("out", "summary.csv").is_file())
@@ -328,8 +328,8 @@ class LibTest(unittest.TestCase):
             out_dir = pathlib.Path(directory).joinpath("out")
 
             with self.assertRaises(pydantic.ValidationError):
-                lib.run(scenario, device, out_dir=out_dir,  # type: ignore[arg-type]
-                        hilog=False)
+                lib.run(scenario, device, out_dir=out_dir,
+                        device_log=False)
 
             self.assertFalse(device.screen_timeout_disabled)
             self.assertFalse(device.hilog_configured)
@@ -359,7 +359,7 @@ class LibTest(unittest.TestCase):
                     scenario,
                     device,
                     out_dir=out_dir,
-                    hilog=False,
+                    device_log=False,
                 )
 
             self.assertEqual(_snapshot_tree(out_dir), before)
@@ -387,7 +387,7 @@ class LibTest(unittest.TestCase):
                     scenario,
                     device,
                     out_dir=out_dir,
-                    hilog=False,
+                    device_log=False,
                     repeats=2,
                 )
 
@@ -410,22 +410,25 @@ class LibTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             out_dir = pathlib.Path(directory).joinpath("out")
 
-            lib.run(scenario, device, out_dir=str(out_dir),  # type: ignore[arg-type]
-                    hilog=False)
+            lib.run(scenario, device, out_dir=str(out_dir),
+                    device_log=False)
 
             flow_json = json.loads(out_dir.joinpath(
                 "flow.json").read_text(encoding="utf-8"))
             self.assertEqual(flow_json, scenario.model_dump())
 
-    def test_run_rejects_removed_logs_keyword(self) -> None:
+    def test_run_rejects_removed_log_keywords(self) -> None:
         device = FakeDevice()
         scenario = lib.flow([])
         with tempfile.TemporaryDirectory() as directory:
             out_dir = pathlib.Path(directory).joinpath("out")
 
             with self.assertRaises(TypeError):
-                lib.run(scenario, device, out_dir=out_dir,  # type: ignore[arg-type]
+                lib.run(scenario, device, out_dir=out_dir,
                         logs=False)  # type: ignore[call-arg]
+            with self.assertRaises(TypeError):
+                lib.run(scenario, device, out_dir=out_dir,
+                        hilog=False)  # type: ignore[call-arg]
 
     def test_run_info_logs_to_stdout(self) -> None:
         device = FakeDevice()
@@ -444,8 +447,8 @@ class LibTest(unittest.TestCase):
 
             with contextlib.redirect_stdout(stdout):
                 lib.configure_logger("info")
-                lib.run(scenario, device, out_dir=out_dir,  # type: ignore[arg-type]
-                        hilog=False)
+                lib.run(scenario, device, out_dir=out_dir,
+                        device_log=False)
 
         self.assertIn("info: start benchmark pre flow", stdout.getvalue())
         self.assertIn(
@@ -464,9 +467,9 @@ class LibTest(unittest.TestCase):
             lib.configure_logger("info", log_path)
             lib.run(
                 scenario,
-                device,  # type: ignore[arg-type]
+                device,
                 out_dir=out_dir,
-                hilog=False,
+                device_log=False,
             )
 
             content = log_path.read_text(encoding="utf-8")
@@ -484,9 +487,9 @@ class LibTest(unittest.TestCase):
             lib.configure_logger("info", log_path)
             lib.run(
                 scenario,
-                device,  # type: ignore[arg-type]
+                device,
                 out_dir=out_dir,
-                hilog=False,
+                device_log=False,
                 repeats=2,
             )
 
@@ -508,8 +511,8 @@ class LibTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             out_dir = pathlib.Path(directory).joinpath("out")
 
-            lib.run(scenario, device, out_dir=out_dir,  # type: ignore[arg-type]
-                    hilog=False, repeats=3)
+            lib.run(scenario, device, out_dir=out_dir,
+                    device_log=False, repeats=3)
 
             for i in range(3):
                 iteration = out_dir.joinpath(f"iteration_{i}")
@@ -538,8 +541,8 @@ class LibTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             out_dir = pathlib.Path(directory).joinpath("out")
 
-            lib.run(scenario, device, out_dir=out_dir,  # type: ignore[arg-type]
-                    hilog=False, smaps_filter=re.compile(r".*\.so"))
+            lib.run(scenario, device, out_dir=out_dir,
+                    device_log=False, smaps_filter=re.compile(r".*\.so"))
 
             with out_dir.joinpath("summary.csv").open(
                     encoding="utf-8", newline="") as stream:
@@ -574,8 +577,8 @@ class LibTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             out_dir = pathlib.Path(directory).joinpath("out")
 
-            lib.run(scenario, device, out_dir=out_dir,  # type: ignore[arg-type]
-                    hilog=False, repeats=2,
+            lib.run(scenario, device, out_dir=out_dir,
+                    device_log=False, repeats=2,
                     smaps_filter=re.compile(r"nomatch"))
 
             for i in range(2):

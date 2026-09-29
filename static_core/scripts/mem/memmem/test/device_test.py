@@ -18,8 +18,8 @@ import tempfile
 import unittest
 from test.mock.hdc import FakeHdc
 
-from src.device import Device, Point, ScreenBounds, ThermalZoneHealth
-from src.hdc import HdcResult
+from src.device import CommandResult as HdcResult, Point, ScreenBounds, ThermalZoneHealth
+from src.platform.ohos.hdc_device import HdcDevice as Device
 
 
 _LAYOUT_DUMP_PREFIX = "shell uitest dumpLayout -p "
@@ -262,7 +262,7 @@ class DeviceTest(unittest.TestCase):
     def test_configure_hilog_disables_flow_control_and_privacy(self) -> None:
         hdc = FakeHdc()
 
-        Device(hdc).configure_hilog()  # type: ignore[arg-type]
+        Device(hdc).configure_log_capture()  # type: ignore[arg-type]
 
         self.assertEqual(
             hdc.calls, [["shell", "hilog", "-Q", "pidoff"], ["shell", "hilog", "-p", "off"]])
@@ -270,7 +270,7 @@ class DeviceTest(unittest.TestCase):
     def test_hilog_streams_to_remote_path(self) -> None:
         hdc = FakeHdc()
 
-        process = Device(hdc).start_hilog(pathlib.PurePosixPath(  # type: ignore[arg-type]
+        process = Device(hdc).start_log_capture(pathlib.PurePosixPath(  # type: ignore[arg-type]
             "/", "remote", "hilog", "hilog.log"))
         try:
             self.assertEqual(

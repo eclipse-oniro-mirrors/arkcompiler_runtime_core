@@ -7,7 +7,7 @@ Defines the public Python API for constructing and running benchmark flows progr
 ## Requirements
 
 ### Requirement: Programmatic API runs validated flows
-The system SHALL provide a public `lib.py` programmatic API that runs benchmark flows constructed in Python without requiring callers to write JSON flow files. The API SHALL accept flow content explicitly, accept a device handle, accept keyword-only runtime options, revalidate the flow before execution, run evidence collection, generate reports, return `None` on success, and report failure by raising an exception. Runtime options SHALL include `out_dir`, `reboot`, `hilog`, `repeats`, and `smaps_filter`. The `out_dir` option SHALL be resolved against the caller's current working directory at run entry and atomically reserved once before any device actions for every repeat count. An already existing output directory SHALL fail the run without changing its contents. The `smaps_filter` option SHALL accept a `re.Pattern[str] | None` value used to restrict report aggregation to matching smaps tags. The previous `logs` keyword option SHALL NOT be accepted. Memmem logger setup SHALL be available separately through public `configure_logger`, `get_logger`, and `reset_logger` helpers.
+The system SHALL provide a public `lib.py` programmatic API that runs benchmark flows constructed in Python without requiring callers to write JSON flow files. The API SHALL accept flow content explicitly, accept a device handle, accept keyword-only runtime options, revalidate the flow before execution, run evidence collection, generate reports, return `None` on success, and report failure by raising an exception. Runtime options SHALL include `out_dir`, `reboot`, `device_log`, `repeats`, and `smaps_filter`. The `out_dir` option SHALL be resolved against the caller's current working directory at run entry and atomically reserved once before any device actions for every repeat count. An already existing output directory SHALL fail the run without changing its contents. The `smaps_filter` option SHALL accept a `re.Pattern[str] | None` value used to restrict report aggregation to matching smaps tags. The previous `logs` and `hilog` keyword options SHALL NOT be accepted. Memmem logger setup SHALL be available separately through public `configure_logger`, `get_logger`, and `reset_logger` helpers.
 
 #### Scenario: Programmatic run succeeds
 - **WHEN** a caller passes a valid programmatically constructed flow, a device handle, and explicit `out_dir` to `lib.run()`
@@ -15,11 +15,11 @@ The system SHALL provide a public `lib.py` programmatic API that runs benchmark 
 
 #### Scenario: Runtime options are keyword-only
 - **WHEN** a caller invokes `lib.run()`
-- **THEN** the caller MUST provide `out_dir` as a keyword argument and MAY provide `reboot`, `hilog`, `repeats`, and `smaps_filter` keyword arguments
+- **THEN** the caller MUST provide `out_dir` as a keyword argument and MAY provide `reboot`, `device_log`, `repeats`, and `smaps_filter` keyword arguments
 
 #### Scenario: Runtime option defaults match CLI
-- **WHEN** a caller omits `reboot`, `hilog`, `repeats`, and `smaps_filter` from `lib.run()`
-- **THEN** the system uses `reboot=False`, `hilog=True`, `repeats=1`, and `smaps_filter=None`
+- **WHEN** a caller omits `reboot`, `device_log`, `repeats`, and `smaps_filter` from `lib.run()`
+- **THEN** the system uses `reboot=False`, `device_log=True`, `repeats=1`, and `smaps_filter=None`
 
 #### Scenario: Programmatic out dir resolves against the caller's working directory
 - **WHEN** a caller passes a relative `out_dir` to `lib.run()`
@@ -49,8 +49,8 @@ The system SHALL provide a public `lib.py` programmatic API that runs benchmark 
 - **WHEN** a caller passes a non-positive `repeats` value to `lib.run()`
 - **THEN** the system rejects the value before performing device actions
 
-#### Scenario: Programmatic hilog collection is disabled
-- **WHEN** a caller passes `hilog=False` to `lib.run()`
+#### Scenario: Programmatic device-log collection is disabled
+- **WHEN** a caller passes `device_log=False` to `lib.run()`
 - **THEN** the system disables run-wide device hilog collection for benchmark execution
 
 #### Scenario: Programmatic smaps filter restricts reports
@@ -61,8 +61,8 @@ The system SHALL provide a public `lib.py` programmatic API that runs benchmark 
 - **WHEN** a caller omits `smaps_filter` from `lib.run()`
 - **THEN** the system aggregates every smaps tag exactly as before
 
-#### Scenario: Programmatic logs keyword is removed
-- **WHEN** a caller passes `logs=False` or `logs=True` to `lib.run()`
+#### Scenario: Programmatic legacy log keywords are removed
+- **WHEN** a caller passes `logs=False`, `logs=True`, `hilog=False`, or `hilog=True` to `lib.run()`
 - **THEN** the system rejects the unexpected keyword argument
 
 #### Scenario: Programmatic memmem log level is configured
@@ -125,15 +125,19 @@ The system SHALL provide public `lib.py` wrapper functions for constructing benc
 - **THEN** `app_flow` is available and `app` is not part of the public facade
 
 ### Requirement: Programmatic API exports public type names
-The system SHALL expose through `lib.py` the type names needed to write mypy-checked programmatic user scripts without importing documented APIs from `src.*`. Public type exports SHALL include flow model types, command model types used by public builders, device/HDC handle types used by public helper and run signatures, the preprocessing function `preprocess_flow`, the unprocessed flow and app-flow model types `UnprocessedFlow` and `UnprocessedAppFlow`, the macro union type `Macro`, the repeat macro type `RepeatMacro`, and the unprocessed command types `UnprocessedSnapshotCommand` and `UnprocessedScreenshotCommand`. Payload structs, macro payload structs such as `RepeatMacroPayload`, the unprocessed command union `UnprocessedCommand`, and internal runner orchestration types SHALL NOT be public exports.
+The system SHALL expose through `lib.py` the type names needed to write mypy-checked programmatic user scripts without importing documented APIs from `src.*`. Public type exports SHALL include flow model types, command model types used by public builders, the backend-neutral Device protocol, HDC and ABD handle types, device handle types used by public helper and run signatures, the preprocessing function `preprocess_flow`, the unprocessed flow and app-flow model types `UnprocessedFlow` and `UnprocessedAppFlow`, the macro union type `Macro`, the repeat macro type `RepeatMacro`, and the unprocessed command types `UnprocessedSnapshotCommand` and `UnprocessedScreenshotCommand`. Payload structs, macro payload structs such as `RepeatMacroPayload`, the unprocessed command union `UnprocessedCommand`, and internal runner orchestration types SHALL NOT be public exports.
 
 #### Scenario: Typed user script annotates flow helpers
 - **WHEN** a user script annotates helper functions or variables with `lib.Flow`, `lib.AppFlow`, or `lib.Command`
 - **THEN** mypy can resolve those names from `lib.py` without `src.*` imports
 
 #### Scenario: Typed user script annotates device handles
-- **WHEN** a user script annotates HDC or device variables with `lib.Hdc` or `lib.Device`
+- **WHEN** a user script annotates HDC, ABD, or device variables with public `lib.py` type names
 - **THEN** mypy can resolve those names from `lib.py` without `src.*` imports
+
+#### Scenario: Existing HDC type remains available
+- **WHEN** a documented existing user script imports `lib.Hdc` and `lib.Device`
+- **THEN** those public names remain available
 
 #### Scenario: Precise command types are available
 - **WHEN** a user script needs precise builder return annotations such as `lib.TapCommand` or `lib.WaitCommand`
@@ -183,14 +187,22 @@ The system SHALL provide a public `lib.preprocess_flow(flow: UnprocessedFlow) ->
 - **THEN** the function raises a validation error before producing a canonical flow
 
 ### Requirement: Programmatic API creates device handles through public helpers
-The system SHALL provide public `lib.py` helpers for constructing HDC and device handles without requiring documented user scripts to import `src.*` modules.
+The system SHALL provide public `lib.py` helpers for constructing HDC, ABD, and their matching device handles without requiring documented user scripts to import `src.*` modules. `lib.get_hdc_device()` SHALL construct an HDC device handle, and ABD helpers SHALL be additive.
 
 #### Scenario: HDC helper accepts path-like input
-- **WHEN** a caller invokes `lib.get_hdc()` with a string or `pathlib.Path` HDC executable path
-- **THEN** the system returns an HDC handle usable by the public device helper
+- **WHEN** a caller invokes `lib.get_hdc()` and `lib.get_hdc_device()` with an HDC executable path and HDC handle
+- **THEN** the system returns a device handle usable by `lib.run()`
 
 #### Scenario: Device helper wraps HDC handle
-- **WHEN** a caller invokes `lib.get_device()` with an HDC handle returned by `lib.get_hdc()`
+- **WHEN** a caller invokes `lib.get_hdc_device()` with an HDC handle
+- **THEN** the system returns a device handle usable by `lib.run()`
+
+#### Scenario: ABD helper accepts path-like input
+- **WHEN** a caller invokes the ABD helper with a string or `pathlib.Path` ABD executable path
+- **THEN** the system returns an ABD handle usable by the public Andr0id device helper
+
+#### Scenario: Andr0id device helper wraps ABD handle
+- **WHEN** a caller invokes the Andr0id device helper with an ABD handle returned by the ABD helper
 - **THEN** the system returns a device handle usable by `lib.run()`
 
 #### Scenario: Public script avoids src imports

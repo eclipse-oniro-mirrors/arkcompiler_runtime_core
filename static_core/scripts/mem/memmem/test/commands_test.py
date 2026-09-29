@@ -15,10 +15,13 @@
 
 import pathlib
 import unittest
+import contextlib
+import io
 from test.mock.device import FakeDevice
 
 from src.commands import ExecutionContext, execute_command
 from src.device import ScreenBounds
+from src.log import configure_logger, reset_logger
 from src.metadata import AppMetadata
 from src.result import ResultStore
 from src.schema import Flow
@@ -34,13 +37,15 @@ def _local(path: str) -> pathlib.Path:
 def _context(
     device: FakeDevice,
     store: ResultStore,
-    apps: list[AppMetadata] | None = None,
+    processes: list[AppMetadata] | None = None,
 ) -> ExecutionContext:
+    launched_processes = processes or []
     return ExecutionContext(
-        device=device,  # type: ignore[arg-type]
+        device=device,
         store=store,
         flow=Flow(flow=[]),
-        apps=apps or [],
+        launched_processes=launched_processes,
+        active_processes=list(launched_processes),
         pending_artifacts=[],
         artifact_metadata={},
         child_processes=[],
@@ -112,7 +117,7 @@ class CommandsTest(unittest.TestCase):
         context = _context(
             device,
             ResultStore(_OUT_DIR, pathlib.PurePosixPath("/remote")),
-            apps=[
+            processes=[
                 AppMetadata(
                     pid=123,
                     label="App",
@@ -229,13 +234,64 @@ class CommandsTest(unittest.TestCase):
         self.assertEqual(context.artifact_metadata, {})
         self.assertEqual(context.pending_artifacts, [])
 
+    def test_snapshot_removes_missing_process_and_warns_once(self) -> None:
+        device = FakeDevice(processes={"com.example": 123})
+        context = _context(
+            device,
+            ResultStore(_OUT_DIR, pathlib.PurePosixPath("/remote")),
+            processes=[
+                AppMetadata(
+                    pid=123,
+                    label="App",
+                    bundle="com.example",
+                    ability="EntryAbility",
+                ),
+                AppMetadata(
+                    pid=456,
+                    label="DeadApp",
+                    bundle="com.example.dead",
+                    ability="EntryAbility",
+                ),
+            ],
+        )
+        commands = Flow.model_validate(
+            {
+                "flow": [
+                    {
+                        "label": "app",
+                        "bundle": "com.example",
+                        "ability": "EntryAbility",
+                        "terminate": False,
+                        "commands": [
+                            {"action": "snapshot", "payload": "first"},
+                            {"action": "snapshot", "payload": "second"},
+                        ],
+                    }
+                ]
+            }
+        ).flow[0].commands
+
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            configure_logger("warn")
+            for command in commands:
+                execute_command(command, context)
+            reset_logger()
+
+        self.assertEqual(
+            [process.label for process in context.active_processes], ["App"])
+        self.assertEqual(len(context.pending_artifacts), 2)
+        self.assertEqual(
+            stdout.getvalue().count("label=DeadApp pid=456"), 1)
+        self.assertFalse(any("DeadApp" in str(path) for path in device.files))
+
     def test_snapshot_failure_does_not_record_metadata(self) -> None:
         device = FakeDevice(
             processes={"com.example": 123}, fail_capture_smaps=True)
         context = _context(
             device,
             ResultStore(_OUT_DIR, pathlib.PurePosixPath("/remote")),
-            apps=[AppMetadata(
+            processes=[AppMetadata(
                 pid=123,
                 label="App",
                 bundle="com.example",
@@ -261,6 +317,8 @@ class CommandsTest(unittest.TestCase):
 
         self.assertEqual(context.artifact_metadata, {})
         self.assertEqual(context.pending_artifacts, [])
+        self.assertEqual(
+            [process.label for process in context.active_processes], ["App"])
 
 
 if __name__ == "__main__":

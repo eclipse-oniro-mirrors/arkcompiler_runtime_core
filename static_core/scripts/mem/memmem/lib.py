@@ -23,6 +23,7 @@ __all__ = [
     "FlingCommand",
     "Flow",
     "Hdc",
+    "Abd",
     "InputTextCommand",
     "KeyCommand",
     "LongTapCommand",
@@ -45,8 +46,10 @@ __all__ = [
     "drag",
     "fling",
     "flow",
-    "get_device",
+    "get_hdc_device",
     "get_hdc",
+    "get_abd",
+    "get_abd_device",
     "get_logger",
     "input_text",
     "key",
@@ -72,7 +75,10 @@ import re
 import typing
 
 from src.device import Device
-from src.hdc import Hdc
+from src.platform.andr0id.abd import Abd
+from src.platform.andr0id.abd_device import AbdDevice
+from src.platform.ohos.hdc import Hdc
+from src.platform.ohos.hdc_device import HdcDevice
 from src.log import configure_logger, get_logger, reset_logger
 from src.preprocess import preprocess_flow as _preprocess_flow
 from src.types import positive_int
@@ -118,8 +124,16 @@ def get_hdc(hdc_exe_path: str | pathlib.Path) -> Hdc:
     return Hdc(absolutize(pathlib.Path(hdc_exe_path)))
 
 
-def get_device(hdc: Hdc) -> Device:
-    return Device(hdc)
+def get_hdc_device(hdc: Hdc) -> Device:
+    return HdcDevice(hdc)
+
+
+def get_abd(abd_exe_path: str | pathlib.Path) -> Abd:
+    return Abd(absolutize(pathlib.Path(abd_exe_path)))
+
+
+def get_abd_device(abd: Abd) -> Device:
+    return AbdDevice(abd)
 
 
 def run(
@@ -128,7 +142,7 @@ def run(
     *,
     out_dir: str | pathlib.Path,
     reboot: bool = False,
-    hilog: bool = True,
+    device_log: bool = True,
     repeats: int = 1,
     smaps_filter: re.Pattern[str] | None = None,
 ) -> None:
@@ -136,17 +150,12 @@ def run(
     validated_flow = Flow.model_validate(f.model_dump())
 
     resolved_out_dir = absolutize(pathlib.Path(out_dir))
-    resolved_out_dir.mkdir(parents=True, exist_ok=False)
 
-    def run_single(
-        out: pathlib.Path,
-        *,
-        local_root_precreated: bool = False,
-    ) -> ResultStore:
+    def run_single(out: pathlib.Path) -> ResultStore:
         options = BenchmarkOptions(
             out_dir=out,
             reboot=reboot,
-            hilog=hilog,
+            device_log=device_log,
         )
         store = create_result_store(options)
         run_benchmark(
@@ -154,14 +163,14 @@ def run(
             options,
             store,
             d,
-            local_root_precreated=local_root_precreated,
         )
         generate_reports(store, smaps_filter)
         return store
 
     if validated_repeats == 1:
-        run_single(resolved_out_dir, local_root_precreated=True)
+        run_single(resolved_out_dir)
     else:
+        resolved_out_dir.mkdir(parents=True, exist_ok=False)
         out_dirs: list[ResultStore] = []
         for i in range(validated_repeats):
             out_dirs.append(run_single(resolved_out_dir.joinpath(

@@ -27,10 +27,10 @@ from unittest import mock
 
 from test.mock.device import FakeDevice
 from test.mock.hdc import FakeHdc
-from src.device import Device, DeviceHealth, ScreenBounds, ThermalZoneHealth
-from src.hdc import HdcResult
+from src.device import CommandResult as HdcResult, Device, DeviceHealth, ScreenBounds, ThermalZoneHealth
+from src.platform.ohos.hdc_device import HdcDevice
 from src.log import configure_logger, reset_logger
-from src.runner import BenchmarkOptions, run_benchmark, create_result_store, _stop_process, _MAX_THERMAL_TEMP_MILLIS_C, _MIN_BATTERY_CAPACITY_PCT
+from src.runner import BenchmarkOptions, run_benchmark, create_result_store, _create_execution_context, _post_app_flow, _pre_app_flow, _stop_process, _MAX_THERMAL_TEMP_MILLIS_C, _MIN_BATTERY_CAPACITY_PCT
 from src.report import generate_reports
 from src.schema import Flow
 
@@ -38,8 +38,8 @@ from src.schema import Flow
 DEFAULT_FLOW = '{"flow":[{"label":"app","bundle":"com.example","ability":"EntryAbility","terminate":false,"commands":[]}]}'
 
 
-def _options(out_dir: pathlib.Path, reboot: bool = False, hilog: bool = True) -> BenchmarkOptions:
-    return BenchmarkOptions(out_dir=out_dir, reboot=reboot, hilog=hilog)
+def _options(out_dir: pathlib.Path, reboot: bool = False, device_log: bool = True) -> BenchmarkOptions:
+    return BenchmarkOptions(out_dir=out_dir, reboot=reboot, device_log=device_log)
 
 
 def _load_flow(content: str) -> Flow:
@@ -83,7 +83,7 @@ class _EarlyExitHilogDevice(FakeDevice):
         super().__init__(**kwargs)
         self.exit_code = exit_code
 
-    def start_hilog(self, path: pathlib.PurePosixPath) -> subprocess.Popen[typing.Any]:
+    def start_log_capture(self, path: pathlib.PurePosixPath) -> subprocess.Popen[typing.Any]:
         if path.parent not in self.dirs:
             raise RuntimeError("missing remote log directory")
         self.hilog_paths.append(path)
@@ -116,7 +116,7 @@ class RunnerTest(unittest.TestCase):
                 options = _options(root.joinpath("out"))
                 store = create_result_store(options)
                 run_benchmark(_write_flow(root), options, store,
-                              device)  # type: ignore[arg-type]
+                              device)
                 generate_reports(store)
 
                 self.assertEqual(pathlib.Path.cwd(), original_cwd)
@@ -136,7 +136,7 @@ class RunnerTest(unittest.TestCase):
                 store = create_result_store(options)
                 with self.assertRaises(RuntimeError):
                     run_benchmark(_write_flow(root), options, store,
-                                  device)  # type: ignore[arg-type]
+                                  device)
 
                 self.assertEqual(pathlib.Path.cwd(), original_cwd)
             finally:
@@ -150,7 +150,7 @@ class RunnerTest(unittest.TestCase):
             out_dir.mkdir()
             metadata = out_dir.joinpath("app_metadata.json")
             metadata.write_bytes(b"SENTINEL\n")
-            options = _options(out_dir, hilog=False)
+            options = _options(out_dir, device_log=False)
             store = create_result_store(options)
 
             with self.assertRaises(FileExistsError):
@@ -166,7 +166,7 @@ class RunnerTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             out_dir = root.joinpath("out")
-            options = _options(out_dir, hilog=False)
+            options = _options(out_dir, device_log=False)
             store = create_result_store(options)
 
             with self.assertRaisesRegex(RuntimeError, "health failed"):
@@ -191,7 +191,7 @@ class RunnerTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             out_dir = root.joinpath("out")
-            options = _options(out_dir, hilog=False)
+            options = _options(out_dir, device_log=False)
             store = create_result_store(options)
 
             with self.assertRaisesRegex(
@@ -213,7 +213,7 @@ class RunnerTest(unittest.TestCase):
                 options = _options(out_dir)
                 store = create_result_store(options)
                 run_benchmark(_write_flow(root), options, store,
-                              device)  # type: ignore[arg-type]
+                              device)
 
                 self.assertTrue(device.recv_local_paths)
                 for path in device.recv_local_paths:
@@ -280,7 +280,7 @@ class RunnerTest(unittest.TestCase):
                     _write_flow(root),
                     options,
                     store,
-                    device,  # type: ignore[arg-type]
+                    device,
                 )
 
             self.assertEqual(
@@ -311,11 +311,11 @@ class RunnerTest(unittest.TestCase):
                     _write_flow(root),
                     options,
                     store,
-                    device,  # type: ignore[arg-type]
+                    device,
                 )
 
             self.assertIn(
-                "additionally failed post_flow step: hilog stream exited "
+                "additionally failed _post_flow step: hilog stream exited "
                 "before requested shutdown with host code 0",
                 str(raised.exception),
             )
@@ -343,7 +343,7 @@ class RunnerTest(unittest.TestCase):
             options = _options(out_dir)
             store = create_result_store(options)
             run_benchmark(flow_path, options, store,
-                          device)  # type: ignore[arg-type]
+                          device)
             generate_reports(store)
 
             self.assertEqual(device.processes, {"com.example": 1000})
@@ -369,7 +369,7 @@ class RunnerTest(unittest.TestCase):
             )
             out_dir = root.joinpath("out")
 
-            options = _options(out_dir, hilog=False)
+            options = _options(out_dir, device_log=False)
             store = create_result_store(options)
             run_benchmark(flow, options, store, typing.cast(Device, device))
 
@@ -393,10 +393,12 @@ class RunnerTest(unittest.TestCase):
 
             options = _options(out_dir, reboot=True)
             store = create_result_store(options)
-            run_benchmark(flow_path, options, store,
-                          device)  # type: ignore[arg-type]
+            with mock.patch("src.runner.time.sleep") as sleep:
+                run_benchmark(flow_path, options, store,
+                              device)
             generate_reports(store)
 
+            self.assertIn(mock.call(5), sleep.call_args_list)
             self.assertTrue(device.rebooted)
             self.assertTrue(device.waited_available)
             self.assertTrue(device.waited_boot_completed)
@@ -413,7 +415,7 @@ class RunnerTest(unittest.TestCase):
             options = _options(out_dir, reboot=False)
             store = create_result_store(options)
             run_benchmark(flow_path, options, store,
-                          device)  # type: ignore[arg-type]
+                          device)
             generate_reports(store)
 
             self.assertFalse(device.rebooted)
@@ -439,7 +441,7 @@ class RunnerTest(unittest.TestCase):
                 options = _options(out_dir)
                 store = create_result_store(options)
                 run_benchmark(flow_path, options, store,
-                              device)  # type: ignore[arg-type]
+                              device)
 
             self.assertEqual(device.processes, {})
             self.assertTrue(device.screen_timeout_disabled)
@@ -462,7 +464,7 @@ class RunnerTest(unittest.TestCase):
                 options = _options(out_dir)
                 store = create_result_store(options)
                 run_benchmark(flow_path, options, store,
-                              device)  # type: ignore[arg-type]
+                              device)
 
             self.assertEqual(device.processes, {})
             self.assertTrue(device.screen_timeout_disabled)
@@ -483,7 +485,7 @@ class RunnerTest(unittest.TestCase):
             options = _options(out_dir)
             store = create_result_store(options)
             run_benchmark(flow_path, options, store,
-                          device)  # type: ignore[arg-type]
+                          device)
             generate_reports(store)
 
             self.assertEqual(device.processes, {"com.example": 1000})
@@ -500,7 +502,7 @@ class RunnerTest(unittest.TestCase):
                 options = _options(out_dir)
                 store = create_result_store(options)
                 run_benchmark(flow_path, options, store,
-                              device)  # type: ignore[arg-type]
+                              device)
 
             self.assertEqual(device.processes, {})
             self.assertTrue(device.screen_timeout_disabled)
@@ -518,13 +520,13 @@ class RunnerTest(unittest.TestCase):
                 f"shell cat {pathlib.PurePosixPath('/', 'data', 'local', 'tmp', 'memmem-layout.json')}": HdcResult(0, '{"attributes": {"bounds": "[0,0][100,200]"}}', ""),
             },
         )
-        device = Device(hdc)  # type: ignore[arg-type]
+        device = HdcDevice(hdc)  # type: ignore[arg-type]
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             flow_path = _write_flow(root, '{"flow":[]}')
             out_dir = root.joinpath("out")
 
-            options = _options(out_dir, reboot=True, hilog=False)
+            options = _options(out_dir, reboot=True, device_log=False)
             store = create_result_store(options)
             run_benchmark(flow_path, options, store, device)
             generate_reports(store)
@@ -566,10 +568,10 @@ class RunnerTest(unittest.TestCase):
             flow_path = _write_flow(root)
             out_dir = root.joinpath("out")
 
-            options = _options(out_dir, hilog=False)
+            options = _options(out_dir, device_log=False)
             store = create_result_store(options)
             run_benchmark(flow_path, options, store,
-                          device)  # type: ignore[arg-type]
+                          device)
             generate_reports(store)
 
             self.assertTrue(device.screen_timeout_disabled)
@@ -598,7 +600,7 @@ class RunnerTest(unittest.TestCase):
             options = _options(out_dir)
             store = create_result_store(options)
             run_benchmark(flow_path, options, store,
-                          device)  # type: ignore[arg-type]
+                          device)
             generate_reports(store)
 
             app_metadata = out_dir.joinpath(
@@ -639,7 +641,7 @@ class RunnerTest(unittest.TestCase):
                 options = _options(out_dir)
                 store = create_result_store(options)
                 run_benchmark(flow_path, options, store,
-                              device)  # type: ignore[arg-type]
+                              device)
                 generate_reports(store)
 
             self.assertEqual(device.processes, {})
@@ -657,7 +659,7 @@ class RunnerTest(unittest.TestCase):
                 options = _options(out_dir)
                 store = create_result_store(options)
                 run_benchmark(flow_path, options, store,
-                              device)  # type: ignore[arg-type]
+                              device)
                 generate_reports(store)
 
             self.assertTrue(out_dir.joinpath("app_metadata.json").is_file())
@@ -680,7 +682,7 @@ class RunnerTest(unittest.TestCase):
                 options = _options(out_dir)
                 store = create_result_store(options)
                 run_benchmark(flow_path, options, store,
-                              device)  # type: ignore[arg-type]
+                              device)
                 generate_reports(store)
 
             self.assertTrue(out_dir.joinpath("hilog", "hilog.log").is_file())
@@ -700,11 +702,35 @@ class RunnerTest(unittest.TestCase):
             options = _options(out_dir)
             store = create_result_store(options)
             run_benchmark(flow_path, options, store,
-                          device)  # type: ignore[arg-type]
+                          device)
 
             self.assertEqual(device.terminated_bundles, ["com.example"])
             self.assertEqual(device.processes, {})
             self.assertTrue(out_dir.joinpath("hilog", "hilog.log").is_file())
+            self.assertIn(
+                '"label": "app"',
+                out_dir.joinpath("app_metadata.json").read_text(
+                    encoding="utf-8"),
+            )
+
+    def test_requested_termination_removes_only_active_process(self) -> None:
+        device = FakeDevice(screen=ScreenBounds(0, 0, 100, 200))
+        flow = _load_flow(
+            '{"flow":[{"label":"app","bundle":"com.example","ability":"EntryAbility","terminate":true,"commands":[]}]}'
+        )
+        options = _options(pathlib.Path("out"), device_log=False)
+        context = _create_execution_context(
+            flow,
+            create_result_store(options),
+            device,
+        )
+
+        _pre_app_flow(context, flow.flow[0])
+        _post_app_flow(context, flow.flow[0])
+
+        self.assertEqual(
+            [process.label for process in context.launched_processes], ["app"])
+        self.assertEqual(context.active_processes, [])
 
     def test_termination_failure_fails_benchmark(self) -> None:
         device = FakeDevice(screen=ScreenBounds(
@@ -721,7 +747,7 @@ class RunnerTest(unittest.TestCase):
                 options = _options(out_dir)
                 store = create_result_store(options)
                 run_benchmark(flow_path, options, store,
-                              device)  # type: ignore[arg-type]
+                              device)
 
     def test_termination_failure_combines_with_app_failure(self) -> None:
         device = FakeDevice(screen=ScreenBounds(0, 0, 100, 200), invalid_bundles={
@@ -738,7 +764,7 @@ class RunnerTest(unittest.TestCase):
                 options = _options(out_dir)
                 store = create_result_store(options)
                 run_benchmark(flow_path, options, store,
-                              device)  # type: ignore[arg-type]
+                              device)
 
     def test_no_termination_when_not_requested(self) -> None:
         device = FakeDevice(screen=ScreenBounds(0, 0, 100, 200))
@@ -750,7 +776,7 @@ class RunnerTest(unittest.TestCase):
             options = _options(out_dir)
             store = create_result_store(options)
             run_benchmark(flow_path, options, store,
-                          device)  # type: ignore[arg-type]
+                          device)
 
             self.assertEqual(device.terminated_bundles, [])
             self.assertEqual(device.processes, {"com.example": 1000})
@@ -768,7 +794,7 @@ class RunnerTest(unittest.TestCase):
             options = _options(out_dir)
             store = create_result_store(options)
             run_benchmark(flow_path, options, store,
-                          device)  # type: ignore[arg-type]
+                          device)
             generate_reports(store)
 
             self.assertTrue(out_dir.joinpath(
@@ -793,7 +819,7 @@ class RunnerTest(unittest.TestCase):
                 options = _options(out_dir)
                 store = create_result_store(options)
                 run_benchmark(flow_path, options, store,
-                              device)  # type: ignore[arg-type]
+                              device)
                 generate_reports(store)
 
             self.assertTrue(out_dir.joinpath(
@@ -819,7 +845,7 @@ class RunnerTest(unittest.TestCase):
                 options = _options(out_dir)
                 store = create_result_store(options)
                 run_benchmark(flow_path, options, store,
-                              device)  # type: ignore[arg-type]
+                              device)
                 generate_reports(store)
 
     def test_screen_bounds_failure_prevents_app_launch(self) -> None:
@@ -833,7 +859,7 @@ class RunnerTest(unittest.TestCase):
                 options = _options(out_dir)
                 store = create_result_store(options)
                 run_benchmark(flow_path, options, store,
-                              device)  # type: ignore[arg-type]
+                              device)
                 generate_reports(store)
 
             self.assertTrue(device.screen_timeout_disabled)

@@ -32,7 +32,8 @@ import lib
 
 @dataclasses.dataclass(frozen=True)
 class Config:
-    hdc_path: pathlib.Path
+    hdc_path: pathlib.Path | None = None
+    abd_path: pathlib.Path | None = None
 
 
 def load_config(env_path: pathlib.Path) -> Config:
@@ -40,11 +41,12 @@ def load_config(env_path: pathlib.Path) -> Config:
         raise FileNotFoundError(f"env file does not exist: {env_path}")
 
     values = dotenv_values(env_path)
-    hdc_path = values.get("HDC_PATH", "")
-    if hdc_path is None or hdc_path == "":
-        raise ValueError("HDC_PATH is required")
 
-    return Config(hdc_path=absolutize(pathlib.Path(hdc_path)))
+    def optional_path(name: str) -> pathlib.Path | None:
+        value = values.get(name)
+        return None if value is None or value == "" else absolutize(pathlib.Path(value))
+
+    return Config(hdc_path=optional_path("HDC_PATH"), abd_path=optional_path("ABD_PATH"))
 
 
 def _compile_smaps_filter(value: str) -> re.Pattern[str]:
@@ -59,6 +61,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Benchmark mobile device memory usage")
     parser.add_argument("--flow", required=True, type=pathlib.Path)
+    parser.add_argument("--backend", choices=["hdc", "abd"], default="hdc")
     parser.add_argument(
         "--out-dir",
         required=False,
@@ -79,10 +82,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     reboot_group.add_argument(
         "--no-reboot", dest="reboot", action="store_false")
-    hilog_group = parser.add_mutually_exclusive_group()
-    hilog_group.add_argument("--hilog", dest="hilog",
-                             action="store_true", default=True)
-    hilog_group.add_argument("--no-hilog", dest="hilog", action="store_false")
+    device_log_group = parser.add_mutually_exclusive_group()
+    device_log_group.add_argument("--device-log", dest="device_log",
+                                  action="store_true", default=True)
+    device_log_group.add_argument("--no-device-log", dest="device_log",
+                                  action="store_false")
     parser.add_argument(
         "--memmem-log-level",
         choices=["info", "warn", "err"],
@@ -121,14 +125,20 @@ def main() -> int:
             flow_path.read_text(encoding="utf-8")))
         flow = lib.preprocess_flow(unprocessed)
         config = load_config(pathlib.Path(".env"))
-        hdc = lib.get_hdc(config.hdc_path)
-        device = lib.get_device(hdc)
+        if args.backend == "hdc":
+            if config.hdc_path is None:
+                raise ValueError("HDC_PATH is required when backend=hdc")
+            device = lib.get_hdc_device(lib.get_hdc(config.hdc_path))
+        else:
+            if config.abd_path is None:
+                raise ValueError("ABD_PATH is required when backend=abd")
+            device = lib.get_abd_device(lib.get_abd(config.abd_path))
         lib.run(
             flow,
             device,
             out_dir=out_dir,
             reboot=args.reboot,
-            hilog=args.hilog,
+            device_log=args.device_log,
             repeats=args.repeats,
             smaps_filter=args.smaps_filter,
         )

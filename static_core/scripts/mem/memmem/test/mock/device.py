@@ -20,7 +20,7 @@ import time
 from typing import Any
 
 from src.device import DeviceHealth, Point, ScreenBounds, ThermalZoneHealth
-from src.hdc import HdcResult
+from src.device import CommandResult as HdcResult
 
 
 class FakeDevice:
@@ -46,8 +46,8 @@ class FakeDevice:
         fail_wait_boot_completed: bool = False,
         fail_wakeup: bool = False,
         fail_disable_screen_timeout: bool = False,
-        fail_configure_hilog: bool = False,
-        fail_hilog: bool = False,
+        fail_configure_device_log: bool = False,
+        fail_device_log: bool = False,
         fail_terminate_app: bool = False,
         default_smaps_content: str = "Size: 1 kB\nRss: 1 kB\nPss: 1 kB\n",
         default_log_content: str = "fake log\n",
@@ -76,8 +76,8 @@ class FakeDevice:
         self.fail_wait_boot_completed = fail_wait_boot_completed
         self.fail_wakeup = fail_wakeup
         self.fail_disable_screen_timeout = fail_disable_screen_timeout
-        self.fail_configure_hilog = fail_configure_hilog
-        self.fail_hilog = fail_hilog
+        self.fail_configure_device_log = fail_configure_device_log
+        self.fail_device_log = fail_device_log
         self.fail_terminate_app = fail_terminate_app
         self.terminated_bundles: list[str] = []
         self.default_smaps_content = default_smaps_content
@@ -150,13 +150,13 @@ class FakeDevice:
             raise RuntimeError("screen timeout setup failed")
         self.screen_timeout_disabled = True
 
-    def configure_hilog(self) -> None:
-        if self.fail_configure_hilog:
+    def configure_log_capture(self) -> None:
+        if self.fail_configure_device_log:
             raise RuntimeError("hilog setup failed")
         self.hilog_configured = True
 
-    def start_hilog(self, path: pathlib.PurePosixPath) -> subprocess.Popen[Any]:
-        if self.fail_hilog:
+    def start_log_capture(self, path: pathlib.PurePosixPath) -> subprocess.Popen[Any]:
+        if self.fail_device_log:
             raise RuntimeError("hilog failed")
         if path.parent not in self.dirs:
             raise RuntimeError("missing remote log directory")
