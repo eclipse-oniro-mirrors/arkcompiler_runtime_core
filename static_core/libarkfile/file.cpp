@@ -30,6 +30,7 @@
 #include "securec.h"
 
 #include <cerrno>
+#include <cstdint>
 #include <cstring>
 
 #include <algorithm>
@@ -115,43 +116,63 @@ private:
     MemNameSet memNameSet_;
 };
 
-static bool CheckSecureMem(uintptr_t mem, size_t size)
+// Sate of the secure memory region, initialized once in a thread-safe amnner via magic statics.
+struct SecureMemState {
+    bool hasOpen = false;
+    uintptr_t secureMemStart = 0;
+    uintptr_t secureMemEnd = 0;
+};
+
+static const SecureMemState &GetSecureMemState()
 {
-    static bool hasOpen = false;
-    static uintptr_t secureMemStart = 0;
-    static uintptr_t secureMemEnd = 0;
-    if (!hasOpen) {
+    static SecureMemState state = []() {
+        SecureMemState secureMem;
         FILE *fp = fopen(PROC_SELF_XPM_REGION_PATH, "re");
         if (fp == nullptr) {
             LOG(ERROR, PANDAFILE) << "Can not open xpm proc file, do not check secure memory anymore.";
             // No verification is performed when a file fails to be opened.
-            hasOpen = true;
-            return true;
+            secureMem.hasOpen = true;
+            return secureMem;
         }
         // NOLINTNEXTLINE(readability-identifier-naming, modernize-avoid-c-arrays)
-        char xpmValidateRegion[XPM_PROC_LENGTH] = {0};
-        size_t ret = fread(xpmValidateRegion, 1, sizeof(xpmValidateRegion), fp);
+        char xpmValidateRegion[XPM_PROC_LENGTH + 1] = {0};
+        size_t ret = fread(xpmValidateRegion, 1, XPM_PROC_LENGTH, fp);
         if (ret <= 0) {
             LOG(ERROR, PANDAFILE) << "Read xpm proc file failed";
-            fclose(fp);
-            return false;
+            if (fclose(fp) != 0) {
+                LOG(ERROR, PANDAFILE) << "Close xpm proc file failed";
+            }
+            return secureMem;
         }
-        fclose(fp);
+        if (fclose(fp) != 0) {
+            LOG(ERROR, PANDAFILE) << "Close xpm proc file failed";
+        }
         // NOLINTNEXTLINE(cert-err34-c, cppcoreguidelines-pro-type-vararg)
-        if (sscanf_s(xpmValidateRegion, "%lx-%lx", &secureMemStart, &secureMemEnd) <= 0) {
+        if (sscanf_s(xpmValidateRegion, "%lx-%lx", &secureMem.secureMemStart, &secureMem.secureMemEnd) <= 0) {
             LOG(ERROR, PANDAFILE) << "sscanf_s xpm validate region failed";
-            return false;
+            return secureMem;
         }
         // The check is not performed when the file is already opened.
-        hasOpen = true;
+        secureMem.hasOpen = true;
         LOG(DEBUG, PANDAFILE) << "Successfully open xpm region.";
+        return secureMem;
+    }();
+    return state;
+}
+
+static bool CheckSecureMem(uintptr_t mem, size_t size)
+{
+    const auto &state = GetSecureMemState();
+    if (!state.hasOpen) {
+        return false;
     }
     // xpm proc does not exist, the read value is 0, and the check is not performed.
-    if (secureMemStart == 0 && secureMemEnd == 0) {
+    if (state.secureMemStart == 0 && state.secureMemEnd == 0) {
         LOG(ERROR, PANDAFILE) << "Secure memory check: xpm proc does not exist, do not check secure memory anymore.";
         return true;
     }
-    if (mem < secureMemStart || (size > (std::numeric_limits<uintptr_t>::max() - mem)) || (mem + size) > secureMemEnd) {
+    if (mem < state.secureMemStart || (size > (std::numeric_limits<uintptr_t>::max() - mem)) ||
+        (mem + size) > state.secureMemEnd) {
         LOG(ERROR, PANDAFILE) << "Secure memory check failed, mem out of secure memory region.";
         return false;
     }
