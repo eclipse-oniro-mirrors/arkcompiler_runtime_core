@@ -108,6 +108,34 @@ EtsClass *EtsAbcRuntimeLinkerLoadClassFromAbcFiles(EtsAbcRuntimeLinker *runtimeL
 }
 
 /**
+ * @brief Caller authorization shared by the reload entries.
+ *
+ * ANI by-name invocation does not check access modifiers, so a private entry is still
+ * reachable from an arbitrary native bridge with a managed frame below it. Walks the stack
+ * down to the nearest managed frame; returns it when that caller is NOT loaded in the boot
+ * context.
+ *
+ * @returns the offending non-boot method, for logging; nullptr when the caller is
+ *          authorized (boot context, or no managed frames at all -- the framework's shape,
+ *          a pure native entry).
+ */
+static Method *FindNonBootManagedCaller(EtsCoroutine *coro)
+{
+    for (auto stack = StackWalker::Create(coro); stack.HasFrame(); stack.NextFrame()) {
+        auto *method = stack.GetMethod();
+        if (method == nullptr) {
+            continue;
+        }
+        auto *ctx = method->GetClass()->GetLoadContext();
+        if (ctx == nullptr || !ctx->IsBootContext()) {
+            return method;
+        }
+        break;
+    }
+    return nullptr;
+}
+
+/**
  * @brief `std.core.AbcRuntimeLinker.coldReload(patchPath: string): int`
  *
  * Inserts the patch abc at the front of the linker's abcFiles array, so that
@@ -125,8 +153,31 @@ extern "C" EtsInt EtsAbcRuntimeLinkerColdReload(EtsAbcRuntimeLinker *runtimeLink
         return static_cast<EtsInt>(coldreload::Error::INVALID_INPUT_ARG);
     }
 
+    /*
+     * Root the managed arguments before the caller check: the stack walk below may move objects,
+     * and the handle is updated in place while a raw pointer would go stale.
+     */
+    auto *executionCtx = EtsExecutionContext::GetCurrent();
+    [[maybe_unused]] EtsHandleScope hs(executionCtx);
+    EtsHandle<EtsString> patchPathHandle(executionCtx, patchPath);
+    EtsHandle<EtsAbcRuntimeLinker> runtimeLinkerHandle(executionCtx, runtimeLinker);
+
+    /*
+     * Caller authorization, see `FindNonBootManagedCaller`: only a boot-context managed
+     * caller may prepend a patch; a pure native entry (the framework's shape) passes.
+     */
+    if (auto *caller = FindNonBootManagedCaller(coro); caller != nullptr) {
+        LOG(ERROR, COLDRELOAD) << "coldReload reached from a non-boot caller " << caller->GetFullName();
+        return static_cast<EtsInt>(coldreload::Error::CALLER_NOT_BOOT);
+    }
+
     // Read the path out of managed memory while still in managed state.
-    PandaString patch = patchPath->GetMutf8();
+    auto *patchStr = patchPathHandle.GetPtr();
+    auto *linkerPtr = runtimeLinkerHandle.GetPtr();
+    if (UNLIKELY(patchStr == nullptr || linkerPtr == nullptr)) {
+        return static_cast<EtsInt>(coldreload::Error::INVALID_INPUT_ARG);
+    }
+    PandaString patch = patchStr->GetMutf8();
 
     // Unlike `EtsHotreload`, whose base class must be constructed in native state,
     // `EtsColdReload` runs in managed state throughout; it enters a native scope
@@ -134,7 +185,7 @@ extern "C" EtsInt EtsAbcRuntimeLinkerColdReload(EtsAbcRuntimeLinker *runtimeLink
     coldreload::Error err;
     {
         ets::coldreload::EtsColdReload coldReload;
-        err = coldReload.Reload(coro, patch, runtimeLinker);
+        err = coldReload.Reload(coro, patch, linkerPtr);
     }
 
     if (err != coldreload::Error::NONE) {
@@ -179,22 +230,12 @@ extern "C" EtsInt EtsAbcRuntimeLinkerHotReload(EtsAbcRuntimeLinker *runtimeLinke
     EtsHandle<EtsAbcRuntimeLinker> runtimeLinkerHandle(executionCtx, runtimeLinker);
 
     /*
-     * Authorization: ANI by-name invocation does not check access modifiers, so a protected entry
-     * is still reachable from an arbitrary native bridge with a managed frame below it. Only a
-     * boot-context managed caller may run the transaction; a pure native entry (the framework's
-     * shape, no managed frames at all) passes.
+     * Caller authorization, see `FindNonBootManagedCaller`: only a boot-context managed
+     * caller may run the transaction; a pure native entry (the framework's shape) passes.
      */
-    for (auto stack = StackWalker::Create(coro); stack.HasFrame(); stack.NextFrame()) {
-        auto *method = stack.GetMethod();
-        if (method == nullptr) {
-            continue;
-        }
-        auto *ctx = method->GetClass()->GetLoadContext();
-        if (ctx == nullptr || !ctx->IsBootContext()) {
-            LOG(ERROR, HOTRELOAD) << "hotReload reached from a non-boot caller " << method->GetFullName();
-            return static_cast<EtsInt>(ark::hotreload::Error::CALLER_NOT_BOOT);
-        }
-        break;
+    if (auto *caller = FindNonBootManagedCaller(coro); caller != nullptr) {
+        LOG(ERROR, HOTRELOAD) << "hotReload reached from a non-boot caller " << caller->GetFullName();
+        return static_cast<EtsInt>(ark::hotreload::Error::CALLER_NOT_BOOT);
     }
 
     /*

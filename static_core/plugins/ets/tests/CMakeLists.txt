@@ -686,6 +686,8 @@ if (PANDA_ETS_INTEROP_JS)
 endif()
 
 add_subdirectory(debugger)
+add_subdirectory(hotreload)
+add_subdirectory(coldreload)
 
 # This section should be located at the end of this file to include all targets created here!
 # Targets to divide ets_tests subtargets by execution time to ensure that

@@ -41,8 +41,8 @@
  *
  * Environment:
  *   ARK_ETS_STDLIB_PATH        etsstdlib.abc
- *   ANI_HOTRELOAD_TARGET_ABC   the abc the linker loads (target/t.ets compiled)
- *   ANI_HOTRELOAD_PATCH_ABC    the patch abc (patch/t.ets compiled)
+ *   ANI_HOTRELOAD_TARGET_ABC   the abc the linker loads (the fixture compiled)
+ *   ANI_HOTRELOAD_PATCH_ABC    the patch abc
  */
 
 #include <ani.h>
@@ -55,7 +55,14 @@
 
 namespace {
 
-constexpr const char *TARGET_CLASS_NAME = "t.Greeter";
+// The record prefix comes from the fixture's source basename (es2panda derives the module
+// name from it). The default `t` matches the CI-driven fixtures; a driver compiled from a
+// differently named source can override it through ANI_HOTRELOAD_MODULE.
+std::string GetTargetClassName()
+{
+    const char *module = std::getenv("ANI_HOTRELOAD_MODULE");
+    return std::string(module != nullptr ? module : "t") + ".Greeter";
+}
 // Generous bound: strings, arrays, objects and wrappers created over the whole run, which
 // spans two scenarios and three linkers
 constexpr ani_size LOCAL_SCOPE_CAPACITY = 128;
@@ -175,7 +182,8 @@ ani_object LoadTargetInstance(ani_env *env, ani_object linker)
     }
 
     ani_string className = nullptr;
-    if (CheckStatus(env->String_NewUTF8(TARGET_CLASS_NAME, std::strlen(TARGET_CLASS_NAME), &className),
+    const std::string targetClassName = GetTargetClassName();
+    if (CheckStatus(env->String_NewUTF8(targetClassName.c_str(), targetClassName.size(), &className),
                     "cannot create class name string")) {
         return nullptr;
     }

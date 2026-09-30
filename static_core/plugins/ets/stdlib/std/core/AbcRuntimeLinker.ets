@@ -131,7 +131,7 @@ export class AbcRuntimeLinker extends RuntimeLinker {
      *          Throws NullPointerException when patchPath is null; every
      *          other failure comes back as the return code.
      */
-    protected final native coldReload(patchPath: string): int
+    private final native coldReload(patchPath: string): int
 
     /**
      * Replaces an ABC file already loaded in this linker's context by a new version of the same
@@ -143,7 +143,7 @@ export class AbcRuntimeLinker extends RuntimeLinker {
      * which shares all of the logic below the target resolution.
      *
      * The capability is disabled by default: the process must have been started with the
-     * `enable-hotreload` runtime option (the framework passes it when it creates a debug
+     * `enable-reload` runtime option (the framework passes it when it creates a debug
      * session), and the entry must not be reached from managed code outside the boot context.
      *
      * Only method bodies may differ between the two versions. Any structural change (fields,
@@ -168,5 +168,5 @@ export class AbcRuntimeLinker extends RuntimeLinker {
      *          other failure comes back as the return code, with the detail reported
      *          through the `hotreload` log component.
      */
-    protected final native hotReload(targetPath: string, patchPath: string): int
+    private final native hotReload(targetPath: string, patchPath: string): int
 }

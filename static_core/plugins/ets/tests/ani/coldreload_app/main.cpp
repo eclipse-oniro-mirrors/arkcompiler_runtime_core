@@ -16,7 +16,7 @@
 /*
  * Native driver for the coldreload smoke suite.
  *
- * The test module (tests/coldreload/base/t.ets) exposes `TestRunner.pre` (optionally run
+ * The test module (the fixture compiled from the coldreload suite) exposes `TestRunner.pre` (optionally run
  * BEFORE the reload, the startup-contract violation case) and `TestRunner.observe` (always
  * run AFTER it). This driver creates the module's AbcRuntimeLinker the way the application
  * framework does, drives the cold-reload transaction directly from native code while the
@@ -31,8 +31,12 @@
 
 #include <ani.h>
 
-#include <array>
+#include <charconv>
 #include <cstdlib>
+#include <optional>
+#include <string_view>
+#include <system_error>
+#include <vector>
 #include <iostream>
 #include <cstring>
 #include <string>
@@ -116,7 +120,7 @@ int RunColdReload(ani_env *env, ani_object linker, const char *patchPath)
 
 // Loads the test class through the linker and instantiates it. The linker's loadClass
 // returns a Class OBJECT, so the instance is created through std.core.Class.createInstance.
-ani_object LoadRunnerInstance(ani_env *env, ani_object linker)
+ani_object LoadRunnerInstance(ani_env *env, ani_object linker, const char *moduleName)
 {
     ani_type linkerType = nullptr;
     if (Check(env->Object_GetType(linker, &linkerType), "cannot get linker type")) {
@@ -145,8 +149,9 @@ ani_object LoadRunnerInstance(ani_env *env, ani_object linker)
         return nullptr;
     }
 
+    const std::string runnerName = std::string(moduleName) + ".TestRunner";
     ani_string className = nullptr;
-    if (Check(env->String_NewUTF8("t.TestRunner", std::strlen("t.TestRunner"), &className),
+    if (Check(env->String_NewUTF8(runnerName.c_str(), runnerName.size(), &className),
               "cannot create class name string")) {
         return nullptr;
     }
@@ -154,7 +159,7 @@ ani_object LoadRunnerInstance(ani_env *env, ani_object linker)
     ani_ref classObject = nullptr;
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
     if (Check(env->Object_CallMethod_Ref(linker, loadClass, &classObject, className, booleanTrue),
-              "cannot load t.TestRunner")) {
+              "cannot load the TestRunner class")) {
         return nullptr;
     }
 
@@ -180,12 +185,12 @@ ani_object LoadRunnerInstance(ani_env *env, ani_object linker)
 // Usage: <driver> <etsstdlib.abc> <program.abc> <patch> <patch2> <mode>
 constexpr int STDLIB_ARG = 1;
 constexpr int PROGRAM_ARG = 2;
-constexpr int PATCH_ARG = 3;
-constexpr int PATCH2_ARG = 4;
-constexpr int MODE_ARG = 5;
+constexpr int MODULE_ARG = 3;
+constexpr int PATCH_ARG = 4;
+constexpr int PATCH2_ARG = 5;
+constexpr int MODE_ARG = 6;
 constexpr int MIN_ARGC = MODE_ARG + 1;
 constexpr int EXIT_USAGE = 2;
-constexpr ani_size BASE_OPT_COUNT = 4U;
 
 // Builds the VM with the smoke-run options; the AOT file comes from COLDRELOAD_AOT_FILE.
 bool CreateSmokeVm(ani_vm **vm, ani_env **env, const char *stdlibPath)
@@ -200,14 +205,16 @@ bool CreateSmokeVm(ani_vm **vm, ani_env **env, const char *stdlibPath)
         aotFile = std::string("--ext:aot-files=") + aot;
     }
 
-    std::array<ani_option, 5U> opts = {
+    std::vector<ani_option> opts = {
         ani_option {boot.c_str(), nullptr},
         ani_option {noJit.c_str(), nullptr},
         ani_option {logCmp.c_str(), nullptr},
         ani_option {logLvl.c_str(), nullptr},
-        ani_option {aotFile.empty() ? "" : aotFile.c_str(), nullptr},
     };
-    ani_size nopts = aotFile.empty() ? BASE_OPT_COUNT : opts.size();
+    if (!aotFile.empty()) {
+        opts.push_back(ani_option {aotFile.c_str(), nullptr});
+    }
+    const auto nopts = static_cast<ani_size>(opts.size());
     ani_options options = {nopts, opts.data()};
     if (ANI_CreateVM(&options, ANI_VERSION_1, vm) != ANI_OK) {
         std::cerr << "FAIL: cannot create VM\n";
@@ -226,9 +233,9 @@ bool CreateSmokeVm(ani_vm **vm, ani_env **env, const char *stdlibPath)
 }
 
 // The startup-contract violation case: load the test class and run `pre` before the reload.
-bool RunPrePhase(ani_env *env, ani_object linker)
+bool RunPrePhase(ani_env *env, ani_object linker, const char *moduleName)
 {
-    ani_object runner = LoadRunnerInstance(env, linker);
+    ani_object runner = LoadRunnerInstance(env, linker, moduleName);
     if (runner == nullptr) {
         return false;
     }
@@ -242,9 +249,9 @@ bool RunPrePhase(ani_env *env, ani_object linker)
 }
 
 // Observation: loads the test class (through the possibly patched order) and calls `observe`.
-bool CallObserve(ani_env *env, ani_object linker, ani_int *rc)
+bool CallObserve(ani_env *env, ani_object linker, const char *moduleName, ani_int *rc)
 {
-    ani_object runner = LoadRunnerInstance(env, linker);
+    ani_object runner = LoadRunnerInstance(env, linker, moduleName);
     if (runner == nullptr) {
         return false;
     }
@@ -257,12 +264,57 @@ bool CallObserve(ani_env *env, ani_object linker, ani_int *rc)
                   "cannot call observe");
 }
 
+/*
+ * The reload's return code, pinned by the case (COLDRELOAD_EXPECT_RC / _RC2): the managed side
+ * asserts state consistency with whatever code came back, this check pins the code itself -- a
+ * rejection the case did not expect must fail the run even though the state stayed consistent.
+ * The fixture asserts every code itself when it leaves the variable unset.
+ */
+// Parses a whole decimal integer; nothing when malformed -- `std::atoi` cannot report
+// conversion errors, and a malformed expectation must fail the run instead of silently
+// comparing against a zero.
+std::optional<int> ParseWholeDecimalInt(std::string_view str)
+{
+    int value = 0;
+    const auto [ptr, ec] = std::from_chars(str.begin(), str.end(), value);
+    if (ec != std::errc {} || ptr != str.end()) {
+        return std::nullopt;
+    }
+    return value;
+}
+
+bool CheckExpectedRc(int rc, const char *envName)
+{
+    const char *expected = std::getenv(envName);
+    if (expected == nullptr) {
+        return true;
+    }
+    const auto parsed = ParseWholeDecimalInt(expected);
+    if (!parsed.has_value()) {
+        std::cerr << "FAIL: " << envName << " is not a number: '" << expected << "'\n";
+        return false;
+    }
+    if (rc != *parsed) {
+        std::cerr << "FAIL: reload rc " << rc << ", expected " << *parsed << "\n";
+        return false;
+    }
+    return true;
+}
+
+// The cmake-driven cases pass "-" where the old shell driver passed an empty string: an empty
+// argv element cannot be expressed in a VERBATIM command list.
+const char *NormalizePatchArg(const char *arg)
+{
+    return std::strcmp(arg, "-") == 0 ? "" : arg;
+}
+
 }  // namespace
 
 int main(int argc, char **argv)
 {
     if (argc < MIN_ARGC) {
-        std::cerr << "usage: " << ArgAt(argv, 0) << " <etsstdlib.abc> <program.abc> <patch> <patch2> <mode>\n";
+        const std::string usage = " <etsstdlib.abc> <program.abc> <module-name> <patch> <patch2> <mode>\n";
+        std::cerr << "usage: " << ArgAt(argv, 0) << usage;
         return EXIT_USAGE;
     }
 
@@ -276,20 +328,28 @@ int main(int argc, char **argv)
     if (linker == nullptr) {
         return 1;
     }
-    if (std::strcmp(ArgAt(argv, MODE_ARG), "pre") == 0 && !RunPrePhase(env, linker)) {
+    if (std::strcmp(ArgAt(argv, MODE_ARG), "pre") == 0 && !RunPrePhase(env, linker, ArgAt(argv, MODULE_ARG))) {
         return 1;
     }
 
-    // The transaction itself, driven from native code in the module's startup state.
-    int rc = RunColdReload(env, linker, ArgAt(argv, PATCH_ARG));
+    // The transactions themselves, driven from native code in the module's startup state.
+    const char *patchArg = NormalizePatchArg(ArgAt(argv, PATCH_ARG));
+    const char *patch2Arg = NormalizePatchArg(ArgAt(argv, PATCH2_ARG));
+    int rc = RunColdReload(env, linker, patchArg);
     std::cout << "rc=" << rc << "\n";
-    if (std::strcmp(ArgAt(argv, PATCH2_ARG), "") != 0) {
-        int rc2 = RunColdReload(env, linker, ArgAt(argv, PATCH2_ARG));
+    if (!CheckExpectedRc(rc, "COLDRELOAD_EXPECT_RC")) {
+        return 1;
+    }
+    if (std::strcmp(patch2Arg, "") != 0) {
+        int rc2 = RunColdReload(env, linker, patch2Arg);
         std::cout << "rc2=" << rc2 << "\n";
+        if (!CheckExpectedRc(rc2, "COLDRELOAD_EXPECT_RC2")) {
+            return 1;
+        }
     }
 
     ani_int observeRc = -1;
-    if (!CallObserve(env, linker, &observeRc)) {
+    if (!CallObserve(env, linker, ArgAt(argv, MODULE_ARG), &observeRc)) {
         return 1;
     }
 

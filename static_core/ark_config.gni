@@ -403,13 +403,18 @@ template("merge_yamls") {
   action("$target_name") {
     script = "$ark_root/templates/merge.rb"
 
-    data = []
+    # The source yamls are the action's inputs: without them an incremental build never re-runs
+    # the merge when a yaml changes, and every downstream options generation then compiles
+    # against the stale merged file.
+    inputs = []
+    rebased_yamls = []
     foreach(yaml, invoker.add_yamls) {
-      data += [ rebase_path(yaml, root_build_dir) ]
+      inputs += [ yaml ]
+      rebased_yamls += [ rebase_path(yaml, root_build_dir) ]
     }
     args = [
       "-d",
-      string_join(",", data),
+      string_join(",", rebased_yamls),
       "-o",
       rebase_path(invoker.output_file, root_build_dir),
     ]

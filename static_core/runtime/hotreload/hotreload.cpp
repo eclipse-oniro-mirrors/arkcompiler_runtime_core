@@ -63,6 +63,8 @@ const char *GetErrorString(Error err)
         "CALLER_NOT_BOOT",
         "NO_ABC_RUNTIME_LINKER",
     };
+    static_assert(NAMES.size() == static_cast<size_t>(Error::NO_ABC_RUNTIME_LINKER) + 1,
+                  "every Error value needs a name in NAMES");
     auto idx = static_cast<size_t>(err);
     return idx < NAMES.size() ? NAMES[idx] : "UNKNOWN";
 }

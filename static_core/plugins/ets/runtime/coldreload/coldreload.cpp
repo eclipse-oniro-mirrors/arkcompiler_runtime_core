@@ -22,15 +22,16 @@ namespace ark::ets::coldreload {
 namespace {
 
 // Names of the `Error` values, in ordinal order; kept in sync with the enum by the assert below.
-constexpr std::array<const char *, 6> ERROR_NAMES = {
-    "NONE", "INVALID_INPUT_ARG", "PATCH_OPEN_FAILED", "AOT_LOADED", "CLASSES_ALREADY_LOADED", "INTERNAL",
+constexpr std::array<const char *, 7> ERROR_NAMES = {
+    "NONE",     "INVALID_INPUT_ARG", "PATCH_OPEN_FAILED", "AOT_LOADED", "CLASSES_ALREADY_LOADED",
+    "INTERNAL", "CALLER_NOT_BOOT",
 };
 
 }  // namespace
 
 const char *GetErrorString(Error err)
 {
-    static_assert(ERROR_NAMES.size() == static_cast<size_t>(Error::INTERNAL) + 1,
+    static_assert(ERROR_NAMES.size() == static_cast<size_t>(Error::CALLER_NOT_BOOT) + 1,
                   "every Error value needs a name in ERROR_NAMES");
     const auto idx = static_cast<size_t>(err);
     return idx < ERROR_NAMES.size() ? ERROR_NAMES[idx] : "UNKNOWN";

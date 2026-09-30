@@ -16,7 +16,7 @@
 /*
  * Native driver for the hotreload smoke suite.
  *
- * The test variants (tests/hotreload/<variant>/t.ets) declare the static native
+ * The test variants (tests/hotreload/<variant>/<stem>.ets) declare the static native
  * `hotReloadNative` and drive everything from `HotReloadBridge.run`; this driver loads the
  * program and calls `run` with three plain string arguments whose meaning each variant
  * defines itself. The implementation of `hotReloadNative` runs the transaction the way the
@@ -33,7 +33,10 @@
 
 #include <array>
 #include <vector>
+#include <charconv>
 #include <cstdlib>
+#include <string_view>
+#include <system_error>
 #include <iostream>
 #include <cstring>
 #include <string>
@@ -75,6 +78,10 @@ bool Check(ani_status status, const char *msg)
 // ani_object so the GC keeps it alive, and re-interpreted inside the native after any move.
 ani_object g_entryLinker = nullptr;
 
+// The last reload's return code, captured by every native driver so `main` can pin it against
+// HR_EXPECT_RC after the managed run has finished.
+ani_int g_lastReloadRc = -1;
+
 // The bound `hotReloadNative`: the bare-path transaction. The target is resolved across the
 // live panda files, exactly like the probe this driver replaces.
 ani_int NativeHotReload([[maybe_unused]] ani_env *env, [[maybe_unused]] ani_class cls, ani_string target,
@@ -106,6 +113,7 @@ ani_int NativeHotReload([[maybe_unused]] ani_env *env, [[maybe_unused]] ani_clas
     } else {
         LOG(INFO, HOTRELOAD) << "hotReload succeeded";
     }
+    g_lastReloadRc = static_cast<ani_int>(err);
     return static_cast<ani_int>(err);
 }
 
@@ -122,7 +130,9 @@ ani_int NativeHotReloadViaEntry(ani_env *env, [[maybe_unused]] ani_class cls, an
     auto *patchStr = scope.ToInternalType(patch);
     auto *linker = ark::ets::EtsAbcRuntimeLinker::FromEtsObject(scope.ToInternalType(g_entryLinker));
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-    return EtsAbcRuntimeLinkerHotReload(linker, targetStr, patchStr);
+    ani_int rc = EtsAbcRuntimeLinkerHotReload(linker, targetStr, patchStr);
+    g_lastReloadRc = rc;
+    return rc;
 }
 
 // Creates an AbcRuntimeLinker whose abcFiles hold the program abc, the way the
@@ -162,7 +172,7 @@ ani_object CreateLinker(ani_env *env, const char *programAbc)
 
 // Loads the bridge class through the linker and instantiates it. The linker's loadClass
 // returns a Class OBJECT, so the instance is created through std.core.Class.createInstance.
-ani_object LoadBridgeInstance(ani_env *env, ani_object linker)
+ani_object LoadBridgeInstance(ani_env *env, ani_object linker, const char *moduleName)
 {
     ani_type linkerType = nullptr;
     if (Check(env->Object_GetType(linker, &linkerType), "cannot get linker type")) {
@@ -191,8 +201,9 @@ ani_object LoadBridgeInstance(ani_env *env, ani_object linker)
         return nullptr;
     }
 
+    std::string bridgeName = std::string(moduleName) + ".HotReloadBridge";
     ani_string className = nullptr;
-    if (Check(env->String_NewUTF8("t.HotReloadBridge", std::strlen("t.HotReloadBridge"), &className),
+    if (Check(env->String_NewUTF8(bridgeName.c_str(), bridgeName.size(), &className),
               "cannot create class name string")) {
         return nullptr;
     }
@@ -200,7 +211,7 @@ ani_object LoadBridgeInstance(ani_env *env, ani_object linker)
     ani_ref classObject = nullptr;
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
     if (Check(env->Object_CallMethod_Ref(linker, loadClass, &classObject, className, booleanTrue),
-              "cannot load t.HotReloadBridge")) {
+              "cannot load the bridge class")) {
         return nullptr;
     }
 
@@ -225,10 +236,11 @@ ani_object LoadBridgeInstance(ani_env *env, ani_object linker)
 
 // Boot-context mode: the program was added to the boot panda files, so the bridge class is
 // found and instantiated directly, without an application linker.
-ani_object LoadBootBridgeInstance(ani_env *env)
+ani_object LoadBootBridgeInstance(ani_env *env, const char *moduleName)
 {
+    std::string bridgeName = std::string(moduleName) + ".HotReloadBridge";
     ani_class bridgeClass = nullptr;
-    if (Check(env->FindClass("t.HotReloadBridge", &bridgeClass), "cannot find t.HotReloadBridge")) {
+    if (Check(env->FindClass(bridgeName.c_str(), &bridgeClass), "cannot find the bridge class")) {
         return nullptr;
     }
     ani_method bridgeCtor = nullptr;
@@ -243,12 +255,16 @@ ani_object LoadBootBridgeInstance(ani_env *env)
     return bridge;
 }
 
-// Usage: <driver> <etsstdlib.abc> <program.abc> <a0> <a1> [a2]
+// Usage: <driver> <etsstdlib.abc> <program.abc> <module-name> <a0> <a1> [a2]
+//
+// The module name is the fixture's source basename (es2panda derives the record prefix from
+// it), so the bridge class is resolved as "<module-name>.HotReloadBridge".
 constexpr int STDLIB_ARG = 1;
 constexpr int PROGRAM_ARG = 2;
-constexpr int A0_ARG = 3;
-constexpr int A1_ARG = 4;
-constexpr int A2_ARG = 5;
+constexpr int MODULE_ARG = 3;
+constexpr int A0_ARG = 4;
+constexpr int A1_ARG = 5;
+constexpr int A2_ARG = 6;
 constexpr int MIN_ARGC = A2_ARG;  // a2 is optional
 constexpr int EXIT_USAGE = 2;
 constexpr ani_size LOCAL_SCOPE_CAPACITY = 64U;
@@ -315,14 +331,14 @@ bool CreateSmokeVm(ani_vm **vm, ani_env **env, char **argv)
 ani_object PrepareBridge(ani_env *env, char **argv)
 {
     if (IsBootAppendMode()) {
-        return LoadBootBridgeInstance(env);
+        return LoadBootBridgeInstance(env, ArgAt(argv, MODULE_ARG));
     }
     ani_object linker = CreateLinker(env, ArgAt(argv, PROGRAM_ARG));
     if (linker == nullptr) {
         return nullptr;
     }
     g_entryLinker = linker;
-    return LoadBridgeInstance(env, linker);
+    return LoadBridgeInstance(env, linker, ArgAt(argv, MODULE_ARG));
 }
 
 // Binds the static native declaration and calls `run` with the three string arguments.
@@ -374,7 +390,8 @@ bool CallRun(ani_env *env, ani_object bridge, int argc, char **argv, ani_int *rc
 int main(int argc, char **argv)
 {
     if (argc < MIN_ARGC) {
-        std::cerr << "usage: " << ArgAt(argv, 0) << " <etsstdlib.abc> <program.abc> <a0> <a1> [a2]\n";
+        const std::string usage = " <etsstdlib.abc> <program.abc> <module-name> <a0> <a1> [a2]\n";
+        std::cerr << "usage: " << ArgAt(argv, 0) << usage;
         return EXIT_USAGE;
     }
 
@@ -392,6 +409,32 @@ int main(int argc, char **argv)
     ani_int rc = -1;
     if (!CallRun(env, bridge, argc, argv, &rc)) {
         return 1;
+    }
+    if (rc != 0) {
+        std::cerr << "FAIL: run returned " << rc << "\n";
+        return 1;
+    }
+    /*
+     * Pin the reload's own return code when the case declares one (HR_EXPECT_RC): the managed
+     * side asserts state consistency with whatever code came back, this check pins the code
+     * itself -- a rejection the case did not expect must fail even though the state stayed
+     * consistent. Cases whose fixtures assert every reload code themselves leave it unset.
+     */
+    const char *expectedRc = std::getenv("HR_EXPECT_RC");
+    if (expectedRc != nullptr) {
+        // `std::atoi` cannot report conversion errors; a malformed expectation must fail the
+        // run instead of silently comparing against a zero.
+        const std::string_view expected {expectedRc};
+        int parsedRc = 0;
+        const auto [ptr, ec] = std::from_chars(expected.begin(), expected.end(), parsedRc);
+        if (ec != std::errc {} || ptr != expected.end()) {
+            std::cerr << "FAIL: HR_EXPECT_RC is not a number: '" << expectedRc << "'\n";
+            return 1;
+        }
+        if (g_lastReloadRc != parsedRc) {
+            std::cerr << "FAIL: reload rc " << g_lastReloadRc << ", expected " << parsedRc << "\n";
+            return 1;
+        }
     }
 
     if (env->DestroyLocalScope() != ANI_OK) {
