@@ -1,14 +1,14 @@
 # source binary: dedup_object_buffer.abc
 
-0 0x2f7 { 6 [ string:"a", i32:1, string:"b", i32:2, string:"c", i32:3, ]}
-1 0x319 
-4 0x2cf 
-2 0x2d3 { 1 [
+0 0x2cf 
+2 0x2f7 { 6 [ string:"a", i32:1, string:"b", i32:2, string:"c", i32:3, ]}
+3 0x319 
+1 0x2d3 { 1 [
 	MODULE_REQUEST_ARRAY: {
 	};
 	ModuleTag: LOCAL_EXPORT, local_name: obj, export_name: obj;
 ]}
-3 0x31d { 1 [
+4 0x31d { 1 [
 	MODULE_REQUEST_ARRAY: {
 	};
 	ModuleTag: LOCAL_EXPORT, local_name: obj, export_name: obj;

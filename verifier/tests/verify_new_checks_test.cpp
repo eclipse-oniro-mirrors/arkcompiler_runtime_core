@@ -580,16 +580,34 @@ HWTEST_F(VerifierNewChecksTest, verifier_new_checks_011, TestSize.Level1)
     ASSERT_TRUE(ReadAbcFile(base_file_name, buffer));
     std::vector<uint32_t> literal_ids;
     ASSERT_TRUE(CollectSortedLiteralIds(base_file_name, literal_ids));
-    // Tamper the first fixed width tag (an ARRAY_* tag consumes the rest of
-    // the buffer and must stay untouched) into ETS_IMPLEMENTS (0x1c), the
-    // value width of both tags is 4 bytes, so the file stays structurally
-    // valid and must be accepted.
+    // Tamper the first literal tag whose value width is 4 bytes into ETS_IMPLEMENTS
+    // (0x1c): a same-width replacement keeps the file structurally valid and must be
+    // accepted. ARRAY_* tags consume the rest of the buffer and must stay untouched,
+    // and narrower/wider tags (1/2/8 bytes) would break the literal stream layout.
+    // Literal array ordering in the abc depends on the emitter's table layout, so the
+    // eligible tag must be selected by width, not by position.
     constexpr uint8_t ETS_IMPLEMENTS_TAG = 0x1c;
+    auto isFourByteValueTag = [](uint8_t tag) {
+        switch (tag) {
+            case 0x02:  // INTEGER
+            case 0x03:  // FLOAT
+            case 0x05:  // STRING
+            case 0x06:  // METHOD
+            case 0x07:  // GENERATORMETHOD
+            case 0x16:  // ASYNCGENERATORMETHOD
+            case 0x17:  // LITERALBUFFERINDEX
+            case 0x1a:  // GETTER
+            case 0x1b:  // SETTER
+                return true;
+            default:
+                return false;
+        }
+    };
     bool tampered = false;
     for (const auto &literal_id : literal_ids) {
         size_t tag_off = static_cast<size_t>(literal_id) + sizeof(uint32_t);
-        if (buffer[tag_off] >= 0x0aU && buffer[tag_off] <= 0x15U) {
-            continue;  // ARRAY_* tags consume the rest of the buffer
+        if (!isFourByteValueTag(buffer[tag_off])) {
+            continue;
         }
         buffer[tag_off] = ETS_IMPLEMENTS_TAG;
         tampered = true;

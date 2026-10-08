@@ -31,7 +31,7 @@ void panda::guard::InstructionInfo::UpdateInsName(bool generateNewName)
 {
     this->origin_ = this->ins_->GetId(0);
     this->obfName_ = GuardContext::GetInstance()->GetNameMapping()->GetName(this->origin_, generateNewName);
-    this->ins_->GetId(0) = this->obfName_;
+    this->ins_->SetId(0, this->obfName_);
     this->function_->program_->prog_->strings.emplace(this->obfName_);
 }
 
@@ -43,7 +43,7 @@ void panda::guard::InstructionInfo::UpdateInsFileName()
     filePath.Init();
     filePath.Update();
     this->obfName_ = filePath.obfFilePath_;
-    this->ins_->GetId(0) = this->obfName_;
+    this->ins_->SetId(0, this->obfName_);
     this->function_->program_->prog_->strings.emplace(this->obfName_);
 }
 

@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -52,6 +52,10 @@ public:
 
     bool Consume();
     void Wait();
+    bool HasFailedJobs() const
+    {
+        return failed_;
+    }
 
 protected:
     static bool Worker(WorkerQueue *queue);
@@ -64,6 +68,7 @@ protected:
     size_t jobsCount_ {0};
     size_t activeWorkers_ {0};
     bool terminate_ {false};
+    bool failed_ {false};
 };
 }  // namespace panda
 

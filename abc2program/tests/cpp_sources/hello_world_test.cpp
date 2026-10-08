@@ -13,6 +13,7 @@
  * limitations under the License.
  */
 
+#include <algorithm>
 #include <cstdlib>
 #include <gtest/gtest.h>
 #include <iostream>
@@ -794,7 +795,7 @@ HWTEST_F(Abc2ProgramHelloWorldDebugTest, abc2program_hello_world_test_local_vari
 {
     const pandasm::Function &function = *foo_function_;
     EXPECT_FALSE(function.local_variable_debug.empty());
-    EXPECT_TRUE(function.local_variable_debug[0].name.find("4funcObj") != std::string::npos);
+    EXPECT_TRUE(function.local_variable_debug[0].Name().find("4funcObj") != std::string::npos);
     EXPECT_TRUE(function.local_variable_debug[0].reg == 0);
     EXPECT_TRUE(function.local_variable_debug[0].start == 3);
     EXPECT_TRUE(function.local_variable_debug[0].length == 88);

@@ -143,7 +143,16 @@ bool CheckRegularImport(ModuleUpdateData *updateData, panda::pandasm::InsPtr &in
             }
             auto idx = (int64_t)foundIdx->second;
             if (imm != foundIdx->second) {
-                inst->SetImm(0, idx);
+                // The remapped module-var index may exceed the encoding width of the
+                // subclass chosen when the instruction was created, so rebuild the
+                // instruction through Ins::CreateIns (which re-selects the narrowest
+                // fitting subclass) instead of SetImm, which would truncate.
+                auto opcode = inst->GetOpcode();
+                auto regs = inst->Regs();
+                auto imms = inst->Imms();
+                auto ids = inst->Ids();
+                imms[0] = pandasm::IType(idx);
+                pandasm::Ins::Reassign(inst, pandasm::Ins::CreateIns(opcode, regs, imms, ids));
                 modified = true;
             }
         }
@@ -166,7 +175,14 @@ bool CheckLocalExports(ModuleUpdateData *updateData, panda::pandasm::InsPtr &ins
             }
             auto idx = (int64_t)foundIdx->second;
             if (imm != foundIdx->second) {
-                inst->SetImm(0, idx);
+                // See CheckRegularImport: rebuild to keep storage consistent with the
+                // new immediate value instead of SetImm truncating a narrow subclass.
+                auto opcode = inst->GetOpcode();
+                auto regs = inst->Regs();
+                auto imms = inst->Imms();
+                auto ids = inst->Ids();
+                imms[0] = pandasm::IType(idx);
+                pandasm::Ins::Reassign(inst, pandasm::Ins::CreateIns(opcode, regs, imms, ids));
                 modified = true;
             }
         }

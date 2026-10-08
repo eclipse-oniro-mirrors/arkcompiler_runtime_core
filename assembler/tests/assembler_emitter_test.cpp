@@ -1131,7 +1131,7 @@ HWTEST_F(AssemblyEmitterTest, assembly_emitter_test_019, TestSize.Level1)
     auto program = par.Parse(source, source_filename);
     program.Value().function_table.at("f:(i8)").metadata->SetAttribute("external");
     panda::pandasm::debuginfo::LocalVariable local;
-    local.name = "test";
+    local.SetName("test");
     program.Value().function_table.at("f:(i8)").local_variable_debug.push_back(local);
     EXPECT_EQ(par.ShowError().err, Error::ErrorType::ERR_NONE);
     auto success = AsmEmitter::Emit(program.Value());
@@ -1758,10 +1758,16 @@ HWTEST_F(AssemblyEmitterTest, assembly_emitter_test_032, TestSize.Level1)
     std::vector<Program *> progs {&res.Value()};
     AsmEmitter::DeduplicateLiteralArrays(progs);
 
-    // Only the canonical (first) array survives.
+    // Only the canonical (first) array survives: function_table iterates in key order, so
+    // s.func_main_0 is visited before s.func_main_1 and a0 stays canonical.
     EXPECT_EQ(res.Value().literalarray_table.size(), 1U);
     EXPECT_TRUE(res.Value().literalarray_table.count("a0") > 0);
     EXPECT_FALSE(res.Value().literalarray_table.count("a1") > 0);
+    for (const std::string &funcName : {"s.func_main_0", "s.func_main_1"}) {
+        const auto &ins = res.Value().function_table.at(funcName).ins;
+        ASSERT_FALSE(ins.empty());
+        EXPECT_EQ(ins[0]->GetId(0), "a0");
+    }
 }
 
 // --- Helpers for test_034 (order/type sensitivity) ---

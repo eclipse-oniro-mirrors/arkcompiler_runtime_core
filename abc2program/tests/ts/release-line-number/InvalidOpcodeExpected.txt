@@ -1,11 +1,11 @@
-# source binary: openharmony/out/rk3568/clang_x64/obj/arkcompiler/runtime_core/abc2program/tests/InvalidOpcode.abc
+# source binary: arkcompiler/runtime_core/abc2program/tests/InvalidOpcode.abc
 
 # ====================
 # LITERALS
 
-_ESModuleRecord_619 { 6 [ i32:0, i32:0, i32:0, i32:0, i32:0, i32:0, ]}
+_ESModuleRecord_610 { 6 [ i32:0, i32:0, i32:0, i32:0, i32:0, i32:0, ]}
 
-_ESScopeNamesRecord_615 
+_ESScopeNamesRecord_606 
 
 
 
@@ -19,13 +19,13 @@ _ESScopeNamesRecord_615
 
 .language ECMAScript
 .record _ESModuleRecord {
-	u32 arkcompiler/runtime_core/abc2program/tests/ts/release-line-number/InvalidOpcode.ts _ESModuleRecord_619
+	u32 arkcompiler/runtime_core/abc2program/tests/ts/release-line-number/InvalidOpcode.ts _ESModuleRecord_610
 }
 .record.source_file 
 
 .language ECMAScript
 .record _ESScopeNamesRecord {
-	u32 arkcompiler/runtime_core/abc2program/tests/ts/release-line-number/InvalidOpcode.ts _ESScopeNamesRecord_615
+	u32 arkcompiler/runtime_core/abc2program/tests/ts/release-line-number/InvalidOpcode.ts _ESScopeNamesRecord_606
 }
 .record.source_file 
 

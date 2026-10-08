@@ -77,7 +77,7 @@ void panda::guard::Property::Update()
         GuardContext::GetInstance()->GetNameMapping()->AddNameMapping(this->name_, this->obfName_);
     }
 
-    this->nameInfo_.ins_->GetId(0) = this->obfName_;
+    this->nameInfo_.ins_->SetId(0, this->obfName_);
     this->program_->prog_->strings.emplace(this->obfName_);
 
     for (auto &defineIns : this->defineInsList_) {
@@ -87,7 +87,7 @@ void panda::guard::Property::Update()
         }
 
         if (!IsGetLdaStrPropertyIns(defineIns)) {
-            defineIns.ins_->GetId(0) = this->obfName_;
+            defineIns.ins_->SetId(0, this->obfName_);
         }
     }
 }

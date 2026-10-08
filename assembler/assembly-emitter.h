@@ -198,9 +198,24 @@ private:
         const std::unordered_map<panda_file::Type::TypeId, panda_file::PrimitiveTypeItem *> &primitive_types,
         const Type &type, const Program &program);
 
-    static bool MakeItemsForSingleProgram(panda_file::ItemContainer *items, const Program &program,
-        bool emit_debug_info, AsmEntityCollections &entities,
+    static bool MakeItemsForSingleProgram(
+        panda_file::ItemContainer *items, const Program &program, bool emit_debug_info, AsmEntityCollections &entities,
         std::unordered_map<panda_file::Type::TypeId, panda_file::PrimitiveTypeItem *> primitive_types);
+
+    // Build ItemContainer items for every program and drop the per-program tables that are
+    // no longer needed once item construction has finished. Returns false on failure.
+    static bool CollectProgramItems(
+        panda_file::ItemContainer &items, const std::vector<Program *> &progs, bool emit_debug_info,
+        AsmEmitter::AsmEntityCollections &entities,
+        const std::unordered_map<panda_file::Type::TypeId, panda_file::PrimitiveTypeItem *> &primitive_types);
+    // Build function debug info & annotations for every program, then release the
+    // record/function metadata that is only needed during this step (record_source_files is
+    // retained for the later EmitFunctionsParallel debug-info emission). Returns false on failure.
+    static bool MakeDebugInfoAndReleasePrograms(panda_file::ItemContainer &items, const std::vector<Program *> &progs,
+                                                const AsmEmitter::AsmEntityCollections &entities, bool emit_debug_info);
+    // Release the residual program/entity collections kept alive for EmitFunctionsParallel.
+    static void ReleaseProgramsAndEntities(const std::vector<Program *> &progs,
+                                           AsmEmitter::AsmEntityCollections &entities);
 
     static std::string GetMethodSignatureFromProgram(const std::string &name, const Program &program);
 

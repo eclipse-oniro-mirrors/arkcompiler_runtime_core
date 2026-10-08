@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -140,6 +140,21 @@ public:
         return {};
     }
 
+    void ReleaseData()
+    {
+        // Only the value-attribute map is released: it holds the bulk of the metadata
+        // memory (annotation element values). The boolean attribute set must stay
+        // intact because the parallel function emission still queries it
+        // (IsForeign/IsCtor/IsAnnotation, etc.) after this release point. HasAttribute
+        // falls back to GetAttributeValue for historical reasons, but all its callers
+        // are Set-phase validation paths (parser / proto import); an audit of the
+        // parallel emission phase (emit-item.cpp, assembly-emitter.cpp) found no
+        // HasAttribute/GetAttributeValue query after ReleaseData.
+        // Swap instead of `= {}`: the unordered_map assignment frees the nodes but
+        // keeps the (potentially large) bucket array alive.
+        decltype(attributes_) {}.swap(attributes_);
+    }
+
     DEFAULT_COPY_SEMANTIC(Metadata);
 
     DEFAULT_MOVE_SEMANTIC(Metadata);
@@ -223,6 +238,17 @@ public:
         if (annotation_iter != annotations_.end()) {
             annotation_iter->DeleteAnnotationElementByName(annotation_elem_name);
         }
+    }
+
+    void ReleaseData()
+    {
+        // Swap instead of `= {}`: the vector assignment frees the elements but keeps
+        // the peak capacity alive.
+        decltype(annotations_) {}.swap(annotations_);
+        decltype(id_map_) {}.swap(id_map_);
+        Metadata::ReleaseData();
+        annotation_builder_.Reset();
+        annotation_element_builder_.Reset();
     }
 
     void DeleteAnnotationByName(const std::string_view &annotation_name)
