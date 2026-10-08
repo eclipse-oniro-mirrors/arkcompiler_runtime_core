@@ -71,8 +71,8 @@ function stringify(buffer: ArrayBuffer, encoding: string, resolvedStart: int, re
         }
         for (let i = resolvedStart; i < resolvedEnd; i += 3) {
             const byte1 = buffer.at(i) & 0xff;
-            const byte2 = i + 1 < resolvedEnd ? (buffer.at(i + 1) & 0xff) : NaN;
-            const byte3 = i + 2 < resolvedEnd ? (buffer.at(i + 2) & 0xff) : NaN;
+            const byte2 = i + 1 < resolvedEnd ? (buffer.at(i + 1) & 0xff).toDouble() : NaN;
+            const byte3 = i + 2 < resolvedEnd ? (buffer.at(i + 2) & 0xff).toDouble() : NaN;
 
             const enc1 = byte1 >> 2;
             const enc2 = (((byte1 & 3) << 4) | (byte2 >> 4)).toInt();

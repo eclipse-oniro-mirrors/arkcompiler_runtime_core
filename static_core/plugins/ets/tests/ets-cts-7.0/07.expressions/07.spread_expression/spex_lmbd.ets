@@ -178,7 +178,7 @@ function main(): int {
     })
 
     suite.addTest("new expression in expression", () => {
-        arktest.assertEQ(((...p: number[]): number =>  p.length ? p[p.length - 1] : -1)(...(new number[256](0))), 0)
+        arktest.assertEQ(((...p: number[]): number =>  p.length ? p[p.length - 1] : -1.0)(...(new number[256](0))), 0)
     })
 
     suite.addTest("array index expression", () => {

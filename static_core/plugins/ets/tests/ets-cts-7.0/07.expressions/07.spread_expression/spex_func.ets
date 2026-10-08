@@ -133,7 +133,7 @@ function f12NullCoalAny(a: int, ...p: Any[]): number { return a + p.length }
 function f13aFooNumArr(): number[] { return [1.0, 2.0] }
 function f13bBarNumArr(...p: number[]): number { return reduce(p, (prev: number, next: number) => prev + next, 0.0) }
 function f14StrJoin(...p: string[]): string { return String.join(p, '') }
-function f15NewExpr(...p: number[]): number { return p.length ? p[p.length - 1] : -1 }
+function f15NewExpr(...p: number[]): number { return p.length ? p[p.length - 1] : -1.0 }
 function f16ArrIdx(...p: double[]): double { return p[0] + p[1] }
 function f17TupIdx(...p: double[]): double { return p[0] + p[1] + p[2] }
 function f18AssignStr(...p: string[]): string { return String.join(p, '-') }
@@ -198,7 +198,7 @@ function f58FANullCoal(a: int, ...p: FixedArray<Object>): int { return a + p.len
 function f59aFAFooNum(): FixedArray<number> { return [1.0, 2.0] }
 function f59bFABarNum(...p: FixedArray<number>): number { return reduce(p, (prev: number, next: number) => prev + next, 0.0) }
 function f60FAFilterInt(...p: FixedArray<int>): int { return reduce(p, (p: int, c: int) => p + c, 0) }
-function f61FANewExpr(...p: FixedArray<number>): number { return p.length ? p[p.length - 1] : -1 }
+function f61FANewExpr(...p: FixedArray<number>): number { return p.length ? p[p.length - 1] : -1.0 }
 function f62FAArrIdx(...p: FixedArray<double>): double { return p[0] + p[1] }
 function f63FATupIdx(...p: Array<double>): double { return p[0] + p[1] + p[2] }
 function f64FAAssignLong(...p: long[]): string { return reduce(p, (p: string, c: long) => p + c, '') }

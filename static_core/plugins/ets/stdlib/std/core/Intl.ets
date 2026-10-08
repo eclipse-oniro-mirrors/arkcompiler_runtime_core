@@ -821,7 +821,7 @@ export class DateTimeFormat {
         private native resolvedOptionsImpl(cacheKey: string): ResolvedDateTimeFormatOptions
 
         private getDateTime(date: Date | number): number {
-            return date instanceof Date ? date.getTime() : date
+            return date instanceof Date ? Long.toDouble(date.getTime()) : date
         }
 
         private getResolvedOptions(options: DateTimeFormatOptions): DateTimeFormatOptionsImpl {

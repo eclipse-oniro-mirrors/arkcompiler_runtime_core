@@ -121,7 +121,7 @@ function findIndexFuncArg3ReadonlyArray() {
 
 function mapFuncArg3ReadonlyArray() {
     let mappingFunc = (v: Number, index: int, arr: ReadonlyArray<Number>): Number =>
-        index < 4 && index < arr.length ? arr[index] * arr[index] : 0;
+        index < 4 && index < arr.length ? arr[index] * arr[index] : 0.0;
 
     let arrEmpty: ReadonlyArray<Number> = [];
     let res0 = arrEmpty.map<Number>(mappingFunc);
