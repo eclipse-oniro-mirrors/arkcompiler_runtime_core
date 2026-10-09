@@ -3,9 +3,9 @@
 # ====================
 # LITERALS
 
-_ESModuleRecord_595 { 6 [ i32:0, i32:0, i32:0, i32:0, i32:0, i32:0, ]}
+_ESModuleRecord_619 { 6 [ i32:0, i32:0, i32:0, i32:0, i32:0, i32:0, ]}
 
-_ESScopeNamesRecord_591 
+_ESScopeNamesRecord_615 
 
 
 
@@ -19,13 +19,13 @@ _ESScopeNamesRecord_591
 
 .language ECMAScript
 .record _ESModuleRecord {
-	u32 openharmony/arkcompiler/runtime_core/abc2program/tests/ts/release-line-number/InvalidOpcode.ts _ESModuleRecord_613
+	u32 arkcompiler/runtime_core/abc2program/tests/ts/release-line-number/InvalidOpcode.ts _ESModuleRecord_619
 }
 .record.source_file 
 
 .language ECMAScript
 .record _ESScopeNamesRecord {
-	u32 openharmony/arkcompiler/runtime_core/abc2program/tests/ts/release-line-number/InvalidOpcode.ts _ESScopeNamesRecord_609
+	u32 arkcompiler/runtime_core/abc2program/tests/ts/release-line-number/InvalidOpcode.ts _ESScopeNamesRecord_615
 }
 .record.source_file 
 
@@ -61,75 +61,74 @@ _ESScopeNamesRecord_591
 	callarg1 0x2, v2                         # line: 18           # column: 0
 	label@11:                                # line: 0           # column: 0
 	lda v0                                   # line: 20           # column: 0
-	tonumeric 0x4                            # line: 20           # column: 0
 	inc 0x5                                  # line: 20           # column: 0
 	sta v0                                   # line: 20           # column: 0
 	ldai 0x2                                 # line: 20           # column: 0
 	stricteq 0x6, v0                         # line: 21           # column: 0
-	jeqz label@24                            # line: 21           # column: 0
+	jeqz label@23                            # line: 21           # column: 0
 	tryldglobalbyname 0x7, print             # line: 22           # column: 0
 	sta v1                                   # line: 22           # column: 0
 	lda.str 111                              # line: 22           # column: 0
 	sta v2                                   # line: 22           # column: 0
 	lda v1                                   # line: 22           # column: 0
 	callarg1 0x8, v2                         # line: 22           # column: 0
-	label@24:                                # line: 0           # column: 0
+	label@23:                                # line: 0           # column: 0
 	lda v0                                   # line: 24           # column: 0
 	tonumeric 0xa                            # line: 24           # column: 0
 	inc 0xb                                  # line: 24           # column: 0
 	sta v0                                   # line: 24           # column: 0
 	ldai 0x3                                 # line: 24           # column: 0
 	stricteq 0xc, v0                         # line: 25           # column: 0
-	jeqz label@37                            # line: 25           # column: 0
+	jeqz label@36                            # line: 25           # column: 0
 	tryldglobalbyname 0xd, print             # line: 26           # column: 0
 	sta v1                                   # line: 26           # column: 0
 	lda.str 111                              # line: 26           # column: 0
 	sta v2                                   # line: 26           # column: 0
 	lda v1                                   # line: 26           # column: 0
 	callarg1 0xe, v2                         # line: 26           # column: 0
-	label@37:                                # line: 0           # column: 0
+	label@36:                                # line: 0           # column: 0
 	lda v0                                   # line: 28           # column: 0
 	tonumeric 0x10                           # line: 28           # column: 0
 	inc 0x11                                 # line: 28           # column: 0
 	sta v0                                   # line: 28           # column: 0
 	ldai 0x4                                 # line: 28           # column: 0
 	stricteq 0x12, v0                        # line: 29           # column: 0
-	jeqz label@50                            # line: 29           # column: 0
+	jeqz label@49                            # line: 29           # column: 0
 	tryldglobalbyname 0x13, print            # line: 30           # column: 0
 	sta v1                                   # line: 30           # column: 0
 	lda.str 111                              # line: 30           # column: 0
 	sta v2                                   # line: 30           # column: 0
 	lda v1                                   # line: 30           # column: 0
 	callarg1 0x14, v2                        # line: 30           # column: 0
-	label@50:                                # line: 0           # column: 0
+	label@49:                                # line: 0           # column: 0
 	lda v0                                   # line: 32           # column: 0
 	tonumeric 0x16                           # line: 32           # column: 0
 	inc 0x17                                 # line: 32           # column: 0
 	sta v0                                   # line: 32           # column: 0
 	ldai 0x5                                 # line: 32           # column: 0
 	stricteq 0x18, v0                        # line: 33           # column: 0
-	jeqz label@63                            # line: 33           # column: 0
+	jeqz label@62                            # line: 33           # column: 0
 	tryldglobalbyname 0x19, print            # line: 34           # column: 0
 	sta v1                                   # line: 34           # column: 0
 	lda.str 111                              # line: 34           # column: 0
 	sta v2                                   # line: 34           # column: 0
 	lda v1                                   # line: 34           # column: 0
 	callarg1 0x1a, v2                        # line: 34           # column: 0
-	label@63:                                # line: 0           # column: 0
+	label@62:                                # line: 0           # column: 0
 	lda v0                                   # line: 36           # column: 0
 	tonumeric 0x1c                           # line: 36           # column: 0
 	inc 0x1d                                 # line: 36           # column: 0
 	sta v0                                   # line: 36           # column: 0
 	ldai 0x6                                 # line: 36           # column: 0
 	stricteq 0x1e, v0                        # line: 37           # column: 0
-	jeqz label@76                            # line: 37           # column: 0
+	jeqz label@75                            # line: 37           # column: 0
 	tryldglobalbyname 0x1f, print            # line: 38           # column: 0
 	sta v1                                   # line: 38           # column: 0
 	lda.str 111                              # line: 38           # column: 0
 	sta v2                                   # line: 38           # column: 0
 	lda v1                                   # line: 38           # column: 0
 	callarg1 0x20, v2                        # line: 38           # column: 0
-	label@76:                                # line: 0           # column: 0
+	label@75:                                # line: 0           # column: 0
 	ldai 0x7                                 # line: 38           # column: 0
 	sta v1                                   # line: 38           # column: 0
 	lda v0                                   # line: 40           # column: 0
@@ -138,84 +137,84 @@ _ESScopeNamesRecord_591
 	sta v0                                   # line: 40           # column: 0
 	lda v1                                   # line: 41           # column: 0
 	stricteq 0x24, v0                        # line: 41           # column: 0
-	jeqz label@91                            # line: 41           # column: 0
+	jeqz label@90                            # line: 41           # column: 0
 	tryldglobalbyname 0x25, print            # line: 42           # column: 0
 	sta v2                                   # line: 42           # column: 0
 	lda.str 111                              # line: 42           # column: 0
 	sta v3                                   # line: 42           # column: 0
 	lda v2                                   # line: 42           # column: 0
 	callarg1 0x26, v3                        # line: 42           # column: 0
-	label@91:                                # line: 0           # column: 0
+	label@90:                                # line: 0           # column: 0
 	lda v0                                   # line: 44           # column: 0
 	tonumeric 0x28                           # line: 44           # column: 0
 	inc 0x29                                 # line: 44           # column: 0
 	sta v0                                   # line: 44           # column: 0
 	lda v1                                   # line: 45           # column: 0
 	stricteq 0x2a, v0                        # line: 45           # column: 0
-	jeqz label@104                           # line: 45           # column: 0
+	jeqz label@103                           # line: 45           # column: 0
 	tryldglobalbyname 0x2b, print            # line: 46           # column: 0
 	sta v1                                   # line: 46           # column: 0
 	lda.str 111                              # line: 46           # column: 0
 	sta v2                                   # line: 46           # column: 0
 	lda v1                                   # line: 46           # column: 0
 	callarg1 0x2c, v2                        # line: 46           # column: 0
-	label@104:                               # line: 0           # column: 0
+	label@103:                               # line: 0           # column: 0
 	lda v0                                   # line: 48           # column: 0
 	tonumeric 0x2e                           # line: 48           # column: 0
 	inc 0x2f                                 # line: 48           # column: 0
 	sta v0                                   # line: 48           # column: 0
 	ldai 0x9                                 # line: 48           # column: 0
 	stricteq 0x30, v0                        # line: 49           # column: 0
-	jeqz label@117                           # line: 49           # column: 0
+	jeqz label@116                           # line: 49           # column: 0
 	tryldglobalbyname 0x31, print            # line: 50           # column: 0
 	sta v1                                   # line: 50           # column: 0
 	lda.str 111                              # line: 50           # column: 0
 	sta v2                                   # line: 50           # column: 0
 	lda v1                                   # line: 50           # column: 0
 	callarg1 0x32, v2                        # line: 50           # column: 0
-	label@117:                               # line: 0           # column: 0
+	label@116:                               # line: 0           # column: 0
 	lda v0                                   # line: 52           # column: 0
 	tonumeric 0x34                           # line: 52           # column: 0
 	inc 0x35                                 # line: 52           # column: 0
 	sta v0                                   # line: 52           # column: 0
 	ldai 0xa                                 # line: 52           # column: 0
 	stricteq 0x36, v0                        # line: 53           # column: 0
-	jeqz label@130                           # line: 53           # column: 0
+	jeqz label@129                           # line: 53           # column: 0
 	tryldglobalbyname 0x37, print            # line: 54           # column: 0
 	sta v1                                   # line: 54           # column: 0
 	lda.str 111                              # line: 54           # column: 0
 	sta v2                                   # line: 54           # column: 0
 	lda v1                                   # line: 54           # column: 0
 	callarg1 0x38, v2                        # line: 54           # column: 0
-	label@130:                               # line: 0           # column: 0
+	label@129:                               # line: 0           # column: 0
 	lda v0                                   # line: 56           # column: 0
 	tonumeric 0x3a                           # line: 56           # column: 0
 	inc 0x3b                                 # line: 56           # column: 0
 	sta v0                                   # line: 56           # column: 0
 	ldai 0xb                                 # line: 56           # column: 0
 	stricteq 0x3c, v0                        # line: 57           # column: 0
-	jeqz label@143                           # line: 57           # column: 0
+	jeqz label@142                           # line: 57           # column: 0
 	tryldglobalbyname 0x3d, print            # line: 58           # column: 0
 	sta v1                                   # line: 58           # column: 0
 	lda.str 111                              # line: 58           # column: 0
 	sta v2                                   # line: 58           # column: 0
 	lda v1                                   # line: 58           # column: 0
 	callarg1 0x3e, v2                        # line: 58           # column: 0
-	label@143:                               # line: 0           # column: 0
+	label@142:                               # line: 0           # column: 0
 	lda v0                                   # line: 60           # column: 0
 	tonumeric 0x40                           # line: 60           # column: 0
 	inc 0x41                                 # line: 60           # column: 0
 	sta v0                                   # line: 60           # column: 0
 	ldai 0xc                                 # line: 60           # column: 0
 	stricteq 0x42, v0                        # line: 61           # column: 0
-	jeqz label@156                           # line: 61           # column: 0
+	jeqz label@155                           # line: 61           # column: 0
 	tryldglobalbyname 0x43, print            # line: 62           # column: 0
 	sta v0                                   # line: 62           # column: 0
 	lda.str 111                              # line: 62           # column: 0
 	sta v1                                   # line: 62           # column: 0
 	lda v0                                   # line: 62           # column: 0
 	callarg1 0x44, v1                        # line: 62           # column: 0
-	label@156:                               # line: 0           # column: 0
+	label@155:                               # line: 0           # column: 0
 	tryldglobalbyname 0x46, JSON             # line: 64           # column: 0
 	sta v0                                   # line: 64           # column: 0
 	ldobjbyname 0x47, parse                  # line: 64           # column: 0
