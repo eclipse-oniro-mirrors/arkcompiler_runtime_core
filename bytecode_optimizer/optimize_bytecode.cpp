@@ -31,6 +31,7 @@
 #include "libpandabase/mem/pool_manager.h"
 #include "libpandafile/class_data_accessor-inl.h"
 #include "libpandafile/module_data_accessor-inl.h"
+#include "peephole_optimizer.h"
 #include "reg_acc_alloc.h"
 #include "reg_encoder.h"
 #include "runtime_adapter.h"
@@ -63,6 +64,7 @@ bool RunOptimizations(compiler::Graph *graph, BytecodeOptIrInterface *iface)
 
     graph->RunPass<compiler::Cleanup>();
     ASSERT(graph->IsDynamicMethod());
+    graph->RunPass<PeepholeOptimizer>();
 
     if (compiler::options.IsCompilerBranchElimination()) {
         graph->RunPass<ConstantPropagation>(iface);

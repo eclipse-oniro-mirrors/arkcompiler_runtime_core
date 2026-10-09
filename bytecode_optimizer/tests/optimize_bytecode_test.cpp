@@ -323,6 +323,42 @@ HWTEST_F(OptimizeBytecodeTest, KeepsUsedSideEffectFreeResults, TestSize.Level1)
     EXPECT_GT(CountOpcode(instructions, pandasm::Opcode::ISTRUE), 0U);
 }
 
+HWTEST_F(OptimizeBytecodeTest, FoldsNullishCheckChain, TestSize.Level1)
+{
+    const auto source = R"(
+        .language ECMAScript
+        .function any func_main_0(any a0) <static> {
+            ldnull
+            strictnoteq 0x0, a0
+            jeqz nullish
+            ldundefined
+            strictnoteq 0x1, a0
+            jnez nonnull
+        nullish:
+            ldai 0x0
+            return
+        nonnull:
+            ldai 0x1
+            return
+        }
+    )";
+
+    panda::pandasm::Parser parser;
+    auto res = parser.Parse(source);
+    ASSERT_TRUE(res.HasValue());
+    auto &program = res.Value();
+    const std::string fun_name = "func_main_0:(any)";
+    auto it = program.function_table.find(fun_name);
+    ASSERT_NE(it, program.function_table.end());
+
+    EmitAndOptimize("nullishCheckChain.abc", program);
+
+    const auto &instructions = it->second.ins;
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::NOTEQ), 1);
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::STRICTNOTEQ), 0);
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::LDUNDEFINED), 0);
+}
+
 HWTEST_F(OptimizeBytecodeTest, EliminatesRepeatedDynamicStrictEqInPipeline, TestSize.Level1)
 {
     const auto source = R"(
