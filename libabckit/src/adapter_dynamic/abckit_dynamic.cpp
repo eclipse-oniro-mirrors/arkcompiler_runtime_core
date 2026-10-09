@@ -1054,7 +1054,12 @@ AbckitCoreModule *ResolveUnfoundModule(AbckitCoreModule *m, AbckitFile *file, si
     auto requestIdx = std::get<uint16_t>(literalArr->literals_[offset].value_);
     auto moduleName = std::get<std::string>(literalArr->literals_[requestIdx + 1].value_);
     moduleName = ResolveRequestName(moduleName);
-    auto foundModule = TryFindModule(moduleName, file);
+    // "@normalized:" requests do not match module record names directly; probe
+    // record-name candidates (consistent with the read-side backfill), otherwise
+    // a placeholder would be created here while md already holds the abc-internal
+    // entity, breaking the invariant below.
+    auto foundModule = (moduleName.rfind("@normalized:", 0) == 0) ? TryFindModuleByOhmUrl(moduleName, file)
+                                                                  : TryFindModule(moduleName, file);
     if (foundModule == nullptr) {
         auto md = std::make_unique<AbckitCoreModule>();
         md->target = ABCKIT_TARGET_UNKNOWN;
