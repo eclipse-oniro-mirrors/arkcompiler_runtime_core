@@ -240,7 +240,7 @@ TEST_F(DynamicCseTest, IgnoresInlineCacheSlotImmediate)
     EXPECT_EQ(currentUser->GetInput(0).GetInst(), producer);
 }
 
-TEST_F(DynamicCseTest, DoesNotExtendProducerLifetime)
+TEST_F(DynamicCseTest, DoesNotReuseProducerWhoseUsesEndBeforeCurrent)
 {
     auto *graph = CreateGraph();
     auto *left = AddParameter(graph, 0, 0);
@@ -254,6 +254,47 @@ TEST_F(DynamicCseTest, DoesNotExtendProducerLifetime)
     RunDynamicCse(graph, false);
 
     EXPECT_EQ(currentUser->GetInput(0).GetInst(), current);
+}
+
+TEST_F(DynamicCseTest, DiscardsLongSequenceOfExpiredLocalCandidates)
+{
+    auto *graph = CreateGraph();
+    auto *left = AddParameter(graph, 0, 0);
+    auto *right = AddParameter(graph, 1, 1);
+    constexpr int COUNT = 1600;
+    Inst *last = nullptr;
+    for (int index = 0; index < COUNT; ++index) {
+        auto *value =
+            AddIntrinsic(graph, 2 + index * 2, RuntimeInterface::IntrinsicId::STRICTEQ_IMM8_V8, {left, right});
+        last =
+            AddIntrinsic(graph, 3 + index * 2, RuntimeInterface::IntrinsicId::CALLRUNTIME_ISFALSE_PREF_IMM8, {value});
+    }
+    AddReturn(graph, 2 + COUNT * 2, last);
+
+    // Each result dies before the next comparison: no CSE benefit and no growing candidate backlog.
+    // Keep timing thresholds out of this regression; benchmark the pass separately from graph construction.
+    RunDynamicCse(graph, false);
+    EXPECT_EQ(last->GetInput(0).GetInst()->GetId(), 2 + (COUNT - 1) * 2);
+}
+
+TEST_F(DynamicCseTest, ReusesProducerAfterReplacementAddsLaterUses)
+{
+    auto *graph = CreateGraph();
+    auto *left = AddParameter(graph, 0, 0);
+    auto *right = AddParameter(graph, 1, 1);
+    auto *producer = AddIntrinsic(graph, 2, RuntimeInterface::IntrinsicId::STRICTEQ_IMM8_V8, {left, right});
+    auto *current = AddIntrinsic(graph, 3, RuntimeInterface::IntrinsicId::STRICTEQ_IMM8_V8, {left, right});
+    AddIntrinsic(graph, 4, RuntimeInterface::IntrinsicId::CALLRUNTIME_ISFALSE_PREF_IMM8, {producer});
+    auto *next = AddIntrinsic(graph, 5, RuntimeInterface::IntrinsicId::STRICTEQ_IMM8_V8, {left, right});
+    auto *laterUse = AddIntrinsic(graph, 6, RuntimeInterface::IntrinsicId::CALLRUNTIME_ISFALSE_PREF_IMM8, {current});
+    auto *ret = AddReturn(graph, 7, next);
+
+    RunDynamicCse(graph, true);
+
+    // The heuristic allows later uses to extend producer's lifetime. Candidate expiry must see those new uses.
+    EXPECT_EQ(laterUse->GetInput(0).GetInst(), producer);
+    EXPECT_EQ(ret->GetInput(0).GetInst(), producer);
+    EXPECT_FALSE(graph->RunPass<DynamicCse>());
 }
 
 TEST_F(DynamicCseTest, DoesNotMergeDifferentOperands)
@@ -423,6 +464,30 @@ TEST_F(DynamicCseTest, DoesNotEliminateAcrossEhBlocks)
     RunDynamicCse(graph, false);
 
     EXPECT_EQ(currentUser->GetInput(0).GetInst(), current);
+}
+
+TEST_F(DynamicCseTest, EhEndpointRestrictionDoesNotRejectInterveningTryBlock)
+{
+    BasicBlock *first = nullptr;
+    BasicBlock *second = nullptr;
+    auto *graph = CreateLinearGraph(&first, &second);
+    auto *middle = graph->CreateEmptyBlock();
+    second->RemovePred(first);
+    first->ReplaceSucc(second, middle);
+    middle->AddSucc(second);
+    middle->SetTry(true);
+    auto *left = AddParameter(graph, 0, 0);
+    auto *right = AddParameter(graph, 1, 1);
+    auto *producer =
+        AddIntrinsicToBlock(graph, first, 2, RuntimeInterface::IntrinsicId::STRICTEQ_IMM8_V8, {left, right});
+    auto *current =
+        AddIntrinsicToBlock(graph, second, 3, RuntimeInterface::IntrinsicId::STRICTEQ_IMM8_V8, {left, right});
+    AddIntrinsicToBlock(graph, second, 4, RuntimeInterface::IntrinsicId::CALLRUNTIME_ISFALSE_PREF_IMM8, {producer});
+    auto *ret = AddReturnToBlock(graph, second, 5, current);
+
+    RunDynamicCse(graph, true);
+
+    EXPECT_EQ(ret->GetInput(0).GetInst(), producer);
 }
 
 TEST_F(DynamicCseTest, EliminatesWithinOneEhBlock)
