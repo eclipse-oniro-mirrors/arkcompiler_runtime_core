@@ -19,6 +19,7 @@
 #include "include/mem/panda_containers.h"
 #include "include/mem/panda_string.h"
 #include "plugins/ets/runtime/ani/ani.h"
+#include "plugins/ets/runtime/ani/ani_helpers.h"
 #include "plugins/ets/runtime/ani/ani_interaction_api.h"
 #include "plugins/ets/runtime/ets_vm.h"
 #include "plugins/ets/runtime/types/ets_method.h"
@@ -115,9 +116,25 @@ std::optional<std::string> NativeLibraryProvider::CallAniCtor(ani_env *env, cons
         auto ctor = reinterpret_cast<AniCtor>(res.Value());
         uint32_t version;
         ani_vm *vm = PandaAniEnv::FromAniEnv(env)->GetEtsVM();
-        ani_status status = ctor(vm, &version);
+
+        ani_env *ctorEnv {};
+        ani_status status = vm->GetEnv(ANI_VERSION_1, &ctorEnv);
         if (status != ANI_OK) {
-            return "ANI_Constructor returns an error: " + std::to_string(status);
+            return "GetEnv returned an error: " + std::to_string(status);
+        }
+
+        status = ctorEnv->CreateLocalScope(ani::DEFAULT_LOCAL_FRAME_CAPACITY);
+        if (status != ANI_OK) {
+            return "CreateLocalScope returned an error: " + std::to_string(status);
+        }
+
+        status = ctor(vm, &version);
+        ani_status destroyStatus = ctorEnv->DestroyLocalScope();
+        if (destroyStatus != ANI_OK) {
+            return "DestroyLocalScope returned an error: " + std::to_string(destroyStatus);
+        }
+        if (status != ANI_OK) {
+            return "ANI_Constructor returned an error: " + std::to_string(status);
         }
         if (!ani::IsVersionSupported(version)) {
             return "Unsupported ANI version: " + std::to_string(version);

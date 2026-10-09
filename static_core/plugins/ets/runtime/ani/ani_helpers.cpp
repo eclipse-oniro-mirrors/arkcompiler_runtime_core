@@ -342,9 +342,7 @@ extern "C" uint8_t *AniBegin(Method *method, uint8_t *inRegsArgs, uint8_t *inSta
 
     Runtime::GetCurrent()->GetNotificationManager()->MethodEntryEvent(thread, method);
 
-    // CC-OFFNXT(G.NAM.03) project code style
-    constexpr uint32_t MAX_LOCAL_REF = 4096;
-    if (UNLIKELY(!pandaEnv->GetEtsReferenceStorage()->PushLocalEtsFrame(MAX_LOCAL_REF))) {
+    if (UNLIKELY(!pandaEnv->GetEtsReferenceStorage()->PushLocalEtsFrame(DEFAULT_LOCAL_FRAME_CAPACITY))) {
         LOG(FATAL, RUNTIME) << "eTS NAPI push local frame failed";
     }
 

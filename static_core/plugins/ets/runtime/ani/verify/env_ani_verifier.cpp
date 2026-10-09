@@ -15,6 +15,7 @@
 
 #include "plugins/ets/runtime/ani/verify/env_ani_verifier.h"
 
+#include "plugins/ets/runtime/ani/ani_helpers.h"
 #include "plugins/ets/runtime/ani/verify/ani_verifier.h"
 #include "plugins/ets/runtime/ani/verify/types/internal_ref.h"
 #include "plugins/ets/runtime/ani/ani_converters.h"
@@ -25,7 +26,6 @@
 namespace ark::ets::ani::verify {
 
 constexpr ani_size VERIFICATION_BOTTOM_FRAME = 0;
-constexpr ani_size DEFAULT_NATIVE_FRAME_CAPACITY = 4096;
 
 EnvANIVerifier::EnvANIVerifier(PandaAniEnv *ownerEnv, ANIVerifier *verifier,
                                const __ani_interaction_api *interactionAPI)
@@ -83,7 +83,7 @@ void EnvANIVerifier::DoPushNativeFrame(PandaAniEnv *ownerEnv, ani_size capacity)
 void EnvANIVerifier::PushNativeFrame(PandaAniEnv *ownerEnv)
 {
     ASSERT(!frames_.empty());
-    DoPushNativeFrame(ownerEnv, DEFAULT_NATIVE_FRAME_CAPACITY);
+    DoPushNativeFrame(ownerEnv, DEFAULT_LOCAL_FRAME_CAPACITY);
 }
 
 std::optional<PandaString> EnvANIVerifier::PopNativeFrame()
