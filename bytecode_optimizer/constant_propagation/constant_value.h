@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -15,6 +15,8 @@
 
 #ifndef BYTECODE_OPTIMIZER_CONSTANT_PROPAGATION_CONSTANT_VALUE_H
 #define BYTECODE_OPTIMIZER_CONSTANT_PROPAGATION_CONSTANT_VALUE_H
+
+#include <cmath>
 
 namespace panda::bytecodeopt {
 
@@ -95,6 +97,12 @@ public:
 
     bool operator==(const ConstantValue &other) const noexcept
     {
+        if (type_ == CONSTANT_DOUBLE && other.type_ == CONSTANT_DOUBLE) {
+            auto value = std::get<double>(value_);
+            auto other_value = std::get<double>(other.value_);
+            // Lattice equality must preserve every observable Number value, including signed zero.
+            return value == other_value && std::signbit(value) == std::signbit(other_value);
+        }
         return type_ == other.type_ && value_ == other.value_;
     }
 

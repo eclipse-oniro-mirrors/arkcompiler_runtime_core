@@ -12,7 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -27,6 +27,9 @@
  */
 
 #include <gtest/gtest.h>
+
+#include <vector>
+#include <cmath>
 
 #include "assembler/assembly-emitter.h"
 #include "bytecode_optimizer/constant_propagation/constant_propagation.h"
@@ -94,6 +97,63 @@ public:
             for (auto bb : bbs) {
                 VisitBlock(bb, after);
             }
+        });
+        return status;
+    }
+
+    bool CheckFunctionConstantValues(const std::string &file, const char *test_method_name,
+                                     const std::vector<double> &expected)
+    {
+        bool status = false;
+
+        graph_test_.TestBuildGraphFromFile(file, [test_method_name, &expected, &status](compiler::Graph *graph,
+                                                                                        std::string &method_name) {
+            if (test_method_name != method_name) {
+                return;
+            }
+            status = true;
+            EXPECT_NE(graph, nullptr);
+            EXPECT_TRUE(graph->RunPass<compiler::Cleanup>());
+            EXPECT_TRUE(graph->RunPass<compiler::DominatorsTree>());
+
+            pandasm::AsmEmitter::PandaFileToPandaAsmMaps maps;
+            pandasm::Program *prog = nullptr;
+            BytecodeOptIrInterface interface(&maps, prog);
+            EXPECT_TRUE(graph->RunPass<ConstantPropagation>(&interface));
+            EXPECT_TRUE(graph->RunPass<compiler::Cleanup>());
+
+            size_t index = 0;
+            for (auto bb : graph->GetVectorBlocks()) {
+                for (auto inst : bb->Insts()) {
+                    if (!inst->IsIntrinsic() ||
+                        inst->CastToIntrinsic()->GetIntrinsicId() != RuntimeInterface::IntrinsicId::CALLARG1_IMM8_V8) {
+                        continue;
+                    }
+                    ASSERT_LT(index, expected.size());
+                    auto input = inst->GetInput(0).GetInst();
+                    ASSERT_TRUE(input->IsConst());
+                    double actual = 0.0;
+                    switch (input->GetType()) {
+                        case compiler::DataType::INT32:
+                            actual = static_cast<int32_t>(input->CastToConstant()->GetInt32Value());
+                            break;
+                        case compiler::DataType::INT64:
+                            actual = static_cast<int64_t>(input->CastToConstant()->GetInt64Value());
+                            break;
+                        case compiler::DataType::FLOAT64:
+                            actual = input->CastToConstant()->GetDoubleValue();
+                            break;
+                        default:
+                            FAIL() << "Unexpected constant type: " << input->GetType();
+                    }
+                    EXPECT_DOUBLE_EQ(actual, expected[index]);
+                    if (actual == 0.0 && expected[index] == 0.0) {
+                        EXPECT_EQ(std::signbit(actual), std::signbit(expected[index]));
+                    }
+                    index++;
+                }
+            }
+            EXPECT_EQ(index, expected.size());
         });
         return status;
     }
@@ -534,4 +594,48 @@ HWTEST_F(ConstantProgagationTest, constant_progagation_test_023, TestSize.Level1
     EXPECT_TRUE(CheckFunction(file, test_method_name,
                               ExpectType::EXPECT_OTHER, ExpectType::EXPECT_OTHER));
 }
+
+/**
+ * @tc.name: constant_progagation_test_024
+ * @tc.desc: Verify the pass folds numeric arithmetic and unary negation.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ConstantProgagationTest, constant_progagation_test_024, TestSize.Level1)
+{
+    std::string file = GRAPH_TEST_ABC_DIR "constantProgagation.abc";
+    const char *test_method_name = "sccpFoldArithmetic";
+
+    EXPECT_TRUE(CheckFunctionConstantValues(file, test_method_name, {9.0, 3.0, 18.0, 2.0, 0.0, -6.0, 27.0}));
+}
+
+/**
+ * @tc.name: constant_progagation_test_025
+ * @tc.desc: Verify the pass folds double arithmetic and unary negation.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ConstantProgagationTest, constant_progagation_test_025, TestSize.Level1)
+{
+    std::string file = GRAPH_TEST_ABC_DIR "constantProgagation.abc";
+    const char *test_method_name = "sccpFoldArithmeticDouble";
+
+    EXPECT_TRUE(CheckFunctionConstantValues(file, test_method_name, {2.0, 1.0, 0.75, 3.0, 0.0, -1.5}));
+}
+TEST_F(ConstantProgagationTest, ArithmeticPreservesSignedZeroAndWideIntegers)
+{
+    EXPECT_TRUE(CheckFunctionConstantValues(GRAPH_TEST_ABC_DIR "constantProgagation.abc", "sccpNumericBoundaries",
+                                            {-0.0, -0.0, -0.0, -0.0, 2147483649.0, 4294967294.0, 2147483648.0}));
+}
+
+TEST_F(ConstantProgagationTest, LatticeDistinguishesSignedZeros)
+{
+    ConstantElement positive(0.0);
+    ConstantElement negative(-0.0);
+    EXPECT_TRUE(positive.Meet(&negative)->IsBottomElement());
+    EXPECT_TRUE(negative.Meet(&positive)->IsBottomElement());
+    EXPECT_TRUE(positive.Meet(&positive)->IsConstantElement());
+    EXPECT_TRUE(negative.Meet(&negative)->IsConstantElement());
+}
+
 }  // namespace panda::bytecodeopt
