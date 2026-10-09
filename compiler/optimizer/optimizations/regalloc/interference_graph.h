@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2022 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -177,6 +177,12 @@ private:
 
 using NodeVector = ArenaVector<ColorNode>;
 
+struct ConsecutivePreference {
+    SmallVector<unsigned, 8> nodes;
+};
+
+using ConsecutivePreferences = SmallVector<ConsecutivePreference, 16>;
+
 // TODO (Evgeny.Erokhin): In Appel's book described usage of 2 structures in parallel to hold interference:
 // one is for random checks (here is a matrix) and lists on adjacency for sequental access. It's worth to add!
 class InterferenceGraph {
@@ -247,7 +253,7 @@ public:
     void Dump(const std::string &name = "IG", bool skip_physical = true, std::ostream &out = std::cout) const;
 
     template <unsigned MAX_COLORS>
-    Register AssignColors(size_t colors, size_t callee_offset)
+    Register AssignColors(size_t colors, size_t callee_offset, ConsecutivePreferences *preferences = nullptr)
     {
         ASSERT(colors <= MAX_COLORS);
         std::bitset<MAX_COLORS> nbr_colors;
@@ -302,10 +308,88 @@ public:
             max_color = std::max<Register>(try_color, max_color);
         }
 
+        if (preferences != nullptr) {
+            auto preference_colors = std::min<size_t>(static_cast<size_t>(max_color) + 1U, colors);
+            ApplyConsecutivePreferences(*preferences, preference_colors);
+        }
+
         return max_color + 1;
     }
 
 private:
+    void ApplyConsecutivePreferences(const ConsecutivePreferences &preferences, size_t colors)
+    {
+        if (colors == 0) {
+            return;
+        }
+
+        SmallVector<unsigned, 64> preference_nodes;
+        for (const auto &preference : preferences) {
+            for (auto node_num : preference.nodes) {
+                if (std::find(preference_nodes.begin(), preference_nodes.end(), node_num) == preference_nodes.end()) {
+                    preference_nodes.push_back(node_num);
+                }
+            }
+        }
+
+        SmallVector<unsigned, 64> applied_nodes;
+        for (const auto &preference : preferences) {
+            const auto &range_nodes = preference.nodes;
+            if (range_nodes.size() < 2 || range_nodes.size() > colors) {
+                continue;
+            }
+
+            bool can_apply = true;
+            for (auto node_num : range_nodes) {
+                if (node_num >= Size() || GetNode(node_num).IsFixedColor() ||
+                    GetNode(node_num).GetColor() == INVALID_REG ||
+                    std::find(applied_nodes.begin(), applied_nodes.end(), node_num) != applied_nodes.end()) {
+                    can_apply = false;
+                    break;
+                }
+            }
+            if (!can_apply) {
+                continue;
+            }
+
+            auto is_range_node = [&range_nodes](unsigned node_num) {
+                return std::find(range_nodes.begin(), range_nodes.end(), node_num) != range_nodes.end();
+            };
+
+            bool applied = false;
+            for (size_t base = 0; base + range_nodes.size() <= colors && !applied; ++base) {
+                bool base_available = true;
+                for (size_t offset = 0; offset < range_nodes.size() && base_available; ++offset) {
+                    auto node_num = range_nodes[offset];
+                    auto target_color = static_cast<Register>(base + offset);
+                    for (unsigned neighbor = 0; neighbor < Size(); ++neighbor) {
+                        if (!HasEdge(node_num, neighbor) || is_range_node(neighbor)) {
+                            continue;
+                        }
+                        if (std::find(preference_nodes.begin(), preference_nodes.end(), neighbor) !=
+                            preference_nodes.end()) {
+                            base_available = false;
+                            break;
+                        }
+                        if (GetNode(neighbor).GetColor() == target_color) {
+                            base_available = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (base_available) {
+                    for (size_t offset = 0; offset < range_nodes.size(); ++offset) {
+                        auto node_num = range_nodes[offset];
+                        GetNode(node_num).SetColor(static_cast<Register>(base + offset));
+                        applied_nodes.push_back(node_num);
+                    }
+                    applied = true;
+                }
+            }
+        }
+    }
+
     template <typename T>
     void MakeBusyBitmap(unsigned id, T *nbr_colors, T *nbr_bias_colors)
     {

@@ -565,4 +565,177 @@ HWTEST_F(CodegenTest, codegen_test_015, TestSize.Level1)
     });
     EXPECT_TRUE(status);
 }
+
+/**
+ * @tc.name: codegen_test_016
+ * @tc.desc: Do not materialize moves when range inputs are already consecutive.
+ * @tc.type: FUNC
+ * @tc.require: issueNumber
+ */
+HWTEST_F(CodegenTest, codegen_test_016, TestSize.Level1)
+{
+    const auto source = R"(
+        .function any func_main_0(any a0, any a1, any a2) <static> {
+            mov v0, a0
+            mov v1, a1
+            mov v2, a2
+            newobjrange 0x0, 0x3, v0
+            return
+        }
+    )";
+
+    panda::pandasm::Parser parser;
+    auto res = parser.Parse(source);
+    ASSERT_EQ(parser.ShowError().err, Error::ErrorType::ERR_NONE);
+    auto &prog = res.Value();
+    auto &function = prog.function_table.at("func_main_0:(any,any,any)");
+
+    pandasm::AsmEmitter::PandaFileToPandaAsmMaps maps {};
+    auto ir_interface = panda::bytecodeopt::BytecodeOptIrInterface(&maps, &prog);
+    bool status = false;
+
+    graph_test_.TestBuildGraphFromFunc(prog, "func_main_0:(any,any,any)", maps, ir_interface,
+                                       [&function, &ir_interface, &prog, &status](Graph *graph) {
+                                           status = true;
+                                           ASSERT_NE(graph, nullptr);
+                                           graph->RunPass<compiler::Cleanup>();
+                                           EXPECT_TRUE(graph->RunPass<RegAccAlloc>());
+                                           EXPECT_TRUE(RegAlloc(graph));
+                                           EXPECT_TRUE(graph->RunPass<RegEncoder>());
+                                           EXPECT_TRUE(graph->RunPass<BytecodeGen>(&function, &ir_interface, &prog));
+
+                                           size_t mov_count = 0;
+                                           size_t range_count = 0;
+                                           for (const auto &inst : function.ins) {
+                                               if (inst->GetOpcode() == pandasm::Opcode::MOV) {
+                                                   ++mov_count;
+                                               }
+                                               if (inst->GetOpcode() == pandasm::Opcode::NEWOBJRANGE) {
+                                                   ++range_count;
+                                                   EXPECT_EQ(inst->GetReg(0), 3U);
+                                               }
+                                           }
+                                           EXPECT_EQ(range_count, 1U);
+                                           EXPECT_EQ(mov_count, 0U);
+                                       });
+    EXPECT_TRUE(status);
+}
+
+/**
+ * @tc.name: codegen_test_017
+ * @tc.desc: Keep moves when range inputs are not consecutive values.
+ * @tc.type: FUNC
+ * @tc.require: issueNumber
+ */
+HWTEST_F(CodegenTest, codegen_test_017, TestSize.Level1)
+{
+    const auto source = R"(
+        .function any func_main_0(any a0, any a1, any a2) <static> {
+            mov v0, a0
+            mov v1, a0
+            mov v2, a2
+            newobjrange 0x0, 0x3, v0
+            return
+        }
+    )";
+
+    panda::pandasm::Parser parser;
+    auto res = parser.Parse(source);
+    ASSERT_EQ(parser.ShowError().err, Error::ErrorType::ERR_NONE);
+    auto &prog = res.Value();
+    auto &function = prog.function_table.at("func_main_0:(any,any,any)");
+
+    pandasm::AsmEmitter::PandaFileToPandaAsmMaps maps {};
+    auto ir_interface = panda::bytecodeopt::BytecodeOptIrInterface(&maps, &prog);
+    bool status = false;
+
+    graph_test_.TestBuildGraphFromFunc(prog, "func_main_0:(any,any,any)", maps, ir_interface,
+                                       [&function, &ir_interface, &prog, &status](Graph *graph) {
+                                           status = true;
+                                           ASSERT_NE(graph, nullptr);
+                                           graph->RunPass<compiler::Cleanup>();
+                                           EXPECT_TRUE(graph->RunPass<RegAccAlloc>());
+                                           EXPECT_TRUE(RegAlloc(graph));
+                                           EXPECT_TRUE(graph->RunPass<RegEncoder>());
+                                           EXPECT_TRUE(graph->RunPass<BytecodeGen>(&function, &ir_interface, &prog));
+
+                                           size_t mov_count = 0;
+                                           size_t range_count = 0;
+                                           for (const auto &inst : function.ins) {
+                                               if (inst->GetOpcode() == pandasm::Opcode::MOV) {
+                                                   ++mov_count;
+                                               }
+                                               if (inst->GetOpcode() == pandasm::Opcode::NEWOBJRANGE) {
+                                                   ++range_count;
+                                               }
+                                           }
+                                           EXPECT_EQ(range_count, 1U);
+                                           EXPECT_EQ(mov_count, 3U);
+                                       });
+    EXPECT_TRUE(status);
+}
+
+/**
+ * @tc.name: codegen_test_018
+ * @tc.desc: Prefer consecutive registers for range inputs during allocation.
+ * @tc.type: FUNC
+ * @tc.require: issueNumber
+ */
+HWTEST_F(CodegenTest, codegen_test_018, TestSize.Level1)
+{
+    const auto source = R"(
+        .function any func_main_0(any a0, any a1, any a2, any a3, any a4) <static> {
+            lda a0
+            add2 0x0, a1
+            sta v0
+            lda a2
+            add2 0x0, a3
+            sta v1
+            lda a4
+            add2 0x0, a0
+            sta v2
+            newobjrange 0x0, 0x3, v0
+            lda v0
+            add2 0x0, v1
+            sta v3
+            lda v3
+            return
+        }
+    )";
+
+    panda::pandasm::Parser parser;
+    auto res = parser.Parse(source);
+    ASSERT_EQ(parser.ShowError().err, Error::ErrorType::ERR_NONE);
+    auto &prog = res.Value();
+    auto &function = prog.function_table.at("func_main_0:(any,any,any,any,any)");
+
+    pandasm::AsmEmitter::PandaFileToPandaAsmMaps maps {};
+    auto ir_interface = panda::bytecodeopt::BytecodeOptIrInterface(&maps, &prog);
+    bool status = false;
+
+    graph_test_.TestBuildGraphFromFunc(prog, "func_main_0:(any,any,any,any,any)", maps, ir_interface,
+                                       [&function, &ir_interface, &prog, &status](Graph *graph) {
+                                           status = true;
+                                           ASSERT_NE(graph, nullptr);
+                                           graph->RunPass<compiler::Cleanup>();
+                                           EXPECT_TRUE(graph->RunPass<RegAccAlloc>());
+                                           EXPECT_TRUE(RegAlloc(graph));
+                                           EXPECT_TRUE(graph->RunPass<RegEncoder>());
+                                           EXPECT_TRUE(graph->RunPass<BytecodeGen>(&function, &ir_interface, &prog));
+
+                                           size_t mov_count = 0;
+                                           size_t range_count = 0;
+                                           for (const auto &inst : function.ins) {
+                                               if (inst->GetOpcode() == pandasm::Opcode::MOV) {
+                                                   ++mov_count;
+                                               }
+                                               if (inst->GetOpcode() == pandasm::Opcode::NEWOBJRANGE) {
+                                                   ++range_count;
+                                               }
+                                           }
+                                           EXPECT_EQ(range_count, 1U);
+                                           EXPECT_EQ(mov_count, 0U);
+                                       });
+    EXPECT_TRUE(status);
+}
 }  // namespace panda::bytecodeopt

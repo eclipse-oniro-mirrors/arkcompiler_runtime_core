@@ -15,6 +15,7 @@
 
 #include "reg_encoder.h"
 #include "common.h"
+#include "compiler/optimizer/ir/range_intrinsics.h"
 
 namespace panda::bytecodeopt {
 
@@ -24,26 +25,7 @@ static bool IsIntrinsicRange(Inst *inst)
         return false;
     }
 #ifdef ENABLE_BYTECODE_OPT
-    switch (inst->CastToIntrinsic()->GetIntrinsicId()) {
-        case compiler::RuntimeInterface::IntrinsicId::CALLRANGE_IMM8_IMM8_V8:
-        case compiler::RuntimeInterface::IntrinsicId::WIDE_CALLRANGE_PREF_IMM16_V8:
-        case compiler::RuntimeInterface::IntrinsicId::CALLTHISRANGE_IMM8_IMM8_V8:
-        case compiler::RuntimeInterface::IntrinsicId::WIDE_CALLTHISRANGE_PREF_IMM16_V8:
-        case compiler::RuntimeInterface::IntrinsicId::NEWOBJRANGE_IMM8_IMM8_V8:
-        case compiler::RuntimeInterface::IntrinsicId::NEWOBJRANGE_IMM16_IMM8_V8:
-        case compiler::RuntimeInterface::IntrinsicId::WIDE_NEWOBJRANGE_PREF_IMM16_V8:
-        case compiler::RuntimeInterface::IntrinsicId::SUPERCALLTHISRANGE_IMM8_IMM8_V8:
-        case compiler::RuntimeInterface::IntrinsicId::SUPERCALLARROWRANGE_IMM8_IMM8_V8:
-        case compiler::RuntimeInterface::IntrinsicId::WIDE_SUPERCALLTHISRANGE_PREF_IMM16_V8:
-        case compiler::RuntimeInterface::IntrinsicId::WIDE_SUPERCALLARROWRANGE_PREF_IMM16_V8:
-        case compiler::RuntimeInterface::IntrinsicId::CREATEOBJECTWITHEXCLUDEDKEYS_IMM8_V8_V8:
-        case compiler::RuntimeInterface::IntrinsicId::WIDE_CREATEOBJECTWITHEXCLUDEDKEYS_PREF_IMM16_V8_V8:
-        case compiler::RuntimeInterface::IntrinsicId::CALLTHISRANGEWITHNAME_IMM8_IMM8_ID16_V8:
-        case compiler::RuntimeInterface::IntrinsicId::WIDE_CALLTHISRANGEWITHNAME_PREF_IMM16_ID16_V8:
-            return true;
-        default:
-            return false;
-    }
+    return compiler::IsRangeIntrinsic(inst->CastToIntrinsic()->GetIntrinsicId());
 #endif
     return false;
 }
@@ -340,6 +322,34 @@ static bool IsAccReadPosition(compiler::Inst *inst, size_t pos)
     return !inst->IsCall() && inst->IsAccRead() && pos == AccReadIndex(inst);
 }
 
+static bool CanReuseConsecutiveRangeInputs(compiler::Inst *inst, size_t start, size_t nargs,
+                                           compiler::Register *range_start)
+{
+    if (nargs <= start) {
+        return false;
+    }
+
+    const auto first_reg = inst->GetSrcReg(start);
+    if (!RegNeedsRenumbering(first_reg) || first_reg == compiler::ACC_REG_ID) {
+        return false;
+    }
+
+    const auto range_size = nargs - start;
+    if (range_size > compiler::VIRTUAL_FRAME_SIZE || first_reg > compiler::VIRTUAL_FRAME_SIZE - range_size) {
+        return false;
+    }
+
+    for (size_t i = start + 1; i < nargs; ++i) {
+        const auto reg = inst->GetSrcReg(i);
+        if (reg == compiler::ACC_REG_ID || reg != first_reg + (i - start)) {
+            return false;
+        }
+    }
+
+    *range_start = first_reg;
+    return true;
+}
+
 void RegEncoder::InsertSpillsForDynInputsInst(compiler::Inst *inst)
 {
     ASSERT(state_ == RegEncoderState::INSERT_SPILLS);
@@ -353,6 +363,12 @@ void RegEncoder::InsertSpillsForDynInputsInst(compiler::Inst *inst)
     bool range = IsIntrinsicRange(inst) || (nargs - start > MAX_NUM_NON_RANGE_ARGS && CanHoldRange(inst));
 
     compiler::Register temp = range ? range_temps_start_ : 0;
+    if (range) {
+        compiler::Register input_range_start = compiler::INVALID_REG;
+        if (CanReuseConsecutiveRangeInputs(inst, start, nargs, &input_range_start)) {
+            temp = input_range_start;
+        }
+    }
 
     for (size_t i = start; i < nargs; ++i) {
         auto src_reg = inst->GetSrcReg(i);
@@ -379,7 +395,9 @@ void RegEncoder::InsertSpillsForDynInputsInst(compiler::Inst *inst)
                 inst->SetSrcReg(i, reg_cont.reg);
             }
         } else {
-            spill_vec.emplace_back(src_reg, RegContent(temp, type));
+            if (src_reg != temp) {
+                spill_vec.emplace_back(src_reg, RegContent(temp, type));
+            }
             inst->SetSrcReg(i, temp++);
         }
     }

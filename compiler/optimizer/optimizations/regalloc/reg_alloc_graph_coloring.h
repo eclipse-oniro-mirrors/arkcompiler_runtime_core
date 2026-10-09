@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2022 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -61,6 +61,7 @@ protected:
 private:
     void InitWorkingRanges(WorkingRanges *general_ranges, WorkingRanges *fp_ranges);
     void BuildIG(InterferenceGraph *ig, WorkingRanges *ranges);
+    void BuildConsecutivePreferences(InterferenceGraph *ig, ConsecutivePreferences *preferences);
     IndexVector PrecolorIG(InterferenceGraph *ig, const RegisterMap &map);
     void BuildBias(InterferenceGraph *ig, const IndexVector &affinity_nodes);
     void AddAffinityEdges(InterferenceGraph *ig, ColorNode *node, IndexVector *affinity_nodes);

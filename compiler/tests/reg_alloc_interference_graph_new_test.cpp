@@ -12,7 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -652,5 +652,50 @@ HWTEST_F(RegAllocInterferenceTest, reg_alloc_interference_test_018, TestSize.Lev
 
     ig.AddEdge(1, 4);
     EXPECT_TRUE(ig.IsChordal());
+}
+
+/**
+ * @tc.name: reg_alloc_interference_test_019
+ * @tc.desc: Prefer a free consecutive color window for a range input group.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(RegAllocInterferenceTest, reg_alloc_interference_test_019, TestSize.Level1)
+{
+    ArenaAllocator allocator {SpaceType::SPACE_TYPE_COMPILER};
+    InterferenceGraph ig(&allocator);
+    ig.Reserve(6);
+
+    for (size_t i = 0; i < 6; i++) {
+        ig.AllocNode();
+    }
+
+    // Fixed colors create holes in the ordinary first-free allocation.
+    ig.GetNode(0).SetFixedColor(1, false);
+    ig.GetNode(1).SetFixedColor(3, false);
+
+    // Nodes 2, 3 and 4 are the ordered inputs of one range instruction.
+    ig.AddEdge(2, 3);
+    ig.AddEdge(2, 4);
+    ig.AddEdge(3, 4);
+    ig.AddEdge(0, 3);
+    ig.AddEdge(1, 2);
+
+    // Keep color 3 in the ordinary allocation range without interfering with the range group.
+    ig.AddEdge(0, 5);
+    ig.AddEdge(2, 5);
+    ig.AddEdge(3, 5);
+
+    ConsecutivePreferences preferences;
+    ConsecutivePreference preference;
+    preference.nodes.push_back(2);
+    preference.nodes.push_back(3);
+    preference.nodes.push_back(4);
+    preferences.push_back(preference);
+
+    EXPECT_EQ(ig.AssignColors<8>(4, 0, &preferences), 4U);
+    EXPECT_EQ(ig.GetNode(2).GetColor(), 1U);
+    EXPECT_EQ(ig.GetNode(3).GetColor(), 2U);
+    EXPECT_EQ(ig.GetNode(4).GetColor(), 3U);
 }
 }  // namespace panda::compiler
