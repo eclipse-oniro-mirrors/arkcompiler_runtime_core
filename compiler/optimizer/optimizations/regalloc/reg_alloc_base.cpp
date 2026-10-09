@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2022 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -110,13 +110,15 @@ bool RegAllocBase::Resolve()
     GetGraph()->SetStackSlotsCount(GetTotalSlotsCount());
 
     // Resolve Phi and SaveState
-    RegAllocResolver(GetGraph()).Resolve();
+    RegAllocResolver resolver(GetGraph());
+    resolver.Resolve();
 
     // Connect segmented life intervals
     SplitResolver(GetGraph()).Run();
 
     // Resolve spill-fills overwriting
     if (GetGraph()->IsBytecodeOptimizer()) {
+        resolver.EliminateRedundantCatchPhiSaves();
         auto resolver_reg = GetRegMask().GetReserved().value();
         auto regs_count = GetRegMask().GetSize();
         SpillFillsResolver(GetGraph(), resolver_reg, regs_count).Run();

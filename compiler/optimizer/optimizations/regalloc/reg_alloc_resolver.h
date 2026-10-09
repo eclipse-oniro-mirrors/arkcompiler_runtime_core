@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2022 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -24,26 +24,38 @@ namespace panda::compiler {
 
 class RegAllocResolver {
 public:
-    explicit RegAllocResolver(Graph *graph) : graph_(graph), liveness_(&graph->GetAnalysis<LivenessAnalyzer>()) {}
+    explicit RegAllocResolver(Graph *graph)
+        : graph_(graph),
+          liveness_(&graph->GetAnalysis<LivenessAnalyzer>()),
+          catch_phi_save_candidates_(graph->GetLocalAllocator()->Adapter())
+    {
+    }
     NO_MOVE_SEMANTIC(RegAllocResolver);
     NO_COPY_SEMANTIC(RegAllocResolver);
     ~RegAllocResolver() = default;
 
     void Resolve();
     bool ResolveCatchPhis();
+    void EliminateRedundantCatchPhiSaves();
 
 private:
+    friend class RegAllocResolverTest;
+
+    struct CatchPhiSaveCandidate {
+        SpillFillInst *spill_fill;
+        size_t spill_fill_index;
+        Register src;
+        Register slot;
+    };
+
+    static void EliminateRedundantCatchPhiSaves(Graph *graph, const ArenaVector<CatchPhiSaveCandidate> &candidates);
+
     /*
      * Methods to set instructions source/dest registers
      */
     void ResolveInputs(Inst *inst);
     void ResolveOutput(Inst *inst);
-    /*
-     * Save states should capture location of the variable at the time when its user is executed.
-     * If single SaveStateInst is reused by multiple users and some life intervals corresponding to
-     * SaveStateInst's inputs were split between these users then SaveStateInst should be copied in
-     * order to capture correct locations for each of its users.
-     */
+    // Save CatchPhi inputs before their corresponding throwable instruction.
     void AddCatchPhiMoves(Inst *inst);
 
     Inst *SqueezeCatchPhiInputs(CatchPhiInst *catch_phi);
@@ -84,6 +96,7 @@ private:
 private:
     Graph *graph_;
     LivenessAnalyzer *liveness_;
+    ArenaVector<CatchPhiSaveCandidate> catch_phi_save_candidates_;
 };
 
 }  // namespace panda::compiler
