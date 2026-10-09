@@ -90,6 +90,7 @@ host_unittest_action("BytecodeOptimizerTest") {
     "excluded_keys_test.cpp",
     "optimize_bytecode_test.cpp",
     "peephole_optimizer_test.cpp",
+    "reg_acc_alloc_test.cpp",
     "reg_encoder_test.cpp",
   ]
   configs = bcopt_test_config

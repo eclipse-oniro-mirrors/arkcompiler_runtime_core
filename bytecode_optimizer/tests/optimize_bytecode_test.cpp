@@ -494,4 +494,97 @@ HWTEST_F(OptimizeBytecodeTest, KeepsSuperChecksAcrossThisInitializationInPipelin
     EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::THROW_IFSUPERNOTCORRECTCALL), 2U);
 }
 
+HWTEST_F(OptimizeBytecodeTest, KeepsCatchExceptionInAccumulatorForAsyncReject, TestSize.Level1)
+{
+    const auto source = R"(
+        .language ECMAScript
+        .function any func_main_0(any a0) <static> {
+            asyncfunctionenter
+            sta v0
+        try_begin_label_0:
+            lda a0
+            throw
+        try_end_label_0:
+            jmp handler_end_label_0_0
+        handler_begin_label_0_0:
+            sta v1
+            lda v1
+            asyncfunctionreject v0
+            return
+        handler_end_label_0_0:
+            ldundefined
+            returnundefined
+
+        .catchall try_begin_label_0, try_end_label_0, handler_begin_label_0_0, handler_end_label_0_0
+        }
+    )";
+
+    panda::pandasm::Parser parser;
+    auto res = parser.Parse(source);
+    ASSERT_TRUE(res.HasValue());
+    auto &program = res.Value();
+    const std::string fun_name = "func_main_0:(any)";
+    auto it = program.function_table.find(fun_name);
+    ASSERT_NE(it, program.function_table.end());
+
+    EmitAndOptimize("catchAccAsyncReject.abc", program);
+
+    const auto &instructions = it->second.ins;
+    auto reject = std::find_if(instructions.begin(), instructions.end(), [](const auto &inst) {
+        return inst->GetOpcode() == pandasm::Opcode::ASYNCFUNCTIONREJECT;
+    });
+    ASSERT_NE(reject, instructions.end());
+    ASSERT_NE(reject, instructions.begin());
+    EXPECT_NE((*std::prev(reject))->GetOpcode(), pandasm::Opcode::LDA);
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::STA), 1U);
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::LDA), 1U);
+}
+
+HWTEST_F(OptimizeBytecodeTest, MaterializesCatchExceptionAfterAccumulatorWrite, TestSize.Level1)
+{
+    const auto source = R"(
+        .language ECMAScript
+        .function any func_main_0(any a0) <static> {
+            asyncfunctionenter
+            sta v0
+        try_begin_label_0:
+            lda a0
+            throw
+        try_end_label_0:
+            jmp handler_end_label_0_0
+        handler_begin_label_0_0:
+            sta v1
+            ldai 0x1
+            stglobalvar 0x0, "catchMarker"
+            lda v1
+            asyncfunctionreject v0
+            return
+        handler_end_label_0_0:
+            ldundefined
+            returnundefined
+
+        .catchall try_begin_label_0, try_end_label_0, handler_begin_label_0_0, handler_end_label_0_0
+        }
+    )";
+
+    panda::pandasm::Parser parser;
+    auto res = parser.Parse(source);
+    ASSERT_TRUE(res.HasValue());
+    auto &program = res.Value();
+    const std::string fun_name = "func_main_0:(any)";
+    auto it = program.function_table.find(fun_name);
+    ASSERT_NE(it, program.function_table.end());
+
+    EmitAndOptimize("catchAccOverwrite.abc", program);
+
+    const auto &instructions = it->second.ins;
+    auto reject = std::find_if(instructions.begin(), instructions.end(), [](const auto &inst) {
+        return inst->GetOpcode() == pandasm::Opcode::ASYNCFUNCTIONREJECT;
+    });
+    ASSERT_NE(reject, instructions.end());
+    ASSERT_NE(reject, instructions.begin());
+    EXPECT_EQ((*std::prev(reject))->GetOpcode(), pandasm::Opcode::LDA);
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::STA), 2U);
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::LDA), 2U);
+}
 }  // namespace panda::bytecodeopt
