@@ -185,13 +185,13 @@
 
     str lr, [sp, #-8]
     CFI_REL_OFFSET(lr, -(1 * 8))
-    mov x17, #COMPILED_CODE_TO_INTERPRETER_BRIDGE
-    str x17, [sp, #-16]
-    str fp, [sp, #-24]
-    CFI_REL_OFFSET(fp, -(3 * 8))
+    str fp, [sp, #-16]
+    CFI_REL_OFFSET(fp, -(2 * 8))
     str lr, [THREAD_REG, #MANAGED_THREAD_NATIVE_PC_OFFSET]
-    sub x17, sp, #24
+    sub x17, sp, #16
     str x17, [THREAD_REG, #MANAGED_THREAD_FRAME_OFFSET]
+    mov x17, #COMPILED_CODE_TO_INTERPRETER_BRIDGE
+    str x17, [sp, #-24]
     sub sp, sp, #32
     CFI_ADJUST_CFA_OFFSET(32)
 

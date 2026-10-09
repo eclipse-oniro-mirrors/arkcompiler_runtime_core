@@ -268,10 +268,15 @@ void Method::InvokeEntry(ManagedThread *thread, Frame *currentFrame, Frame *fram
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
         C2IBridge bridge;
         if (!StackWalker::IsBoundaryFrame<FrameKind::INTERPRETER>(currentFrame)) {
-            bridge = {0, reinterpret_cast<uintptr_t>(currentFrame), COMPILED_CODE_TO_INTERPRETER,
+            // v[0] = 0 (CALLEES_OFFSET=-2, relative to &v[2])
+            // v[1] = marker (METHOD_OFFSET=-1, relative to &v[2])
+            // v[2] = saved_fp (FP_OFFSET=0, relative to &v[2])
+            // v[3] = lr (RETURN_OFFSET=1, relative to &v[2])
+            constexpr size_t FP_INDEX = 2;
+            bridge = {0, COMPILED_CODE_TO_INTERPRETER, reinterpret_cast<uintptr_t>(currentFrame),
                       thread->GetNativePc()};
             // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-            frame->SetPrevFrame(reinterpret_cast<Frame *>(&bridge.v[1]));
+            frame->SetPrevFrame(reinterpret_cast<Frame *>(&bridge.v[FP_INDEX]));
         }
         // Workaround for
         // issues #2888 and #2925

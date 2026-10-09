@@ -344,12 +344,22 @@ template <FrameKind KIND>
 struct BoundaryFrame;
 
 // Compiled to Interpreter
+// Standard FP frame shares slots with boundary frame (zero redundancy):
+//   [fp+0]  = saved_fp   (FP_OFFSET=0, also standard FP frame saved_fp)
+//   [fp+8]  = lr         (RETURN_OFFSET=1, also standard FP frame saved_lr)
+//   [fp-8]  = marker     (METHOD_OFFSET=-1)
+//   [fp-16] = callee regs (CALLEES_OFFSET=-2)
+//
+// NOTE: Access boundary frames only through StackWalker wrappers (e.g.
+// IsBoundaryFrame, GetMethodFromBoundary), never through Frame offsets:
+// METHOD_OFFSET=-1 can never equal the positive Frame::GetMethodOffset(),
+// so the old stack_walker.h static_assert was removed. Do not re-add it.
 template <>
 struct BoundaryFrame<FrameKind::INTERPRETER> {
-    static constexpr ssize_t METHOD_OFFSET = 1;
+    static constexpr ssize_t METHOD_OFFSET = -1;
     static constexpr ssize_t FP_OFFSET = 0;
-    static constexpr ssize_t RETURN_OFFSET = 2;
-    static constexpr ssize_t CALLEES_OFFSET = -1;
+    static constexpr ssize_t RETURN_OFFSET = 1;
+    static constexpr ssize_t CALLEES_OFFSET = -2;
 };
 
 // Interpreter to Compiled

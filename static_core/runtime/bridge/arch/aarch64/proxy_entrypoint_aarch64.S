@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -37,37 +37,44 @@
     CFI_STARTPROC
     CFI_DEF_CFA(sp, 0)
 
-    sub sp, sp, #32
-    CFI_ADJUST_CFA_OFFSET(4 * 8)
-    str lr, [sp, #24]
-    CFI_REL_OFFSET(lr, 24)
+    // Construct standard FP frame + boundary frame (zero redundancy):
+    //   lr           [fp+8]   (standard saved_lr + RETURN_OFFSET=1)
+    //   saved_fp     [fp+0]   (standard saved_fp + FP_OFFSET=0)
+    //   marker       [fp-8]   (METHOD_OFFSET=-1)
+    //   callee regs  [fp-16]  (CALLEES_OFFSET=-2)
+    stp fp, lr, [sp, #-16]!
+    CFI_ADJUST_CFA_OFFSET(16)
+    CFI_REL_OFFSET(fp, 0)
+    CFI_REL_OFFSET(lr, 8)
+    mov fp, sp
+    CFI_DEF_CFA_REGISTER(fp)
+
+    // Push marker below fp
+    sub sp, sp, #16
     mov lr, #COMPILED_CODE_TO_INTERPRETER_BRIDGE
-    stp fp, lr, [sp, #8]
-    CFI_REL_OFFSET(fp, 8)
-    add fp, sp, #8
-    CFI_DEF_CFA(fp, (3 * 8))
+    str lr, [sp, #8]           // [fp-8] = marker (METHOD_OFFSET=-1)
 
     // save all the callee saved registers to the stack
     // stack walker will read them during stack unwinding
     PUSH_CALLEE_REGS sp
-    CFI_REL_OFFSET(x28, -(2 * 8))
-    CFI_REL_OFFSET(x27, -(3 * 8))
-    CFI_REL_OFFSET(x26, -(4 * 8))
-    CFI_REL_OFFSET(x25, -(5 * 8))
-    CFI_REL_OFFSET(x24, -(6 * 8))
-    CFI_REL_OFFSET(x23, -(7 * 8))
-    CFI_REL_OFFSET(x22, -(8 * 8))
-    CFI_REL_OFFSET(x21, -(9 * 8))
-    CFI_REL_OFFSET(x20, -(10 * 8))
-    CFI_REL_OFFSET(x19, -(11 * 8))
-    CFI_REL_OFFSET(d15, -(12 * 8))
-    CFI_REL_OFFSET(d14, -(13 * 8))
-    CFI_REL_OFFSET(d13, -(14 * 8))
-    CFI_REL_OFFSET(d12, -(15 * 8))
-    CFI_REL_OFFSET(d11, -(16 * 8))
-    CFI_REL_OFFSET(d10, -(17 * 8))
-    CFI_REL_OFFSET(d9, -(18 * 8))
-    CFI_REL_OFFSET(d8, -(19 * 8))
+    CFI_REL_OFFSET(x28, -(3 * 8))
+    CFI_REL_OFFSET(x27, -(4 * 8))
+    CFI_REL_OFFSET(x26, -(5 * 8))
+    CFI_REL_OFFSET(x25, -(6 * 8))
+    CFI_REL_OFFSET(x24, -(7 * 8))
+    CFI_REL_OFFSET(x23, -(8 * 8))
+    CFI_REL_OFFSET(x22, -(9 * 8))
+    CFI_REL_OFFSET(x21, -(10 * 8))
+    CFI_REL_OFFSET(x20, -(11 * 8))
+    CFI_REL_OFFSET(x19, -(12 * 8))
+    CFI_REL_OFFSET(d15, -(13 * 8))
+    CFI_REL_OFFSET(d14, -(14 * 8))
+    CFI_REL_OFFSET(d13, -(15 * 8))
+    CFI_REL_OFFSET(d12, -(16 * 8))
+    CFI_REL_OFFSET(d11, -(17 * 8))
+    CFI_REL_OFFSET(d10, -(18 * 8))
+    CFI_REL_OFFSET(d9, -(19 * 8))
+    CFI_REL_OFFSET(d8, -(20 * 8))
 
     // If caller is the compiled method, we need to set C2I boundary frame in the TLS
     ldrb w20, [THREAD_REG, #MANAGED_THREAD_FRAME_KIND_OFFSET]
@@ -89,7 +96,7 @@
     stp x0, x1, [sp, #-16]!
 
     mov x1, sp
-    add x2, fp, #24
+    add x2, fp, #16               // stack args: [fp+8]=lr, [fp+16]=caller's stack args
 
     bl \entry
 
@@ -111,7 +118,7 @@
     mov w10, w20
 
     // Restore callee registers, since GC may change its values while moving objects.
-    sub x16, fp, #8
+    sub x16, fp, #(2 * 8)        // x16 = fp - 16 (CALLEES_OFFSET)
     ldp x27, x28, [x16, #-16]!
     CFI_RESTORE(x28)
     CFI_RESTORE(x27)
@@ -128,16 +135,15 @@
     CFI_RESTORE(x20)
     CFI_RESTORE(x19)
 
-    sub sp, fp, #8
-    ldr fp, [sp, #8]
+    // Release marker slot and standard FP frame
+    mov sp, fp
+    CFI_DEF_CFA(sp, (2 * 8))
+    ldp fp, lr, [sp], #16
     CFI_RESTORE(fp)
-    CFI_DEF_CFA(sp, (4 * 8))
-    ldr lr, [sp, #24]
     CFI_RESTORE(lr)
-    add sp, sp, #32
-    CFI_ADJUST_CFA_OFFSET(-(4 * 8))
+    CFI_DEF_CFA(sp, 0)
 
-    // check native exception
+    // check native exceptions
     ldr x11, [THREAD_REG, #MANAGED_THREAD_EXCEPTION_OFFSET]
     cmp x11, #0
     // check frame is compiled

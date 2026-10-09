@@ -128,8 +128,10 @@ extern "C" NO_ADDRESS_SANITIZE void InterpreterEntryPoint(Method *method, Frame 
     thread->SetCurrentFrameKind(CurrentFrameKind::INTERPRETER);
     interpreter::Execute(thread, pc, frame);
     thread->SetCurrentFrameKind(frameKind);
-    if (prevFrame != nullptr && reinterpret_cast<uintptr_t>(prevFrame->GetMethod()) == COMPILED_CODE_TO_INTERPRETER) {
-        thread->SetCurrentFrame(prevFrame->GetPrevFrame());
+    if (prevFrame != nullptr && frameKind != CurrentFrameKind::INTERPRETER &&
+        StackWalker::IsBoundaryFrame<FrameKind::INTERPRETER>(prevFrame)) {
+        thread->SetCurrentFrame(
+            reinterpret_cast<Frame *>(StackWalker::GetPrevFromBoundary<FrameKind::INTERPRETER>(prevFrame)));
     } else {
         thread->SetCurrentFrame(prevFrame);
     }
@@ -661,7 +663,7 @@ extern "C" coretypes::String *ResolveStringAotEntrypoint(const Method *caller, F
 // CC-OFFNXT(G.FUN.01-CPP) solid logic
 extern "C" Frame *CreateFrameWithSize(uint32_t size, uint32_t nregs, Method *method, Frame *prev, CallFlags callFlags)
 {
-    uint32_t extSz = EMPTY_EXT_FRAME_DATA_SIZE;
+    uint32_t extSz = CORE_EXT_FRAME_DATA_SIZE;
     if (LIKELY(method)) {
         extSz = Runtime::GetCurrent()->GetLanguageContext(*method).GetFrameExtSize();
     }
@@ -694,7 +696,7 @@ extern "C" Frame *CreateFrameWithActualArgsAndSize(uint32_t size, uint32_t nregs
 extern "C" Frame *CreateNativeFrameWithActualArgsAndSize(uint32_t size, uint32_t nregs, uint32_t numActualArgs,
                                                          Method *method, Frame *prev, CallFlags callFlags)
 {
-    uint32_t extSz = EMPTY_EXT_FRAME_DATA_SIZE;
+    uint32_t extSz = CORE_EXT_FRAME_DATA_SIZE;
     size_t allocSz = Frame::GetAllocSize(size, extSz);
     auto *thread = ManagedThread::GetCurrent();
     ASSERT(thread != nullptr);
@@ -1380,6 +1382,7 @@ extern "C" void *AllocFrameStackOverflow(ManagedThread *current)
 
 extern "C" Frame *InitializeFrame(void *mem, Method *method, Frame *prev, size_t nregs)
 {
+    *reinterpret_cast<uintptr_t *>(mem) = 0;
     return new (Frame::FromExt(mem, CORE_EXT_FRAME_DATA_SIZE)) Frame(mem, method, prev, nregs);
 }
 

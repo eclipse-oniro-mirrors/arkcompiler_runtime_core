@@ -395,7 +395,7 @@ public:
     template <bool IS_DYNAMIC = false>
     static Frame *CreateFrame(size_t nregs, Method *method, Frame *prev)
     {
-        uint32_t extSz = EMPTY_EXT_FRAME_DATA_SIZE;
+        uint32_t extSz = CORE_EXT_FRAME_DATA_SIZE;
         auto allocator = Mutator::GetCurrent()->GetVM()->GetHeapManager()->GetInternalAllocator();
         void *mem = allocator->Allocate(ark::Frame::GetAllocSize(ark::Frame::GetActualSize<IS_DYNAMIC>(nregs), extSz),
                                         GetLogAlignment(8), ManagedThread::GetCurrent());
@@ -405,7 +405,7 @@ public:
     static Frame *CreateFrameWithActualArgsAndSize(uint32_t size, uint32_t nregs, uint32_t numActualArgs,
                                                    Method *method, Frame *prev)
     {
-        uint32_t extSz = EMPTY_EXT_FRAME_DATA_SIZE;
+        uint32_t extSz = CORE_EXT_FRAME_DATA_SIZE;
         auto allocator = Mutator::GetCurrent()->GetVM()->GetHeapManager()->GetInternalAllocator();
         void *mem =
             allocator->Allocate(ark::Frame::GetAllocSize(size, extSz), GetLogAlignment(8), ManagedThread::GetCurrent());

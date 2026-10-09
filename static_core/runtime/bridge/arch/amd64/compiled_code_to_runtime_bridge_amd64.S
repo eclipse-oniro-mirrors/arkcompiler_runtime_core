@@ -185,25 +185,26 @@ TYPE_FUNCTION(\name)
 
     SAVE_CALLEE_GP_REGS rsp, BRIDGE_FRAME_SIZE
 
-    // Bridge frame:
-    //   [1] native_pc = retaddr
-    //   [2] parent frame pointer
-    //   [3] COMPILED_CODE_TO_INTERPRETER_BRIDGE flag
+    // BoundaryFrame setup (new layout):
+    //   [fp+8]  = lr         (RETURN_OFFSET=1)
+    //   [fp+0]  = saved_fp   (FP_OFFSET=0)
+    //   [fp-8]  = marker     (METHOD_OFFSET=-1)
 
     // Bridge frame, slot 1 = npc = retaddr (StackMap stays just after the bridge call)
     mov (BRIDGE_FRAME_SIZE - 1 * 8)(%rsp), %r14
     // ManagedThread.npc update
     mov %r14, MANAGED_THREAD_NATIVE_PC_OFFSET(%THREAD_REG)
 
-    // Bridge frame, slot 2 = COMPILED_CODE_TO_INTERPRETER_BRIDGE flag
-    movq $COMPILED_CODE_TO_INTERPRETER_BRIDGE, (BRIDGE_FRAME_SIZE - 2 * 8)(%rsp)
-    // Bridge frame, slot 3 = parent frame pointer
-    mov %rbp, (BRIDGE_FRAME_SIZE - 3 * 8)(%rsp)
-    CFI_REL_OFFSET(rbp, (BRIDGE_FRAME_SIZE - 3 * 8))
+    // Bridge frame, slot 2 = parent frame pointer (saved_fp, FP_OFFSET=0)
+    mov %rbp, (BRIDGE_FRAME_SIZE - 2 * 8)(%rsp)
+    CFI_REL_OFFSET(rbp, (BRIDGE_FRAME_SIZE - 2 * 8))
 
-    leaq (BRIDGE_FRAME_SIZE - 3 * 8)(%rsp), %r13
+    leaq (BRIDGE_FRAME_SIZE - 2 * 8)(%rsp), %r13
     // ManagedThread._frame = this boundary frame
     mov %r13, MANAGED_THREAD_FRAME_OFFSET(%THREAD_REG)
+
+    // Bridge frame, slot 3 = COMPILED_CODE_TO_INTERPRETER_BRIDGE marker (METHOD_OFFSET=-1)
+    movq $COMPILED_CODE_TO_INTERPRETER_BRIDGE, -1 * 8(%r13)
 
 .if \mode != RUNTIME_MODE_SLOW_PATH
     SAVE_CALLER_GP_REGS rbp, \paramsnum, \ret_type
@@ -319,11 +320,11 @@ TYPE_FUNCTION(\name)
 
     movq (%rsp), %rax
     movq  %rax, MANAGED_THREAD_NATIVE_PC_OFFSET(%THREAD_REG)
-    movq  %rbp,  -0x10(%rsp)
-    CFI_REL_OFFSET(rbp, -(2 * 8))
-    movq $COMPILED_CODE_TO_INTERPRETER_BRIDGE, -0x8(%rsp)
-    lea -0x10(%rsp), %rax
+    movq  %rbp,  -0x8(%rsp)
+    CFI_REL_OFFSET(rbp, -(1 * 8))
+    lea -0x8(%rsp), %rax
     movq %rax, MANAGED_THREAD_FRAME_OFFSET(%THREAD_REG)
+    movq $COMPILED_CODE_TO_INTERPRETER_BRIDGE, -0x10(%rsp)
 
     movq %r15, -0x20(%rsp)
     CFI_REL_OFFSET(r15, -(4 * 8))
@@ -336,10 +337,10 @@ TYPE_FUNCTION(\name)
     movq %rbx, -0x40(%rsp)
     CFI_REL_OFFSET(rbx, -(8 * 8))
 
-    // ------------- header
-    // %rsp        : ret addr
-    // %rsp -0x08  : $COMPILED_CODE_TO_INTERPRETER_BRIDGE
-    // %rsp -0x10  : frame pointer
+    // ------------- header (new layout)
+    // %rsp        : ret addr (lr, RETURN_OFFSET=1)
+    // %rsp -0x08  : frame pointer (saved_fp, FP_OFFSET=0)
+    // %rsp -0x10  : COMPILED_CODE_TO_INTERPRETER_BRIDGE (marker, METHOD_OFFSET=-1)
     // %rsp -0x18  : UNUSED
     // ------------- callee-saved regs
     // %rsp -0x20  : %r15

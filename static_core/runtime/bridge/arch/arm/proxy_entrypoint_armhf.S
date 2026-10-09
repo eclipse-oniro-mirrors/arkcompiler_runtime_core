@@ -23,37 +23,43 @@
 \name:
     CFI_STARTPROC
     CFI_DEF_CFA(sp, 0)
-    sub sp, sp, #16
-    CFI_ADJUST_CFA_OFFSET(16)
-    str lr, [sp, #12]
-    CFI_REL_OFFSET(lr, 12)
-    mov ip, #COMPILED_CODE_TO_INTERPRETER_BRIDGE
-    str ip, [sp, #8]
-    str fp, [sp, #4]
-    CFI_REL_OFFSET(fp, 4)
-    add fp, sp, #4
+    // Standard FP frame + boundary frame (zero redundancy):
+    //   [fp+4]  = lr           (RETURN_OFFSET=1, standard saved_lr)
+    //   [fp+0]  = saved_fp     (FP_OFFSET=0, standard saved_fp)
+    //   [fp-4]  = marker       (METHOD_OFFSET=-1)
+    push {fp, lr}
+    CFI_ADJUST_CFA_OFFSET(8)
+    CFI_REL_OFFSET(lr, 4)
+    CFI_REL_OFFSET(fp, 0)
+    mov fp, sp
     CFI_DEF_CFA_REGISTER(fp)
-    CFI_ADJUST_CFA_OFFSET(-4)
+
+    // Push marker below fp
+    mov ip, #COMPILED_CODE_TO_INTERPRETER_BRIDGE
+    push {ip}
+
+    // Placeholder for CALLEES_OFFSET=-2 alignment
+    sub sp, sp, #4
 
     // save all the callee saved registers to the stack
     // stack walker will read them during stack unwinding
     push {r4 - r10}
-    CFI_REL_OFFSET(r10, -(2 * 4))
-    CFI_REL_OFFSET(r9,  -(3 * 4))
-    CFI_REL_OFFSET(r8,  -(4 * 4))
-    CFI_REL_OFFSET(r7,  -(5 * 4))
-    CFI_REL_OFFSET(r6,  -(6 * 4))
-    CFI_REL_OFFSET(r5,  -(7 * 4))
-    CFI_REL_OFFSET(r4,  -(8 * 4))
+    CFI_REL_OFFSET(r10, -(3 * 4))
+    CFI_REL_OFFSET(r9,  -(4 * 4))
+    CFI_REL_OFFSET(r8,  -(5 * 4))
+    CFI_REL_OFFSET(r7,  -(6 * 4))
+    CFI_REL_OFFSET(r6,  -(7 * 4))
+    CFI_REL_OFFSET(r5,  -(8 * 4))
+    CFI_REL_OFFSET(r4,  -(9 * 4))
     vpush {d8 - d15}
-    CFI_REL_OFFSET(d15, -(10 * 4))
-    CFI_REL_OFFSET(d14, -(12 * 4))
-    CFI_REL_OFFSET(d13, -(14 * 4))
-    CFI_REL_OFFSET(d12, -(16 * 4))
-    CFI_REL_OFFSET(d11, -(18 * 4))
-    CFI_REL_OFFSET(d10, -(20 * 4))
-    CFI_REL_OFFSET(d9,  -(22 * 4))
-    CFI_REL_OFFSET(d8,  -(24 * 4))
+    CFI_REL_OFFSET(d15, -(11 * 4))
+    CFI_REL_OFFSET(d14, -(13 * 4))
+    CFI_REL_OFFSET(d13, -(15 * 4))
+    CFI_REL_OFFSET(d12, -(17 * 4))
+    CFI_REL_OFFSET(d11, -(19 * 4))
+    CFI_REL_OFFSET(d10, -(21 * 4))
+    CFI_REL_OFFSET(d9,  -(23 * 4))
+    CFI_REL_OFFSET(d8,  -(25 * 4))
 
     // align to 8
     sub sp, sp, #4
@@ -65,7 +71,7 @@
     ldrb r7, [THREAD_REG, #MANAGED_THREAD_FRAME_KIND_OFFSET]
 
     mov r1, sp
-    add r2, fp, #12
+    add r2, fp, #8
     blx \entry
 
     pop {r2}
@@ -85,7 +91,7 @@
 
 2:
     // Restore callee registers, since GC may change its values while moving objects.
-    sub sp, fp, #4
+    sub sp, fp, #8
 
     mov r2, r7
 
@@ -98,9 +104,9 @@
     CFI_RESTORE(r5)
     CFI_RESTORE(r4)
 
-    sub sp, fp, #4
+    sub sp, fp, #8
     CFI_DEF_CFA(sp, 16)
-    ldr fp, [sp, #4]
+    ldr fp, [sp, #8]             // skip marker + placeholder
     CFI_RESTORE(fp)
     add sp, sp, #12 // c2i
     CFI_ADJUST_CFA_OFFSET(-12)

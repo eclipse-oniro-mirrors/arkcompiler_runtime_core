@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -18,7 +18,7 @@
 #include "arch/amd64/shorty.S"
 #include "shorty_values.h"
 
-#define C2I_FP_OFFSET 2
+#define C2I_FP_OFFSET 1
 
 .macro PROXY_ENTRYPOINT name, entry
 .global \name
@@ -35,29 +35,33 @@
     CFI_DEF_CFA(rsp, 8)
 
     // %rsp % 16 == 8
-    pushq $COMPILED_CODE_TO_INTERPRETER_BRIDGE
-    CFI_ADJUST_CFA_OFFSET(8)
-
+    // Standard FP frame + boundary frame (zero redundancy):
+    //   [rbp+8]  = return address  (RETURN_OFFSET=1, standard saved_lr)
+    //   [rbp+0]  = saved_fp        (FP_OFFSET=0, standard saved_fp)
+    //   [rbp-8]  = marker          (METHOD_OFFSET=-1)
     pushq %rbp
     CFI_ADJUST_CFA_OFFSET(8)
     CFI_REL_OFFSET(rbp, 0)
     movq %rsp, %rbp // frame pointer
     CFI_DEF_CFA_REGISTER(rbp)
 
-    subq $8, %rsp
+    pushq $COMPILED_CODE_TO_INTERPRETER_BRIDGE
+
+    // Placeholder for CALLEES_OFFSET=-2 alignment
+    pushq $0
 
     // save all the callee saved registers to the stack
     // stack walker will read them during stack unwinding
     pushq %r15
-    CFI_REL_OFFSET(r15, -(2 * 8))
+    CFI_REL_OFFSET(r15, -(3 * 8))
     pushq %r14
-    CFI_REL_OFFSET(r14, -(3 * 8))
+    CFI_REL_OFFSET(r14, -(4 * 8))
     pushq %r13
-    CFI_REL_OFFSET(r13, -(4 * 8))
+    CFI_REL_OFFSET(r13, -(5 * 8))
     pushq %r12
-    CFI_REL_OFFSET(r12, -(5 * 8))
+    CFI_REL_OFFSET(r12, -(6 * 8))
     pushq %rbx
-    CFI_REL_OFFSET(rbx, -(6 * 8))
+    CFI_REL_OFFSET(rbx, -(7 * 8))
 
     subq $8, %rsp
     // %rsp % 16 == 0
@@ -79,9 +83,9 @@
     // Since PUSH_GENERAL_REGS has been called, then rsi will points to array of pushed arguments.
     // rsi is the second argument of calling function.
     movq %rsp, %rsi
-    // rbp + 24 points to the stack arguments that has been pushed to the stack by i2c bridge before calling proxy bridge.
+    // rbp + 16 points to the stack arguments that has been pushed to the stack by i2c bridge before calling proxy bridge.
     // rdx is the third argument of calling function.
-    leaq 24(%rbp), %rdx
+    leaq 16(%rbp), %rdx
     callq \entry
 
     popq %rdi
@@ -125,9 +129,7 @@
     movq %rbp, %rsp
     popq %rbp
     CFI_RESTORE(rbp)
-    CFI_DEF_CFA(rsp, (2 * 8))
-    addq $8, %rsp
-    CFI_ADJUST_CFA_OFFSET(-(1 * 8))
+    CFI_DEF_CFA(rsp, 8)
 
     // check native exception
     movq MANAGED_THREAD_EXCEPTION_OFFSET(%THREAD_REG), %r11

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -29,11 +29,14 @@ DeoptimizeAfterCFrame:
     // r3 - pointer to cframe origin
     // r4(slot0) - last restored interpreter Frame
 
-    // Morph CFrame into C2I bridge frame
-    // FROM         TO
-    //  lr          lr
-    //  fp <----    COMPILED_CODE_TO_INTERPRETER_BRIDGE
-    //  method      fp <----
+    // Morph CFrame into C2I boundary frame
+    // The CFrame layout already matches the new boundary frame layout:
+    //   [fp+4]  = lr           (CFrame LrSlot, RETURN_OFFSET=1 + standard saved_lr)
+    //   [fp+0]  = saved_fp     (CFrame PrevFrameSlot, FP_OFFSET=0 + standard saved_fp)
+    //   [fp-4]  = marker       (CFrame MethodSlot, overwritten with COMPILED_CODE_TO_INTERPRETER)
+    //   [fp-8]  = flags        (CFrame FlagsSlot)
+    //   [fp-...] = callee regs (CFrame callee regs area, CALLEES_OFFSET=-2)
+    // So we only need to overwrite the MethodSlot with the marker value.
 
     CFI_DEF_CFA(r3, (2 * 4))
     CFI_REL_OFFSET(lr, 4)
@@ -49,11 +52,9 @@ DeoptimizeAfterCFrame:
 
     sub sp, r3, #((CFRAME_CALLEE_REGS_START_SLOT * 4) + CALLEE_SAVED_SIZE)
 
-    ldr r5, [r3], #-4
-    CFI_ADJUST_CFA_OFFSET(4)
+    // Overwrite CFrame MethodSlot with marker
     mov r6, #COMPILED_CODE_TO_INTERPRETER_BRIDGE
-    stm r3, {r5, r6}
-    CFI_REL_OFFSET(fp, 0)
+    str r6, [r3, #-4]
 
     mov fp, r3
     CFI_DEF_CFA_REGISTER(fp)
@@ -61,10 +62,10 @@ DeoptimizeAfterCFrame:
     // Set IFrame's prev_frame to this C2I bridge frame
     str r3, [r4, #FRAME_PREV_FRAME_OFFSET]
 
-    BOUNDARY_FRAME_SLOT = ((CFRAME_HEADER_SIZE - 3) + 1)
+    BOUNDARY_FRAME_SLOT = ((CFRAME_HEADER_SIZE - 3) + 2)
 
     // Copy callee saved registers from cframe into boundary frame.
-    sub r12, r3, #((CFRAME_CALLEE_REGS_START_SLOT - 1) * 4 - 4)
+    sub r12, r3, #(CFRAME_CALLEE_REGS_START_SLOT * 4 - 4)
     sub r11, r3, #((BOUNDARY_FRAME_SLOT - 1) * 4)
 
     // Scalar
@@ -155,26 +156,31 @@ DeoptimizeAfterCFrame:
     add sp, sp, #4
     ldrd r2, r3, [sp], #8
 
-    // Restore stack pointer so that it points to COMPILED_CODE_TO_INTERPRETER_BRIDGE
-    sub sp, r3, #4
+    // Anchor sp at the boundary frame before r3 is reused as the restore cursor,
+    // the fp register cannot be used here: it was clobbered by the copy loop above.
+    mov sp, r3
 
     // Restore callee saved registers
     sub r3, r3, #((BOUNDARY_FRAME_SLOT - 1) * 4)
 
+    // NB: ldrd requires 8-byte alignment, use ldr instead. vldr needs word alignment only.
     ldr r10, [r3, #-4]!
-    ldrd r8, r9, [r3, #-8]!
+    ldr r9, [r3, #-4]!
     CFI_RESTORE(r9)
+    ldr r8, [r3, #-4]!
     CFI_RESTORE(r8)
-    ldrd r6, r7, [r3, #-8]!
+    ldr r7, [r3, #-4]!
     CFI_RESTORE(r7)
+    ldr r6, [r3, #-4]!
     CFI_RESTORE(r6)
     // THREAD_REG is r10, but we can't remove `ldr r10, [r3, #-4]!` because we can change number of the THREAD_REG
     // !NOTE fix this code if THREAD_REG will be change to r4 or r5
     mov THREAD_REG, r4
     CFI_RESTORE(THREAD_REG)
 
-    ldrd r4, r5, [r3, #-8]!
+    ldr r5, [r3, #-4]!
     CFI_RESTORE(r5)
+    ldr r4, [r3, #-4]!
     CFI_RESTORE(r4)
 
 #ifndef PANDA_TARGET_ARM32_ABI_SOFT
@@ -198,13 +204,11 @@ DeoptimizeAfterCFrame:
     vmov.f64 d0, r0, r1
 #endif
 
-    ldr fp, [sp, #4]
+    // Restore standard FP frame: [fp+0]=saved_fp, [fp+4]=lr
+    pop {fp, lr}
     CFI_RESTORE(fp)
-    CFI_DEF_CFA(sp, (4 * 4))
-    ldr lr, [sp, #12]
     CFI_RESTORE(lr)
-    add sp, sp, #16
-    CFI_ADJUST_CFA_OFFSET(-(4 * 4))
+    CFI_DEF_CFA(sp, 0)
     bx lr
     CFI_ENDPROC
 

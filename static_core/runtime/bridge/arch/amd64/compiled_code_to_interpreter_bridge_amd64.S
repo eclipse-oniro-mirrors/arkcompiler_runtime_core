@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -39,30 +39,33 @@ CompiledCodeToInterpreterBridge:
     movq (%rsp), %rax
     movq %rax, MANAGED_THREAD_NATIVE_PC_OFFSET(%THREAD_REG)
 
-    pushq $COMPILED_CODE_TO_INTERPRETER_BRIDGE
-    CFI_ADJUST_CFA_OFFSET(8)
-
-    // construct the frame
+    // Standard FP frame + boundary frame (zero redundancy):
+    //   [rbp+8]  = return address  (RETURN_OFFSET=1, standard saved_lr)
+    //   [rbp+0]  = saved_fp        (FP_OFFSET=0, standard saved_fp)
+    //   [rbp-8]  = marker          (METHOD_OFFSET=-1)
     pushq %rbp
     CFI_ADJUST_CFA_OFFSET(8)
     CFI_REL_OFFSET(rbp, 0)
-    movq %rsp, %rbp // set frame pointer
+    movq %rsp, %rbp
     CFI_DEF_CFA_REGISTER(rbp)
 
-    subq $8, %rsp
+    pushq $COMPILED_CODE_TO_INTERPRETER_BRIDGE
+
+    // Placeholder for CALLEES_OFFSET=-2 alignment
+    pushq $0
 
     // save all the callee saved registers to the stack
     // stack walker will read them during stack unwinding
     pushq %r15
-    CFI_REL_OFFSET(r15, -(2 * 8))
+    CFI_REL_OFFSET(r15, -(3 * 8))
     pushq %r14
-    CFI_REL_OFFSET(r14, -(3 * 8))
+    CFI_REL_OFFSET(r14, -(4 * 8))
     pushq %r13
-    CFI_REL_OFFSET(r13, -(4 * 8))
+    CFI_REL_OFFSET(r13, -(5 * 8))
     pushq %r12
-    CFI_REL_OFFSET(r12, -(5 * 8))
+    CFI_REL_OFFSET(r12, -(6 * 8))
     pushq %rbx
-    CFI_REL_OFFSET(rbx, -(6 * 8))
+    CFI_REL_OFFSET(rbx, -(7 * 8))
 
     subq $8, %rsp
 
@@ -88,8 +91,7 @@ CompiledCodeToInterpreterBridge:
     POP_GENERAL_REGS
 
     movq %rbp, %rsp
-    addq $16, %rsp
-    movq (%rbp), %rbp
+    popq %rbp
     CFI_REMEMBER_STATE
     CFI_RESTORE(rbp)
     CFI_DEF_CFA(rsp, 8)
@@ -97,7 +99,7 @@ CompiledCodeToInterpreterBridge:
     movq METHOD_COMPILED_ENTRY_POINT_OFFSET(%rdi), %rax
     jmp *%rax
     CFI_RESTORE_STATE
-    CFI_DEF_CFA(rbp, (3 * 8))
+    CFI_DEF_CFA_REGISTER(rbp)
 
 .Lnot_compiled:
 
@@ -130,7 +132,7 @@ CompiledCodeToInterpreterBridge:
     leaq FRAME_VREGS_OFFSET(%r13, %r12), %r12
     leaq 8(%rsp), %rdx // skip Method*
     leaq 48(%rsp), %rsi
-    leaq 24(%rbp), %rdi
+    leaq 16(%rbp), %rdi               // stack args: [rbp+8]=ret addr, [rbp+16]=caller's stack args
     movl $5, %r8d  // 5 because we skip Method* arg
     movl $8, %r9d
 
@@ -252,7 +254,8 @@ CompiledCodeToInterpreterBridge:
     callq FreeFrame@plt
     movq %r12, %xmm0
 4:
-    leaq -48(%rbp), %rsp
+    // Restore callee registers, since GC may change its values while moving objects.
+    leaq -56(%rbp), %rsp           // point to rbx: marker(8) + placeholder(8) + 5 regs(40) = 56
     popq %rbx
     CFI_RESTORE(rbx)
     popq %r12
@@ -263,11 +266,9 @@ CompiledCodeToInterpreterBridge:
     CFI_RESTORE(r14)
     popq %r15
     CFI_RESTORE(r15)
-    addq $8, %rsp
+    addq $16, %rsp                 // skip placeholder + marker
     popq %rbp
     CFI_RESTORE(rbp)
-    CFI_DEF_CFA(rsp, (2 * 8))
-    addq $8, %rsp
-    CFI_ADJUST_CFA_OFFSET(-(1 * 8))
+    CFI_DEF_CFA(rsp, 8)
     retq
     CFI_ENDPROC

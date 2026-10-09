@@ -867,9 +867,11 @@ macro(:free_frame) do |frame|
     ShrI(free_pointer_word).Imm(Constants::STACK_FRAME_ALLOCATOR_RELEASE_PAGES_SHIFT).word).NE.Unlikely {
     call_runtime("FreeFrameInterp", frame, %tr).void
   } Else {
-    StoreI(frame_allocator, frame).Imm(Constants::STACK_FRAME_ALLOCATOR_FREE_POINTER_OFFSET).ptr
+    ext_word := SubI(frame_word).Imm("CORE_EXT_FRAME_DATA_SIZE").word
+    ext_ptr := Bitcast(ext_word).SrcType(Options.arch_64_bits? ? "DataType::INT64 " : "DataType::INT32").ptr
+    StoreI(frame_allocator, ext_ptr).Imm(Constants::STACK_FRAME_ALLOCATOR_FREE_POINTER_OFFSET).ptr
     if defines.__SANITIZE_ADDRESS__ || defines.__SANITIZE_THREAD__
-      call_runtime("AnnotateSanitizersPoisonEntrypoint", free_pointer_word, Sub(free_pointer_word, frame_word).u32).void
+      call_runtime("AnnotateSanitizersPoisonEntrypoint", free_pointer_word, Sub(free_pointer_word, ext_word).u32).void
     end
   }
 end

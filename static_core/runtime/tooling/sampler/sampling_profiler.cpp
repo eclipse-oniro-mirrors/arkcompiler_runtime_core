@@ -426,8 +426,9 @@ static bool CollectBoundaryFrames(SamplerFrameInfo &frameInfo, SampleInfo &sampl
 
     bool isFrameBoundary = true;
     while (isFrameBoundary) {
-        auto *prevFrame = frameInfo.frame->GetPrevFrame();
-        const auto *method = frameInfo.frame->GetMethod();
+        auto *prevFrame = reinterpret_cast<Frame *>(
+            StackWalkerBase::GetPrevFromBoundary<ark::FrameKind::INTERPRETER>(frameInfo.frame));
+        const auto *method = StackWalkerBase::GetMethodFromBoundary<ark::FrameKind::INTERPRETER>(frameInfo.frame);
         if (StackWalkerBase::IsMethodInI2CFrame(method)) {
             sample.stackInfo.managedStack[stackCounter].pandaFilePtr = helpers::ToUnderlying(FrameKind::BRIDGE);
             sample.stackInfo.managedStack[stackCounter].fileId = helpers::ToUnderlying(FrameKind::BRIDGE);
@@ -710,7 +711,8 @@ static bool TryAcquirePluginSlot(ManagedThread *mthread)
 static void ProcessSample(SamplerFrameInfo &frameInfo, SampleInfo &sample, size_t &stackCounter,
                           [[maybe_unused]] void *ptr)
 {
-    if (StackWalkerBase::IsMethodInBoundaryFrame(frameInfo.frame->GetMethod())) {
+    const auto *method = StackWalkerBase::GetMethodFromBoundary<ark::FrameKind::INTERPRETER>(frameInfo.frame);
+    if (StackWalkerBase::IsMethodInBoundaryFrame(method)) {
         auto foundBypassFrame = CollectBoundaryFrames(frameInfo, sample, stackCounter);
         if (foundBypassFrame) {
             return;

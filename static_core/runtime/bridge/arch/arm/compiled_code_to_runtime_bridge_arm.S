@@ -226,16 +226,19 @@
       sub sp, sp, #BRIDGE_FRAME_SIZE
       CFI_ADJUST_CFA_OFFSET(BRIDGE_FRAME_SIZE)
 
-      // Setup BoundaryFrame
-      str lr, [sp, #(BRIDGE_FRAME_SIZE - 1 * 4)]     // Bridge frame, slot 1 = npc = LR (the StackMap stays just after the bridge call)
+      // Setup BoundaryFrame (new layout):
+      //   [fp+4]  = lr         (RETURN_OFFSET=1)
+      //   [fp+0]  = saved_fp   (FP_OFFSET=0)
+      //   [fp-4]  = marker     (METHOD_OFFSET=-1)
+      str lr, [sp, #(BRIDGE_FRAME_SIZE - 1 * 4)]     // Bridge frame, slot 1 = npc = LR
       CFI_REL_OFFSET(lr, (BRIDGE_FRAME_SIZE - 1 * 4))
       str lr, [THREAD_REG, #MANAGED_THREAD_NATIVE_PC_OFFSET] // ManagedThread.npc update
-      mov lr, #COMPILED_CODE_TO_INTERPRETER_BRIDGE
-      str lr, [sp, #(BRIDGE_FRAME_SIZE - 2 * 4)]     // Bridge frame, slot 2 = COMPILED_CODE_TO_INTERPRETER_BRIDGE flag
-      str fp, [sp, #(BRIDGE_FRAME_SIZE - 3 * 4)]    // Bridge frame, slot 3 = parent frame pointer
-      CFI_REL_OFFSET(fp, (BRIDGE_FRAME_SIZE - 3 * 4))
-      add lr, sp, #(BRIDGE_FRAME_SIZE - 3 * 4)
+      str fp, [sp, #(BRIDGE_FRAME_SIZE - 2 * 4)]    // Bridge frame, slot 2 = parent frame pointer (saved_fp)
+      CFI_REL_OFFSET(fp, (BRIDGE_FRAME_SIZE - 2 * 4))
+      add lr, sp, #(BRIDGE_FRAME_SIZE - 2 * 4)       // lr = boundary_fp = &saved_fp
       str lr, [THREAD_REG, #MANAGED_THREAD_FRAME_OFFSET]    // ManagedThread._frame = this boundary frame
+      mov ip, #COMPILED_CODE_TO_INTERPRETER_BRIDGE
+      str ip, [lr, #-4]                              // marker at [boundary_fp - 4] (METHOD_OFFSET=-1)
 
       SAVE_CALLEE_GP_REGS sp, lr, BRIDGE_FRAME_SIZE
 #ifndef PANDA_TARGET_ARM32_ABI_SOFT
@@ -322,14 +325,14 @@
     str lr, [sp, #-4]
     CFI_REL_OFFSET(lr, -4)
     str lr, [THREAD_REG, #MANAGED_THREAD_NATIVE_PC_OFFSET]
-    mov lr, #COMPILED_CODE_TO_INTERPRETER_BRIDGE
-    str lr, [sp, #-8]
-    str fp, [sp, #-12]
-    CFI_REL_OFFSET(fp, -12)
-    sub lr, sp, #12
+    str fp, [sp, #-8]
+    CFI_REL_OFFSET(fp, -8)
+    sub lr, sp, #8
     str lr, [THREAD_REG, #MANAGED_THREAD_FRAME_OFFSET]
+    mov lr, #COMPILED_CODE_TO_INTERPRETER_BRIDGE
+    str lr, [sp, #-12]
     sub sp, sp, #16
-    CFI_ADJUST_CFA_OFFSET(16) 
+    CFI_ADJUST_CFA_OFFSET(16)
 
     push {r4 - r10}
     CFI_ADJUST_CFA_OFFSET(28)

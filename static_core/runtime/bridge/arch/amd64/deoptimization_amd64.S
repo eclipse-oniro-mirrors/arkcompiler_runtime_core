@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -31,28 +31,18 @@ DeoptimizeAfterCFrame:
     // %r9  - callee reg_mask
     // 8(%rsp) - callee vreg_mask
 
-    // Morph CFrame into C2I bridge frame
-    // FROM         TO
-    //  lr          lr
-    //  fp <----    COMPILED_CODE_TO_INTERPRETER_BRIDGE
-    //  method      fp <----
-
+    // Morph CFrame into C2I boundary frame
+    // The CFrame layout already matches the new boundary frame layout:
+    //   [fp+8]  = lr           (CFrame LrSlot, RETURN_OFFSET=1 + standard saved_lr)
+    //   [fp+0]  = saved_fp     (CFrame PrevFrameSlot, FP_OFFSET=0 + standard saved_fp)
+    //   [fp-8]  = marker       (CFrame MethodSlot, overwritten with COMPILED_CODE_TO_INTERPRETER)
+    //   [fp-16] = flags        (CFrame FlagsSlot)
+    //   [fp-...] = callee regs (CFrame callee regs area, CALLEES_OFFSET=-2)
+    // So we only need to overwrite the MethodSlot with the marker value.
     CFI_DEF_CFA(rcx, (2 * 8))
     CFI_REL_OFFSET(rbp, 0)
-    CFI_REL_OFFSET(THREAD_REG, -((CFRAME_CALLEE_REGS_START_SLOT + 0) * 8))
-    CFI_REL_OFFSET(r14, -((CFRAME_CALLEE_REGS_START_SLOT + 1) * 8))
-    CFI_REL_OFFSET(r13, -((CFRAME_CALLEE_REGS_START_SLOT + 2) * 8))
-    CFI_REL_OFFSET(r12, -((CFRAME_CALLEE_REGS_START_SLOT + 3) * 8))
-    CFI_REL_OFFSET(rbx, -((CFRAME_CALLEE_REGS_START_SLOT + 4) * 8))
 
     leaq -(((CFRAME_HEADER_SIZE - 2) * 8) + CALLEE_SAVED_SIZE)(%rcx), %rsp
-    // Additional padding to save lr to origin place
-    movq (%rcx), %r12
-    movq %r12, (-8)(%rcx)
-
-    subq $8, %rcx
-    CFI_ADJUST_CFA_OFFSET(8)
-    CFI_REL_OFFSET(rbp, 0)
 
     movq %rcx, %rbp
     CFI_DEF_CFA_REGISTER(rbp)
@@ -62,11 +52,11 @@ DeoptimizeAfterCFrame:
     // Set IFrame's prev_frame to this C2I bridge frame
     movq %rcx, FRAME_PREV_FRAME_OFFSET(%r8)
 
-    BOUNDARY_FRAME_SLOT = ((CFRAME_HEADER_SIZE - 3) + 1)
+    BOUNDARY_FRAME_SLOT = ((CFRAME_HEADER_SIZE - 3) + 2)
 
     // Copy callee saved registers from cframe into boundary frame.
-    leaq -((CFRAME_CALLEE_REGS_START_SLOT - 1) * 8)(%rcx), %r12
-    leaq -(BOUNDARY_FRAME_SLOT * 8)(%rcx), %r13
+    leaq -(CFRAME_CALLEE_REGS_START_SLOT * 8)(%rcx), %r12
+    leaq -((BOUNDARY_FRAME_SLOT) * 8)(%rcx), %r13
 
     movq (%r12), %rbx
     movq %rbx, (%r13)
@@ -122,11 +112,11 @@ DeoptimizeAfterCFrame:
     movq %rdi, %THREAD_REG
     CFI_RESTORE(THREAD_REG)
 
+    // Restore standard FP frame: [rbp+0]=saved_fp, [rbp+8]=lr
+    movq %rbp, %rsp
     popq %rbp
     CFI_RESTORE(rbp)
-    CFI_DEF_CFA(rsp, (2 * 8))
-    addq $8, %rsp
-    CFI_ADJUST_CFA_OFFSET(-(1 * 8))
+    CFI_DEF_CFA(rsp, 8)
     retq
     CFI_ENDPROC
 

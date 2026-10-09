@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -67,7 +67,7 @@ static uint64_t FromPtr(ObjectHeader *ptr)
 template <bool IS_DYNAMIC = false>
 static Frame *CreateFrame(size_t nregs, Method *method, Frame *prev)
 {
-    uint32_t extSz = EMPTY_EXT_FRAME_DATA_SIZE;
+    uint32_t extSz = CORE_EXT_FRAME_DATA_SIZE;
     void *mem = aligned_alloc(8, Frame::GetAllocSize(Frame::GetActualSize<IS_DYNAMIC>(nregs), extSz));
     return new (Frame::FromExt(mem, extSz)) Frame(mem, method, prev, nregs);
 }

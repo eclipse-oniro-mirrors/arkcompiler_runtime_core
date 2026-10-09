@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -35,43 +35,44 @@ MAKE_ASM_NAME(CompiledCodeToInterpreterBridge):
     CFI_STARTPROC
     CFI_DEF_CFA(sp, 0)
 
-    // Construct bridge frame:
-    // lr
-    // COMPILED_CODE_TO_INTERPRETER_BRIDGE
-    // fp  <- fp
-    // ==  <- sp
+    // Construct standard FP frame + boundary frame (zero redundancy):
+    //   lr           [fp+8]   (standard saved_lr + RETURN_OFFSET=1)
+    //   saved_fp     [fp+0]   (standard saved_fp + FP_OFFSET=0)
+    //   marker       [fp-8]   (METHOD_OFFSET=-1)
+    //   callee regs  [fp-16]  (CALLEES_OFFSET=-2)
+    stp fp, lr, [sp, #-16]!
+    CFI_ADJUST_CFA_OFFSET(16)
+    CFI_REL_OFFSET(fp, 0)
+    CFI_REL_OFFSET(lr, 8)
+    mov fp, sp
+    CFI_DEF_CFA_REGISTER(fp)
 
-    sub sp, sp, #32
-    CFI_ADJUST_CFA_OFFSET(4 * 8)
-    str lr, [sp, #24]
-    CFI_REL_OFFSET(lr, 24)
+    // Push marker below fp
+    sub sp, sp, #16
     mov lr, #COMPILED_CODE_TO_INTERPRETER_BRIDGE
-    stp fp, lr, [sp, #8]
-    CFI_REL_OFFSET(fp, 8)
-    add fp, sp, #8
-    CFI_DEF_CFA(fp, (3 * 8))
+    str lr, [sp, #8]           // [fp-8] = marker (METHOD_OFFSET=-1)
 
     // save all the callee saved registers to the stack
     // stack walker will read them during stack unwinding
     PUSH_CALLEE_REGS sp
-    CFI_REL_OFFSET(x28, -(2 * 8))
-    CFI_REL_OFFSET(x27, -(3 * 8))
-    CFI_REL_OFFSET(x26, -(4 * 8))
-    CFI_REL_OFFSET(x25, -(5 * 8))
-    CFI_REL_OFFSET(x24, -(6 * 8))
-    CFI_REL_OFFSET(x23, -(7 * 8))
-    CFI_REL_OFFSET(x22, -(8 * 8))
-    CFI_REL_OFFSET(x21, -(9 * 8))
-    CFI_REL_OFFSET(x20, -(10 * 8))
-    CFI_REL_OFFSET(x19, -(11 * 8))
-    CFI_REL_OFFSET(d15, -(12 * 8))
-    CFI_REL_OFFSET(d14, -(13 * 8))
-    CFI_REL_OFFSET(d13, -(14 * 8))
-    CFI_REL_OFFSET(d12, -(15 * 8))
-    CFI_REL_OFFSET(d11, -(16 * 8))
-    CFI_REL_OFFSET(d10, -(17 * 8))
-    CFI_REL_OFFSET(d9, -(18 * 8))
-    CFI_REL_OFFSET(d8, -(19 * 8))
+    CFI_REL_OFFSET(x28, -(3 * 8))
+    CFI_REL_OFFSET(x27, -(4 * 8))
+    CFI_REL_OFFSET(x26, -(5 * 8))
+    CFI_REL_OFFSET(x25, -(6 * 8))
+    CFI_REL_OFFSET(x24, -(7 * 8))
+    CFI_REL_OFFSET(x23, -(8 * 8))
+    CFI_REL_OFFSET(x22, -(9 * 8))
+    CFI_REL_OFFSET(x21, -(10 * 8))
+    CFI_REL_OFFSET(x20, -(11 * 8))
+    CFI_REL_OFFSET(x19, -(12 * 8))
+    CFI_REL_OFFSET(d15, -(13 * 8))
+    CFI_REL_OFFSET(d14, -(14 * 8))
+    CFI_REL_OFFSET(d13, -(15 * 8))
+    CFI_REL_OFFSET(d12, -(16 * 8))
+    CFI_REL_OFFSET(d11, -(17 * 8))
+    CFI_REL_OFFSET(d10, -(18 * 8))
+    CFI_REL_OFFSET(d9, -(19 * 8))
+    CFI_REL_OFFSET(d8, -(20 * 8))
 
     // Before we call DecrementHotnessCounter we should set pointer to C2I frame in the TLS,
     // because compilation may fall into safepoint, so we need to make caller's callee registers
@@ -87,28 +88,28 @@ MAKE_ASM_NAME(CompiledCodeToInterpreterBridge):
     cbz x0, .Lnot_compiled
 
     // Compilation finished, so recover caller's frame in the TLS.
-    ldr lr, [fp]
+    ldr lr, [fp]                // [fp+0] = saved_fp (FP_OFFSET=0)
     str lr, [THREAD_REG, #MANAGED_THREAD_FRAME_OFFSET]
 
     POP_ARGS_VREGS
     POP_CALLER_REGS
 
-    sub sp, fp, #8
-    ldr fp, [sp, #8]
+    // Release marker slot and standard FP frame
+    mov sp, fp
     CFI_REMEMBER_STATE
-    CFI_RESTORE(fp)
-    CFI_DEF_CFA(sp, (4 * 8))
+    CFI_DEF_CFA(sp, (2 * 8))
 
-    ldr lr, [sp, #24]
+    // Restore standard FP frame
+    ldp fp, lr, [sp], #16
+    CFI_RESTORE(fp)
     CFI_RESTORE(lr)
-    add sp, sp, #32
-    CFI_ADJUST_CFA_OFFSET(-(4 * 8))
+    CFI_DEF_CFA(sp, 0)
 
     // invoke the method
     ldr x16, [x0, #METHOD_COMPILED_ENTRY_POINT_OFFSET]
     br  x16
     CFI_RESTORE_STATE
-    CFI_DEF_CFA(fp, (3 * 8))
+    CFI_DEF_CFA_REGISTER(fp)
 
 .Lnot_compiled:
 
@@ -151,7 +152,7 @@ MAKE_ASM_NAME(CompiledCodeToInterpreterBridge):
     add x2, x2, x9, lsl 3
     add x3, sp, #8 // skip Method*
     add x4, sp, #64
-    add x5, fp, #24
+    add x5, fp, #16               // stack args: [fp+8]=lr, [fp+16]=caller's stack args
     mov w6, #7 // 7 because we skip Method* arg
     mov w7, #8
 
@@ -251,7 +252,7 @@ MAKE_ASM_NAME(CompiledCodeToInterpreterBridge):
 
 4:
     // Restore callee registers, since GC may change its values while moving objects.
-    sub x16, fp, #8
+    sub x16, fp, #(2 * 8)        // x16 = fp - 16 (CALLEES_OFFSET)
     ldp x27, x28, [x16, #-16]!
     CFI_RESTORE(x28)
     CFI_RESTORE(x27)
@@ -268,13 +269,12 @@ MAKE_ASM_NAME(CompiledCodeToInterpreterBridge):
     CFI_RESTORE(x20)
     CFI_RESTORE(x19)
 
-    sub sp, fp, #8
-    ldr fp, [sp, #8]
+    // Release marker slot and standard FP frame
+    mov sp, fp
+    CFI_DEF_CFA(sp, (2 * 8))
+    ldp fp, lr, [sp], #16
     CFI_RESTORE(fp)
-    CFI_DEF_CFA(sp, (4 * 8))
-    ldr lr, [sp, #24]
     CFI_RESTORE(lr)
-    add sp, sp, #32
-    CFI_ADJUST_CFA_OFFSET(-(4 * 8))
+    CFI_DEF_CFA(sp, 0)
     ret
     CFI_ENDPROC
