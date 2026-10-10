@@ -18,5 +18,6 @@
 // external-module placeholder with the same name as a later carrier),
 // versioned is not requested here (used for fresh with-version imports).
 import '@normalized:N&&&modules/greet&';
+import { versionedFunc } from '@normalized:N&&&modules/versioned&';
 
 print('entry evaluated');

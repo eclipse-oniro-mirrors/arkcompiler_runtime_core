@@ -30,6 +30,11 @@
  *     module must reuse its existing request (no new request created)
  *   - FreshImportWithVersionSuffix: importing via an OHMurl carrier with a
  *     version suffix (&1.0.0) must write the full OHMurl verbatim
+ *   - NamedOhmurlImportResolvesToEntity: a NAMED source-level OHMurl import
+ *     (import {x} from '@normalized:...') must resolve its import descriptor
+ *     to the abc-internal entity (not an external placeholder) - covers the
+ *     ResolveUnfoundModule path where a mixed md/descriptor state previously
+ *     broke an invariant assertion
  */
 
 #include <gtest/gtest.h>
@@ -154,6 +159,41 @@ TEST_F(LibAbcKitJSModifyApiModulesOhmurlTest, FreshImportWithVersionSuffix)
     auto *imported = g_implI->importDescriptorGetImportedModule(coreImport);
     ASSERT_NE(imported, nullptr);
     ASSERT_EQ(g_implI->moduleGetTarget(imported), ABCKIT_TARGET_JS);
+    ASSERT_FALSE(g_implI->moduleIsExternal(imported));
+
+    g_impl->closeFile(file);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+}
+
+// Test: test-kind=api, api=JsInspectApiImpl::importDescriptorGetImportedModule, abc-kind=JS, category=positive,
+// extension=c
+// A NAMED source-level OHMurl import must resolve its descriptor to the abc-internal entity, not an external
+// placeholder. This covers the ResolveUnfoundModule path: pre-fix, a mixed state (md holds the entity via OHMurl
+// backfill while the descriptor path created a placeholder) broke an invariant assertion.
+TEST_F(LibAbcKitJSModifyApiModulesOhmurlTest, NamedOhmurlImportResolvesToEntity)
+{
+    AbckitFile *file = nullptr;
+    helpers::AssertOpenAbc(INPUT_PATH, &file);
+
+    auto *entry = FindModuleByName(file, "&JSmodules_ohmurl&");
+    ASSERT_NE(entry, nullptr);
+
+    // The named import of versionedFunc from the OHMurl must resolve to the entity
+    AbckitCoreImportDescriptor *found = nullptr;
+    g_implI->moduleEnumerateImports(entry, &found, [](AbckitCoreImportDescriptor *id, void *data) {
+        auto g = AbckitGetInspectApiImpl(ABCKIT_VERSION_RELEASE_1_0_0);
+        auto *name = g->abckitStringToString(g->importDescriptorGetName(id));
+        if (std::strcmp(name, "versionedFunc") == 0) {
+            *reinterpret_cast<AbckitCoreImportDescriptor **>(data) = id;
+            return false;
+        }
+        return true;
+    });
+    ASSERT_NE(found, nullptr);
+
+    auto *imported = g_implI->importDescriptorGetImportedModule(found);
+    ASSERT_NE(imported, nullptr);
+    ASSERT_STREQ(g_implI->abckitStringToString(g_implI->moduleGetName(imported)), "&modules/versioned&");
     ASSERT_FALSE(g_implI->moduleIsExternal(imported));
 
     g_impl->closeFile(file);
