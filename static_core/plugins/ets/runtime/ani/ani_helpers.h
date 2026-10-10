@@ -16,7 +16,11 @@
 #ifndef PANDA_PLUGINS_ETS_RUNTIME_ANI_ANI_HELPERS_H
 #define PANDA_PLUGINS_ETS_RUNTIME_ANI_ANI_HELPERS_H
 
+#include "plugins/ets/runtime/ani/ani.h"
+
 namespace ark::ets::ani {
+inline constexpr ani_size DEFAULT_LOCAL_FRAME_CAPACITY = 4096;
+
 const void *GetAniEntryPoint(bool verifyMode);
 const void *GetAniCriticalEntryPoint();
 }  // namespace ark::ets::ani
