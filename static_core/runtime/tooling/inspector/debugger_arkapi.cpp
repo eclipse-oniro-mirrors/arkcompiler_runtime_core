@@ -156,14 +156,14 @@ bool ArkDebugNativeAPI::StopDebugger([[maybe_unused]] void *vm)
         LOG(ERROR, DEBUGGER) << "ArkDebugNativeAPI::StopDebugger, debugger library is not loaded";
         return false;
     }
-    using StopDebug = void (*)(void *);
+    using StopDebug = void (*)(void *, bool);
     auto sym = reinterpret_cast<StopDebug>(ResolveSymbol(gHybridDebuggerHandle_, "StopDebug"));
     if (sym == nullptr) {
         LOG(ERROR, DEBUGGER) << "g_initializeInspectorForStatic load error" << dlerror();
         return false;
     }
 
-    sym(vm);
+    sym(vm, true);
     ark::Runtime::GetCurrent()->SetDebugMode(false);
     ark::Runtime::GetCurrent()->UnloadDebugger();
     ark::Runtime::ResetDebuggerLaunchOption(Runtime::GetOptions());
@@ -177,6 +177,7 @@ void ArkDebugNativeAPI::DebuggerLaunchSetup()
         return;
     }
     Runtime::GetCurrent()->StartDebugSession();
+
     Runtime::GetCurrent()->GetPandaVM()->LoadDebuggerAgent();
     Runtime::GetCurrent()->GetNotificationManager()->ThreadStartEvent(ManagedThread::GetCurrent());
 }
@@ -266,12 +267,8 @@ bool ArkDebugNativeAPI::StopProfiling()
     }
 
     Runtime::GetCurrent()->GetTools().StopSamplingProfiler();
+    // An empty session yields a well-formed profile, written to the file as valid JSON.
     auto profileInfoPtr = g_profileInfoBuffer->GetAllThreadsProfileInfos();
-    if (!profileInfoPtr) {
-        g_profileInfoBuffer.reset();
-        LOG(WARNING, PROFILER) << "The CPU profiler did not collect any data.";
-        return true;
-    }
     g_profileInfoBuffer.reset();
     tooling::inspector::Profile profile(std::move(profileInfoPtr));
     JsonObjectBuilder builder;

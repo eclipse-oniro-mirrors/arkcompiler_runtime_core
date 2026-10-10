@@ -104,6 +104,7 @@ Sampler *Sampler::Create()
      * If we collect them before add listeners then new thread can be created (or new module can be loaded)
      * so we will lose this thread (or module)
      */
+    instance_->CreatePtLangExt();
     instance_->CollectThreads();
     instance_->CollectModules();
 
@@ -112,16 +113,29 @@ Sampler *Sampler::Create()
 
 void Sampler::CreatePtLangExt()
 {
-    auto thread = ManagedThread::GetCurrent();
-    if (thread == nullptr) {
+    if (ptLangExt_ != nullptr) {
         return;
     }
-    ptLangExt_ = thread->GetLanguageContext().CreatePtLangExt();
+    auto thread = ManagedThread::GetCurrent();
+    if (thread != nullptr) {
+        ptLangExt_ = thread->GetLanguageContext().CreatePtLangExt();
+    } else {
+        ASSERT(runtime_ != nullptr);
+        auto *vm = runtime_->GetPandaVM();
+        ASSERT(vm != nullptr);
+        ptLangExt_ = vm->GetLanguageContext().CreatePtLangExt();
+    }
 }
 
 void Sampler::CheckHybridStackIsSupported()
 {
-    ASSERT(ptLangExt_ != nullptr);
+    if (ptLangExt_ == nullptr) {
+        // CreatePtLangExt early-returns on a non-managed thread; degrade to static-only
+        // stacks instead of dereferencing the null extension.
+        LOG(WARNING, PROFILER) << "PtLangExt was not created, hybrid stack collection is disabled";
+        isHybridStackEnable_ = false;
+        return;
+    }
     isHybridStackEnable_ = ptLangExt_->IsSupportHybridStack();
 }
 
@@ -329,8 +343,6 @@ bool Sampler::Stop()
     listenerThread_.reset();
     samplerTid_ = 0;
     listenerTid_ = 0;
-
-    ptLangExt_.reset();
 
     LOG(INFO, PROFILER) << "Sampling profiler stopped";
     LogProfilerStats();

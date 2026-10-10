@@ -143,7 +143,49 @@ TEST_F(ArkDebugNativeAPITest, StartAndStopProfilingWithOutExePanda)
     EXPECT_TRUE(result);
     std::ifstream file(OUTPUT);
     EXPECT_TRUE(file.is_open());
-    EXPECT_TRUE(file.peek() == std::ifstream::traits_type::eof());
+    // No managed code ran, so the profile is empty but must still be well-formed JSON with the
+    // root/program/idle skeleton instead of an empty file.
+    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    EXPECT_NE(content.find("(root)"), std::string::npos);
+    EXPECT_NE(content.find("(program)"), std::string::npos);
+    EXPECT_NE(content.find("(idle)"), std::string::npos);
+}
+
+TEST_F(ArkDebugNativeAPITest, EmptySamplesRecordReturnsWellFormedProfile)
+{
+    constexpr int EXPECTED_NODE_COUNT = 3;  // (root) + (program) + (idle)
+    constexpr uint64_t THREAD_START_TIME = 1000U;
+    constexpr uint64_t THREAD_STOP_TIME = 2000U;
+    constexpr uint64_t MAIN_TID = 42U;
+    constexpr uint32_t MAIN_OS_TID = 4242U;
+    // An idle session (no samples at all) must produce a valid empty profile so that CDP
+    // Profiler.stop consumers always receive a parseable result, attributed to the main
+    // thread (the IDE expects the main thread's ids instead of 0/0) and spanning the real
+    // recording duration (endTime = recorded stop time).
+    tooling::sampler::SamplesRecord record;
+    record.SetThreadStartTime(THREAD_START_TIME);
+    record.SetThreadStopTime(THREAD_STOP_TIME);
+    record.SetMainThreadIds(MAIN_TID, MAIN_OS_TID);
+    auto profiles = record.GetAllThreadsProfileInfos();
+    ASSERT_NE(profiles, nullptr);
+    ASSERT_EQ(profiles->size(), 1U);
+    auto &p = (*profiles)[0];
+    ASSERT_NE(p, nullptr);
+    EXPECT_EQ(p->nodeCount, EXPECTED_NODE_COUNT);
+    EXPECT_TRUE(p->samples.empty());
+    EXPECT_TRUE(p->timeDeltas.empty());
+    EXPECT_EQ(p->startTime, THREAD_START_TIME);
+    EXPECT_EQ(p->stopTime, THREAD_STOP_TIME);
+    EXPECT_EQ(p->tid, MAIN_TID);
+    EXPECT_EQ(p->osTid, MAIN_OS_TID);
+
+    // Without a recorded stop time the profile falls back to the aggregation moment (>= start).
+    tooling::sampler::SamplesRecord noStopTimeRecord;
+    noStopTimeRecord.SetThreadStartTime(THREAD_START_TIME);
+    auto fallbackProfiles = noStopTimeRecord.GetAllThreadsProfileInfos();
+    ASSERT_EQ(fallbackProfiles->size(), 1U);
+    EXPECT_EQ((*fallbackProfiles)[0]->startTime, THREAD_START_TIME);
+    EXPECT_GE((*fallbackProfiles)[0]->stopTime, THREAD_START_TIME);
 }
 
 TEST_F(ArkDebugNativeAPITest, StopProfilingDoesNotKillSessionMode)
