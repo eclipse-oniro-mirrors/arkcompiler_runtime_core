@@ -89,6 +89,12 @@ std::string_view PackageSuffixOf(const PandaString &path)
     return {};
 }
 
+#ifndef PANDA_TARGET_OHOS
+/*
+ * The two helpers below serve the plain-abc (host-test) patch shape only: on OHOS a bare abc
+ * patch is refused in `OpenPatchPandaFile`, so they would be dead code there and trip
+ * -Wunused-function.
+ */
 /// @returns the whole content of @a path, or nothing if it cannot be read.
 std::optional<PandaVector<uint8_t>> LoadWholeFile(const PandaString &path)
 {
@@ -136,6 +142,7 @@ std::unique_ptr<const panda_file::File> OpenAbcAs(const PandaString &path, std::
     ark::os::mem::ConstBytePtr ptr(reinterpret_cast<std::byte *>(mem), sizeToMmap, ark::os::mem::MmapDeleter);
     return panda_file::File::OpenFromMemory(std::move(ptr), filename);
 }
+#endif
 
 /// @returns `<package path without suffix>/ets/modules_static.abc`, or @a path itself if it is a plain abc.
 PandaString DeriveLoadedAbcPath(const PandaString &path)
@@ -444,6 +451,16 @@ const panda_file::File *EtsHotreload::OpenPatchPandaFile(const PandaString &patc
 
     const auto suffix = PackageSuffixOf(patchPath);
     if (suffix.empty()) {
+#ifdef PANDA_TARGET_OHOS
+        /*
+         * On OHOS a plain `.abc` patch is refused, mirroring the loader: `AbcFile.loadAbcFile`
+         * compiles its direct-abc branch out under PANDA_TARGET_OHOS and accepts packages only
+         * (arkruntime_AbcFile.cpp). The bare-abc shape is the host-test one.
+         */
+        LOG(ERROR, HOTRELOAD) << "Plain abc patches are not supported on OHOS, only package patches: '" << patchPath
+                              << "'";
+        return nullptr;
+#else
         // Plain `.abc` file: the host-test shape. Read it and re-open under the target's name.
         auto pf = OpenAbcAs(patchPath, pfName);
         if (pf == nullptr) {
@@ -451,6 +468,7 @@ const panda_file::File *EtsHotreload::OpenPatchPandaFile(const PandaString &patc
             return nullptr;
         }
         return OwnPandaFile(std::move(pf));
+#endif
     }
 
     const std::string packagePath(patchPath.data(), patchPath.size());

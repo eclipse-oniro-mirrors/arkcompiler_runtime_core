@@ -44,6 +44,14 @@ enum class Error {
     AOT_LOADED,              ///< AOT files are loaded: compiled code may embed the old classes
     CLASSES_ALREADY_LOADED,  ///< the receiver's context already has loaded classes (not startup)
     INTERNAL,                ///< unexpected internal failure
+    /*
+     * Authorization gate of the ETS entry (`EtsAbcRuntimeLinkerColdReload`), parity with the hot
+     * entry's `hotreload::Error::CALLER_NOT_BOOT`: ANI by-name invocation does not check access
+     * modifiers, so the private entry is reachable from an arbitrary native bridge with a
+     * managed frame below it. Only boot-context managed callers and pure native entries (the
+     * framework's shape) may prepend a patch.
+     */
+    CALLER_NOT_BOOT,
 };
 
 /** @returns the human-readable name of @a err, for logging only. */

@@ -63,12 +63,23 @@ const panda_file::File *OpenPatchFile(const PandaString &patchPath, bool *noAbcE
     *noAbcEntry = false;
     const auto suffix = PackageSuffixOf(patchPath);
     if (suffix.empty()) {
+#ifdef PANDA_TARGET_OHOS
+        /*
+         * On OHOS a plain `.abc` patch is refused, mirroring the loader: `AbcFile.loadAbcFile`
+         * compiles its direct-abc branch out under PANDA_TARGET_OHOS and accepts packages only
+         * (arkruntime_AbcFile.cpp). The bare-abc shape is the host-test one.
+         */
+        LOG(ERROR, COLDRELOAD) << "Plain abc patches are not supported on OHOS, only package patches: '" << patchPath
+                               << "'";
+        return nullptr;
+#else
         // Plain `.abc` patch: opened through the shared libarkfile entry, like any other abc.
         auto pf = panda_file::OpenPandaFile(patchPath.c_str());
         if (pf == nullptr) {
             return nullptr;
         }
         return pf.release();
+#endif
     }
 
     const std::string packagePath(patchPath.data(), patchPath.size());

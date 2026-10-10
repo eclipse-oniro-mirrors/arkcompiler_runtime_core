@@ -102,7 +102,7 @@ enum class Error {
     /*
      * Authorization gate of the ETS entry (`EtsAbcRuntimeLinkerHotReload`): the entry was
      * reached from managed code whose class does not belong to the boot context -- ANI by-name
-     * invocation does not check access modifiers, so a protected entry is still reachable from
+     * invocation does not check access modifiers, so a private entry is still reachable from
      * an arbitrary native bridge; only boot-context managed callers and pure native entries
      * (the framework's shape) may run the transaction. The core machinery stays unguarded for
      * other language frontends.
