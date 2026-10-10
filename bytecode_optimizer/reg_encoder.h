@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2022 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -37,10 +37,9 @@
  *
  * The size of the frame is fixed (see register allocator for details).
  *
- * Locals and temps are allocated densely: if there are more than 0 locals
- * (or temps) then all registers go strictly in order without "holes".
- * Space for arguments, however, can contain "holes" (each "hole" corresponds
- * to an unused argument).
+ * Locals can contain holes after recoloring range inputs. Their span extends
+ * through the highest allocated local register. Temps are allocated densely.
+ * Space for arguments can also contain holes for unused arguments.
  *
  * For locals and temps, it is not guaranteed that their number equals to the
  * number of registers used in the unoptimized bytecode. Total number of arguments

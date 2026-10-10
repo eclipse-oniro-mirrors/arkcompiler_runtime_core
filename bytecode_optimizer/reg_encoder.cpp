@@ -216,6 +216,14 @@ bool RegEncoder::RenumberArgRegs()
         }
     }
 
+    // Recoloring range inputs can leave holes in locals. Keep the entire occupied
+    // span before placing range temps and arguments, or they may overlap live locals.
+    for (compiler::Register r = num_locals; r < num_non_args - num_temps; ++r) {
+        if (usage_mask->at(r)) {
+            num_locals = r + 1;
+        }
+    }
+
     if (num_locals + num_temps > num_non_args - num_max_range_input_) {
         LOG(DEBUG, BYTECODE_OPTIMIZER) << "RegEncoder: The free regs for range call are not enough";
         return false;
