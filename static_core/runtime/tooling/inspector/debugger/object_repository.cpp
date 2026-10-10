@@ -19,6 +19,41 @@
 #include "runtime/handle_scope-inl.h"
 
 namespace ark::tooling::inspector {
+
+namespace {
+// Converts a primitive TypedValue to its string representation for use as
+// a RemoteObject description (e.g. enum underlying values).
+std::string TypedValueToString(const TypedValue &value)
+{
+    switch (value.GetType()) {
+        case panda_file::Type::TypeId::U1:
+            return value.GetAsU1() ? "true" : "false";
+        case panda_file::Type::TypeId::I8:
+            return std::to_string(value.GetAsI8());
+        case panda_file::Type::TypeId::U8:
+            return std::to_string(value.GetAsU8());
+        case panda_file::Type::TypeId::I16:
+            return std::to_string(value.GetAsI16());
+        case panda_file::Type::TypeId::U16:
+            return std::to_string(value.GetAsU16());
+        case panda_file::Type::TypeId::I32:
+            return std::to_string(value.GetAsI32());
+        case panda_file::Type::TypeId::U32:
+            return std::to_string(value.GetAsU32());
+        case panda_file::Type::TypeId::F32:
+            return std::to_string(value.GetAsF32());
+        case panda_file::Type::TypeId::F64:
+            return std::to_string(value.GetAsF64());
+        case panda_file::Type::TypeId::I64:
+            return std::to_string(value.GetAsI64());
+        case panda_file::Type::TypeId::U64:
+            return std::to_string(value.GetAsU64());
+        default:
+            UNREACHABLE();
+    }
+}
+}  // namespace
+
 ObjectRepository::ObjectRepository() : extension_(nullptr), scope_(ManagedThread::GetCurrent())
 {
     auto *thread = ManagedThread::GetCurrent();
@@ -167,6 +202,13 @@ RemoteObject ObjectRepository::CreateObject(ObjectHeader *object)
         return RemoteObject::String(*str);
     }
 
+    // Language-specific null/undefined singletons (e.g. ETS NullValue) should
+    // be serialized as CDP null rather than a generic object.
+    if (extension_->IsNullOrUndefined(object)) {
+        return RemoteObject::Null();
+    }
+    auto className = extension_->GetClassName(object);
+
     RemoteObjectId id;
 
     // SUPPRESS_CSA_NEXTLINE(alpha.core.WasteObjHeader)
@@ -183,11 +225,20 @@ RemoteObject ObjectRepository::CreateObject(ObjectHeader *object)
     // SUPPRESS_CSA_NEXTLINE(alpha.core.WasteObjHeader)
     if (auto arrayLen = extension_->GetLengthIfArray(object)) {
         // SUPPRESS_CSA_NEXTLINE(alpha.core.WasteObjHeader)
-        return RemoteObject::Array(extension_->GetClassName(object), *arrayLen, id);
+        return RemoteObject::Array(className, *arrayLen, id);
+    }
+
+    // ETS enum objects: set description to the underlying primitive value
+    // (e.g. "0" for Color.RED with value 0) so the debugger displays the
+    // enum's value rather than just the class name.
+    std::optional<std::string> description;
+    if (auto enumVal = extension_->GetEnumValue(object)) {
+        description = TypedValueToString(*enumVal);
+        LOG(INFO, DEBUGGER) << "CreateObject: enum desc='" << *description << "' class=" << className;
     }
 
     // SUPPRESS_CSA_NEXTLINE(alpha.core.WasteObjHeader)
-    return RemoteObject::Object(extension_->GetClassName(object), id);
+    return RemoteObject::Object(className, id, std::move(description));
 }
 
 std::vector<PropertyDescriptor> ObjectRepository::GetProperties(RemoteObjectId id)
@@ -225,4 +276,42 @@ std::vector<PropertyDescriptor> ObjectRepository::GetProperties(RemoteObjectId i
 
     return properties;
 }
+
+static std::string ExtractMessageFromObject(ark::tooling::PtLangExt *extension, ObjectHeader *object)
+{
+    std::string messageText;
+    auto messageHandler = [&messageText, extension](auto &name, auto value, auto /*isFinal*/, auto /*isAccessor*/) {
+        if (name != "message" && name != "message_") {
+            return;
+        }
+        if (!messageText.empty() || !value.IsReference()) {
+            return;
+        }
+        auto *obj = value.GetAsReference();
+        if (obj == nullptr) {
+            return;
+        }
+        auto str = extension->GetAsString(obj);
+        if (str.has_value()) {
+            messageText = std::move(*str);
+        }
+    };
+    extension->EnumerateProperties(object, messageHandler);
+    return messageText;
+}
+
+std::string ObjectRepository::GetObjectDescription(ObjectHeader *object)
+{
+    ASSERT(ManagedThread::GetCurrent()->GetMutatorLock()->HasLock());
+    if (object == nullptr) {
+        return "";
+    }
+    auto className = extension_->GetClassName(object);
+    auto messageText = ExtractMessageFromObject(extension_.get(), object);
+    if (messageText.empty()) {
+        return className;
+    }
+    return className + ": " + messageText;
+}
+
 }  // namespace ark::tooling::inspector

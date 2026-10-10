@@ -10140,6 +10140,430 @@ intrinsics:
         - std.core.Object
     impl: ark::ets::intrinsics::DebuggerAPISetLocalObject
 
+  - name: DebuggerAPIGetThis
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: getThis
+    static: true
+    signature:
+      ret: std.core.Object
+      args:
+        - i32
+        - i32
+    impl: ark::ets::intrinsics::DebuggerAPIGetThis
+
+  - name: DebuggerAPIGet
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: get
+    static: true
+    signature:
+      ret: std.core.Object
+      args:
+        - i32
+        - i32
+        - std.core.String
+    impl: ark::ets::intrinsics::DebuggerAPIGet
+
+  - name: DebuggerAPIGetOptional
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: getOptional
+    static: true
+    signature:
+      ret: std.core.Object
+      args:
+        - i32
+        - i32
+        - std.core.String
+    impl: ark::ets::intrinsics::DebuggerAPIGetOptional
+
+  - name: DebuggerAPISet
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: set
+    static: true
+    signature:
+      ret: void
+      args:
+        - i32
+        - i32
+        - std.core.String
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPISet
+
+  - name: DebuggerAPIDefineVariable
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: defineVariable
+    static: true
+    signature:
+      ret: void
+      args:
+        - i32
+        - i32
+        - std.core.String
+        - std.core.Object
+        - u1
+    impl: ark::ets::intrinsics::DebuggerAPIDefineVariable
+
+  - name: DebuggerAPIGetLocalValue
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: getLocalValue
+    static: true
+    signature:
+      ret: std.core.Object
+      args:
+        - i32
+        - i32
+        - i64
+        - std.core.String
+    impl: ark::ets::intrinsics::DebuggerAPIGetLocalValue
+
+  - name: DebuggerAPISetLocalValue
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: setLocalValue
+    static: true
+    signature:
+      ret: void
+      args:
+        - i32
+        - i32
+        - i64
+        - std.core.String
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPISetLocalValue
+
+  - name: DebuggerAPITypeofValue
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: typeofValue
+    static: true
+    signature:
+      ret: std.core.String
+      args:
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPITypeofValue
+
+  - name: DebuggerAPISetElement
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: setElement
+    static: true
+    signature:
+      ret: void
+      args:
+        - i32
+        - i32
+        - std.core.String
+        - i32
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPISetElement
+
+  - name: DebuggerAPIPackRestArgs
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: packRestArgs
+    static: true
+    signature:
+      ret: std.core.Object
+      args:
+        - std.core.Object[]
+        - i32
+        - u1
+    impl: ark::ets::intrinsics::DebuggerAPIPackRestArgs
+
+  - name: DebuggerAPIFindModuleFunctions
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: findModuleFunctions
+    static: true
+    signature:
+      ret: std.core.reflect.StaticMethod[]
+      args: [ i32, i32, std.core.String ]
+    impl: ark::ets::intrinsics::DebuggerAPIFindModuleFunctions
+
+  - name: DebuggerAPICastAs
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: castAs
+    static: true
+    signature:
+      ret: std.core.Object
+      args:
+        - i32
+        - i32
+        - std.core.Object
+        - std.core.String
+    impl: ark::ets::intrinsics::DebuggerAPICastAs
+
+  - name: DebuggerAPIResolveClass
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: resolveClass
+    static: true
+    signature:
+      ret: std.core.Class
+      args:
+        - i32
+        - i32
+        - std.core.String
+    impl: ark::ets::intrinsics::DebuggerAPIResolveClass
+
+  - name: DebuggerAPIInstanceofOp
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: instanceofOp
+    static: true
+    signature:
+      ret: u1
+      args:
+        - i32
+        - i32
+        - std.core.Object
+        - std.core.String
+    impl: ark::ets::intrinsics::DebuggerAPIInstanceofOp
+
+  - name: DebuggerAPIGetGlobalVariable
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: getGlobalVariable
+    static: true
+    signature:
+      ret: std.core.Object
+      args:
+        - std.core.String
+    impl: ark::ets::intrinsics::DebuggerAPIGetGlobalVariable
+
+  - name: DebuggerAPISetGlobalVariable
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: setGlobalVariable
+    static: true
+    signature:
+      ret: void
+      args:
+        - std.core.String
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPISetGlobalVariable
+
+  - name: DebuggerAPICreateStringInstance
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: createStringInstance
+    static: true
+    signature:
+      ret: std.core.String
+      args:
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPICreateStringInstance
+
+  - name: DebuggerAPIGetEnumValue
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: getEnumValue
+    static: true
+    signature:
+      ret: std.core.Object
+      args:
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPIGetEnumValue
+
+  - name: DebuggerAPIToDouble
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: toDouble
+    static: true
+    signature:
+      ret: f64
+      args:
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPIToDouble
+
+  - name: DebuggerAPIToFloat
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: toFloat
+    static: true
+    signature:
+      ret: f32
+      args:
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPIToFloat
+
+  - name: DebuggerAPIToLong
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: toLong
+    static: true
+    signature:
+      ret: i64
+      args:
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPIToLong
+
+  - name: DebuggerAPIToInt
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: toInt
+    static: true
+    signature:
+      ret: i32
+      args:
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPIToInt
+
+  - name: DebuggerAPIToByte
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: toByte
+    static: true
+    signature:
+      ret: i8
+      args:
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPIToByte
+
+  - name: DebuggerAPIToShort
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: toShort
+    static: true
+    signature:
+      ret: i16
+      args:
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPIToShort
+
+  - name: DebuggerAPIToChar
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: toChar
+    static: true
+    signature:
+      ret: u16
+      args:
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPIToChar
+
+  - name: DebuggerAPIToBoolean
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: toBoolean
+    static: true
+    signature:
+      ret: u1
+      args:
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPIToBoolean
+
+  - name: DebuggerAPINumericBinaryOp
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: numericBinaryOp
+    static: true
+    signature:
+      ret: std.core.Object
+      args:
+        - std.core.Object
+        - std.core.Object
+        - i32
+    impl: ark::ets::intrinsics::DebuggerAPINumericBinaryOp
+
+  - name: DebuggerAPINumericUnaryOp
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: numericUnaryOp
+    static: true
+    signature:
+      ret: std.core.Object
+      args:
+        - std.core.Object
+        - i32
+    impl: ark::ets::intrinsics::DebuggerAPINumericUnaryOp
+
+  - name: DebuggerAPIGetMandatoryArgsNum
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: getMandatoryArgsNum
+    static: true
+    signature:
+      ret: i32
+      args:
+        - std.core.reflect.Method
+    impl: ark::ets::intrinsics::DebuggerAPIGetMandatoryArgsNum
+
+  - name: DebuggerAPIHasRestParam
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: hasRestParam
+    static: true
+    signature:
+      ret: u1
+      args:
+        - std.core.reflect.Method
+    impl: ark::ets::intrinsics::DebuggerAPIHasRestParam
+
+  - name: DebuggerAPIIsBuiltinIndexable
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: isBuiltinIndexable
+    static: true
+    signature:
+      ret: i32
+      args:
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPIIsBuiltinIndexable
+
+  - name: DebuggerAPIGetElementBuiltin
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: getElementBuiltin
+    static: true
+    signature:
+      ret: std.core.Object
+      args:
+        - std.core.Object
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPIGetElementBuiltin
+
+  - name: DebuggerAPIGetBuiltinLength
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: getBuiltinLength
+    static: true
+    signature:
+      ret: i32
+      args:
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPIGetBuiltinLength
+
+  - name: DebuggerAPISetElementBuiltin
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: setElementBuiltin
+    static: true
+    signature:
+      ret: void
+      args:
+        - std.core.Object
+        - std.core.Object
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPISetElementBuiltin
+
+  - name: DebuggerAPIToResizableArray
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: toResizableArray
+    static: true
+    signature:
+      ret: std.core.Array
+      args:
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPIToResizableArray
+
 ##############################
 #      std.core.reflect      #
 ##############################

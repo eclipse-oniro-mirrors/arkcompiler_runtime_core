@@ -41,8 +41,8 @@ export class B extends A {
     }
 };
 
-class evalPatchFunction {
-    private static evalPatchFunction() {
+class EvalPatchFunction {
+    private static EvalPatchFunction() {
         let b = new B(10, 123.456);
 
         arktest.assertEQ(b.a, 10);

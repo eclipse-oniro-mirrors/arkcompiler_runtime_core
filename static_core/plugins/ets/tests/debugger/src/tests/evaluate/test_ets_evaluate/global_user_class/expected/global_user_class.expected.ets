@@ -15,10 +15,10 @@
 
 import { globalVariable } from "../global_user_class.base";
 
-class evalPatchFunction {
-    private static evalPatchFunction() {
-        console.log("Current value: " + globalVariable.getNested());
+class EvalPatchFunction {
+    private static EvalPatchFunction() {
+        console.log('Current value: ' + globalVariable.getNested());
         // Result won't be returned due to non-primitive type.
-        globalVariable.s.str += ", world!";
+        globalVariable.s.str += ', world!';
     }
 }

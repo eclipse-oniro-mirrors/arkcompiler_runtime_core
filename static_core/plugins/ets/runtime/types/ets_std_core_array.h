@@ -158,6 +158,8 @@ private:
     friend class test::EtsStdCoreArrayTest;
 };
 
+EtsObject *ConvertNumericBoxToArrayElement(EtsObjectArray *buffer, EtsInt index, EtsObject *value);
+
 }  // namespace ark::ets
 
 #endif  // PANDA_PLUGINS_ETS_RUNTIME_TYPES_ETS_STD_CORE_ARRAY_H

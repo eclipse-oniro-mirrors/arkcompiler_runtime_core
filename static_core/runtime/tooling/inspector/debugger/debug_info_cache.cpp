@@ -347,6 +347,37 @@ std::map<std::string, TypedValue> DebugInfoCache::GetLocals(const PtFrame &frame
     return result;
 }
 
+std::optional<LocalRegInfo> DebugInfoCache::GetLocalRegNumber(const PtFrame &frame, std::string_view name)
+{
+    auto method = frame.GetMethod();
+    auto methodId = method->GetFileId();
+    auto debugInfo = GetDebugInfo(method->GetPandaFile());
+    if (debugInfo == nullptr) {
+        return std::nullopt;
+    }
+
+    auto &parameters = debugInfo->GetParameterInfo(methodId);
+    for (auto i = 0U; i < parameters.size(); i++) {
+        auto &parameter = parameters[i];
+        if (parameter.name == name) {
+            return LocalRegInfo {static_cast<int32_t>(i), frame.GetArgumentKind(i), parameter.signature};
+        }
+    }
+
+    auto &variables = debugInfo->GetLocalVariableTable(methodId);
+    auto frameOffset = frame.GetBytecodeOffset();
+    for (auto &variable : variables) {
+        if (variable.name == name && variable.IsAccessibleAt(frameOffset)) {
+            return LocalRegInfo {variable.regNumber,
+                                 variable.regNumber == -1 ? frame.GetAccumulatorKind()
+                                                          : frame.GetVRegKind(variable.regNumber),
+                                 variable.typeSignature};
+        }
+    }
+
+    return std::nullopt;
+}
+
 std::string DebugInfoCache::GetSourceCode(std::string_view sourceFile)
 {
     {

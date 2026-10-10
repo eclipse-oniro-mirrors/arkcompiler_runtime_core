@@ -15,8 +15,8 @@
 
 import {A, C} from "../abstract_class_0.base"
 
-class evalPatchFunction {
-    private static evalPatchFunction() {
+class EvalPatchFunction {
+    private static EvalPatchFunction() {
         let variable: A = DebuggerAPI.getLocalObject(0) as A;
 
         let state = variable.return_state();

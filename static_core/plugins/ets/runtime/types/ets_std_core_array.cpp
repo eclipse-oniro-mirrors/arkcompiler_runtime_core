@@ -18,9 +18,161 @@
 #include "runtime/include/managed_thread.h"
 #include "plugins/ets/runtime/ets_exceptions.h"
 #include "plugins/ets/runtime/ets_platform_types.h"
+#include "plugins/ets/runtime/types/ets_box_primitive.h"
 #include "plugins/ets/runtime/types/ets_method.h"
 
+#include <optional>
+
 namespace ark::ets {
+
+namespace {
+
+// Unboxes any numeric box to double; returns nullopt for non-numeric values.
+std::optional<double> GetBoxedNumericValueAsDouble(const EtsPlatformTypes *ptypes, EtsObject *obj)
+{
+    auto *cls = obj->GetClass();
+    if (cls == ptypes->coreDouble) {
+        return EtsBoxPrimitive<EtsDouble>::Unbox(obj);
+    }
+    if (cls == ptypes->coreFloat) {
+        return EtsBoxPrimitive<EtsFloat>::Unbox(obj);
+    }
+    if (cls == ptypes->coreLong) {
+        return EtsBoxPrimitive<EtsLong>::Unbox(obj);
+    }
+    if (cls == ptypes->coreInt) {
+        return EtsBoxPrimitive<EtsInt>::Unbox(obj);
+    }
+    if (cls == ptypes->coreShort) {
+        return EtsBoxPrimitive<EtsShort>::Unbox(obj);
+    }
+    if (cls == ptypes->coreByte) {
+        return EtsBoxPrimitive<EtsByte>::Unbox(obj);
+    }
+    if (cls == ptypes->coreChar) {
+        return EtsBoxPrimitive<EtsChar>::Unbox(obj);
+    }
+    return std::nullopt;
+}
+
+bool IsNumericBox(const EtsPlatformTypes *ptypes, EtsObject *obj)
+{
+    if (obj == nullptr) {
+        return false;
+    }
+    // Char is a character type, not a pure numeric — converting Char('X') to
+    // Long(88) changes its semantics (toLocaleString returns "X" vs "88").
+    // Exclude Char from the numeric-box widening heuristic.
+    if (obj->GetClass() == ptypes->coreChar) {
+        return false;
+    }
+    return GetBoxedNumericValueAsDouble(ptypes, obj).has_value();
+}
+
+// Unboxes an integral box (byte/short/char/int/long) to int64; returns nullopt otherwise.
+std::optional<int64_t> GetBoxedIntegralValue(const EtsPlatformTypes *ptypes, EtsObject *obj)
+{
+    auto *cls = obj->GetClass();
+    if (cls == ptypes->coreLong) {
+        return EtsBoxPrimitive<EtsLong>::Unbox(obj);
+    }
+    if (cls == ptypes->coreInt) {
+        return EtsBoxPrimitive<EtsInt>::Unbox(obj);
+    }
+    if (cls == ptypes->coreShort) {
+        return EtsBoxPrimitive<EtsShort>::Unbox(obj);
+    }
+    if (cls == ptypes->coreByte) {
+        return EtsBoxPrimitive<EtsByte>::Unbox(obj);
+    }
+    if (cls == ptypes->coreChar) {
+        return EtsBoxPrimitive<EtsChar>::Unbox(obj);
+    }
+    return std::nullopt;
+}
+
+// Converts a boxed numeric value to the box class matching `targetClass`, following
+// the ETS widening rules (mirrors the debugger's ConvertAndUnboxToVRegValue).
+// Non-numeric values and unsupported (narrowing) conversions are returned unchanged.
+EtsObject *ConvertNumericBoxTo(EtsExecutionContext *executionCtx, const EtsPlatformTypes *ptypes, EtsObject *value,
+                               EtsClass *targetClass)
+{
+    if (value == nullptr || targetClass == nullptr || value->GetClass() == targetClass) {
+        return value;
+    }
+
+    if (targetClass == ptypes->coreDouble) {
+        if (auto v = GetBoxedNumericValueAsDouble(ptypes, value); v.has_value()) {
+            return EtsBoxPrimitive<EtsDouble>::Create(executionCtx, *v)->AsObject();
+        }
+        return value;
+    }
+    if (targetClass == ptypes->coreFloat) {
+        if (auto v = GetBoxedNumericValueAsDouble(ptypes, value); v.has_value()) {
+            return EtsBoxPrimitive<EtsFloat>::Create(executionCtx, static_cast<float>(*v))->AsObject();
+        }
+        return value;
+    }
+    if (targetClass == ptypes->coreLong) {
+        if (auto v = GetBoxedIntegralValue(ptypes, value); v.has_value()) {
+            return EtsBoxPrimitive<EtsLong>::Create(executionCtx, *v)->AsObject();
+        }
+        return value;
+    }
+    if (targetClass == ptypes->coreInt) {
+        // long/float/double -> int is not an implicit (widening) conversion.
+        if (auto *cls = value->GetClass(); cls != ptypes->coreLong) {
+            if (auto v = GetBoxedIntegralValue(ptypes, value); v.has_value()) {
+                return EtsBoxPrimitive<EtsInt>::Create(executionCtx, static_cast<int32_t>(*v))->AsObject();
+            }
+        }
+        return value;
+    }
+    // byte/short/char: only exact matches are handled above; no widening target.
+    return value;
+}
+
+}  // namespace
+
+// Uses existing elements to determine whether the array has a uniform numeric box
+// type, and if so converts the new value to match.  Debugger evaluation writes values
+// whose box type may not match the array's element type (e.g. `arr[i] = 5` with
+// arr: number[] would store an Int box into a double array, failing the read-back
+// checkcast); this mirrors the ETS compile-time widening semantics.
+// The conversion is only applied when ALL non-null elements in the array share the
+// SAME numeric box class.  Mixed-type Object[] arrays ("[new Int(1), new Double(2)]")
+// and non-numeric arrays are left untouched, so that explicit user $set calls
+// (`a.$_set(idx, val)`) on heterogeneous arrays are unaffected.
+EtsObject *ConvertNumericBoxToArrayElement(EtsObjectArray *buffer, [[maybe_unused]] EtsInt index, EtsObject *value)
+{
+    auto length = buffer->GetLength();
+    if (length == 0 || value == nullptr) {
+        return value;
+    }
+    auto *ptypes = PlatformTypes();
+    if (!IsNumericBox(ptypes, value)) {
+        return value;
+    }
+    EtsClass *uniformClass = nullptr;
+    for (size_t i = 0; i < static_cast<size_t>(length); i++) {
+        auto *elem = buffer->Get(i);
+        if (elem == nullptr) {
+            continue;
+        }
+        if (!IsNumericBox(ptypes, elem)) {
+            return value;
+        }
+        if (uniformClass == nullptr) {
+            uniformClass = elem->GetClass();
+        } else if (elem->GetClass() != uniformClass) {
+            return value;
+        }
+    }
+    if (uniformClass == nullptr || uniformClass == value->GetClass()) {
+        return value;
+    }
+    return ConvertNumericBoxTo(EtsExecutionContext::GetCurrent(), ptypes, value, uniformClass);
+}
 
 /* static */
 EtsStdCoreArray *EtsStdCoreArray::Create(EtsExecutionContext *executionCtx, size_t length)
@@ -78,7 +230,8 @@ void EtsStdCoreArray::StdCoreArraySet(EtsInt index, EtsObject *value)
     if (UNLIKELY(IsOutOfBounds(index, GetActualLengthFromStdCoreArrayImpl()))) {
         return;
     }
-    GetDataFromStdCoreArrayImpl()->Set(index, value);
+    auto *buffer = GetDataFromStdCoreArrayImpl();
+    buffer->Set(index, value);
 }
 
 EtsObject *EtsStdCoreArray::StdCoreArrayGetUnsafe(EtsInt index)

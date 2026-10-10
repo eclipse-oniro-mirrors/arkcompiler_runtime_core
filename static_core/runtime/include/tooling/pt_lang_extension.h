@@ -26,6 +26,8 @@
 
 namespace ark {
 class Field;
+class ManagedThread;
+class ClassLinker;
 }  // namespace ark
 
 namespace ark::tooling {
@@ -72,6 +74,33 @@ public:
     virtual std::optional<std::string> GetAsBigIntString([[maybe_unused]] const ObjectHeader *object)
     {
         return {};
+    }
+    virtual std::optional<TypedValue> GetBoxedPrimitiveValue([[maybe_unused]] const ObjectHeader *object)
+    {
+        return {};
+    }
+    // For enum objects: returns the underlying boxed-primitive value (the
+    // `value` field of BaseEnum).  Returns std::nullopt if the object is not
+    // an ETS enum or the value field cannot be read.
+    virtual std::optional<TypedValue> GetEnumValue([[maybe_unused]] const ObjectHeader *object)
+    {
+        return {};
+    }
+    // Called by the debugger before invoking the evaluation entry method.
+    // Language plugins can initialize any classes that the generated
+    // evaluation bytecode depends on (e.g. a debugger helper API class
+    // whose static methods are called from the synthetic runtime_evaluate
+    // function). The default implementation is a no-op.
+    virtual void PrepareEvaluationClasses([[maybe_unused]] ManagedThread *managedThread,
+                                          [[maybe_unused]] ClassLinker *linker)
+    {
+    }
+    // Returns true if the object is the language's null/undefined singleton
+    // (e.g. ETS NullValue). The debugger serializes such objects as CDP null
+    // rather than a generic object. The default implementation returns false.
+    virtual bool IsNullOrUndefined([[maybe_unused]] const ObjectHeader *object)
+    {
+        return false;
     }
 };
 }  // namespace ark::tooling

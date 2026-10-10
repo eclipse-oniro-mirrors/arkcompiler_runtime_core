@@ -15,8 +15,8 @@
 
 import { E } from "../interfaces_2.base"
 
-class evalPatchFunction {
-    private static evalPatchFunction() {
+class EvalPatchFunction {
+    private static EvalPatchFunction() {
         let e = new E();
         arktest.assertEQ(e.a_foo(42) ,42);
         arktest.assertEQ(e.b_foo(12345.54321), 12345.54321);

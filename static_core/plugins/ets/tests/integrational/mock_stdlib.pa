@@ -55,6 +55,29 @@
     ldobj.obj a0, std.core.OutOfMemoryError.cause
     return.obj
 }
+.record std.core.ErrorOptions
+.record std.core.ErrorOptionsImpl {
+    std.core.Object cause
+}
+
+.function void std.core.ErrorOptionsImpl.ctor(std.core.ErrorOptionsImpl a0) <ctor> {
+    lda.null
+    stobj.obj a0, std.core.ErrorOptionsImpl.cause
+    return.void
+}
+
+.record std.core.Error {
+    std.core.String message
+    std.core.Object cause
+}
+
+.function void std.core.Error.ctor(std.core.Error a0, std.core.String a1, std.core.ErrorOptions a2) <ctor> {
+    lda.obj a1
+    stobj.obj a0, std.core.Error.message
+    lda.obj a2
+    stobj.obj a0, std.core.Error.cause
+    return.void
+}
 
 
 ## std.core.ArrayBuffer ##

@@ -40,6 +40,10 @@ public:
     bool IsSupportHybridStack() override;
 
     bool IsWeakReferentField(ObjectHeader *object, const Field &field) override;
+
+    void PrepareEvaluationClasses(ManagedThread *managedThread, ClassLinker *linker) override;
+
+    bool IsNullOrUndefined(const ObjectHeader *object) override;
 };
 }  // namespace ark::ets
 

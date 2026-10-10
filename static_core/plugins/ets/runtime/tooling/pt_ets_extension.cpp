@@ -18,6 +18,12 @@
 #include "plugins/ets/runtime/types/ets_object.h"
 #include "plugins/ets/runtime/types/ets_weak_reference.h"
 
+#include "plugins/ets/runtime/types/ets_class.h"
+#include "runtime/include/class_linker.h"
+#include "runtime/include/managed_thread.h"
+#include "runtime/include/object_header.h"
+#include "runtime/include/runtime.h"
+
 #ifdef PANDA_ETS_INTEROP_JS
 #include "runtime/execution/coroutines/coroutine.h"
 #include "runtime/include/tooling/buffer_serializer.h"
@@ -90,6 +96,32 @@ bool PtEtsExtension::IsSupportHybridStack()
 #else
     return false;
 #endif
+}
+
+bool PtEtsExtension::IsNullOrUndefined(const ObjectHeader *object)
+{
+    auto *runtimeClass = object->ClassAddr<Class>();
+    return EtsClass::FromRuntimeClass(runtimeClass)->IsNullValue();
+}
+
+void PtEtsExtension::PrepareEvaluationClasses(ManagedThread *managedThread, ClassLinker *linker)
+{
+    // The expression AST transformer generates static calls to std.debug.DebuggerAPI
+    // (get/set/defineVariable/wrap/...) from the synthetic runtime_evaluate method.
+    // DebuggerAPI has a static field (sessionStore) that must be initialized before
+    // those calls execute. The synthetic evaluation class is distinct from DebuggerAPI,
+    // so initializing it does not initialize DebuggerAPI. This hook is called by the
+    // core debugger before invoking the evaluation entry method.
+    static constexpr std::string_view DEBUGGER_API_DESCRIPTOR = "Lstd/debug/DebuggerAPI;";
+    auto *extension = linker->GetExtension(panda_file::SourceLang::ETS);
+    if (extension == nullptr) {
+        return;
+    }
+    auto *debuggerApiClass =
+        extension->FindLoadedClass(reinterpret_cast<const uint8_t *>(DEBUGGER_API_DESCRIPTOR.data()));
+    if (debuggerApiClass != nullptr && !debuggerApiClass->IsInitialized()) {
+        linker->InitializeClass(managedThread, debuggerApiClass);
+    }
 }
 
 }  // namespace ark::ets

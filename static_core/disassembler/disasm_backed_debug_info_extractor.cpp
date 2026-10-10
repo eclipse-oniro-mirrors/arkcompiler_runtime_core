@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -56,11 +56,16 @@ const panda_file::LocalVariableTable &DisasmBackedDebugInfoExtractor::GetLocalVa
 const std::vector<panda_file::DebugInfoExtractor::ParamInfo> &DisasmBackedDebugInfoExtractor::GetParameterInfo(
     panda_file::File::EntityId methodId) const
 {
-    if (GetDisassemblySourceName(methodId)) {
-        return GetDisassembly(methodId).parameterInfo;
+    auto &baseParams = DebugInfoExtractor::GetParameterInfo(methodId);
+    if (!baseParams.empty()) {
+        auto hasNames =
+            std::any_of(baseParams.begin(), baseParams.end(), [](const auto &p) { return !p.name.empty(); });
+        if (hasNames) {
+            return baseParams;
+        }
     }
 
-    return DebugInfoExtractor::GetParameterInfo(methodId);
+    return GetDisassembly(methodId).parameterInfo;
 }
 
 const char *DisasmBackedDebugInfoExtractor::GetSourceFile(panda_file::File::EntityId methodId) const
@@ -139,6 +144,11 @@ const DisasmBackedDebugInfoExtractor::Disassembly &DisasmBackedDebugInfoExtracto
         localVariableTable[vregNum + 1].name = vregNum == -1 ? "acc" : "v" + std::to_string(vregNum);
         localVariableTable[vregNum + 1].startOffset = 0;
         localVariableTable[vregNum + 1].endOffset = UINT32_MAX;
+    }
+
+    auto &realLocalVars = DebugInfoExtractor::GetLocalVariableTable(methodId);
+    for (auto &lv : realLocalVars) {
+        localVariableTable.push_back(lv);
     }
 
     return disassemblies_

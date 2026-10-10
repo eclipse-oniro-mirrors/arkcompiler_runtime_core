@@ -169,6 +169,8 @@ public:
 
     Expected<std::unique_ptr<PtFrame>, Error> GetCurrentFrame(PtThread thread) const override;
 
+    Expected<std::unique_ptr<PtFrame>, Error> GetFrameByThread(PtThread thread, uint32_t frameDepth) const override;
+
     std::optional<Error> EnumerateFrames(PtThread thread, std::function<bool(const PtFrame &)> callback) const override;
 
     // RuntimeListener methods

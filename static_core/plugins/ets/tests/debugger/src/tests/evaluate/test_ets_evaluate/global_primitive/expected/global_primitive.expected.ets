@@ -15,9 +15,9 @@
 
 import { globalVariable } from "../global_primitive.base";
 
-class evalPatchFunction {
-    private static evalPatchFunction() {
-        console.log("Current value: " + globalVariable);
+class EvalPatchFunction {
+    private static EvalPatchFunction() {
+        console.log('Current value: ' + globalVariable);
         const evalGeneratedResult = (globalVariable += 1);
         return evalGeneratedResult;
     }

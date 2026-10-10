@@ -15,25 +15,25 @@
 
 import {A, B, C} from "../inheritance_0.base"
 
-class evalPatchFunction {
-    private static evalPatchFunction() {
-        let var_a = new A()   
-        var_a.a_foo();
-        var_a.a_x = 10;
+class EvalPatchFunction {
+    private static EvalPatchFunction() {
+        let varA = new A()
+        varA.a_foo();
+        varA.a_x = 10;
 
-        let var_c = new C()   
-        var_c.a_foo();
-        var_c.a_x = 20;
-        var_c.b_foo();
-        var_c.b_x = 30;
-        var_c.c_foo();
-        var_c.c_x = 40;
+        let varC = new C()
+        varC.a_foo();
+        varC.a_x = 20;
+        varC.b_foo();
+        varC.b_x = 30;
+        varC.c_foo();
+        varC.c_x = 40;
 
-        let var_b = new B()   
-        var_b.a_foo();
-        var_b.a_x = 50;
-        var_b.b_foo();
-        const evalGeneratedResult = (var_b.b_x = 60);
+        let varB = new B()
+        varB.a_foo();
+        varB.a_x = 50;
+        varB.b_foo();
+        const evalGeneratedResult = (varB.b_x = 60);
         return evalGeneratedResult;
     }
 }
