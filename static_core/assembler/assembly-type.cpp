@@ -205,6 +205,24 @@ static std::pair<std::string_view, size_t> FromDescriptorComponent(std::string_v
     return {prim->second, 1};
 }
 
+static size_t GetArrayRank(std::string_view descriptor)
+{
+    size_t rank = 0;
+    while (rank < descriptor.size() && descriptor[rank] == '[') {
+        ++rank;
+    }
+    return rank;
+}
+
+static void AppendUnionComponent(std::string &name, std::string_view componentDesc, size_t rank)
+{
+    name += componentDesc;
+    while (rank-- > 0) {
+        name += "[]";
+    }
+    name += ",";
+}
+
 static std::pair<std::string, size_t> FromDescriptorImplWithDepth(std::string_view descriptor, size_t depth,
                                                                   size_t maxDepth)
 {
@@ -233,10 +251,7 @@ static std::pair<std::string, size_t> FromDescriptorImplWithDepth(std::string_vi
     size_t unionLen = 3;
     descriptor.remove_prefix(Type::UNION_PREFIX_LEN);
     while (!descriptor.empty() && descriptor.front() != '}') {
-        size_t rank = 0;
-        while (rank < descriptor.size() && descriptor[rank] == '[') {
-            ++rank;
-        }
+        size_t rank = GetArrayRank(descriptor);
         unionLen += rank;
         descriptor.remove_prefix(rank);
         if (descriptor.empty()) {
@@ -249,11 +264,7 @@ static std::pair<std::string, size_t> FromDescriptorImplWithDepth(std::string_vi
             return {"", 0};
         }
         unionLen += len;
-        name += componentDesc;
-        while (rank-- > 0) {
-            name += "[]";
-        }
-        name += ",";
+        AppendUnionComponent(name, componentDesc, rank);
         descriptor.remove_prefix(len);
     }
     if (descriptor.empty() || descriptor.front() != '}') {

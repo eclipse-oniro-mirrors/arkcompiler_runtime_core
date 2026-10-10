@@ -108,9 +108,7 @@ ALWAYS_INLINE inline void IsValidByType(EtsExecutionContext *executionCtx, ark::
     if (UNLIKELY(sourceClass == nullptr || targetClass == nullptr)) {
         ThrowEtsException(executionCtx, PlatformTypes(executionCtx)->coreLinkerUnresolvedClassError,
                           "Class not found for field type");
-        return;
-    }
-    if (UNLIKELY(!targetClass->IsAssignableFrom(sourceClass))) {
+    } else if (UNLIKELY(!targetClass->IsAssignableFrom(sourceClass))) {
         auto errorMsg = targetClass->GetName() + " cannot be cast to " + sourceClass->GetName();
         ThrowEtsException(executionCtx, PlatformTypes(executionCtx)->coreClassCastError, errorMsg);
     }

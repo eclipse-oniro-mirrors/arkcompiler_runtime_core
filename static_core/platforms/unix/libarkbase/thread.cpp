@@ -184,6 +184,36 @@ void ThreadSendSignal(NativeHandleType pthreadHandle, int sig)
     LOG_IF(pthread_kill(pthreadHandle, sig) != 0, FATAL, COMMON) << "pthread_kill failed";
 }
 
+#if defined(PANDA_TARGET_OHOS)
+/**
+ *  konstanting:
+ *  main thread's stack can automatically grow up to the RLIMIT_STACK by means of the OS,
+ *  but MUSL does not care about that and returns the current (already mmap-ped) stack size.
+ *  This can lead to complicated errors, so let's adjust the stack size manually.
+ */
+static int AdjustMainThreadStack(void **stackAddr, size_t *stackSize)
+{
+    struct rlimit lim;
+    if (getrlimit(RLIMIT_STACK, &lim) != 0) {
+        return -1;
+    }
+    uintptr_t stackHiAddr = ToUintPtr(*stackAddr) + *stackSize;
+    size_t stackSizeLimit = lim.rlim_cur;
+
+    static constexpr size_t OHOS_DEFAULT_STACK_LIMIT_SIZE = 8_MB;
+    // HWASAN sets stack limit size to unlimited, so we manually set it to default OHOS stack size limit
+    stackSizeLimit =
+        stackSizeLimit == std::numeric_limits<size_t>::max() ? OHOS_DEFAULT_STACK_LIMIT_SIZE : stackSizeLimit;
+
+    // MUSL returns the currently-mmap'd size for the main thread; recompute the
+    // full stack window from RLIMIT_STACK, anchored at the high address pthread reported.
+    uintptr_t stackLoAddr = stackHiAddr - stackSizeLimit;
+    *stackSize = stackSizeLimit;
+    *stackAddr = ToVoidPtr(stackLoAddr);
+    return 0;
+}
+#endif /* defined(PANDA_TARGET_OHOS) */
+
 int ThreadGetStackInfo(NativeHandleType thread, void **stackAddr, size_t *stackSize, size_t *guardSize)
 {
 #ifdef PANDA_USE_FFRT
@@ -220,31 +250,9 @@ int ThreadGetStackInfo(NativeHandleType thread, void **stackAddr, size_t *stackS
         return s;
     }
 #if defined(PANDA_TARGET_OHOS)
-    if (getpid() == gettid()) {
-        /**
-         *  konstanting:
-         *  main thread's stack can automatically grow up to the RLIMIT_STACK by means of the OS,
-         *  but MUSL does not care about that and returns the current (already mmap-ped) stack size.
-         *  This can lead to complicated errors, so let's adjust the stack size manually.
-         */
-        struct rlimit lim;
-        if (getrlimit(RLIMIT_STACK, &lim) != 0) {
-            pthread_attr_destroy(&attr);
-            return -1;
-        }
-        uintptr_t stackHiAddr = ToUintPtr(*stackAddr) + *stackSize;
-        size_t stackSizeLimit = lim.rlim_cur;
-
-        static constexpr size_t OHOS_DEFAULT_STACK_LIMIT_SIZE = 8_MB;
-        // HWASAN sets stack limit size to unlimited, so we manually set it to default OHOS stack size limit
-        stackSizeLimit =
-            stackSizeLimit == std::numeric_limits<size_t>::max() ? OHOS_DEFAULT_STACK_LIMIT_SIZE : stackSizeLimit;
-
-        // MUSL returns the currently-mmap'd size for the main thread; recompute the
-        // full stack window from RLIMIT_STACK, anchored at the high address pthread reported.
-        uintptr_t stackLoAddr = stackHiAddr - stackSizeLimit;
-        *stackSize = stackSizeLimit;
-        *stackAddr = ToVoidPtr(stackLoAddr);
+    if (getpid() == gettid() && AdjustMainThreadStack(stackAddr, stackSize) != 0) {
+        pthread_attr_destroy(&attr);
+        return -1;
     }
 #endif /* defined(PANDA_TARGET_OHOS) */
     pthread_attr_destroy(&attr);
