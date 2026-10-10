@@ -380,7 +380,7 @@ public:
         --stor16Pair_.hotnessCounter;
     }
 
-    inline int16_t GetSaverTryCounter() const
+    inline NO_THREAD_SANITIZE int16_t GetSaverTryCounter() const
     {
         return saverTryCounter_;
     }
