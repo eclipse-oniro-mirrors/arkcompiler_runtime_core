@@ -562,35 +562,58 @@ static bool NeedWrapDefault(const PandaString &moduleName, const std::string_vie
            moduleName.compare(0, OHOS_PLUGIN_PREFIX_SIZE, OHOS_PLUGIN_PREFIX) == 0 && func == "requireNapi";
 }
 
-EtsString *GetCallerABCPath()
+static std::string GetCallerPandaFilePath()
 {
-    constexpr std::string_view STATIC_ABC_SUFFIX = "_static.abc";
-    constexpr std::string_view ABC_SUFFIX = ".abc";
-    constexpr size_t STATIC_ABC_SUFFIX_LEN = STATIC_ABC_SUFFIX.size();
-
     auto execCtx = JobExecutionContext::GetCurrent();
-    std::string abcPath;
     auto stack = StackWalker::Create(execCtx);
     stack.NextFrame();
     if (!stack.HasFrame()) {
-        LOG(ERROR, DEBUGGER) << "caller stack has no frame.";
-        return EtsString::CreateNewEmptyString();
+        return {};
     }
     auto *method = stack.GetMethod();
-    if (LIKELY(method != nullptr)) {
-        if (method->GetPandaFile() == nullptr) {
-            LOG(ERROR, DEBUGGER) << "caller has no abcfile.";
-            return EtsString::CreateNewEmptyString();
-        }
-        abcPath = method->GetPandaFile()->GetFullFileName();
-        size_t pos = abcPath.find(STATIC_ABC_SUFFIX);
-        if (pos != std::string::npos) {
-            abcPath.replace(pos, STATIC_ABC_SUFFIX_LEN, ABC_SUFFIX);
-        }
-        return (EtsString *)EtsString::CreateFromMUtf8(abcPath.c_str());
+    if (method == nullptr || method->GetPandaFile() == nullptr) {
+        return {};
     }
-    LOG(ERROR, DEBUGGER) << "caller stack has no method.";
-    return EtsString::CreateNewEmptyString();
+    return method->GetPandaFile()->GetFullFileName();
+}
+
+static EtsString *BuildCallerABCPath(const std::string &rawPath)
+{
+    if (rawPath.empty()) {
+        LOG(ERROR, DEBUGGER) << "caller stack has no frame or method.";
+        return EtsString::CreateNewEmptyString();
+    }
+    constexpr std::string_view STATIC_ABC_SUFFIX = "_static.abc";
+    constexpr std::string_view ABC_SUFFIX = ".abc";
+    std::string abcPath = rawPath;
+    size_t pos = abcPath.find(STATIC_ABC_SUFFIX);
+    if (pos != std::string::npos) {
+        abcPath.replace(pos, STATIC_ABC_SUFFIX.size(), ABC_SUFFIX);
+    }
+    return (EtsString *)EtsString::CreateFromMUtf8(abcPath.c_str());
+}
+
+static PandaString GetCallerModuleName(const std::string &abcPath)
+{
+    // The caller's abc file lives under the module that owns the map abc, e.g.
+    // /data/storage/el1/bundle/<moduleName>/ets/modules_static.abc
+    // Extract <moduleName> from the directory right after "/bundle/".
+    constexpr std::string_view BUNDLE_PREFIX = "/bundle/";
+    size_t pos = abcPath.find(BUNDLE_PREFIX);
+    if (pos == std::string::npos) {
+        return PandaString("");
+    }
+    size_t start = pos + BUNDLE_PREFIX.size();
+    size_t end = abcPath.find('/', start);
+    if (end == std::string::npos) {
+        end = abcPath.size();
+    }
+    return PandaString(abcPath, start, end - start);
+}
+
+EtsString *GetCallerABCPath()
+{
+    return BuildCallerABCPath(GetCallerPandaFilePath());
 }
 
 JSValue *JSRuntimeLoadModule(EtsString *module, [[maybe_unused]] EtsString *abcFilePath)
@@ -652,18 +675,22 @@ JSValue *JSRuntimeLoadModule(EtsString *module)
     return JSRuntimeLoadModule(module, GetCallerABCPath());
 }
 
-static Class *GetEtsGlobalClass(EtsString *bundleName, InteropCtx *ctx, Method *callerMethod = nullptr)
+static Class *GetEtsGlobalClass(const PandaString &callerModuleName, EtsString *bundleName, InteropCtx *ctx)
 {
+    // Prefer the caller's module name derived from its abc file path; fall back
+    // to the legacy bundleName-based descriptor when the module name is empty
+    // (e.g. test environments where the path contains no "/bundle/" segment).
+    if (!callerModuleName.empty()) {
+        PandaString descriptor = "L" + callerModuleName + "_dependency_ohmurl_map/ETSGLOBAL;";
+        Class *klass = ctx->GetClassLinker()->GetClass(utf::CStringAsMutf8(descriptor.c_str()), true, ctx->LinkerCtx());
+        if (klass != nullptr) {
+            return klass;
+        }
+    }
     PandaString bundleNameStr = bundleName->GetMutf8();
     std::replace(bundleNameStr.begin(), bundleNameStr.end(), '.', '/');
     PandaString descriptor = "L" + bundleNameStr + "_dependency_ohmurl_map/ETSGLOBAL;";
-    ClassLinkerContext *linkerCtx = nullptr;
-    if (callerMethod != nullptr) {
-        linkerCtx = callerMethod->GetClass()->GetLoadContext();
-    } else {
-        linkerCtx = ctx->LinkerCtx();
-    }
-    return ctx->GetClassLinker()->GetClass(utf::CStringAsMutf8(descriptor.c_str()), true, linkerCtx);
+    return ctx->GetClassLinker()->GetClass(utf::CStringAsMutf8(descriptor.c_str()), true, ctx->LinkerCtx());
 }
 
 static EtsString *GetMapValueByKey(ObjectHeader *mapObj, EtsString *key, EtsExecutionContext *executionCtx)
@@ -724,8 +751,10 @@ static std::pair<EtsString *, EtsString *> GetOhmurlAndCallerABCPath(EtsString *
         return {moduleName, nullptr};
     }
 
-    EtsString *abcPath = GetCallerABCPath();
-    Class *klassEtsglobal = GetEtsGlobalClass(bundleName, interopCtx);
+    std::string rawPath = GetCallerPandaFilePath();
+    EtsString *abcPath = BuildCallerABCPath(rawPath);
+    PandaString callerModuleName = GetCallerModuleName(rawPath);
+    Class *klassEtsglobal = GetEtsGlobalClass(callerModuleName, bundleName, interopCtx);
     if (klassEtsglobal == nullptr) {
         INTEROP_LOG(WARNING) << "Failed to get ETS global class, using moduleName for loading.";
         return {moduleName, abcPath};
