@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2023-2025 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2023-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -32,6 +32,11 @@ static void CheckWidthAbcKitIntrinsic([[maybe_unused]] ark::bytecodeopt::RegEnco
 
 namespace ark::bytecodeopt {
 
+static bool IsAnyCallRangeIntrinsic(compiler::Inst *inst)
+{
+    return inst->IsIntrinsic() && compiler::IsCompilerAnyCallRangeIntrinsic(inst->CastToIntrinsic()->GetIntrinsicId());
+}
+
 static bool IsIntrinsicRange(Inst *inst)
 {
     if (inst->GetOpcode() != compiler::Opcode::Intrinsic) {
@@ -39,6 +44,9 @@ static bool IsIntrinsicRange(Inst *inst)
     }
     if (inst->GetBasicBlock()->GetGraph()->IsAbcKit()) {
         return IsAbcKitIntrinsicRange(inst->CastToIntrinsic()->GetIntrinsicId());
+    }
+    if (compiler::IsCompilerAnyCallRangeIntrinsic(inst->CastToIntrinsic()->GetIntrinsicId())) {
+        return true;  // NOLINT(readability-simplify-boolean-expr)
     }
 #if defined(ENABLE_BYTECODE_OPT) && defined(PANDA_WITH_ECMASCRIPT)
     switch (inst->CastToIntrinsic()->GetIntrinsicId()) {
@@ -88,6 +96,11 @@ static compiler::Register CalculateNumNeededRangeTemps(const compiler::Graph *gr
             if (inst->GetOpcode() == compiler::Opcode::InitObject) {
                 ASSERT(nargs > 0U);
                 nargs -= 1;  // exclude LoadAndInitClass
+            }
+            if (IsAnyCallRangeIntrinsic((inst))) {
+                static constexpr int32_t CALLEE_AND_FIRST_PARAM = 2U;
+                ASSERT(nargs >= CALLEE_AND_FIRST_PARAM);
+                nargs -= CALLEE_AND_FIRST_PARAM;
             }
             if (ret < nargs && (nargs > MAX_NUM_NON_RANGE_ARGS || IsIntrinsicRange(inst))) {
                 ret = nargs;
@@ -502,6 +515,10 @@ void RegEncoder::InsertSpillsForDynInputsInst(compiler::Inst *inst)
 
     compiler::Register temp = range ? rangeTempsStart_ : 0U;
     if (range) {
+        if (IsAnyCallRangeIntrinsic(inst)) {
+            static constexpr int32_t CALLEE_AND_FIRST_PARAM = 2U;
+            start += CALLEE_AND_FIRST_PARAM;
+        }
         InsertSpillsForDynRangeInst(inst, nargs, start);
         return;
     }

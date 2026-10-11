@@ -23,7 +23,7 @@ function(add_panda_assembly)
     set(prefix ARG)
     set(noValues)
     set(singleValues TARGET SOURCE INDIR OUTDIR TARGETNAME)
-    set(multiValues)
+    set(multiValues ASSEMBLER_OPTIONS)
     cmake_parse_arguments(${prefix}
                           "${noValues}"
                           "${singleValues}"
@@ -73,7 +73,7 @@ function(add_panda_assembly)
 
     add_custom_command(OUTPUT "${binary_file}"
                        COMMENT "Building ${ARG_TARGET}"
-                       COMMAND "${assembler_bin}" "${source_file}" "${binary_file}"
+                       COMMAND "${assembler_bin}" "${ARG_ASSEMBLER_OPTIONS}" "${source_file}" "${binary_file}"
                        DEPENDS ${assembler_target} "${source_file}")
 
     add_custom_target(${ARG_TARGET} DEPENDS "${binary_file}")

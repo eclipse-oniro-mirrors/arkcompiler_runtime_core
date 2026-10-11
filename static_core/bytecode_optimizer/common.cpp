@@ -33,6 +33,22 @@ static bool IsStaticAccIndexDefined(const compiler::Inst *inst)
                                    inst->GetBasicBlock()->GetGraph()->GetRuntime()->GetCompilerNullcheckIntrinsicId()) {
         return true;
     }
+
+    if (inst->IsIntrinsic()) {
+        auto id = inst->CastToIntrinsic()->GetIntrinsicId();
+        switch (id) {
+            case compiler::RuntimeInterface::IntrinsicId::INTRINSIC_COMPILER_ANY_STBYNAME:
+                return inst->IsAccRead();
+            case compiler::RuntimeInterface::IntrinsicId::INTRINSIC_COMPILER_ANY_LDBYIDX:
+            case compiler::RuntimeInterface::IntrinsicId::INTRINSIC_COMPILER_ANY_STBYIDX:
+            case compiler::RuntimeInterface::IntrinsicId::INTRINSIC_COMPILER_ANY_STBYVAL:
+            case compiler::RuntimeInterface::IntrinsicId::INTRINSIC_COMPILER_ANY_ISINSTANCE:
+                ASSERT(inst->IsAccRead());
+                return true;
+            default:
+                break;
+        }
+    }
     return false;
 }
 #endif  // !NDEBUG
@@ -42,27 +58,29 @@ uint8_t AccReadIndex(const compiler::Inst *inst)
     // For calls we cannot tell static index for acc position, thus
     // ensure that we don't invoke this for calls
     ASSERT(IsStaticAccIndexDefined(inst));
+    ASSERT(inst->IsAccRead());
     switch (inst->GetOpcode()) {
         case compiler::Opcode::LoadArray:
         case compiler::Opcode::StoreObject:
         case compiler::Opcode::StoreStatic:
-        case compiler::Opcode::NewArray:
             return 1U;
         case compiler::Opcode::StoreArray:
             return 2U;
         default: {
-            if (inst->IsIntrinsic() && inst->IsAccRead()) {
+            if (inst->IsIntrinsic()) {
                 if (inst->GetBasicBlock()->GetGraph()->IsAbcKit()) {
                     ASSERT(inst->GetInputsCount() >= 1U);
                     return 0U;
                 }
-                ASSERT(inst->CastToIntrinsic()->GetIntrinsicId() != compiler::RuntimeInterface::IntrinsicId::INVALID);
-                if (inst->CastToIntrinsic()->GetIntrinsicId() ==
-                    inst->GetBasicBlock()->GetGraph()->GetRuntime()->GetCompilerNullcheckIntrinsicId()) {
+                auto intrinsicId = inst->CastToIntrinsic()->GetIntrinsicId();
+                ASSERT(intrinsicId != compiler::RuntimeInterface::IntrinsicId::INVALID);
+                if (intrinsicId == inst->GetBasicBlock()->GetGraph()->GetRuntime()->GetCompilerNullcheckIntrinsicId() ||
+                    intrinsicId == compiler::RuntimeInterface::IntrinsicId::INTRINSIC_COMPILER_ANY_ISINSTANCE) {
                     ASSERT(inst->GetInputsCount() >= 1U);
                     return 0U;
                 }
-                ASSERT(inst->GetBasicBlock()->GetGraph()->IsDynamicMethod());
+                ASSERT(inst->GetBasicBlock()->GetGraph()->IsDynamicMethod() ||
+                       compiler::IsCompilerAnyIntrinsic(intrinsicId));
                 ASSERT(inst->GetInputsCount() >= 2U);
                 return inst->GetInputsCount() - 2L;
             }
@@ -106,6 +124,9 @@ bool CanConvertToIncI(const compiler::BinaryImmOperation *binop)
         const auto *uinst = user.GetInst();
 
         if (uinst->IsCallOrIntrinsic()) {
+            continue;
+        }
+        if (!uinst->IsAccRead()) {
             continue;
         }
 

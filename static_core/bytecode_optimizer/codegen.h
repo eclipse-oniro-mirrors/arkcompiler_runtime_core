@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2023-2025 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2023-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -127,6 +127,28 @@ public:
     static void VisitIntrinsic(GraphVisitor *v, Inst *instBase);
     static void CallHandler(GraphVisitor *visitor, Inst *inst, std::string methodId, bool isDevirtual = false);
     static void CallHandler(GraphVisitor *visitor, Inst *inst);
+
+    static void VisitAnyLdByName(GraphVisitor *visitor, Inst *inst);
+    static void VisitAnyStByName(GraphVisitor *visitor, Inst *inst);
+    static void VisitAnyLdByIdx(GraphVisitor *visitor, Inst *inst);
+    static void VisitAnyStByIdx(GraphVisitor *visitor, Inst *inst);
+    static void VisitAnyLdByVal(GraphVisitor *visitor, Inst *inst);
+    static void VisitAnyStByVal(GraphVisitor *visitor, Inst *inst);
+
+    static void VisitAnyLdByNameV(GraphVisitor *visitor, Inst *inst);
+    static void VisitAnyStByNameV(GraphVisitor *visitor, Inst *inst);
+
+    static void VisitAnyCall0(GraphVisitor *visitor, Inst *inst);
+    static void VisitAnyCallRange(GraphVisitor *visitor, Inst *inst);
+    static void VisitAnyCallShort(GraphVisitor *visitor, Inst *inst);
+    static void VisitAnyCallThis0(GraphVisitor *visitor, Inst *inst);
+    static void VisitAnyCallThisRange(GraphVisitor *visitor, Inst *inst);
+    static void VisitAnyCallThisShort(GraphVisitor *visitor, Inst *inst);
+    static void VisitAnyCallNew0(GraphVisitor *visitor, Inst *inst);
+    static void VisitAnyCallNewRange(GraphVisitor *visitor, Inst *inst);
+    static void VisitAnyCallNewShort(GraphVisitor *visitor, Inst *inst);
+    static void VisitAnyIsinstance(GraphVisitor *visitor, Inst *inst);
+
     static void VisitStoreObject(GraphVisitor *v, Inst *instBase);
     static void VisitStoreStatic(GraphVisitor *v, Inst *instBase);
     static void VisitLoadObject(GraphVisitor *v, Inst *instBase);

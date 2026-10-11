@@ -308,25 +308,22 @@ templates:
   unimplemented: |-
     // TODO(msherstennikov): implement
   any: |-
-    if (GetGraph()->IsBytecodeOptimizer()) {
-      UnsupportedAnyInst(instruction);
-    } else {
     % name = inst.opcode.split('_')[1]
     % case name
     % when "ldbyname"
-      BuildLoadFromAnyByName< <%= inst.acc_write? %> >(instruction);
+    BuildLoadFromAnyByName< <%= inst.acc_write? %> >(instruction);
     % when "stbyname"
-      BuildStoreFromAnyByName< <%= inst.acc_read? %> >(instruction);
+    BuildStoreFromAnyByName< <%= inst.acc_read? %> >(instruction);
     % when "ldbyidx"
-      BuildLoadFromAnyByIdx(instruction);
+    BuildLoadFromAnyByIdx(instruction);
     % when "stbyidx"
-      BuildStoreFromAnyByIdx(instruction);
+    BuildStoreFromAnyByIdx(instruction);
     % when "ldbyval"
-      BuildLoadFromAnyByVal(instruction);
+    BuildLoadFromAnyByVal(instruction);
     % when "stbyval"
-      BuildStoreFromAnyByVal(instruction);
+    BuildStoreFromAnyByVal(instruction);
     % when "isinstance"
-      BuildIsInstanceAny(instruction);
+    BuildIsInstanceAny(instruction);
     % when "call"
     %   type = inst.opcode.split('_')[2]
     %   if type == "new" || type == "this"
@@ -337,6 +334,5 @@ templates:
     %   end
     BuildAnyCall<%= type.capitalize %><%= args.capitalize %>(instruction);
     % else
-      UNREACHABLE();
+    UNREACHABLE();
     % end
-    }

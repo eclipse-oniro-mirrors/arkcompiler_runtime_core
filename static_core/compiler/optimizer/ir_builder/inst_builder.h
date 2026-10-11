@@ -404,7 +404,6 @@ private:
     void BuildAnyCallNew0(const BytecodeInstruction *bcInst);
     void BuildAnyCallNewRange(const BytecodeInstruction *bcInst);
     void BuildAnyCallNewShort(const BytecodeInstruction *bcInst);
-    void UnsupportedAnyInst(const BytecodeInstruction *bcInst);
 
 #include "inst_builder_extensions.inl.h"
 

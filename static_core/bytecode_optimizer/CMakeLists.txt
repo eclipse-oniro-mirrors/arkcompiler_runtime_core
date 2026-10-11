@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2024 Huawei Device Co., Ltd.
+# Copyright (c) 2021-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -29,6 +29,7 @@ set(BYTECODE_OPT_SOURCES
     common.cpp
     const_array_resolver.cpp
     runtime_adapter.cpp
+    renumber_ic_slots.cpp
 )
 
 set(SOURCES ${BYTECODE_OPT_SOURCES})
@@ -78,6 +79,7 @@ if (NOT (PANDA_TARGET_MOBILE OR PANDA_TARGET_OHOS OR PANDA_ENABLE_FUZZBENCH))
 endif()
 
 set(BYTECODE_OPT_TEST_SOURCES
+    tests/any_insts_test.cpp
     tests/bitops_bitwise_and_test.cpp
     tests/bc_lowering_test.cpp
     tests/codegen_test.cpp

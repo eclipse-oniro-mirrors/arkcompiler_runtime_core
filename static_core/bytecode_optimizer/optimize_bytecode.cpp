@@ -49,6 +49,7 @@
 #include "libarkfile/method_data_accessor.h"
 #include "reg_acc_alloc.h"
 #include "reg_encoder.h"
+#include "renumber_ic_slots.h"
 
 #include "generated/runtime_adapter_inc.h"
 
@@ -133,6 +134,7 @@ bool RunOptimizations(compiler::Graph *graph, BytecodeOptIrInterface *iface)
         LOG(ERROR, BYTECODE_OPTIMIZER) << "Failed RegEncoder";
         return false;
     }
+    graph->RunPass<RenumberAnyIcSlots>();
 
     return true;
 }

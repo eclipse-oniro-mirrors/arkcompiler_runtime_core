@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2023-2025 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2023-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -13,6 +13,7 @@
  * limitations under the License.
  */
 #include "codegen.h"
+#include "optimizer/ir/datatype.h"
 #include "runtime/include/coretypes/tagged_value.h"
 
 namespace ark::bytecodeopt {
@@ -551,6 +552,251 @@ void BytecodeGen::CallHandler(GraphVisitor *visitor, Inst *inst)
     CallHandler(visitor, inst, enc->irInterface_->GetMethodIdByOffset(methodOffset), isDevirtual);
 }
 
+void BytecodeGen::VisitAnyLdByName(GraphVisitor *visitor, Inst *inst)
+{
+    auto *enc = static_cast<BytecodeGen *>(visitor);
+    auto *intrinsic = inst->CastToIntrinsic();
+
+    auto stringId = intrinsic->GetImm(0);
+    auto str = enc->irInterface_->GetStringIdByOffset(stringId);
+    auto slotId = intrinsic->GetSlotId();
+
+    enc->result_.emplace_back(pandasm::Create_ANY_LDBYNAME(inst->GetSrcReg(0), str, slotId));
+
+    DoStaObj(inst->GetDstReg(), enc->result_);
+}
+
+void BytecodeGen::VisitAnyStByName(GraphVisitor *visitor, Inst *inst)
+{
+    auto *enc = static_cast<BytecodeGen *>(visitor);
+    auto *intrinsic = inst->CastToIntrinsic();
+
+    auto stringId = intrinsic->GetImm(0);
+    auto str = enc->irInterface_->GetStringIdByOffset(stringId);
+
+    DoLdaObj(inst->GetSrcReg(AccReadIndex(inst)), enc->result_);
+
+    enc->result_.emplace_back(pandasm::Create_ANY_STBYNAME(inst->GetSrcReg(0), str, intrinsic->GetSlotId()));
+}
+
+void BytecodeGen::VisitAnyLdByIdx(GraphVisitor *visitor, Inst *inst)
+{
+    auto *enc = static_cast<BytecodeGen *>(visitor);
+    auto *intrinsic = inst->CastToIntrinsic();
+    auto slotId = intrinsic->GetSlotId();
+
+    DoLda64(inst->GetSrcReg(AccReadIndex(inst)), enc->result_);
+
+    enc->result_.emplace_back(pandasm::Create_ANY_LDBYIDX(inst->GetSrcReg(0), slotId));
+
+    DoStaObj(inst->GetDstReg(), enc->result_);
+}
+
+void BytecodeGen::VisitAnyStByIdx(GraphVisitor *visitor, Inst *inst)
+{
+    auto *enc = static_cast<BytecodeGen *>(visitor);
+    auto *intrinsic = inst->CastToIntrinsic();
+    auto slotId = intrinsic->GetSlotId();
+
+    DoLdaObj(inst->GetSrcReg(AccReadIndex(inst)), enc->result_);
+
+    enc->result_.emplace_back(pandasm::Create_ANY_STBYIDX(inst->GetSrcReg(0), inst->GetSrcReg(1), slotId));
+}
+
+void BytecodeGen::VisitAnyLdByVal(GraphVisitor *visitor, Inst *inst)
+{
+    auto *enc = static_cast<BytecodeGen *>(visitor);
+    auto *intrinsic = inst->CastToIntrinsic();
+    auto slotId = intrinsic->GetSlotId();
+
+    enc->result_.emplace_back(pandasm::Create_ANY_LDBYVAL(inst->GetSrcReg(0), inst->GetSrcReg(1), slotId));
+
+    DoStaObj(inst->GetDstReg(), enc->result_);
+}
+
+void BytecodeGen::VisitAnyStByVal(GraphVisitor *visitor, Inst *inst)
+{
+    auto *enc = static_cast<BytecodeGen *>(visitor);
+    auto *intrinsic = inst->CastToIntrinsic();
+    auto slotId = intrinsic->GetSlotId();
+
+    DoLdaObj(inst->GetSrcReg(AccReadIndex(inst)), enc->result_);
+
+    enc->result_.emplace_back(pandasm::Create_ANY_STBYVAL(inst->GetSrcReg(0), inst->GetSrcReg(1), slotId));
+}
+
+void BytecodeGen::VisitAnyLdByNameV(GraphVisitor *visitor, Inst *inst)
+{
+    auto *enc = static_cast<BytecodeGen *>(visitor);
+    auto *intrinsic = inst->CastToIntrinsic();
+
+    auto stringId = intrinsic->GetImm(0);
+    auto str = enc->irInterface_->GetStringIdByOffset(stringId);
+    auto slotId = intrinsic->GetSlotId();
+
+    enc->result_.emplace_back(pandasm::Create_ANY_LDBYNAME_V(inst->GetDstReg(), inst->GetSrcReg(0), str, slotId));
+}
+
+void BytecodeGen::VisitAnyStByNameV(GraphVisitor *visitor, Inst *inst)
+{
+    auto *enc = static_cast<BytecodeGen *>(visitor);
+    auto *intrinsic = inst->CastToIntrinsic();
+
+    auto stringId = intrinsic->GetImm(0);
+    auto str = enc->irInterface_->GetStringIdByOffset(stringId);
+    auto slotId = intrinsic->GetSlotId();
+
+    enc->result_.emplace_back(pandasm::Create_ANY_STBYNAME_V(inst->GetSrcReg(1), inst->GetSrcReg(0), str, slotId));
+}
+
+void BytecodeGen::VisitAnyCall0(GraphVisitor *visitor, Inst *inst)
+{
+    auto *enc = static_cast<BytecodeGen *>(visitor);
+    auto *intrinsic = inst->CastToIntrinsic();
+    auto slotId = intrinsic->GetSlotId();
+
+    enc->result_.emplace_back(pandasm::Create_ANY_CALL_0(inst->GetSrcReg(0), slotId));
+
+    DoStaObj(inst->GetDstReg(), enc->result_);
+}
+
+static uint64_t GetAnyCallRangeArgc(compiler::IntrinsicInst *inst)
+{
+    ASSERT(compiler::IsCompilerAnyCallRangeIntrinsic(inst->GetIntrinsicId()));
+    ASSERT(inst->RequireState());
+    static constexpr size_t CALLEE_ARGC_SAVE_STATE = 3U;
+    ASSERT(inst->GetInputsCount() >= CALLEE_ARGC_SAVE_STATE);
+    return inst->GetInputsCount() - CALLEE_ARGC_SAVE_STATE;
+}
+
+static compiler::Register GetAnyCallRangeStartReg(compiler::IntrinsicInst *inst)
+{
+    ASSERT(compiler::IsCompilerAnyCallRangeIntrinsic(inst->GetIntrinsicId()));
+    ASSERT(inst->GetInputsCount() > 0);
+    ASSERT(inst->GetInputType(0U) == compiler::DataType::REFERENCE);
+    return GetAnyCallRangeArgc(inst) > 0 ? inst->GetSrcReg(2U)
+                                         : inst->GetSrcReg(0U);  // using SrcReg(0) as it definitely has obj type
+}
+
+void BytecodeGen::VisitAnyCallRange(GraphVisitor *visitor, Inst *inst)
+{
+    auto *enc = static_cast<BytecodeGen *>(visitor);
+    auto *intrinsic = inst->CastToIntrinsic();
+
+    auto argc = GetAnyCallRangeArgc(intrinsic);
+    auto slotId = intrinsic->GetSlotId();
+
+    enc->result_.emplace_back(
+        pandasm::Create_ANY_CALL_RANGE(inst->GetSrcReg(0), GetAnyCallRangeStartReg(intrinsic), argc, slotId));
+
+    DoStaObj(inst->GetDstReg(), enc->result_);
+}
+
+void BytecodeGen::VisitAnyCallShort(GraphVisitor *visitor, Inst *inst)
+{
+    auto *enc = static_cast<BytecodeGen *>(visitor);
+    auto *intrinsic = inst->CastToIntrinsic();
+    auto slotId = intrinsic->GetSlotId();
+
+    enc->result_.emplace_back(pandasm::Create_ANY_CALL_SHORT(inst->GetSrcReg(0), inst->GetSrcReg(1), slotId));
+
+    DoStaObj(inst->GetDstReg(), enc->result_);
+}
+
+void BytecodeGen::VisitAnyCallThis0(GraphVisitor *visitor, Inst *inst)
+{
+    auto *enc = static_cast<BytecodeGen *>(visitor);
+    auto *intrinsic = inst->CastToIntrinsic();
+
+    auto slotId = intrinsic->GetSlotId();
+    auto stringId = intrinsic->GetImm(0);
+    auto str = enc->irInterface_->GetStringIdByOffset(stringId);
+
+    enc->result_.emplace_back(pandasm::Create_ANY_CALL_THIS_0(inst->GetSrcReg(0), slotId, str));
+
+    DoStaObj(inst->GetDstReg(), enc->result_);
+}
+
+void BytecodeGen::VisitAnyCallThisRange(GraphVisitor *visitor, Inst *inst)
+{
+    auto *enc = static_cast<BytecodeGen *>(visitor);
+    auto *intrinsic = inst->CastToIntrinsic();
+
+    auto argc = GetAnyCallRangeArgc(intrinsic);
+    auto slotId = intrinsic->GetSlotId();
+
+    auto stringId = intrinsic->GetImm(0);
+    auto str = enc->irInterface_->GetStringIdByOffset(stringId);
+
+    auto rangeStart = GetAnyCallRangeStartReg(intrinsic);
+    enc->result_.emplace_back(pandasm::Create_ANY_CALL_THIS_RANGE(inst->GetSrcReg(0), rangeStart, argc, slotId, str));
+
+    DoStaObj(inst->GetDstReg(), enc->result_);
+}
+
+void BytecodeGen::VisitAnyCallThisShort(GraphVisitor *visitor, Inst *inst)
+{
+    auto *enc = static_cast<BytecodeGen *>(visitor);
+    auto *intrinsic = inst->CastToIntrinsic();
+    auto slotId = intrinsic->GetSlotId();
+
+    auto stringId = intrinsic->GetImm(0);
+    auto str = enc->irInterface_->GetStringIdByOffset(stringId);
+
+    enc->result_.emplace_back(pandasm::Create_ANY_CALL_THIS_SHORT(inst->GetSrcReg(0), inst->GetSrcReg(1), slotId, str));
+
+    DoStaObj(inst->GetDstReg(), enc->result_);
+}
+
+void BytecodeGen::VisitAnyCallNew0(GraphVisitor *visitor, Inst *inst)
+{
+    auto *enc = static_cast<BytecodeGen *>(visitor);
+    auto *intrinsic = inst->CastToIntrinsic();
+    auto slotId = intrinsic->GetSlotId();
+
+    enc->result_.emplace_back(pandasm::Create_ANY_CALL_NEW_0(inst->GetSrcReg(0), slotId));
+
+    DoStaObj(inst->GetDstReg(), enc->result_);
+}
+
+void BytecodeGen::VisitAnyCallNewRange(GraphVisitor *visitor, Inst *inst)
+{
+    auto *enc = static_cast<BytecodeGen *>(visitor);
+    auto *intrinsic = inst->CastToIntrinsic();
+
+    auto argc = GetAnyCallRangeArgc(intrinsic);
+    auto slotId = intrinsic->GetSlotId();
+
+    enc->result_.emplace_back(
+        pandasm::Create_ANY_CALL_NEW_RANGE(inst->GetSrcReg(0), GetAnyCallRangeStartReg(intrinsic), argc, slotId));
+
+    DoStaObj(inst->GetDstReg(), enc->result_);
+}
+
+void BytecodeGen::VisitAnyCallNewShort(GraphVisitor *visitor, Inst *inst)
+{
+    auto *enc = static_cast<BytecodeGen *>(visitor);
+    auto *intrinsic = inst->CastToIntrinsic();
+    auto slotId = intrinsic->GetSlotId();
+
+    enc->result_.emplace_back(pandasm::Create_ANY_CALL_NEW_SHORT(inst->GetSrcReg(0), inst->GetSrcReg(1), slotId));
+
+    DoStaObj(inst->GetDstReg(), enc->result_);
+}
+
+void BytecodeGen::VisitAnyIsinstance(GraphVisitor *visitor, Inst *inst)
+{
+    auto *enc = static_cast<BytecodeGen *>(visitor);
+    auto *intrinsic = inst->CastToIntrinsic();
+    auto slotId = intrinsic->GetSlotId();
+
+    DoLdaObj(inst->GetSrcReg(AccReadIndex(inst)), enc->result_);
+
+    enc->result_.emplace_back(pandasm::Create_ANY_ISINSTANCE(inst->GetSrcReg(1), slotId));
+
+    DoSta(inst->GetDstReg(), enc->result_);
+}
+
 void BytecodeGen::VisitCallStatic(GraphVisitor *visitor, Inst *inst)
 {
     CallHandler(visitor, inst);
@@ -732,7 +978,7 @@ static void VisitIfRef([[maybe_unused]] BytecodeGen *enc, compiler::IfInst *inst
 // NOLINTNEXTLINE(readability-function-size)
 void BytecodeGen::VisitIf(GraphVisitor *v, Inst *instBase)
 {
-    auto enc = static_cast<BytecodeGen *>(v);
+    auto *enc = static_cast<BytecodeGen *>(v);
     auto inst = instBase->CastToIf();
     switch (inst->GetInputType(0U)) {
         case compiler::DataType::BOOL:
@@ -807,7 +1053,7 @@ static std::optional<coretypes::TaggedValue> IsEcmaConstTemplate(Inst const *ins
 #if defined(ARK_INTRINSIC_SET)
 void BytecodeGen::IfEcma(GraphVisitor *v, compiler::IfInst *inst)
 {
-    auto enc = static_cast<BytecodeGen *>(v);
+    auto *enc = static_cast<BytecodeGen *>(v);
 
     compiler::Register reg = compiler::INVALID_REG_ID;
     coretypes::TaggedValue cmpVal;
@@ -945,7 +1191,7 @@ static void IfImmZeroRef(BytecodeGen *enc, compiler::IfImmInst *inst, std::vecto
 // NOLINTNEXTLINE(readability-function-size)
 void BytecodeGen::IfImmZero(GraphVisitor *v, Inst *instBase)
 {
-    auto enc = static_cast<BytecodeGen *>(v);
+    auto *enc = static_cast<BytecodeGen *>(v);
     auto inst = instBase->CastToIfImm();
     switch (inst->GetInputType(0U)) {
         case compiler::DataType::BOOL:
@@ -1022,7 +1268,7 @@ static void IfImmNonZero32(BytecodeGen *enc, compiler::IfImmInst *inst, std::vec
 // NOLINTNEXTLINE(readability-function-size)
 void BytecodeGen::IfImmNonZero(GraphVisitor *v, Inst *instBase)
 {
-    auto enc = static_cast<BytecodeGen *>(v);
+    auto *enc = static_cast<BytecodeGen *>(v);
     auto inst = instBase->CastToIfImm();
     switch (inst->GetInputType(0U)) {
         case compiler::DataType::BOOL:
@@ -1058,7 +1304,7 @@ void BytecodeGen::IfImmNonZero(GraphVisitor *v, Inst *instBase)
 // NOLINTNEXTLINE(readability-function-size)
 void BytecodeGen::IfImm64(GraphVisitor *v, Inst *instBase)
 {
-    auto enc = static_cast<BytecodeGen *>(v);
+    auto *enc = static_cast<BytecodeGen *>(v);
     auto inst = instBase->CastToIfImm();
 
     if (enc->GetGraph()->IsDynamicMethod()) {
@@ -1341,7 +1587,7 @@ static void VisitCastFromF64([[maybe_unused]] BytecodeGen *enc, compiler::CastIn
 // NOLINTNEXTLINE(readability-function-size)
 void BytecodeGen::VisitCast(GraphVisitor *v, Inst *instBase)
 {
-    auto enc = static_cast<BytecodeGen *>(v);
+    auto *enc = static_cast<BytecodeGen *>(v);
     auto inst = instBase->CastToCast();
     switch (inst->GetInputType(0U)) {
         case compiler::DataType::INT32: {
@@ -1386,7 +1632,7 @@ void BytecodeGen::VisitCast(GraphVisitor *v, Inst *instBase)
 void BytecodeGen::VisitLoadString(GraphVisitor *v, Inst *instBase)
 {
     pandasm::Ins ins;
-    auto enc = static_cast<BytecodeGen *>(v);
+    auto *enc = static_cast<BytecodeGen *>(v);
     auto inst = instBase->CastToLoadString();
 
     /* Do not emit unused code for Str -> CastValueToAnyType chains */
@@ -1409,7 +1655,7 @@ void BytecodeGen::VisitLoadString(GraphVisitor *v, Inst *instBase)
 
 void BytecodeGen::VisitReturnAny(GraphVisitor *v, [[maybe_unused]] Inst *instBase)
 {
-    auto enc = static_cast<BytecodeGen *>(v);
+    auto *enc = static_cast<BytecodeGen *>(v);
     [[maybe_unused]] auto inst = instBase->CastToReturn();
 #if defined(ENABLE_BYTECODE_OPT) && defined(PANDA_WITH_ECMASCRIPT)
     auto testArg = IsEcmaConstTemplate(inst->GetInput(0U).GetInst());
@@ -1431,7 +1677,7 @@ void BytecodeGen::VisitReturnAny(GraphVisitor *v, [[maybe_unused]] Inst *instBas
 void BytecodeGen::VisitReturn(GraphVisitor *v, Inst *instBase)
 {
     pandasm::Ins ins;
-    auto enc = static_cast<BytecodeGen *>(v);
+    auto *enc = static_cast<BytecodeGen *>(v);
     auto inst = instBase->CastToReturn();
     switch (inst->GetType()) {
         case compiler::DataType::BOOL:
@@ -1482,7 +1728,7 @@ static auto IntToLdBool(int64_t v)
 
 void BytecodeGen::VisitCastValueToAnyType(GraphVisitor *v, [[maybe_unused]] Inst *instBase)
 {
-    auto enc = static_cast<BytecodeGen *>(v);
+    auto *enc = static_cast<BytecodeGen *>(v);
 
 #if defined(ENABLE_BYTECODE_OPT) && defined(PANDA_WITH_ECMASCRIPT)
     auto cvat = instBase->CastToCastValueToAnyType();
@@ -1539,7 +1785,7 @@ void BytecodeGen::VisitStoreObject(GraphVisitor *v, Inst *instBase)
         return;
     }
 
-    auto enc = static_cast<BytecodeGen *>(v);
+    auto *enc = static_cast<BytecodeGen *>(v);
     const compiler::StoreObjectInst *inst = instBase->CastToStoreObject();
 
     compiler::Register vd = inst->GetSrcReg(0U);
@@ -1592,7 +1838,7 @@ void BytecodeGen::VisitStoreStatic(GraphVisitor *v, Inst *instBase)
         return;
     }
 
-    auto enc = static_cast<BytecodeGen *>(v);
+    auto *enc = static_cast<BytecodeGen *>(v);
     auto inst = instBase->CastToStoreStatic();
 
     compiler::Register vs = inst->GetSrcReg(1U);
@@ -1638,7 +1884,7 @@ void BytecodeGen::VisitLoadObject(GraphVisitor *v, Inst *instBase)
         return;
     }
 
-    auto enc = static_cast<BytecodeGen *>(v);
+    auto *enc = static_cast<BytecodeGen *>(v);
     auto inst = instBase->CastToLoadObject();
 
     compiler::Register vs = inst->GetSrcReg(0U);
@@ -1691,7 +1937,7 @@ void BytecodeGen::VisitLoadStatic(GraphVisitor *v, Inst *instBase)
         return;
     }
 
-    auto enc = static_cast<BytecodeGen *>(v);
+    auto *enc = static_cast<BytecodeGen *>(v);
     auto inst = instBase->CastToLoadStatic();
 
     compiler::Register vd = inst->GetDstReg();
@@ -1737,7 +1983,7 @@ void BytecodeGen::VisitCatchPhi(GraphVisitor *v, Inst *inst)
             }
         }
         if (hasRealUsers) {
-            auto enc = static_cast<BytecodeGen *>(v);
+            auto *enc = static_cast<BytecodeGen *>(v);
             enc->result_.emplace_back(pandasm::Create_STA_OBJ(inst->GetDstReg()));
         }
     }
