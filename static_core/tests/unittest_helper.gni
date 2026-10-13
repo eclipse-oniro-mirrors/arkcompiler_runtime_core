@@ -29,6 +29,7 @@ import("//build/test.gni")
 #                  LD_LIBRARY_PATH=${root_out_dir}/${ld_lib_path_1}:${root_out_dir}/${ld_lib_path_2}:...
 template("ark_unittest") {
   ohos_unittest("${target_name}") {
+    external_deps = []
     forward_variables_from(invoker,
                            "*",
                            [
@@ -37,6 +38,8 @@ template("ark_unittest") {
                              "no_cores",
                              "no_warning_filter",
                            ])
+    # CC-OFFNXT(WordsTool.95)
+    external_deps += [ "googletest:gmock" ]
   }
   if (!ark_static_standalone_build) {
     _target_name = "${target_name}"

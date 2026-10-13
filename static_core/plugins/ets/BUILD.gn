@@ -27,11 +27,11 @@ if (!(ark_standalone_build ||
 
 # NB! Standard library is built only if the front-end is available.
 with_stdlib = false
-if (!is_host_product) {
-  foreach(plugin, ark_enabled_plugins) {
-    if (plugin == "ecmascript" || plugin == "ets") {
-      with_stdlib = true
-    }
+# Static-core host unit tests compile ETS fixtures (for example, hprof tests)
+# and therefore need the same standard library inputs as non-host builds.
+foreach(plugin, ark_enabled_plugins) {
+  if (plugin == "ecmascript" || plugin == "ets") {
+    with_stdlib = true
   }
 }
 
