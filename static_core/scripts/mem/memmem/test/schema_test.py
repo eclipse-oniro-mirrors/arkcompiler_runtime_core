@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import pathlib
+import re
 import typing
 import unittest
 
@@ -28,6 +31,7 @@ from src.schema import (
     KeyCommand,
     LongTapCommand,
     Macro,
+    MultiTouchInputCommand,
     NamedKeyPayload,
     RepeatMacro,
     RepeatMacroPayload,
@@ -47,6 +51,21 @@ from src.schema import (
 
 
 class SchemaTest(unittest.TestCase):
+    def test_readme_multi_touch_example_loads(self) -> None:
+        readme = pathlib.Path(__file__).parents[1].joinpath("README.md")
+        content = readme.read_text(encoding="utf-8")
+        match = re.search(
+            r"### Multi-touch input\n.*?```json\n(.*?)\n```",
+            content,
+            flags=re.DOTALL,
+        )
+        self.assertIsNotNone(match)
+        assert match is not None
+
+        flow = Flow.model_validate(json.loads(match.group(1)))
+
+        self.assertIsInstance(flow.flow[0].commands[0], MultiTouchInputCommand)
+
     def test_valid_flow_loads_and_preserves_order(self) -> None:
         flow = Flow.model_validate(
             {
@@ -635,6 +654,65 @@ class SchemaTest(unittest.TestCase):
                 }
             )
 
+    def test_multi_touch_input_requires_two_or_three_strict_displacements(self) -> None:
+        command = Flow.model_validate(
+            {
+                "flow": [{
+                    "label": "app", "bundle": "com.example",
+                    "ability": "EntryAbility", "terminate": False,
+                    "commands": [{"action": "multi_touch_input", "payload": {
+                        "finger_list": [
+                            {"x1_pct": 0, "y1_pct": 1, "x2_pct": 2, "y2_pct": 3},
+                            {"x1_pct": 4, "y1_pct": 5, "x2_pct": 6, "y2_pct": 7},
+                        ],
+                        "duration_ms": 100,
+                    }}],
+                }]
+            }
+        ).flow[0].commands[0]
+        self.assertIsInstance(command, MultiTouchInputCommand)
+        command = typing.cast(MultiTouchInputCommand, command)
+        self.assertIsInstance(command.payload.finger_list, tuple)
+
+        three_finger_payload = command.payload.model_dump()
+        three_finger_payload["finger_list"] = [
+            *three_finger_payload["finger_list"],
+            {"x1_pct": 8, "y1_pct": 9, "x2_pct": 10, "y2_pct": 11},
+        ]
+        self.assertEqual(
+            len(MultiTouchInputCommand.model_validate({
+                "action": "multi_touch_input",
+                "payload": three_finger_payload,
+            }).payload.finger_list),
+            3,
+        )
+
+    def test_multi_touch_input_rejects_invalid_payloads(self) -> None:
+        finger_list: list[dict[str, int]] = [
+            {"x1_pct": 0, "y1_pct": 1, "x2_pct": 2, "y2_pct": 3},
+            {"x1_pct": 4, "y1_pct": 5, "x2_pct": 6, "y2_pct": 7},
+        ]
+        payload: dict[str, object] = {
+            "finger_list": finger_list,
+            "duration_ms": 100,
+        }
+        for invalid_payload in (
+            {**payload, "finger_list": finger_list[:1]},
+            {**payload, "finger_list": finger_list * 2},
+            {**payload,
+                "finger_list": [{**finger_list[0], "x1_pct": 101}, finger_list[1]]},
+            {**payload,
+                "finger_list": [{**finger_list[0], "x1_pct": 1.0}, finger_list[1]]},
+            {**payload,
+                "finger_list": [{**finger_list[0], "extra": 1}, finger_list[1]]},
+            {**payload, "duration_ms": 0},
+            {**payload, "duration_ms": 15001},
+            {**payload, "duration_ms": 1.0},
+        ):
+            with self.assertRaises(pydantic.ValidationError):
+                MultiTouchInputCommand.model_validate(
+                    {"action": "multi_touch_input", "payload": invalid_payload})
+
 
 class CommandBaseRefactorTest(unittest.TestCase):
     def test_all_canonical_commands_share_the_payload_base(self) -> None:
@@ -752,6 +830,23 @@ class UnprocessedSchemaTest(unittest.TestCase):
         self.assertIsInstance(body[0], WaitCommand)
         self.assertIsInstance(body[1], UnprocessedSnapshotCommand)
         self.assertIsInstance(body[2], KeyCommand)
+
+    def test_macro_body_accepts_multi_touch_input(self) -> None:
+        payload = RepeatMacroPayload.model_validate(
+            {
+                "iter_var": "i",
+                "n_iter": 1,
+                "commands": [{"action": "multi_touch_input", "payload": {
+                    "finger_list": [
+                        {"x1_pct": 0, "y1_pct": 0, "x2_pct": 10, "y2_pct": 10},
+                        {"x1_pct": 90, "y1_pct": 90, "x2_pct": 80, "y2_pct": 80},
+                    ],
+                    "duration_ms": 100,
+                }}],
+            }
+        )
+
+        self.assertIsInstance(payload.commands[0], MultiTouchInputCommand)
 
     def test_unprocessed_app_flow_accepts_macro_and_command_items(self) -> None:
         app = UnprocessedAppFlow.model_validate(

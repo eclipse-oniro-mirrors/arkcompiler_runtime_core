@@ -17,7 +17,7 @@ import pathlib
 import tempfile
 import unittest
 
-from run import Config, load_config
+from src.cli_helpers import Config, load_config
 
 
 class ConfigTest(unittest.TestCase):

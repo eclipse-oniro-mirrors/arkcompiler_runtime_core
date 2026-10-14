@@ -115,113 +115,6 @@ The test suite SHALL provide a reusable fake device object in `test/mock/device.
 - **WHEN** benchmark execution requests run-wide hilog streaming to a remote path and hilog streaming is configured to fail
 - **THEN** the fake device raises a hilog streaming failure
 
-### Requirement: Programmatic interface tests cover public facade behavior
-The test suite SHALL verify the public `lib.py` facade, CLI validation behavior, CLI and programmatic macro preprocessing behavior, flow revalidation boundary, canonical flow evidence, flow description metadata behavior, recorder parsing/conversion behavior, exported public type names, and typed user-script compatibility without requiring users to import documented APIs from `src.*`.
-
-#### Scenario: Public builders construct valid models
-- **WHEN** tests construct a flow using `lib.flow()`, `lib.app_flow()`, and command wrappers
-- **THEN** the resulting flow can be passed to `lib.run()` and executed with a fake device
-
-#### Scenario: Public flow builder accepts description
-- **WHEN** tests construct a flow using `lib.flow()` with `desc` set to a string
-- **THEN** the resulting flow preserves the description metadata
-
-#### Scenario: Builder validation failures are surfaced
-- **WHEN** tests invoke public builder wrappers with invalid labels or invalid command payload values
-- **THEN** the wrapper raises validation failure at construction time
-
-#### Scenario: Public run revalidates mutated flow
-- **WHEN** tests mutate a valid flow to break model-level invariants before passing it to `lib.run()`
-- **THEN** `lib.run()` fails validation before performing device actions
-
-#### Scenario: Public run returns no result object
-- **WHEN** tests call `lib.run()` successfully
-- **THEN** the call returns `None` and output is available under the caller-provided output directory
-
-#### Scenario: Canonical flow output is tested
-- **WHEN** tests run either CLI or programmatic execution
-- **THEN** output `flow.json` is asserted as canonical validated flow JSON rather than a byte-for-byte input copy
-
-#### Scenario: Canonical flow output preserves description
-- **WHEN** tests run CLI or programmatic execution with a flow description
-- **THEN** output `flow.json` contains the canonical `"$desc"` metadata
-
-#### Scenario: Recorder parses and converts sample record
-- **WHEN** tests pass a sample `uitest uiRecord` file containing window bounds and supported pointer/key JSON records to the recorder conversion layer
-- **THEN** the generated model is a valid `Flow` containing normalized UI commands
-
-#### Scenario: Recorder output filename format is documented by specs
-- **WHEN** tests cover recorder output behavior
-- **THEN** they do not need a dedicated unit test for timestamp string formatting
-
-#### Scenario: Recorder preserves identity ordering
-- **WHEN** tests convert a record containing interleaved bundle/ability identity segments, including empty identity values
-- **THEN** generated app flows preserve segment order, use empty strings for empty identity fields, set `terminate: false`, and preserve input order within each segment
-
-#### Scenario: Recorder skips unsupported pointer operations
-- **WHEN** tests convert a record containing unsupported pointer operation types mixed with supported events
-- **THEN** unsupported rows create no commands while supported commands remain in the generated flow
-
-#### Scenario: Recorder rejects unknown event types
-- **WHEN** tests parse a record containing an event type unsupported by the typed recorder-event schema
-- **THEN** parsing fails rather than warning and continuing
-
-#### Scenario: Old app helper is not public
-- **WHEN** tests inspect the public facade exports
-- **THEN** `app_flow` is exported and `app` is not available as a public helper
-
-#### Scenario: Public type names are exported
-- **WHEN** tests inspect the public facade exports
-- **THEN** flow, app-flow, command, HDC, device, unprocessed flow, macro, and unprocessed command type names are exported, `preprocess_flow` and the unprocessed builder wrappers are exported, and `UnprocessedCommand`, macro payload structs such as `RepeatMacroPayload`, payload aliases such as `WaitPayload`, internal runner option types, and internal generic bases `_CommandBase` and `_MacroBase` are not exported
-
-#### Scenario: Unprocessed builders construct valid models
-- **WHEN** tests construct an unprocessed flow using `lib.unprocessed_flow`, `lib.unprocessed_app_flow`, `lib.unprocessed_snapshot`, `lib.unprocessed_screenshot`, and `lib.repeat`
-- **THEN** the resulting unprocessed flow can be passed to `lib.preprocess_flow` and yields a valid canonical flow
-
-#### Scenario: Unprocessed builder validation failures are surfaced
-- **WHEN** tests invoke unprocessed builder wrappers with invalid labels, invalid `n_iter`, or invalid `iter_var`
-- **THEN** the wrapper raises validation failure at construction time
-
-#### Scenario: User script type-checks with public types
-- **WHEN** tests run mypy against a fixture that imports and annotates with public `lib.py` type names
-- **THEN** mypy succeeds without importing documented APIs from `src.*`
-
-#### Scenario: Preprocessing expands macros into canonical flow
-- **WHEN** tests call `lib.preprocess_flow` with an unprocessed flow containing repeat macros
-- **THEN** the returned canonical `Flow` contains expanded commands with substituted labels in declared order and validates as a canonical flow
-
-#### Scenario: Preprocessing preserves flow description
-- **WHEN** tests call `lib.preprocess_flow` with an unprocessed flow containing `$desc` metadata
-- **THEN** the returned canonical flow preserves the description metadata
-
-#### Scenario: Preprocessing accepts lenient unprocessed labels
-- **WHEN** tests call `lib.preprocess_flow` with an unprocessed flow whose macro body snapshot or screenshot commands use placeholder-bearing labels
-- **THEN** the unprocessed flow validates and the returned canonical flow contains substituted labels that satisfy canonical label validation
-
-#### Scenario: Preprocessing rejects top-level placeholder labels
-- **WHEN** tests call `lib.preprocess_flow` with an unprocessed flow whose non-macro snapshot or screenshot command uses a placeholder label
-- **THEN** unprocessed flow validation fails before expansion
-
-#### Scenario: Preprocessing validation failures are tested
-- **WHEN** tests call `lib.preprocess_flow` with invalid macro structure, nested macros, duplicate expanded labels, or string placeholders in numeric fields
-- **THEN** the call fails validation before performing device actions
-
-#### Scenario: Preprocessing wrapper revalidates input
-- **WHEN** tests mutate an `UnprocessedFlow` instance into a structurally invalid state and pass it to `lib.preprocess_flow`
-- **THEN** the wrapper fails validation during revalidation before any expansion
-
-#### Scenario: Text builder produces a flat string payload
-- **WHEN** tests construct a command with `lib.text()` or a flow JSON `text` command with a string payload
-- **THEN** the resulting `TextCommand` carries the text string directly as its payload, and a struct `{ "text": ... }` payload fails validation
-
-#### Scenario: Unknown keys are rejected in all schema models
-- **WHEN** tests validate flows, app flows, commands, payloads, or macros carrying unknown keys, including an item carrying both `action` and `macro` keys
-- **THEN** validation fails instead of silently ignoring the unknown keys
-
-#### Scenario: Public run accepts canonical flows only
-- **WHEN** tests call the public programmatic run API with a canonical flow or an unprocessed flow
-- **THEN** `lib.run()` accepts canonical `Flow` models, and passing an unprocessed flow fails validation because macro-aware transformation happens only through `lib.preprocess_flow`
-
 ### Requirement: Schema regression coverage for wait payload numerics and flat text payload
 The test suite SHALL verify that `wait` payload validation accepts non-negative integer and float values, rejects negative and non-numeric values, and that the flat `text` action rejects the legacy struct payload form.
 
@@ -238,7 +131,7 @@ The test suite SHALL verify that `wait` payload validation accepts non-negative 
 - **THEN** schema validation fails
 
 ### Requirement: SwapPss parsing and report output are covered by tests
-The test suite SHALL verify that the smaps parser aggregates `SwapPss` fields, treats absence of `SwapPss` as zero, and that plots and CSVs expose the `swap_pss_kb` metric.
+Tests SHALL preserve SwapPss aggregation, zero default when absent, and swap_pss_kb in total/tag profiles. They SHALL verify metric-major aggregate statistic columns for swap_pss_kb and per-app `<app>-swap_pss.svg` output, with metric enumeration derived from the shared metrics definition for every source count.
 
 #### Scenario: Parser aggregates SwapPss
 - **WHEN** tests parse smaps text whose mappings contain `SwapPss` values
@@ -248,116 +141,103 @@ The test suite SHALL verify that the smaps parser aggregates `SwapPss` fields, t
 - **WHEN** tests parse smaps text without any `SwapPss` field
 - **THEN** the returned profiles expose `swap_pss_kb` equal to zero
 
+#### Scenario: View exposes SwapPss
+- **WHEN** single-source and multi-source views are generated
+- **THEN** tests verify swap_pss_kb aggregate columns and the per-app SVG without raw-schema assumptions
+
 #### Scenario: Plots and CSVs include swap_pss
-- **WHEN** tests generate summary, breakdown, and per-app and averaged plots
-- **THEN** `summary.csv` and breakdown CSVs include the `swap_pss_kb` column and `swap_pss.svg` plots are written, with the plot metric list derived from the shared summary metrics constant
+- **WHEN** views are generated
+- **THEN** tests verify swap_pss_kb statistic columns and `<app>-swap_pss.svg` using shared metric enumeration
 
-### Requirement: Averaged report tests cover statistics and robustness
-The test suite SHALL cover `average_reports` across multiple per-iteration `summary.csv` and breakdown inputs. Tests SHALL verify per-`(app_label, snapshot_label)` cell-wise statistics over corresponding values, column naming and ordering, row ordering, zero-value geomean collapse, `std` as `0.00` for single-sample rows, skipped missing iteration summary files with a warning, differing snapshot rows across iterations, failure when no iteration `summary.csv` exists, failure when an iteration `summary.csv` row has an invalid width, failure when an iteration `summary.csv` header is invalid, default whole-iteration outlier filtering, retention limits, deterministic tie behavior, missing-row scoring behavior, rows present only in discarded iterations, no-discard output behavior, discarded-iteration audit output, averaged plot generation from retained rows, averaged breakdown generation from retained rows, invalid breakdown input handling, and named app/snapshot pair usage.
+### Requirement: Separated APIs and CLIs have regression coverage
+Tests SHALL verify execute_flow/create_view signatures, normalized Path returns, public exports, canonical-flow revalidation, backend support preflight, caller-owned logging, no reports from execution, no device/config access from view creation, exclusive destinations, accepted existing CLI parents, flow persistence once, iteration_0 for one repeat, collect-before-render ordering, one shared timestamp, and fail-fast retention. All CLI parsers SHALL have no-abbreviation tests. Typed public-script fixtures SHALL use lib plus standard-library types, not internal parsed/store types. Existing canonical/unprocessed builders, macros, description, flat text/wait schema, unknown-key rejection, record parsing/conversion/identity ordering, unsupported recorder events, device helpers and public type boundaries SHALL retain regression coverage after replacing run call sites.
 
-#### Scenario: Raw averaged statistics are computed over corresponding cells
-- **WHEN** a test passes multiple per-iteration `summary.csv` tables with identical snapshot rows
-- **THEN** raw `summary.csv` reports for each metric the mean, geomean, median, std, min, and max computed over that metric's values across all usable iterations, with `n_samples` equal to the iteration count
+#### Scenario: Library execution completes
+- **WHEN** a fake-device execution succeeds
+- **THEN** tests verify structural evidence validity, normalized return value, unchanged caller logger and no report-analysis call
 
-#### Scenario: Single-sample statistics report zero std
-- **WHEN** an `(app_label, snapshot_label)` pair appears in exactly one contributing iteration for the report being written
-- **THEN** the averaged row has `n_samples` equal to `1`, reports `std` as `0.00`, and does not contain variance columns
+#### Scenario: Combined CLI ordering is observed
+- **WHEN** run.py is exercised with multiple repeats
+- **THEN** tests verify all execution calls precede every view call, views use explicit returned evidence paths and a common timestamp, and a failure stops the remaining phase
 
-#### Scenario: Averaged plots are wired through report averaging
-- **WHEN** a test runs `average_reports` with retained iterations that have snapshot metadata
-- **THEN** averaged plot SVGs are written under `summary/plots/<app_label>/<app_label>-<metric>.svg` using retained averaged rows
+#### Scenario: Existing output is supplied
+- **WHEN** a CLI parent exists but API dst is new, or the exact API dst exists
+- **THEN** tests verify parent reuse in the first case and unchanged exact destination rejection in the second
 
-#### Scenario: Averaged plots use retained rows only
-- **WHEN** a test runs report averaging with one or more discarded iterations that contain distinct snapshot rows
-- **THEN** averaged plots omit rows present only in discarded iterations
+#### Scenario: CLI options and typing are checked
+- **WHEN** parsers and typed facade fixtures are exercised
+- **THEN** tests reject abbreviations, removed options, invalid regex/repeats and old lib.run usage while preserving builder/preprocessor/recorder semantics
 
-#### Scenario: Averaged breakdowns are generated from retained rows
-- **WHEN** a test runs `average_reports` with retained per-iteration breakdown CSVs
-- **THEN** averaged breakdown CSVs are written under `summary/breakdowns/<snapshot_label>/<app_label>-<snapshot_label>.csv` with per-tag `n_samples` and mean, geomean, median, std, min, and max columns
+### Requirement: Expected artifact and reader tests cover failure boundaries
+Tests SHALL cover declaration-before-capture, fatal unresolved launch/stored PIDs, explicit termination exclusions, nonempty file arrays, eager empty metadata, successful capture-prefix receiving after later failure, all pending receives despite one failure, acquired-resource cleanup, primary/secondary error preservation and cwd restoration. Shared fake device behavior SHALL use logs/log.log and new snapshot paths without implicit legacy-file fabrication. Reader tests SHALL cover missing directories/metadata/declared files, wrong extensions/parents, unknown apps, duplicate labels/files, invalid timestamps, legacy rejection, ignored extra files and ignored logs. Tests SHALL distinguish structural validation from whole-flow/content-integrity verification.
 
-#### Scenario: Averaged breakdown rows sort by mean size
-- **WHEN** an averaged breakdown CSV contains multiple tags
-- **THEN** data rows are sorted by `size_kb_mean` descending, with tag lexicographically ascending for equal mean sizes
+#### Scenario: PID disappears after earlier captures
+- **WHEN** a snapshot has a successful prefix followed by a missing PID
+- **THEN** tests verify execution raises, declarations remain, the prefix is received and no later commands run
 
-#### Scenario: Invalid breakdown header is rejected
-- **WHEN** a retained iteration breakdown CSV has an unexpected header
-- **THEN** report averaging fails with a validation error
+#### Scenario: Declared and undeclared artifacts differ
+- **WHEN** fixtures omit a declared file or add an undeclared file
+- **THEN** tests verify missing declarations fail while extras are ignored
 
-#### Scenario: Invalid breakdown row width is rejected
-- **WHEN** a retained iteration breakdown CSV row contains too few or too many cells
-- **THEN** report averaging fails with a validation error
+#### Scenario: Screenshot and log differences are present
+- **WHEN** individually valid evidence sources have different screenshots or log settings
+- **THEN** tests verify those differences do not defeat evidence equivalence while missing declared screenshots still fail local validity
 
-#### Scenario: Named app/snapshot pair type avoids tuple-order ambiguity
-- **WHEN** tests exercise averaged summary, scoring, plot, and breakdown paths
-- **THEN** those paths use a shared named app/snapshot identity type rather than anonymous `(app_label, snapshot_label)` or `(snapshot_label, app_label)` tuples
+### Requirement: Equivalence and ordered output have focused coverage
+Tests SHALL exercise the reusable boolean evidence/view equivalence APIs. Evidence equivalence SHALL ignore PID/timestamps/app-array order but reject bundle/ability, ordered snapshot-label or ordered file-array changes. View equivalence SHALL compare regex source/flags and ordered final breakdown declarations, ignoring timestamps, values, sources/counts and outliers. Reader tests SHALL verify summary rows exactly follow their own metadata before equivalence. Filenames SHALL use `<snapshot>/<app>.smaps` and `<snapshot>/<app>.csv`, including hyphen/underscore labels.
 
-#### Scenario: Filtered averaged statistics exclude discarded iterations
-- **WHEN** a test supplies repeated summaries where one or more iterations receive the highest outlier scores
-- **THEN** `summary_filtered.csv` reports statistics computed from retained iterations only
+#### Scenario: File members are reordered
+- **WHEN** equivalent-looking declarations have the same members in a different array order
+- **THEN** tests verify equivalence is false rather than set-based
 
-#### Scenario: Discarded iterations are written to audit file
-- **WHEN** a test runs repeated-report averaging with discarded iterations
-- **THEN** `outliers.csv` contains one `discarded_iteration` column and one row per discarded iteration name
+#### Scenario: Early filtered row is absent in first source
+- **WHEN** an earlier declared pair first contributes in a later retained source
+- **THEN** tests verify summary and breakdown manifests use declaration order, not first-seen contributing order
 
-#### Scenario: No-discard output files are still written
-- **WHEN** a test runs repeated-report averaging where the filter discards no iterations
-- **THEN** `summary_filtered.csv` is written and `outliers.csv` contains only the header row
+#### Scenario: View values change
+- **WHEN** source paths/counts, timestamps or numeric values change but filters and declarations match
+- **THEN** tests verify view equivalence remains true
 
-#### Scenario: Filtering preserves whole-iteration consistency
-- **WHEN** an iteration is discarded by the filter
-- **THEN** every metric and every snapshot row in `summary_filtered.csv` excludes that same iteration
+### Requirement: Uniform statistics and filtering retain established behavior
+Tests SHALL cover every metric/statistic/header, one-source uniformity, matching-zero versus no-match distinction, anonymous/start-anchored regex semantics, compiled default and flag propagation, rejected None/bytes patterns, per-call path/pattern warnings, pair/tag sample populations, no zero filling, sample std, zero geomean, deterministic outlier quota/retention/ties, zero-median cells, empty samples in the population, whole-source removal, first-retained timing, final no-match/outlier coverage, normalized full-path discarded audit, and no pretrim/raw summary output. Shared named app/snapshot identities SHALL avoid tuple-order mistakes. Valid empty views SHALL be round-trip readable with eager directories and empty breakdown artifact arrays.
 
-#### Scenario: Retention limits are enforced
-- **WHEN** a test supplies a repeat count where the configured trim fraction would retain fewer than the minimum retained count or fraction
-- **THEN** filtering discards only as many iterations as the retention limits allow
+#### Scenario: Valid empty samples are supplied
+- **WHEN** multiple valid sources have no matching mappings
+- **THEN** tests verify score-zero participation in quota selection, header-only summary and no plots without treating sources as invalid
 
-#### Scenario: Iteration score ties use run order
-- **WHEN** a test supplies tied iteration scores at the discard boundary
-- **THEN** the lower run index is discarded first
+#### Scenario: First supplied source is discarded
+- **WHEN** outlier selection removes the first input
+- **THEN** tests verify reference timestamps come from the first retained source and plot origins are first plotted points per app
 
-#### Scenario: Missing rows are ignored for iteration scoring
-- **WHEN** a test supplies an iteration missing rows present in other iterations
-- **THEN** the missing cells do not contribute to that iteration's score
+#### Scenario: Tags have differing populations
+- **WHEN** a tag is absent from some retained sources
+- **THEN** tests verify tag counts/statistics use present values only and do not require sums of tag means to equal summary means
 
-#### Scenario: Rows only in discarded iterations are omitted from filtered output
-- **WHEN** a test supplies a row that appears only in iterations discarded by filtering
-- **THEN** `summary_filtered.csv` omits that row
+### Requirement: Standalone view reading and comparison are strictly tested
+Tests SHALL verify generated-view reader round trips, exact aggregate headers/widths, positive integer counts, integer nonnegative min/max, finite nonnegative other statistics, duplicate summary/tag rejection, nonempty declared breakdowns, manifest-to-summary ordering and ignored extras. Comparison SHALL be tested without source evidence available, without summary_filtered.csv, with metadata filter/flag incompatibility, ordered layout incompatibility, tag unions/blanks, zero baselines and stable change order. Failure tests SHALL distinguish unchanged existing destinations from retained new partial outputs. Comparison output SHALL not be accepted as a view.
 
-#### Scenario: Zero-median scoring cells do not affect filtering
-- **WHEN** a test supplies metric cells with median value zero
-- **THEN** those cells do not increase any iteration's outlier score
+#### Scenario: Non-median data is invalid
+- **WHEN** a fixture has valid medians but invalid other required statistics or wrong row width
+- **THEN** the view reader rejects it before comparison
 
-#### Scenario: Geomean collapses to zero
-- **WHEN** a metric has a zero value in any contributing iteration for the report being written
-- **THEN** the averaged geomean for that metric is zero
+#### Scenario: Evidence is unavailable
+- **WHEN** source evidence is removed or inaccessible after valid views exist
+- **THEN** comparison succeeds without attempting to open source paths
 
-#### Scenario: Missing iteration file is skipped with a warning
-- **WHEN** one iteration directory lacks a `summary.csv`
-- **THEN** averaging continues over the remaining iterations and reports a warning
+#### Scenario: View or comparison writing fails
+- **WHEN** generation fails after creating its new destination
+- **THEN** tests verify partial output remains and prior destinations/evidence remain untouched
 
-#### Scenario: Iterations with differing snapshot rows are merged
-- **WHEN** one iteration's `summary.csv` contains a snapshot row absent from another
-- **THEN** the averaged report includes that pair with `n_samples` reflecting only the contributing retained iterations
+### Requirement: Lexical path handling is covered without symlink resolution
+Tests SHALL cover normalize/absolutize, invocation-relative flow/log/backend/output paths, normalized API return values, metadata/audit path consistency, lexical duplicate-source rejection and preserved symlink spelling. Tests SHALL not require physical inode deduplication, source/destination ancestry checks, devices, GUI services or legacy migration.
 
-#### Scenario: No iteration summary files cause failure
-- **WHEN** no iteration directory contains a `summary.csv`
-- **THEN** averaging fails
+#### Scenario: Lexical source aliases are supplied
+- **WHEN** the same source is spelled with collapsible dot components
+- **THEN** tests verify duplicate rejection and normalized absolute provenance
 
-#### Scenario: Column naming matches metric and statistic pairs
-- **WHEN** a test inspects an averaged `summary.csv` or `summary_filtered.csv` header
-- **THEN** it contains `app_label`, `snapshot_label`, `n_samples`, and `<metric>_<statistic>` columns for every memory metric and the statistics mean, geomean, median, std, min, and max
-
-#### Scenario: Iteration summary header is checked
-- **WHEN** a test passes an iteration `summary.csv` with an unexpected header
-- **THEN** averaging fails with a validation error
-
-#### Scenario: Iteration summary row width is checked
-- **WHEN** a test passes an iteration `summary.csv` containing too few or too many row cells
-- **THEN** averaging fails with a validation error
-
-#### Scenario: Averaged row order follows first appearance
-- **WHEN** a test supplies iterations with snapshot rows in different orders
-- **THEN** averaged rows are ordered by first appearance of each pair across retained iterations in run order
+#### Scenario: Output destination does not exist
+- **WHEN** normalization is applied to a future destination
+- **THEN** tests verify normalization succeeds without requiring it to exist or resolving symlinks
 
 ### Requirement: Device command translation tests use fake HDC logging
 Tests that assert concrete HDC command arguments SHALL use the real device layer with fake HDC call logging rather than fake device method logging.
@@ -381,26 +261,3 @@ Tests that assert concrete HDC command arguments SHALL use the real device layer
 #### Scenario: Hilog stream process lifecycle is portable
 - **WHEN** a test validates run-wide hilog stream process lifecycle behavior
 - **THEN** the test does not require `os.setsid`, `os.killpg`, Unix signals, or multiprocessing process-group cleanup
-
-### Requirement: Smaps tag filter and renamed artifact layout are covered by tests
-The test suite SHALL verify the smaps parser's tag-filter behavior, the per-file empty-filter warning, filtered-empty snapshots producing no summary row or plot point, CLI and programmatic filter wiring, and the renamed snapshot, breakdown, and plot artifact paths.
-
-#### Scenario: Parser filter match semantics are tested
-- **WHEN** tests parse smaps text with a compiled tag filter pattern
-- **THEN** tests verify that only matching normalized tags appear in the breakdown and totals, that matching uses `re.match` start-anchored semantics against normalized tags (e.g. `.*\.so` matches `/system/lib64/lib.so` while `\.so$` matches nothing), and that a filter matching no tags yields `None`
-
-#### Scenario: Filtered-empty snapshot report behavior is tested
-- **WHEN** tests generate reports with a filter that matches no tags in a snapshot file
-- **THEN** tests verify a per-file memmem warning containing the smaps path and the pattern, no breakdown CSV, no summary row and no plot point for that snapshot, and averaged reports treating the snapshot as absent
-
-#### Scenario: Filtered snapshot report behavior is tested
-- **WHEN** tests generate reports with a filter that matches some tags
-- **THEN** tests verify the breakdown CSV, summary row, and plot points reflect only the matching tags
-
-#### Scenario: CLI and programmatic filter options are tested
-- **WHEN** tests exercise `run.py --smaps-filter` and `lib.run(smaps_filter=...)`
-- **THEN** tests verify option parsing, invalid regex rejection at parse time, keyword-only propagation into report generation, and default-`None` behavior preserving unfiltered aggregation
-
-#### Scenario: Renamed artifact layout is tested
-- **WHEN** tests assert artifact paths after snapshot receive and report generation
-- **THEN** tests verify `snapshots/<snapshot_label>/<app_label>-<snapshot_label>.smaps`, `breakdowns/<snapshot_label>/<app_label>-<snapshot_label>.csv`, `plots/<app_label>/<app_label>-<metric>.svg`, and the averaged breakdown and plot equivalents under `summary/`

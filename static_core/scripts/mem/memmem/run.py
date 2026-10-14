@@ -14,136 +14,49 @@
 # limitations under the License.
 
 import argparse
-import dataclasses
 from datetime import datetime
-import json
 import pathlib
-import re
 import sys
 
-from dotenv import dotenv_values
-
-from src.schema import UnprocessedFlow
-from src.types import positive_int
+from src.cli_helpers import (add_execution_arguments, add_logging_arguments,
+                             add_view_arguments, execute_iterations,
+                             load_device, load_flow, view_destination)
 from src.path import absolutize
 
 import lib
 
 
-@dataclasses.dataclass(frozen=True)
-class Config:
-    hdc_path: pathlib.Path | None = None
-    abd_path: pathlib.Path | None = None
-
-
-def load_config(env_path: pathlib.Path) -> Config:
-    if not env_path.is_file():
-        raise FileNotFoundError(f"env file does not exist: {env_path}")
-
-    values = dotenv_values(env_path)
-
-    def optional_path(name: str) -> pathlib.Path | None:
-        value = values.get(name)
-        return None if value is None or value == "" else absolutize(pathlib.Path(value))
-
-    return Config(hdc_path=optional_path("HDC_PATH"), abd_path=optional_path("ABD_PATH"))
-
-
-def _compile_smaps_filter(value: str) -> re.Pattern[str]:
-    try:
-        return re.compile(value)
-    except re.error:
-        raise argparse.ArgumentTypeError(
-            f"invalid regex: {value}") from None
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Benchmark mobile device memory usage")
-    parser.add_argument("--flow", required=True, type=pathlib.Path)
-    parser.add_argument("--backend", choices=["hdc", "abd"], default="hdc")
-    parser.add_argument(
-        "--out-dir",
-        required=False,
-        type=pathlib.Path,
-        default=None,
-        help="directory to store benchmark results",
-    )
-    parser.add_argument(
-        "--repeats",
-        required=False,
-        type=positive_int,
-        default=1,
-        help="number of times to repeat the flow; positive int",
-    )
-    reboot_group = parser.add_mutually_exclusive_group()
-    reboot_group.add_argument(
-        "--reboot", dest="reboot", action="store_true", default=False
-    )
-    reboot_group.add_argument(
-        "--no-reboot", dest="reboot", action="store_false")
-    device_log_group = parser.add_mutually_exclusive_group()
-    device_log_group.add_argument("--device-log", dest="device_log",
-                                  action="store_true", default=True)
-    device_log_group.add_argument("--no-device-log", dest="device_log",
-                                  action="store_false")
-    parser.add_argument(
-        "--memmem-log-level",
-        choices=["info", "warn", "err"],
-        default="err",
-    )
-    parser.add_argument("--memmem-log-file", required=False,
-                        type=pathlib.Path, default=None)
-    parser.add_argument(
-        "--smaps-filter",
-        required=False,
-        type=_compile_smaps_filter,
-        default=None,
-        help=(
-            "regex matched with re.match against each normalized smaps tag; "
-            "only matching mappings are counted in reports; "
-            "e.g. '.*\\.so' counts contribution of only shared-library mappings"
-        ),
-    )
+        description="Benchmark mobile device memory usage", allow_abbrev=False)
+    add_execution_arguments(parser)
+    add_view_arguments(parser)
+    add_logging_arguments(parser)
     return parser
 
 
 def main() -> int:
     args = build_parser().parse_args()
-    flow_path = absolutize(args.flow)
-    log_file: pathlib.Path | None = None
-    if args.memmem_log_file is not None:
-        log_file = absolutize(pathlib.Path(args.memmem_log_file))
-    if args.out_dir is None:
-        out_dir = absolutize(pathlib.Path(
-            f"memmem-out-{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"))
-    else:
-        out_dir = absolutize(args.out_dir)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    out_dir = (absolutize(args.out_dir) if args.out_dir is not None else
+               absolutize(pathlib.Path(
+                   f"memmem-out-{timestamp}")))
+    log_file = (absolutize(args.memmem_log_file)
+                if args.memmem_log_file is not None else None)
     try:
         lib.configure_logger(args.memmem_log_level, log_file)
-        unprocessed = UnprocessedFlow.model_validate(json.loads(
-            flow_path.read_text(encoding="utf-8")))
-        flow = lib.preprocess_flow(unprocessed)
-        config = load_config(pathlib.Path(".env"))
-        if args.backend == "hdc":
-            if config.hdc_path is None:
-                raise ValueError("HDC_PATH is required when backend=hdc")
-            device = lib.get_hdc_device(lib.get_hdc(config.hdc_path))
-        else:
-            if config.abd_path is None:
-                raise ValueError("ABD_PATH is required when backend=abd")
-            device = lib.get_abd_device(lib.get_abd(config.abd_path))
-        lib.run(
-            flow,
-            device,
-            out_dir=out_dir,
-            reboot=args.reboot,
-            device_log=args.device_log,
-            repeats=args.repeats,
-            smaps_filter=args.smaps_filter,
-        )
+        flow = load_flow(args.flow)
+        device = load_device(pathlib.Path(".env"), args.backend)
+        evidence_dirs = execute_iterations(
+            flow, device, out_dir, args.repeats, reboot=args.reboot,
+            device_log=args.device_log)
+        for index, evidence_dir in enumerate(evidence_dirs):
+            lib.create_view([evidence_dir], view_destination(
+                out_dir / f"iteration_{index}", timestamp), args.smaps_filter)
+        lib.create_view(evidence_dirs, view_destination(out_dir, timestamp),
+                        args.smaps_filter)
     except Exception as error:
-        print(f"error: memmem error: {error}", file=sys.stderr)
+        print(f"memmem error: {error}", file=sys.stderr)
         return 1
     finally:
         lib.reset_logger()

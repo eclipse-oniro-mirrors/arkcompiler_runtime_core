@@ -61,8 +61,13 @@ class RunCliTest(unittest.TestCase):
         self.assertEqual(args.repeats, 1)
         self.assertEqual(args.memmem_log_level, "err")
         self.assertEqual(args.memmem_log_file, None)
-        self.assertIsNone(args.smaps_filter)
+        self.assertEqual(args.smaps_filter.pattern, ".*")
         self.assertIsNone(args.out_dir)
+
+    def test_partial_argument_rejected(self) -> None:
+        with self.assertRaises(SystemExit):
+            build_parser().parse_args(
+                ["--flow", "flow.json", "--smaps=filter='.*aaa.*'"])
 
     def test_abd_backend_parses(self) -> None:
         args = build_parser().parse_args(
@@ -239,6 +244,50 @@ class RunCliTest(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 1)
             self.assertIn("ABD_PATH is required", result.stderr)
+
+    def test_abd_multi_touch_fails_before_output_creation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            root.joinpath(".env").write_text(
+                "ABD_PATH=/bin/false\n", encoding="utf-8")
+            flow_path = root.joinpath("flow.json")
+            output_path = root.joinpath("out")
+            flow_path.write_text(
+                json.dumps({
+                    "flow": [{
+                        "label": "app",
+                        "bundle": "com.example",
+                        "ability": "EntryAbility",
+                        "terminate": False,
+                        "commands": [{
+                            "action": "multi_touch_input",
+                            "payload": {
+                                "finger_list": [
+                                    {"x1_pct": 0, "y1_pct": 0,
+                                        "x2_pct": 50, "y2_pct": 50},
+                                    {"x1_pct": 100, "y1_pct": 100,
+                                        "x2_pct": 50, "y2_pct": 50},
+                                ],
+                                "duration_ms": 500,
+                            },
+                        }],
+                    }],
+                }),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [sys.executable, str(_ROOT / "run.py"), "--flow", str(flow_path),
+                 "--backend", "abd", "--out-dir", str(output_path)],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("does not support command", result.stderr)
+            self.assertFalse(output_path.exists())
 
     def test_invalid_flow_json_fails_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

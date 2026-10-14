@@ -43,11 +43,12 @@ _HEADER_RE = re.compile(
     r"^[0-9A-Fa-f]+-[0-9A-Fa-f]+\s+\S+\s+\S+\s+\S+\s+\S+(?:\s+(?P<tag>.*))?$"
 )
 _METRIC_RE = re.compile(r"^(?P<name>[A-Za-z0-9_\s]+):\s+(?P<value>\d+)\s+kB$")
+MATCH_ALL: re.Pattern[str] = re.compile(".*")
 
 
 def parse_smaps_text(
     text: str,
-    tag_filter: re.Pattern[str] | None = None,
+    tag_filter: re.Pattern[str] = MATCH_ALL,
 ) -> SmapsSummary | None:
     breakdown: dict[str, MemProfile] = {}
     total: MemProfile | None = None
@@ -58,7 +59,7 @@ def parse_smaps_text(
         nonlocal total
         if current_profile is None or current_tag is None:
             return
-        if tag_filter is not None and tag_filter.match(current_tag) is None:
+        if tag_filter.match(current_tag) is None:
             return
         breakdown[current_tag] = _add_profiles(
             breakdown.get(current_tag, _empty_profile()),

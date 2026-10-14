@@ -13,10 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import pathlib
+
+
+def normalize(path: pathlib.Path) -> pathlib.Path:
+    """Collapse lexical dot components without following symlinks."""
+    return pathlib.Path(os.path.normpath(path))
 
 
 def absolutize(path: pathlib.Path) -> pathlib.Path:
     if path.is_absolute():
-        return path
-    return pathlib.Path.cwd().joinpath(path)
+        return normalize(path)
+    return normalize(pathlib.Path.cwd().joinpath(path))

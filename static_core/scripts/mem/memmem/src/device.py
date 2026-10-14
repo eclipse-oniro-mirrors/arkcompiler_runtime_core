@@ -18,6 +18,8 @@ import pathlib
 import subprocess
 import typing
 
+from src.schema import Command
+
 
 @dataclasses.dataclass(frozen=True)
 class CommandResult:
@@ -69,6 +71,9 @@ class Point:
 
 
 class Device(typing.Protocol):
+    def is_command_supported(self, command: Command) -> bool:
+        ...
+
     def launch_app(self, bundle: str, ability: str) -> None:
         ...
 
@@ -140,6 +145,11 @@ class Device(typing.Protocol):
         ...
 
     def drag(self, start: Point, end: Point, velocity: int) -> None:
+        ...
+
+    def multi_touch_input(
+        self, finger_list: list[tuple[Point, Point]], duration_ms: int
+    ) -> None:
         ...
 
     def fling(self, start: Point, end: Point,

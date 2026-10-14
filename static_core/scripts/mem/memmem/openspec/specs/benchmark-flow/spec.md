@@ -6,159 +6,187 @@ Defines the benchmark CLI, flow schema, app launch behavior, command semantics, 
 ## Requirements
 
 ### Requirement: CLI accepts benchmark flow input
-The system SHALL provide a single user-facing CLI through `run.py` that accepts a required `--flow` argument, a `--backend` argument with values `hdc` and `abd`, an optional `--out-dir` argument, an optional `--repeats` argument, reboot controls `--reboot` and `--no-reboot`, hilog controls `--hilog` and `--no-hilog`, and memmem application logging controls `--memmem-log-level` and `--memmem-log-file`. The backend SHALL default to `hdc`. Reboot SHALL default to disabled. Hilog collection SHALL default to enabled and SHALL mean one run-wide device log artifact stored at the existing hilog evidence path. The CLI SHALL read optional HDC and ABD executable paths from `.env` and fail before benchmark execution only when the executable path for the selected backend is missing. The CLI SHALL act as an adapter that reads the JSON flow file, validates it into the flow schema, constructs the selected production device, and delegates execution to the public programmatic API.
+The system SHALL provide `execute_flow.py` for collection, `create_view.py` for offline analysis, and `run.py` composing both. All CLIs, including `compare.py` and `record_hdc.py`, SHALL explicitly disable argument abbreviation and independently expose and own `--memmem-log-level {info,warn,err}` (default `err`) and optional `--memmem-log-file`. Execution CLIs SHALL accept required `--flow`, `--backend {hdc,abd}` defaulting to `hdc`, optional `--out-dir`, positive `--repeats` defaulting to `1`, mutually exclusive `--reboot` and `--no-reboot` defaulting to false, and mutually exclusive `--device-log` and `--no-device-log` defaulting to true. Old `--hilog`, `--no-hilog`, `--logs`, and `--no-logs` SHALL not be supported. They SHALL preprocess JSON through the public canonicalization API, preserve description metadata, construct the selected backend from optional `.env` `HDC_PATH` and `ABD_PATH` values, and require only the selected executable path before device work. `run.py` SHALL also accept `--smaps-filter`, compiled during argument parsing with default `.*`; `execute_flow.py` SHALL not accept report-filter options. Shared CLI setup SHALL not perform work at import time.
+
+#### Scenario: Execution defaults are used
+- **WHEN** either execution CLI is invoked with only a valid `--flow`
+- **THEN** it uses HDC, one repeat, no reboot, enabled device logs, error-only memmem logs, and a timestamped default `memmem-out` directory
+
+#### Scenario: Selected backend configuration is missing
+- **WHEN** the selected backend's executable path is absent or empty
+- **THEN** execution fails before device actions, while a missing unselected backend path is accepted
+
+#### Scenario: Invalid CLI options are supplied
+- **WHEN** flow is omitted, repeats is nonpositive, backend or log level is invalid, mutually exclusive toggles conflict, a removed option is supplied, or an option name is abbreviated
+- **THEN** argument validation fails
+
+#### Scenario: Invalid regex is supplied to run
+- **WHEN** `run.py` receives an invalid `--smaps-filter` expression
+- **THEN** argparse rejects it before collection or output generation
+
+#### Scenario: Help is requested
+- **WHEN** a user requests `--help`
+- **THEN** the selected CLI describes its applicable execution, view, and logging options without requiring a device or performing work
+
+#### Scenario: Explicit device log controls are used
+- **WHEN** either execution CLI receives `--device-log` or `--no-device-log`
+- **THEN** it enables or disables device logging respectively, defaults to enabled if neither is supplied, and rejects the pair supplied together
 
 #### Scenario: HDC backend is selected by default
-- **WHEN** the user runs `python run.py --flow flow.json` without `--backend`
-- **THEN** the system selects the HDC backend and requires a configured HDC executable path
-
-#### Scenario: User requests help
-- **WHEN** the user runs `python run.py --help`
-- **THEN** the system displays command-line help describing flow, backend, output, repeats, reboot, hilog, and memmem logging controls
-
-#### Scenario: User omits flow argument
-- **WHEN** the user runs `python run.py` without `--flow`
-- **THEN** the system exits with an argument validation error
+- **WHEN** either execution CLI omits `--backend`
+- **THEN** it selects HDC and requires its configured executable
 
 #### Scenario: User provides flow input
-- **WHEN** the user runs `python run.py --flow flow.json`
-- **THEN** the system uses default output, reboot, log collection, repeat, and memmem logging options
+- **WHEN** an execution CLI receives a valid `--flow` and no optional controls
+- **THEN** it uses the execution defaults specified above
 
 #### Scenario: User provides out dir explicitly
-- **WHEN** the user runs with `--out-dir results/bench1`
-- **THEN** the system writes all run output under the provided `results/bench1` directory
+- **WHEN** `--out-dir` is supplied
+- **THEN** it is the parent for canonical flow and iteration evidence, not the exact library destination
 
 #### Scenario: User provides an existing out dir
-- **WHEN** the requested output directory already exists
-- **THEN** the run fails before device actions with an error naming the directory
+- **WHEN** an execution CLI receives an existing parent without flow or evidence conflicts
+- **THEN** it accepts the parent and exclusively creates the intended new outputs
 
 #### Scenario: User provides repeats explicitly
-- **WHEN** the user runs with `--repeats 3`
-- **THEN** benchmark options set repeats to 3 and create iteration output directories
-
-#### Scenario: User provides a non-positive repeats value
-- **WHEN** the user provides a non-positive repeats value
-- **THEN** the system exits with an argument validation error
+- **WHEN** `--repeats 3` is supplied
+- **THEN** the execution CLI schedules `iteration_0` through `iteration_2`
 
 #### Scenario: User requests reboot explicitly
-- **WHEN** the user runs with `--reboot`
-- **THEN** benchmark options enable reboot before each iteration
+- **WHEN** `--reboot` is supplied
+- **THEN** reboot is enabled for each execution
 
 #### Scenario: User disables reboot explicitly
-- **WHEN** the user runs with `--no-reboot`
-- **THEN** benchmark options disable reboot
+- **WHEN** `--no-reboot` is supplied
+- **THEN** reboot is disabled
 
 #### Scenario: User enables hilog explicitly
-- **WHEN** the user runs with `--hilog`
-- **THEN** benchmark options enable run-wide device hilog collection
+- **WHEN** the removed `--hilog` option is supplied
+- **THEN** argparse rejects it; the supported replacement is `--device-log`
 
 #### Scenario: User disables hilog explicitly
-- **WHEN** the user runs with `--no-hilog`
-- **THEN** benchmark options disable log setup, stream lifecycle, artifact tracking, and receive behavior
+- **WHEN** the removed `--no-hilog` option is supplied
+- **THEN** argparse rejects it; the supported replacement is `--no-device-log`
 
 #### Scenario: User configures memmem log level
-- **WHEN** the user runs with `--memmem-log-level info`
-- **THEN** benchmark options set memmem application log level to `info`
+- **WHEN** `--memmem-log-level info` is supplied
+- **THEN** that CLI configures informational memmem logging
 
 #### Scenario: User configures memmem log file
-- **WHEN** the user runs with `--memmem-log-file memmem.log`
-- **THEN** benchmark options route emitted memmem application logs to `memmem.log`
-
-#### Scenario: User provides invalid memmem log level
-- **WHEN** the user provides an unsupported memmem log level
-- **THEN** the system exits with an argument validation error
+- **WHEN** `--memmem-log-file` is supplied
+- **THEN** that CLI configures the given destination under the existing logging contract
 
 #### Scenario: User provides removed log controls
-- **WHEN** the user provides `--logs` or `--no-logs`
-- **THEN** the system exits with an argument validation error
+- **WHEN** `--logs` or `--no-logs` is supplied
+- **THEN** argparse rejects it
 
 #### Scenario: User provides contradictory boolean controls
-- **WHEN** the user provides both values of a reboot or hilog boolean pair
-- **THEN** the system exits with an argument validation error
+- **WHEN** both members of a reboot or device-log toggle pair are supplied
+- **THEN** argparse rejects the contradictory options
 
 #### Scenario: CLI delegates to public API
-- **WHEN** CLI parsing, config loading, device construction, and flow validation succeed
-- **THEN** the CLI calls the public programmatic run API with the validated flow, device, output directory, and runtime options
+- **WHEN** CLI setup succeeds
+- **THEN** collection delegates to `execute_flow` and applicable rendering delegates separately to `create_view`
 
 #### Scenario: ABD backend is selected
-- **WHEN** the user runs `python run.py --flow flow.json --backend abd`
-- **THEN** the system selects the ABD backend and requires a configured ABD executable path
+- **WHEN** `--backend abd` is supplied
+- **THEN** the CLI constructs ABD from its configured executable
 
 #### Scenario: Unselected backend path is absent
-- **WHEN** the selected backend has a configured executable path and the other backend path is missing or empty
-- **THEN** the system starts benchmark preparation without rejecting the unselected backend path
+- **WHEN** only the selected backend has a configured path
+- **THEN** setup accepts the absent unselected backend path
 
 #### Scenario: Selected backend path is absent
-- **WHEN** the selected backend has a missing or empty executable path
-- **THEN** the system fails before device actions with an error identifying the required configuration value
+- **WHEN** the selected backend path is missing or empty
+- **THEN** setup fails before device actions with the required configuration name
 
 #### Scenario: Invalid backend is provided
-- **WHEN** the user passes a `--backend` value other than `hdc` or `abd`
-- **THEN** the CLI exits with an argument validation error
+- **WHEN** `--backend` is neither `hdc` nor `abd`
+- **THEN** argparse rejects it
 
 ### Requirement: CLI path arguments resolve against the invocation working directory
-The system SHALL resolve the `--flow` path, the `--out-dir` path, the `--memmem-log-file` path, and configured non-empty `HDC_PATH` and `ABD_PATH` values against the working directory of the CLI invocation before any later working directory change.
+CLI and API host paths SHALL use lexical normalization without symlink resolution. Relative flow, output, logging, evidence, comparison, and configured executable paths SHALL be anchored to invocation cwd before later runner cwd changes; absolute paths SHALL also be lexically normalized. Artifact-relative metadata paths SHALL remain portable relative references rather than host-absolutized paths. Duplicate view sources SHALL be rejected by normalized absolute spelling, not inode identity.
 
 #### Scenario: Relative path arguments are invariant to the run working directory
-- **WHEN** the user runs `python run.py --flow flow.json --out-dir out` and benchmark execution later changes the process working directory
-- **THEN** the flow file, output directory, memmem log file, and selected backend executable path still resolve to the paths given at invocation time
+- **WHEN** execution later changes cwd
+- **THEN** flow, output, log, and backend paths retain their lexically normalized invocation-relative meaning
+
+#### Scenario: Lexical aliases identify the same source
+- **WHEN** sources include `/x/evidence` and `/x/tmp/../evidence`
+- **THEN** view input validation rejects the duplicate
+
+#### Scenario: Source uses a symlink alias
+- **WHEN** a source path contains a symlink
+- **THEN** normalization does not resolve it or promise physical-directory deduplication
 
 ### Requirement: Benchmark execution manages its working directory
-The system SHALL change the working directory to the local output directory immediately after local output initialization and SHALL restore the original working directory after the run, including when the run fails. Local paths supplied to device file-transfer operations SHALL be relative to the run working directory.
+Execution SHALL preserve its existing output-working-directory behavior for command execution and relative local transfer paths, including the HDC/WSL workaround. Its working directory during flow commands SHALL be the exact evidence destination, not the CLI run root. The original cwd SHALL be restored on success or failure. Caller-relative paths SHALL have been resolved before this change; APIs SHALL not promise concurrent thread-safe cwd mutation.
 
-#### Scenario: Run executes from the output directory
-- **WHEN** benchmark execution starts with a validated flow and output directory
-- **THEN** the system executes device interactions from a working directory equal to the output directory after local output initialization
+#### Scenario: Flow commands execute
+- **WHEN** initialized execution begins commands
+- **THEN** its working directory is the evidence destination
 
-#### Scenario: Working directory is restored after the run
-- **WHEN** benchmark execution finishes or fails
-- **THEN** the process working directory equals the working directory captured at benchmark entry
+#### Scenario: Receive is invoked
+- **WHEN** a queued artifact is transferred
+- **THEN** the device receives a relative local path that resolves to the intended evidence file
 
-#### Scenario: File transfers use run-relative local paths
-- **WHEN** a pending device-local artifact is received
-- **THEN** the local path supplied to the file-transfer operation is relative to the run working directory
+#### Scenario: Execution raises
+- **WHEN** any execution phase fails
+- **THEN** the original working directory is restored before the public call finishes raising
 
 ### Requirement: Benchmark execution accepts injected dependencies
-The CLI orchestration layer SHALL accept a validated flow object, runtime options, and an already-created device-compatible object for a full benchmark run. The lower-level benchmark runner SHALL accept a validated flow object, runtime options, an injected `ResultStore`, and an already-created device-compatible object for evidence collection instead of constructing HDC, Device, result storage, flow content, or logging configuration internally. Runtime options SHALL contain `out_dir`, `reboot`, `hilog`, and `repeats`; callers MUST provide flow content separately from runtime options. Memmem logging SHALL be read from the module-level logging configuration rather than passed through runner function arguments.
+Single-execution code SHALL accept canonical flow, execution options, evidence storage, and an already-created `Device` without constructing a backend or configuring logging internally. Execution options SHALL contain destination, reboot, and `device_log` only; repeats and report filters SHALL belong to orchestration and view generation. The public `execute_flow` operation SHALL revalidate flow and support, construct its internal execution dependencies, and run evidence collection plus structural validation without reports. Device operations, UI translations, preparation health and timeout policy, and existing builder and preprocessing behavior SHALL remain unchanged.
+
+#### Scenario: Tests inject a device
+- **WHEN** a test supplies canonical flow, evidence store, options, and a fake device
+- **THEN** lower-level execution uses those dependencies without production construction or report generation
+
+#### Scenario: Public execution is called
+- **WHEN** `execute_flow` receives flow, device, destination, and execution flags
+- **THEN** it performs one evidence collection and structural validation without repeats, filtering, or plots
 
 #### Scenario: CLI constructs production device and options
-- **WHEN** the CLI starts benchmark execution
-- **THEN** it loads configuration, constructs the HDC wrapper, constructs the production device, validates the JSON flow into a flow object, configures memmem logging, and passes the flow, runtime options, and device to the public programmatic API
+- **WHEN** execution CLI setup succeeds
+- **THEN** it supplies canonical flow, selected production `Device`, and execution options to the public operation with CLI-owned logging
 
 #### Scenario: Public API creates store and reports
-- **WHEN** public programmatic execution begins with a provided flow, runtime option arguments, a provided device object, and previously configured memmem logging
-- **THEN** it revalidates the flow, creates internal runtime options, creates a `ResultStore`, calls lower-level benchmark execution, and generates per-run or averaged reports after lower-level execution succeeds
+- **WHEN** the replacement public `execute_flow` operation is invoked
+- **THEN** it creates internal evidence storage and collects validated evidence but creates no reports; reporting requires a separate `create_view` call
 
 #### Scenario: Runner uses provided flow, device, store, options, and configured logger
-- **WHEN** benchmark evidence collection begins with a provided flow, runtime options, a provided store, a provided device object, and configured memmem logging
-- **THEN** the runner uses the provided flow for AppFlow content, uses options for output path, reboot behavior, hilog behavior, and repeat count, uses the store for result paths, uses the device object for all device operations, and uses the configured singleton logger for memmem runner messages
-
-#### Scenario: Tests pass fake device, explicit flow, options, and store directly
-- **WHEN** a runner test executes benchmark flow logic
-- **THEN** the test can pass a validated flow object, internal runtime options, `ResultStore`, and fake device directly without monkeypatching production device construction or result storage construction
+- **WHEN** lower-level execution receives injected dependencies
+- **THEN** it uses them for commands, evidence paths, reboot and `device_log` behavior, and existing logger messages without repeats or report filters
 
 ### Requirement: Repeated runs produce iteration output directories
-The system SHALL execute a benchmark flow a configured number of times when repeats is greater than `1`. The system SHALL atomically reserve the top-level run output directory before the first iteration and SHALL reject an existing top-level directory even when `iteration_0` is absent. For repeat index `i` from `0` to `repeats - 1`, the system SHALL store the full run output in the `iteration_{i}` directory under the run output directory, with each iteration directory having the same structure as a single run. When repeats is `1`, the system SHALL store output directly in the run output directory without an iteration subdirectory. Each iteration SHALL generate its own per-iteration reports. After all iterations complete, the system SHALL generate averaged results in a `summary` directory under the run output directory. Reboot, when enabled, SHALL apply before each iteration's flow execution.
+Execution CLIs SHALL create a missing parent `--out-dir` or accept a pre-created parent. They SHALL persist one canonical `flow.json` with description and expanded macros at that root and no run metadata, then use exact new `iteration_i/evidence` API destinations for `i` from `0` to `repeats - 1`, including `repeats=1`. Root flow provenance SHALL not be overwritten: an existing `flow.json` or intended evidence destination SHALL cause an error rather than implicit resume. Direct API execution SHALL not write parent `flow.json`. Reboot SHALL apply before each requested execution. `run.py` SHALL collect all iterations before any view, then create individual `iteration_i/view/view-T` views and one combined `view/view-T`, reusing one invocation timestamp `T` even for a single repeat. `execute_flow.py` SHALL create no views. Collection failure SHALL stop subsequent iterations and all rendering; rendering failure SHALL stop subsequent views and leave all existing or partial outputs.
 
 #### Scenario: Repeats equals one
-- **WHEN** the user runs a benchmark with repeats equal to `1`
-- **THEN** the system stores output directly in the run output directory and does not create any `iteration_{i}` directory or `summary` directory
+- **WHEN** `run.py` uses repeats `1`
+- **THEN** it still creates `iteration_0/evidence` and both individual and combined views
 
 #### Scenario: Repeats is greater than one
-- **WHEN** the user runs a benchmark with repeats greater than `1`
-- **THEN** the system creates `iteration_0` through `iteration_{repeats-1}` directories under the run output directory, each containing the full per-run output and per-iteration reports
+- **WHEN** repeats exceeds `1`
+- **THEN** evidence is collected into `iteration_0` through `iteration_{repeats-1}` before `run.py` starts any view
 
 #### Scenario: Existing repeated-run output is rejected
-- **WHEN** the user requests repeats greater than `1` with an existing top-level output directory
-- **THEN** the system fails before the first iteration and before device actions without modifying the directory
+- **WHEN** an intended evidence destination or canonical flow file already exists in the chosen parent
+- **THEN** collection rejects the conflict without overwriting it; existence of the parent alone is no longer an error
 
 #### Scenario: Iteration failure aborts the run
-- **WHEN** one iteration of a repeated benchmark fails
-- **THEN** the system fails the benchmark run and does not produce a `summary` directory, while already-written iteration directories remain on disk
+- **WHEN** an iteration fails
+- **THEN** later iterations and all rendering are skipped while partial evidence is retained
 
 #### Scenario: Reboot applies per iteration
-- **WHEN** the user runs a repeated benchmark with reboot enabled
-- **THEN** the system reboots the device before each iteration's flow execution
+- **WHEN** reboot is enabled
+- **THEN** it is requested separately for each execution
+
+#### Scenario: Parent exists without conflicting output
+- **WHEN** `--out-dir` is pre-created and flow and evidence targets are available
+- **THEN** the CLI accepts the parent and each API exclusively creates its own subdirectory
+
+#### Scenario: Rendering fails
+- **WHEN** a per-iteration view fails after collection completed
+- **THEN** later individual and combined views are not attempted and evidence and partial views remain
 
 ### Requirement: Flow JSON defines ordered app flows
 The system SHALL load and validate a JSON flow file as an unprocessed flow containing an ordered list of `AppFlow` entries with `label`, `bundle`, `ability`, `terminate`, and `commands` fields, and SHALL preprocess the unprocessed flow into a canonical `Flow` through the public preprocessing API before execution. Unprocessed command entries MAY be concrete canonical commands or repeat macro entries. Repeat macro entries MUST be expanded before canonical `Flow` validation and before execution. Canonical `Flow` validation MUST enforce that app labels and snapshot labels match `^[A-Za-z0-9_-]+$`, that screenshot labels match `^[A-Za-z0-9_-]+$`, that app labels are globally unique across the flow, that snapshot labels are globally unique across all expanded `snapshot` commands, that screenshot labels are globally unique across all expanded `screenshot` commands, and that UI coordinate command payloads use integer percent coordinates from `0` to `100`. The flow JSON MAY include optional top-level `"$desc"` string metadata that describes the flow for human reviewers and does not affect execution.
@@ -317,7 +345,7 @@ The system SHALL launch each `AppFlow` once when that flow begins, resolve the l
 - **THEN** the runner preserves the original AppFlow failure and SHOULD include the termination failure in a combined error when practical
 
 ### Requirement: Commands execute with action-specific semantics
-The system SHALL support command actions `wait`, `snapshot`, `screenshot`, `key`, `tap`, `double_tap`, `long_tap`, `swipe`, `drag`, `fling`, `directional_fling`, `input_text`, and `text`, and schema validation MUST enforce each action's payload type before execution.
+The system SHALL support command actions `wait`, `snapshot`, `screenshot`, `key`, `tap`, `double_tap`, `long_tap`, `swipe`, `drag`, `fling`, `directional_fling`, `input_text`, `text`, and `multi_touch_input`, and schema validation MUST enforce each action's payload type before execution. `multi_touch_input` SHALL use a payload containing `finger_list`, a tuple of exactly two or three strict `Displacement` values; each `Displacement` SHALL contain strict integer `x1_pct`, `y1_pct`, `x2_pct`, and `y2_pct` values in `0..100`. Existing `SwipePayload` SHALL inherit `Displacement`. `multi_touch_input.duration_ms` SHALL be a strict integer in `1..15000`.
 
 #### Scenario: Wait command executes
 - **WHEN** a `wait` command has a non-negative numeric payload (integer or float)
@@ -329,11 +357,15 @@ The system SHALL support command actions `wait`, `snapshot`, `screenshot`, `key`
 
 #### Scenario: Snapshot command executes
 - **WHEN** a `snapshot` command has a valid globally unique string payload
-- **THEN** the system records one snapshot timestamp, captures smaps on device for every previously launched label whose stored PID is still valid, and records pending snapshot artifacts for later transfer
+- **THEN** the system records one timestamp and ordered expected files from the eligible active-apps list before liveness checks, excludes explicitly terminated labels, fails if any expected PID is missing, and immediately queues every successful capture for later receiving
+
+#### Scenario: Labels share a PID but one is no longer eligible
+- **WHEN** launched labels share a stored PID and one label has been explicitly removed by its requested termination
+- **THEN** a later snapshot excludes that label even if the stored PID still exists, and any remaining eligible label is subject to the fatal missing-PID rule
 
 #### Scenario: Screenshot command executes
 - **WHEN** a `screenshot` command has a valid globally unique screenshot label payload
-- **THEN** the system records one screenshot timestamp, captures the current screen to a device-local PNG file, and records a pending screenshot artifact for later transfer
+- **THEN** the system records one screenshot timestamp and expected PNG declaration before capture, captures the current screen to the declared device-local file, and queues the successful artifact for transfer
 
 #### Scenario: Key command executes
 - **WHEN** a `key` command has a valid named key payload
@@ -375,6 +407,26 @@ The system SHALL support command actions `wait`, `snapshot`, `screenshot`, `key`
 - **WHEN** a `text` command has non-empty text
 - **THEN** the system delegates focused text input to the device layer
 
+#### Scenario: Valid multi-touch command executes
+- **WHEN** a `multi_touch_input` command contains a `finger_list` of two through three valid contact paths and a duration in range
+- **THEN** the system converts every normalized endpoint to screen coordinates and delegates one synchronized multi-contact gesture to the device layer
+
+#### Scenario: Multi-touch payload has an invalid contact count
+- **WHEN** a `multi_touch_input` command payload contains fewer than two contacts or more than three contacts
+- **THEN** the system fails schema validation before performing device actions
+
+#### Scenario: Multi-touch coordinate or duration is invalid
+- **WHEN** a `multi_touch_input` command contains a coordinate outside `0..100` or a duration outside `1..15000`
+- **THEN** the system fails schema validation before performing device actions
+
+#### Scenario: Multi-touch displacement has an extra field
+- **WHEN** a `multi_touch_input` contact contains a field other than `x1_pct`, `y1_pct`, `x2_pct`, or `y2_pct`
+- **THEN** the system fails schema validation before performing device actions
+
+#### Scenario: Multi-touch input is not approximated
+- **WHEN** a validated flow contains a `multi_touch_input` command
+- **THEN** the system does not replace it with one or more sequential single-pointer swipe or drag gestures
+
 #### Scenario: Unknown command is present
 - **WHEN** a command action is not supported
 - **THEN** the system fails schema validation before performing device actions
@@ -390,6 +442,13 @@ The system SHALL support command actions `wait`, `snapshot`, `screenshot`, `key`
 #### Scenario: Step length is not positive
 - **WHEN** a `fling` or `directional_fling` command contains `step_length` less than or equal to zero
 - **THEN** the system fails schema validation before performing device actions
+
+### Requirement: Backend command support is validated before execution
+The public `execute_flow` entry SHALL check every canonical command immediately after flow revalidation and before evidence-store creation or reservation or device preparation. It SHALL report the first unsupported command. The shared CLI collection helper SHALL preflight support before writing run provenance where practical, while the public API SHALL retain its own validation for direct callers.
+
+#### Scenario: Device rejects an unsupported command
+- **WHEN** a validated flow contains a command that the selected device reports unsupported
+- **THEN** `execute_flow` fails before evidence creation or device actions
 
 ### Requirement: Benchmark execution caches screen bounds before app flows
 The system SHALL read root screen bounds from the device before executing any `AppFlow` and store those bounds in the execution context for normalized coordinate conversion.
@@ -411,15 +470,15 @@ The system SHALL read root screen bounds from the device before executing any `A
 - **THEN** the system converts the percent coordinate using cached root bounds and clamps the result to a positive in-bounds pixel coordinate
 
 ### Requirement: Benchmark execution prepares device environment before AppFlows
-The benchmark runner SHALL prepare the device environment before launching any `AppFlow`. When reboot is enabled, it SHALL reboot the device, wait for HDC availability, wait for boot completion, wake the device, perform an upward directional fling, and send Back. Regardless of reboot setting, it SHALL disable screen timeout before AppFlows. When hihilog collection is enabled, it SHALL configure hilog before health verification and remote setup. It SHALL verify that device health is acceptable before remote output setup. It SHALL create remote output and prepare execution context before starting any enabled run-wide hilog stream. After startup validation and any enabled stream startup completes, it SHALL launch AppFlows.
+The benchmark runner SHALL prepare the device environment before launching any `AppFlow`. When reboot is enabled, it SHALL reboot the device, wait for selected-backend availability and boot completion, wake the device, perform an upward directional fling, and send Back. Regardless of reboot setting, it SHALL disable screen timeout before AppFlows. When `device_log` is enabled, it SHALL configure the selected backend's device logging before health verification and remote setup. It SHALL verify device health before remote output setup, then create remote output and prepare execution context before starting any enabled run-wide log stream. After startup validation and enabled stream startup, it SHALL launch AppFlows. This change SHALL preserve existing preparation ordering, timeouts, and health policy; backend-neutral terminology SHALL not imply a new device operation.
 
 #### Scenario: Reboot is enabled
 - **WHEN** benchmark options have `reboot` equal to `True`
-- **THEN** the runner reboots the device, waits for device availability, waits for boot completion, performs the post-reboot wake routine, configures enabled hilog, verifies device health, creates remote output, reads screen bounds, and then starts enabled hilog streaming before launching AppFlows
+- **THEN** the runner reboots, waits for selected-backend availability and boot completion, performs the post-reboot wake routine, configures enabled device logging, verifies health, creates remote output, reads screen bounds, and starts enabled streaming before launching `AppFlow`s
 
 #### Scenario: Reboot is disabled
 - **WHEN** benchmark options have `reboot` equal to `False`
-- **THEN** the runner skips reboot, device availability wait, boot-complete wait, and post-reboot wake routine while still configuring enabled hilog, verifying device health, creating remote output, reading screen bounds, and starting enabled hilog streaming before launching AppFlows
+- **THEN** the runner skips reboot, availability and boot waits, and post-reboot wake routine while still configuring enabled logging, verifying health, creating remote output, reading screen bounds, and starting enabled streaming before `AppFlow`s
 
 #### Scenario: Post-reboot wake routine runs
 - **WHEN** reboot preparation reaches boot completion
@@ -431,42 +490,38 @@ The benchmark runner SHALL prepare the device environment before launching any `
 
 #### Scenario: Battery capacity is too low
 - **WHEN** benchmark execution prepares the device environment and device health reports battery capacity below 30%
-- **THEN** the runner rejects benchmark startup before starting any enabled hilog stream, reading screen bounds, or launching AppFlows
+- **THEN** the runner rejects startup before starting any enabled log stream, reading screen bounds, or launching `AppFlow`s
 
 #### Scenario: Thermal zone is too hot
 - **WHEN** benchmark execution prepares the device environment and any readable nonzero thermal zone reports a temperature above 80000 millidegrees Celsius
-- **THEN** the runner rejects benchmark startup before starting any enabled hilog stream, reading screen bounds, or launching AppFlows
+- **THEN** the runner rejects startup before starting any enabled log stream, reading screen bounds, or launching `AppFlow`s
 
 #### Scenario: Screen timeout is disabled
 - **WHEN** benchmark execution prepares the device environment
-- **THEN** the runner disables screen timeout before device health verification and before launching AppFlows independent of reboot and log options
+- **THEN** the runner disables screen timeout before health verification and `AppFlow`s independent of reboot and log options
 
-#### Scenario: Hihilog collection is enabled during preparation
-- **WHEN** benchmark options have `hilog` equal to `True`
-- **THEN** the runner configures hilog before remote output setup and starts the run-wide hilog stream after remote output setup, device health verification, and execution context preparation
+#### Scenario: Device logging is enabled during preparation
+- **WHEN** benchmark options have `device_log` equal to `True`
+- **THEN** the runner configures the selected backend's logging before remote output setup and starts streaming after remote setup, health verification, and execution context preparation
 
 ### Requirement: Benchmark execution captures run-wide hilog
-The benchmark runner SHALL collect one run-wide hilog artifact when hilog collection is enabled. It SHALL NOT clear hilog before each AppFlow and SHALL NOT dump hilog after each AppFlow. Requested AppFlow termination SHALL run after AppFlow command execution without waiting for any per-AppFlow log dump.
+Execution SHALL collect one backend device-log stream per execution when `device_log` is true, using HDC hilog or ABD logcat with the existing lifecycle and fixed evidence path `logs/log.log`. It SHALL not clear or dump logs per `AppFlow` or delay requested termination for a per-app dump. Stream shutdown and pending receives SHALL still be attempted after execution failures. Disabled device logging SHALL skip configuration, start, stop, tracking, and receive. Memmem application logs SHALL remain separate.
 
-#### Scenario: Hihilog collection is enabled for successful benchmark
-- **WHEN** all AppFlows run successfully with hilog collection enabled
-- **THEN** the runner records one pending log artifact and receives it as `hilog/hilog.log` after stopping the hilog stream
+#### Scenario: Enabled execution succeeds
+- **WHEN** all `AppFlow`s succeed with device logs enabled
+- **THEN** one log artifact is received at `logs/log.log` after stream shutdown
 
-#### Scenario: Hihilog collection is enabled for failing benchmark
-- **WHEN** benchmark execution fails after the run-wide hilog stream has started
-- **THEN** the runner attempts to stop the hilog stream before propagating the failure and still attempts to receive pending artifacts
+#### Scenario: Flow and shutdown both fail
+- **WHEN** flow execution fails and stream shutdown also fails
+- **THEN** the primary flow error is preserved with shutdown context and pending receives are still attempted
 
-#### Scenario: AppFlow and log stream stop both fail
-- **WHEN** an AppFlow fails and stopping the hilog stream also fails
-- **THEN** the runner preserves the original AppFlow failure and SHOULD include the log stream stop failure in a combined error when practical
-
-#### Scenario: Hihilog collection is disabled
-- **WHEN** benchmark options have `hilog` equal to `False`
-- **THEN** the runner skips hilog configuration, stream start, stream stop, log artifact tracking, and log receive behavior
+#### Scenario: Device logging is disabled
+- **WHEN** `device_log` is false
+- **THEN** no log lifecycle operations occur and no log evidence is required
 
 #### Scenario: Termination does not wait for per-AppFlow dump
-- **WHEN** an AppFlow has `terminate` equal to `True` and hilog collection is enabled
-- **THEN** the runner requests bundle termination after AppFlow command execution without performing a per-AppFlow hilog dump
+- **WHEN** an `AppFlow` requests termination with device logging enabled
+- **THEN** termination proceeds after its commands without a per-AppFlow dump
 
 ### Requirement: Key command accepts named keys only
 The system SHALL accept `key` commands only when the payload specifies one named key from `Home`, `Back`, or `Power`.
@@ -483,29 +538,28 @@ The system SHALL accept `key` commands only when the payload specifies one named
 - **WHEN** a `key` command payload contains numeric key codes or key combinations
 - **THEN** the system fails schema validation before performing device actions
 
-### Requirement: Snapshot skips invalid stored PIDs
-The system SHALL collect smaps only for launched labels that remain eligible for snapshot collection. A label that has been removed because its AppFlow requested termination SHALL not be inspected by later snapshots. When an eligible label's stored `/proc/<pid>` no longer exists, the system SHALL remove that label from future snapshot collection, emit a memmem warning that identifies the label and PID, and continue the current snapshot without failing solely for that reason.
+### Requirement: Snapshot expectations precede capture and missing PIDs are fatal
+A snapshot SHALL record its label, timestamp, and ordered expected files from active apps before liveness checks and capture. The declaration and capture SHALL use the same active-app collection. An unresolved launch PID or missing stored PID for an expected snapshot SHALL raise an error identifying app and PID context and abort execution, not warn and continue or remove the app silently. Successfully captured prefix files SHALL be queued immediately for final receiving even if a later capture fails. Expected declarations SHALL remain in partial metadata. Explicitly terminated labels SHALL remain excluded from subsequent expected snapshots while retained in `apps.json`. PID rediscovery after external relaunch SHALL not be introduced. An empty expected file list for an invoked capture event SHALL be rejected; zero commands of that category instead produce an empty artifact array.
 
-#### Scenario: Terminated label is excluded from a later snapshot
-- **WHEN** a later AppFlow executes a snapshot after an earlier successfully launched AppFlow requested termination
-- **THEN** the snapshot does not inspect or collect smaps for the earlier label
+#### Scenario: Stored PID disappears
+- **WHEN** a snapshot finds an expected stored PID absent
+- **THEN** it raises, later commands are not executed, expected declarations remain, and the CLI reports failure
 
-#### Scenario: Stored PID is missing during snapshot
-- **WHEN** a snapshot command inspects an eligible label whose stored PID path `/proc/<pid>` is missing
-- **THEN** the system removes that label from future snapshot collection, emits a warning identifying the label and PID, and records no artifact for that label
+#### Scenario: App was explicitly terminated
+- **WHEN** an earlier `AppFlow` requested termination
+- **THEN** later snapshots do not declare or inspect that removed label
 
-#### Scenario: Missing PID is not inspected again
-- **WHEN** a snapshot removes an eligible label because its stored PID path is missing and a later snapshot executes
-- **THEN** the later snapshot does not inspect that label again
+#### Scenario: Later capture fails
+- **WHEN** one app capture succeeds and a subsequent one fails
+- **THEN** the successful prefix remains queued for receiving and execution still fails
 
-#### Scenario: Stored PID exists during snapshot
-- **WHEN** a snapshot command inspects an eligible label whose stored PID path `/proc/<pid>` exists
-- **THEN** the system writes `/proc/<pid>/smaps` to `snapshots/<snapshot_label>/<app_label>-<snapshot_label>.smaps` as a device-local snapshot artifact and records it for later transfer
+### Requirement: Offline view CLI creates a new independently named view
+The system SHALL provide `create_view.py DIR1 [DIR2 ...] --out-dir PARENT [--smaps-filter REGEX]` with one or more positional exact evidence roots in argument order. It SHALL use compiled `.*` by default, reject invalid regex at parse time, accept an existing output parent, and create only a new `PARENT/view/view-YYYYMMDD_HHMMSS_microseconds` through `create_view`. Each invocation SHALL choose a fresh host timestamp; collision SHALL fail without overwrite. It SHALL require no `.env`, device executable, `flow.json`, prior view, iteration discovery, or backend options. `summarize.py` SHALL be removed, not retained as a legacy redirect.
 
-#### Scenario: All stored PIDs are missing during snapshot
-- **WHEN** a snapshot command finds no eligible labels with existing stored PID paths
-- **THEN** the system still records snapshot metadata for that snapshot and records no pending artifacts
+#### Scenario: User generates another view
+- **WHEN** an existing parent contains earlier views and valid evidence paths are explicitly supplied
+- **THEN** a new timestamped view is created without changing earlier views or evidence
 
-#### Scenario: App relaunches outside framework control
-- **WHEN** an app relaunches with a different PID outside framework control
-- **THEN** the system does not rediscover the new PID and continues using only stored PIDs for eligible labels
+#### Scenario: Exact generated destination collides
+- **WHEN** the generated view destination already exists
+- **THEN** creation fails rather than merging, deleting, or replacing it

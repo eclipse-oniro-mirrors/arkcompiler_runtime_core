@@ -196,13 +196,6 @@ class SmapsTest(unittest.TestCase):
 
         self.assertIsNone(summary)
 
-    def test_tag_filter_none_unchanged(self) -> None:
-        text = (_FIXTURES / "smaps_shell.smaps").read_text()
-        summary = parse_smaps_text(text, None)
-        assert summary is not None
-
-        self.assertEqual(summary, parse_smaps_text(text))
-
 
 if __name__ == "__main__":
     unittest.main()

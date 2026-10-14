@@ -1,6 +1,6 @@
 # memmem
 
-Small OpenHarmony and Andr0id memory benchmark runner. It launches configured apps, executes flow commands, captures `/proc/<pid>/smaps` and screenshots, receives raw evidence, and writes CSV reports and SVG memory trend plots.
+Memory benchmark runner for OpenHarmony and Andr0id. It collects memory evidence from configured apps and creates CSV and SVG views from that evidence.
 
 ## Authors
 
@@ -10,8 +10,8 @@ Small OpenHarmony and Andr0id memory benchmark runner. It launches configured ap
 ## Prerequisites
 
 - Python 3.11
-- HDC available on host for OpenHarmony, or ABD available on host for Andr0id
-- Connected rooted OpenHarmony device or a rooted Andr0id device
+- HDC available on the host for OpenHarmony, or ABD available on the host for Andr0id
+- A connected rooted OpenHarmony or Andr0id device
 
 Create `.env`:
 
@@ -27,23 +27,31 @@ make venv
 source .venv/bin/activate
 ```
 
-## Run (run.py)
+## Commands
 
 ```bash
-python run.py --flow flow.json --backend hdc
-python run.py --flow flow.json --backend abd
+python execute_flow.py --flow flow.json --backend hdc
+python create_view.py memmem-out-.../iteration_0/evidence --out-dir views
+python run.py --flow flow.json --backend hdc --repeats 3
 ```
 
-- `--backend`: device backend, `hdc` or `abd`; defaults to `hdc`. The selected backend requires its matching executable path in `.env`; the other path may be empty or absent.
-- `--flow`: benchmark flow JSON; may contain repeat macros in the unprocessed form; output `flow.json` is the canonicalized validated expanded flow and may differ in formatting from the input file
-- `--out-dir`: directory to store benchmark results; when omitted, a timestamped `memmem-out-YYYYMMDD_HHMMSS_microseconds` directory is created; the directory must not exist yet
-- `--repeats`: number of times to repeat the flow to collect averaged measurements; a positive int, defaults to `1`
-- `--reboot` / `--no-reboot`: reboot before running the flow; defaults to `--no-reboot`
-- `--device-log` / `--no-device-log`: collect one run-wide device-log artifact; defaults to `--device-log`
-- `--memmem-log-level`: memmem app log level, one of `info`, `warn`, or `err`; defaults to `err`
-- `--memmem-log-file`: optional memmem app log file; when omitted, info/warnings go to stdout and errors go to stderr; when set, all emitted memmem logs overwrite that file. Passing an empty string is invalid: **breaking change** from previous behavior where `""` routed to stdout/stderr and `None`/omitted now does that instead
-- `--smaps-filter`: Regex matched with `re.match` against each normalized smaps tag; Only matching mappings are counted in reports; E.g. `.*\.so` counts contribution of only shared-library mappings
-- output is written to a timestamped `memmem-out-YYYYMMDD_HHMMSS_microseconds` directory
+`execute_flow.py` collects evidence. `create_view.py` creates a view from one or more existing evidence directories and does not require a device or `.env` file. `run.py` orchestrates `execute_flow.py` and `create_view.py` into a single CLI entrypoint: it collects evidence for every iteration, then creates a view for each iteration and a combined view.
+
+`execute_flow.py` and `run.py` accept:
+
+- `--flow PATH` (required): canonical or macro-bearing flow JSON.
+- `--backend {hdc,abd}` (default: `hdc`): only the selected backend executable is required in `.env`.
+- `--out-dir PATH`: output parent; defaults to a timestamped `memmem-out-*` directory.
+- `--repeats N` (default: `1`): number of evidence collections.
+- `--reboot` or `--no-reboot` (default: no reboot).
+- `--device-log` or `--no-device-log` (default: device logging enabled).
+
+`create_view.py` and `run.py` accept `--smaps-filter REGEX` (default: `.*`) to select smaps mappings by normalized tag. `create_view.py` requires one or more evidence directories and `--out-dir PATH` for the new view.
+
+All three commands accept:
+
+- `--memmem-log-level {info,warn,err}` (default: `err`).
+- `--memmem-log-file PATH`.
 
 Path arguments (`--flow`, `--out-dir`, `--memmem-log-file`, `HDC_PATH`, and `ABD_PATH`) are resolved against the directory the CLI was invoked from unless the path is absolute.
 
@@ -53,7 +61,7 @@ Path arguments (`--flow`, `--out-dir`, `--memmem-log-file`, `HDC_PATH`, and `ABD
 python record_hdc.py --timeout 30
 ```
 
-`record_hdc.py` records UI inputs from an OpenHarmony device with `uitest uiRecord` and writes a generated `flow-YYYYMMDD_HHMMSS_microseconds.json` file. Andr0id recording is not supported.
+`record_hdc.py` records UI input from an OpenHarmony device with `uitest uiRecord` and writes `flow-YYYYMMDD_HHMMSS_microseconds.json`. Andr0id recording is not supported.
 
 - optional `--timeout`: recording duration in seconds; if omitted, recording continues until you type `y` and press Enter
 - script will prompt user for input when ready
@@ -61,9 +69,23 @@ python record_hdc.py --timeout 30
 - generated `AppFlow` entries preserve recorded bundle/ability identity order and always use `terminate: false`
 - if a recorder event has empty bundle or ability metadata, the generated field remains `""` and the script prints a warning; edit those fields manually
 
+## Compare result directories (`compare.py`)
+
+Compare one concrete baseline view with one or more concrete change views without rerunning benchmarks:
+
+```bash
+python compare.py \
+  --base baseline/view/view-20261027_120000_000000 \
+  --change change-a/view/view-20261027_120000_000000 \
+  --change change-b/view/view-20261027_120000_000000 \
+  --out-dir memmem-comparison
+```
+
+Inputs must be validated concrete views with identical filter text/effective flags and ordered breakdown declarations. This is a caller assertion that matching labels represent comparable apps and flows; comparison does not reopen source evidence, so generated views remain comparable after their evidence has moved or been removed. The new `--out-dir` must not exist. The output contains comparative `summary.csv` and `breakdowns/<snapshot_label>/<app_label>.csv` files with one base value and one value/percentage pair for every `--change` argument in command-line order. Breakdown rows include the union of tags from all inputs; unavailable values and percentage deltas against a zero baseline are empty. Invalid or incompatible inputs fail before the comparison destination is created; generation failures retain partial newly created output.
+
 ## Flow schema
 
-Flow JSON has two forms. The **canonical form** is what the runner executes and what result evidence stores; it is also the output of preprocessing. The **unprocessed form** additionally accepts macros. `python run.py --flow flow.json` accepts either canonical or unprocessed form and runs preprocessing step to canonicalize.
+Flow JSON has two forms. The **canonical form** is what execution uses and what CLI provenance stores; it is also the output of preprocessing. The **unprocessed form** additionally accepts macros. The execution CLIs accept either form and canonicalize it before collection.
 
 ### Canonical form
 
@@ -94,9 +116,38 @@ When `terminate` is `true`, the runner terminates that bundle after commands.
 
 App labels may contain only letters, digits, `_`, and `-`. App labels must be unique among app labels.
 
+### Multi-touch input
+
+`multi_touch_input` replays two or three concurrent finger paths on an OpenHarmony HDC device. It is not supported by the ABD backend. `finger_list` contains normalized start and end coordinates for each finger, and `duration_ms` is an integer from `1` through `15000`.
+
+```json
+{
+  "flow": [
+    {
+      "label": "zoom",
+      "bundle": "com.example.app",
+      "ability": "EntryAbility",
+      "terminate": false,
+      "commands": [
+        {
+          "action": "multi_touch_input",
+          "payload": {
+            "finger_list": [
+              { "x1_pct": 35, "y1_pct": 50, "x2_pct": 20, "y2_pct": 50 },
+              { "x1_pct": 65, "y1_pct": 50, "x2_pct": 80, "y2_pct": 50 }
+            ],
+            "duration_ms": 300
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
 ### Repeat macros
 
-Repeat macros is used to avoid copy-pasting repeating patterns and improve json maintainability.
+Use repeat macros to avoid copying repeated command patterns.
 
 ```json
 {
@@ -130,7 +181,7 @@ Labels are validated only after expansion: `"after_tap_{i}"` expands to `"after_
 
 ### Programmatic API (lib.py)
 
-User can use `lib.py` to build flows and write Python helpers for repeated command sequences when Flow JSON file become large.
+Use `lib.py` to build flows and reusable Python command helpers when a JSON flow becomes unwieldy.
 
 ```python
 import pathlib
@@ -150,6 +201,13 @@ def scroll_samples(prefix: str, count: int, wait_s: float) -> list[lib.Command]:
     return commands
 
 
+def zoom_out() -> lib.MultiTouchInputCommand:
+    return lib.multi_touch_input([
+        {"x1_pct": 35, "y1_pct": 50, "x2_pct": 20, "y2_pct": 50},
+        {"x1_pct": 65, "y1_pct": 50, "x2_pct": 80, "y2_pct": 50},
+    ], duration_ms=300)
+
+
 scenario = lib.flow(
     [
         lib.app_flow(
@@ -159,6 +217,7 @@ scenario = lib.flow(
             terminate=True,
             commands=[
                 lib.snapshot("on_startup"),
+                zoom_out(),
                 *scroll_samples("after_fling", count=10, wait_s=5),
             ],
         )
@@ -167,15 +226,17 @@ scenario = lib.flow(
 )
 
 device = lib.get_hdc_device(lib.get_hdc(pathlib.Path("/path/to/hdc")))
-out_dir = pathlib.Path("memmem-out-1234")
+evidence_dir = pathlib.Path("evidence")
+view_dir = pathlib.Path("view")
 
 lib.configure_logger("info")
-lib.run(scenario, device, out_dir=out_dir, reboot=False, device_log=True)
+lib.execute_flow(scenario, device, evidence_dir, reboot=False, device_log=True)
+lib.create_view([evidence_dir], view_dir)
 ```
 
-`lib.run()` raises on failure. Since `out_dir` is passed explicitly, user can inspect that directory after the run for results.
+`lib.execute_flow(flow, device, dst, *, reboot=False, device_log=True)` performs one collection and returns the absolute evidence destination. `lib.create_view(dirs, dst, smaps_filter=re.compile(".*"))` creates a view from a nonempty ordered evidence list and returns the absolute view destination. Both APIs raise on failure and require a new destination.
 
-Python users can also author macros programmatically. `lib.unprocessed_flow`, `lib.unprocessed_app_flow`, `lib.unprocessed_snapshot`, `lib.unprocessed_screenshot`, and `lib.repeat(n_iter, iter_var, commands)` build an `UnprocessedFlow`, and `lib.preprocess_flow(flow)` expands it into a canonical `lib.Flow` that `lib.run()` executes. This is the same transformation `run.py` applies to macro-bearing flow JSON:
+Python users can also author macros programmatically. `lib.unprocessed_flow`, `lib.unprocessed_app_flow`, `lib.unprocessed_snapshot`, `lib.unprocessed_screenshot`, and `lib.repeat(n_iter, iter_var, commands)` build an `UnprocessedFlow`, and `lib.preprocess_flow(flow)` expands it into a canonical `lib.Flow` for `lib.execute_flow`. This is the same transformation execution CLIs apply to macro-bearing flow JSON:
 
 ```python
 scenario = lib.unprocessed_flow([
@@ -201,12 +262,12 @@ scenario = lib.unprocessed_flow([
 ], desc="Measures memory across repeated scroll samples.")
 
 canonical = lib.preprocess_flow(scenario)
-lib.run(canonical, device, out_dir=out_dir, reboot=False, device_log=True)
+lib.execute_flow(canonical, device, evidence_dir, reboot=False, device_log=True)
 ```
 
-However, use of `lib.unprocessed_*` API is highly discouraged for programmatic users -- for better readability, prefer python statements to construct flows that do not need preprocessing.
+For programmatic flows, prefer ordinary Python composition over `lib.unprocessed_*` APIs unless macro expansion is needed.
 
-Optional memmem application logging is configured separately via `lib.configure_logger(level, log_file=None)`, retrieved via `lib.get_logger()`, and reset via `lib.reset_logger()`. `level` is one of `"info"`, `"warn"`, or `"err"`. When `log_file` is `None` (default), info/warnings go to stdout and errors go to stderr; when set, all emitted memmem logs overwrite that file. An empty-string `log_file` is invalid: **breaking change** from previous behavior where `""` routed to stdout/stderr and `None` now does that instead.
+Configure optional application logging with `lib.configure_logger(level, log_file=None)`, access it with `lib.get_logger()`, and reset it with `lib.reset_logger()`. `level` is `"info"`, `"warn"`, or `"err"`.
 
 ## Commands
 
@@ -221,9 +282,9 @@ Optional memmem application logging is configured separately via `lib.configure_
 
 `wait` blocks execution for the given amount of seconds.
 
-`snapshot` captures smaps for all app labels launched so far whose stored PID is still alive. Snapshot labels may contain only letters, digits, `_`, and `-`. Snapshot labels must be unique among snapshot labels.
+`snapshot` captures smaps for every active app. Snapshot labels may contain only letters, digits, `_`, and `-`, and must be unique.
 
-`screenshot` captures the current screen as PNG raw evidence. Screenshot labels may contain only letters, digits, `_`, and `-`. Screenshot labels must be unique among screenshot labels.
+`screenshot` captures the current screen as PNG evidence. Screenshot labels may contain only letters, digits, `_`, and `-`, and must be unique.
 
 `key` accepts only `Home`, `Back`, or `Power` and sends corresponding input to the device.
 
@@ -285,64 +346,56 @@ Directional fling:
 
 ## Andr0id Backend Notes
 
-With `--backend abd`, `bundle` and `ability` are interpreted as the Andr0id package and activity, for example `com.example.app` and `.MainActivity`. Andr0id devices must be rooted so the shell can capture app smaps. Device logs are collected with `logcat` but retain the existing `hilog/hilog.log` evidence path. Andr0id `input` does not expose all UITest gesture semantics, so double taps, long taps, drags, flings, velocity, and step length are replayed on a best-effort basis.
+With `--backend abd`, `bundle` and `ability` are interpreted as the Andr0id package and activity, for example `com.example.app` and `.MainActivity`. Andr0id devices must be rooted so the shell can capture app smaps. Device logs are collected with `logcat` at `logs/log.log`. Andr0id `input` does not expose all UITest gesture semantics, so double taps, long taps, drags, flings, velocity, and step length are replayed on a best-effort basis.
 
 ## Output
 
-### Single run (`--repeats 1`)
+### Evidence
 
-The output directory contains:
+Each execution creates an exact evidence directory:
 
-- `flow.json`: canonicalized validated flow JSON
-- `app_metadata.json`: app launch metadata in flow order
-- `snapshots/metadata.json`: snapshot labels and timestamps in command order
-- `screenshots/metadata.json`: screenshot labels and timestamps in command order
-- `snapshots/<snapshot_label>/<app_label>.smaps`: raw smaps evidence
-- `screenshots/<screenshot_label>.png`: raw screenshot evidence
-- `hilog/hilog.log`: run-wide hilog artifact when hilog collection is enabled
-- `summary.csv`: app label, snapshot label, and total memory metrics per received snapshot
-- `breakdowns/<snapshot_label>/<app_label>.csv`: per-tag metrics per snapshot
-- `plots/<app_label>/<metric>.svg`: per-app linear memory trend plot for each metric
-
-### Repeated runs (`--repeats N`)
-
-With `N` is greater than `1`, the output directory instead holds one output directory per iteration. Names for these directories are `iteration_0` through `iteration_{N-1}`, each laid out exactly as described above. Additionally, output directory holds a `summary/` directory with two averaged reports, `summary.csv` and `summary_filtered.csv`, an `outliers.csv` file, averaged plots, and averaged breakdowns.
-
-`summary.csv` is the aggregate of all usable iterations. `summary_filtered.csv` is the filtered aggregate, computed after discarding outlying iterations. Both files share the same columns: `app_label`, `snapshot_label`, `n_samples`, then `<metric>_<statistic>` for each memory metric and each of `mean`, `geomean`, `median`, `std`, `min`, `max`. `n_samples` counts the iterations that produced that row. `std` is the sample standard deviation and is `0.00` when `n_samples` is `1`. The geomean is reported as `0` when any contributing value is `0`.
-
-The filtered report omits rows that appear only in discarded iterations. When no iteration is discarded, `summary_filtered.csv` matches `summary.csv`.
-
-`outliers.csv` has a single column, `discarded_iteration`, listing one discarded iteration directory name per row.
-
-`summary/plots/<app_label>/<metric>.svg` holds one averaged trend plot per app label and metric, plotting the geomean across snapshots with std error bars, built from the retained (filtered) iterations. `summary/breakdowns/<snapshot_label>/<app_label>.csv` holds one averaged breakdown CSV per pair present in any retained iteration, with the same metric column names as `summary.csv` and per-tag statistics matching the averaged summary. Averaged breakdowns are skipped for pairs that appear only in discarded iterations.
-
-Averaging fails if no iteration produced a `summary.csv`.
-
-Reboot, when enabled, applies before each iteration's flow execution.
-
-### Summarize an interrupted repeated run (`summarize.py`)
-
-If `run.py --repeats N` stops before it writes the averaged reports, summarize the completed iteration directories without rerunning the benchmark:
-
-```bash
-python summarize.py --out-dir memmem-out-YYYYMMDD_HHMMSS_microseconds
+```text
+evidence/
+  apps.json
+  snapshots/
+    metadata.json
+    <snapshot_label>/<app_label>.smaps
+  screenshots/
+    metadata.json
+    <screenshot_label>.png
+  logs/log.log                  # only when device logging is enabled
 ```
 
-The utility reads every `iteration_N/summary.csv`, warns about iteration directories without that report, and writes the same averaged reports under `<out-dir>/summary/` as a completed repeated run. It safely replaces an existing `summary/` only after a full recovery succeeds; a failed recovery leaves the prior summary unchanged.
+`apps.json` records launched applications. Snapshot and screenshot metadata describe the evidence available to view creation.
 
-### Compare result directories (`compare.py`)
+`run.py` uses this container layout, including when `--repeats 1`:
 
-Compare one baseline with one or more result directories without rerunning benchmarks:
-
-```bash
-python compare.py \
-  --base memmem-out-baseline \
-  --change memmem-out-change-a \
-  --change memmem-out-change-b \
-  --out-dir memmem-comparison
+```text
+<out-dir>/
+  flow.json
+  iteration_0/evidence/
+  iteration_0/view/view-<timestamp>/
+  iteration_1/evidence/
+  iteration_1/view/view-<timestamp>/
+  view/view-<timestamp>/
 ```
 
-Each input may be a single-run output directory or a repeated-run root containing `summary/`. For repeated runs, `summary_filtered.csv` is compared when present; otherwise `summary.csv` is used. Inputs must have identical ordered `(app_label, snapshot_label)` rows and matching breakdown file paths. The new `--out-dir` must not exist. The output contains `summary.csv` and `breakdowns/` CSVs with one base value and one value/percentage pair for every `--change` argument in command-line order. Breakdown rows include the union of tags from all inputs; unavailable values and percentage deltas against a zero baseline are empty. Invalid or incompatible input fails before creating the comparison output directory.
+### Views
+
+Every view has one aggregate layout, whether it uses one or many evidence sources:
+
+```text
+<view>/
+  metadata.json
+  summary.csv
+  outliers.csv
+  breakdowns/
+    metadata.json
+    <snapshot_label>/<app_label>.csv
+  plots/<app_label>/<app_label>-<metric>.svg
+```
+
+`summary.csv` and breakdown CSVs contain aggregate statistics: mean, geometric mean, median, standard deviation, minimum, and maximum. `outliers.csv` lists evidence sources excluded from aggregation.
 
 ## Testing
 
@@ -356,6 +409,7 @@ Useful individual checks:
 ```bash
 make test
 make mypy
+make pylint
 ```
 
 ## Update requirements

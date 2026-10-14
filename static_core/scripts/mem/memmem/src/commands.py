@@ -20,9 +20,8 @@ import time
 import typing
 
 from src.device import Device, Point, ScreenBounds
-from src.log import get_logger
 from src.metadata import AppMetadata, ArtifactMetadata, RelativeParts
-from src.result import ResultStore
+from src.store import EvidenceStore
 from src.schema import (
     Command,
     DirectionalFlingCommand,
@@ -36,6 +35,8 @@ from src.schema import (
     InputTextPayload,
     KeyCommand,
     LongTapCommand,
+    MultiTouchInputCommand,
+    MultiTouchInputPayload,
     NamedKeyPayload,
     ScreenshotCommand,
     SnapshotCommand,
@@ -58,10 +59,10 @@ class PendingArtifact:
 @dataclasses.dataclass
 class ExecutionContext:
     device: Device
-    store: ResultStore
+    store: EvidenceStore
     flow: Flow
-    launched_processes: list[AppMetadata]
-    active_processes: list[AppMetadata]
+    launched_apps: list[AppMetadata]
+    active_apps: list[AppMetadata]
     pending_artifacts: list[PendingArtifact]
     artifact_metadata: dict[pathlib.Path, list[ArtifactMetadata]]
     child_processes: list[subprocess.Popen[typing.Any]]
@@ -108,6 +109,9 @@ def execute_command(command: Command, context: ExecutionContext) -> None:
     if isinstance(command, TextCommand):
         execute_text(command.payload, context)
         return
+    if isinstance(command, MultiTouchInputCommand):
+        execute_multi_touch_input(command.payload, context)
+        return
     typing.assert_never(command)
 
 
@@ -122,36 +126,35 @@ def execute_snapshot(
     metadata = ArtifactMetadata(
         label=payload,
         timestamp=context.device.timestamp(),
+        files=[str(pathlib.PurePosixPath(
+            *context.store.snapshot_relative_parts(payload, app.label)))
+            for app in context.active_apps],
     )
+    context.artifact_metadata[context.store.local_snapshots_dir()].append(
+        metadata)
+    if len(context.active_apps) == 0:
+        raise RuntimeError(f"snapshot {payload} has no active apps")
     remote_snapshot_dir = context.store.remote_snapshot_dir(payload)
-    pending_artifacts: list[PendingArtifact] = []
-    for process in list(context.active_processes):
-        if not context.device.pid_exists(process.pid):
-            context.active_processes.remove(process)
-            get_logger().warn(
-                f"removing inactive process: label={process.label} pid={process.pid}")
-            continue
-
-        if not context.device.make_dir(remote_snapshot_dir):
+    if not context.device.make_dir(remote_snapshot_dir):
+        raise RuntimeError(
+            f"failed to create remote snapshot directory for {payload}")
+    for app in context.active_apps:
+        if not context.device.pid_exists(app.pid):
             raise RuntimeError(
-                f"failed to create remote snapshot directory for {payload}"
-            )
+                f"missing PID for snapshot: label={app.label} pid={app.pid}")
         remote_path = context.store.remote_snapshot_path(
-            payload, process.label)
-        if not context.device.capture_smaps(process.pid, remote_path):
+            payload, app.label)
+        if not context.device.capture_smaps(app.pid, remote_path):
             raise RuntimeError(
-                f"failed to capture smaps for PID {process.pid}")
+                f"failed to capture smaps for PID {app.pid}")
 
         artifact = context.store.snapshot_relative_parts(
-            payload, process.label)
-        pending_artifacts.append(PendingArtifact(
+            payload, app.label)
+        context.pending_artifacts.append(PendingArtifact(
             remote_base=context.store.remote_snapshots_dir(),
             local_base=context.store.local_snapshots_dir(),
             artifact=artifact,
         ))
-    context.pending_artifacts.extend(pending_artifacts)
-    context.artifact_metadata.setdefault(
-        context.store.local_snapshots_dir(), []).append(metadata)
 
 
 def execute_screenshot(
@@ -161,12 +164,13 @@ def execute_screenshot(
     metadata = ArtifactMetadata(
         label=payload,
         timestamp=context.device.timestamp(),
+        files=[f"{payload}.png"],
     )
+    context.artifact_metadata[context.store.local_screenshots_dir()].append(
+        metadata)
     remote_path = context.store.remote_screenshot_path(payload)
     if not context.device.capture_screenshot(remote_path):
         raise RuntimeError(f"failed to capture screenshot {payload}")
-    context.artifact_metadata.setdefault(
-        context.store.local_screenshots_dir(), []).append(metadata)
     artifact = context.store.screenshot_relative_parts(payload)
     context.pending_artifacts.append(PendingArtifact(
         remote_base=context.store.remote_screenshots_dir(),
@@ -211,6 +215,21 @@ def execute_drag(payload: SwipePayload, context: ExecutionContext) -> None:
     end = Point.from_normalized(
         context.screen_bounds, payload.x2_pct, payload.y2_pct)
     context.device.drag(start, end, payload.velocity)
+
+
+def execute_multi_touch_input(
+    payload: MultiTouchInputPayload, context: ExecutionContext
+) -> None:
+    finger_list = [
+        (
+            Point.from_normalized(
+                context.screen_bounds, displacement.x1_pct, displacement.y1_pct),
+            Point.from_normalized(
+                context.screen_bounds, displacement.x2_pct, displacement.y2_pct),
+        )
+        for displacement in payload.finger_list
+    ]
+    context.device.multi_touch_input(finger_list, payload.duration_ms)
 
 
 def execute_fling(payload: FlingPayload, context: ExecutionContext) -> None:

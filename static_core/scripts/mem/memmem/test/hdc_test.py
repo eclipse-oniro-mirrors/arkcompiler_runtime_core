@@ -16,6 +16,7 @@
 import pathlib
 import shlex
 import subprocess
+import typing
 import unittest
 from unittest import mock
 
@@ -25,6 +26,7 @@ from src.device import CommandResult as HdcResult, Point
 from src.connection import TIMEOUT_ERR_CODE
 from src.platform.ohos.hdc import Hdc
 from src.platform.ohos.hdc_device import HdcDevice as Device
+from src.schema import SwipeCommand, SwipePayload
 
 
 class HdcTest(unittest.TestCase):
@@ -44,19 +46,17 @@ class HdcTest(unittest.TestCase):
 
         with mock.patch("src.platform.ohos.hdc.subprocess.run", return_value=self.completed) as run:
             for payload in payloads:
-                with self.subTest(payload=payload):
-                    Hdc(self.hdc_path).shell(
-                        "uitest", "uiInput", "text", payload)
+                Hdc(self.hdc_path).shell("uitest", "uiInput", "text", payload)
 
-                    host_command = run.call_args.args[0]
-                    self.assertEqual(
-                        host_command[:2], [str(self.hdc_path), "shell"])
-                    self.assertEqual(len(host_command), 3)
-                    self.assertEqual(
-                        shlex.split(host_command[2]),
-                        ["uitest", "uiInput", "text", payload],
-                    )
-                    run.reset_mock()
+                host_command = run.call_args.args[0]
+                self.assertEqual(host_command[:2], [
+                                 str(self.hdc_path), "shell"])
+                self.assertEqual(len(host_command), 3)
+                self.assertEqual(
+                    shlex.split(host_command[2]),
+                    ["uitest", "uiInput", "text", payload],
+                )
+                run.reset_mock()
 
     def test_shell_without_arguments_preserves_interactive_invocation(self) -> None:
         with mock.patch("src.platform.ohos.hdc.subprocess.run", return_value=self.completed) as run:
@@ -155,6 +155,55 @@ class HdcTest(unittest.TestCase):
             hdc.calls,
             [["shell", command], ["shell", command]],
         )
+
+    def test_device_supports_every_command(self) -> None:
+        command = SwipeCommand(
+            action="swipe",
+            payload=SwipePayload(
+                x1_pct=0, y1_pct=0, x2_pct=100, y2_pct=100, velocity=200,
+            ),
+        )
+
+        self.assertTrue(Device(typing.cast(Hdc, FakeHdc())
+                               ).is_command_supported(command))
+
+    def test_multi_touch_input_uses_one_uinput_command(self) -> None:
+        hdc = FakeHdc()
+
+        Device(typing.cast(Hdc, hdc)).multi_touch_input([
+            (Point(1, 2), Point(3, 4)),
+            (Point(5, 6), Point(7, 8)),
+            (Point(9, 10), Point(11, 12)),
+        ], 500)
+
+        self.assertEqual(hdc.calls, [[
+            "shell", "uinput", "-D", "0", "-T", "-m",
+            "1", "2", "3", "4", "5", "6", "7", "8",
+            "9", "10", "11", "12", "500",
+        ]])
+
+    def test_multi_touch_input_rejects_invalid_contact_count(self) -> None:
+        with self.assertRaisesRegex(ValueError, "two or three"):
+            Device(typing.cast(Hdc, FakeHdc())).multi_touch_input(
+                [(Point(1, 2), Point(3, 4))], 500)
+
+    def test_multi_touch_input_accepts_stdout_but_rejects_stderr_or_nonzero_exit(self) -> None:
+        finger_list = [(Point(1, 2), Point(3, 4)), (Point(5, 6), Point(7, 8))]
+        Device(FakeHdc(responses={
+            "shell uinput -D 0 -T -m 1 2 3 4 5 6 7 8 500": HdcResult(
+                0, "fingerCount:2\n", ""),
+        })).multi_touch_input(finger_list, 500)  # type: ignore[arg-type]
+
+        for result in (
+            HdcResult(1, "", ""),
+            HdcResult(0, "", "unexpected error"),
+        ):
+            device = Device(FakeHdc(responses={
+                "shell uinput -D 0 -T -m 1 2 3 4 5 6 7 8 500": result,
+            }))  # type: ignore[arg-type]
+
+            with self.assertRaisesRegex(RuntimeError, "multi-touch input failed|unexpected"):
+                device.multi_touch_input(finger_list, 500)
 
 
 if __name__ == "__main__":

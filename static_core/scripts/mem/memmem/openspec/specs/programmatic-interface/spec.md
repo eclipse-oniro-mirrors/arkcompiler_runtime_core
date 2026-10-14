@@ -7,74 +7,62 @@ Defines the public Python API for constructing and running benchmark flows progr
 ## Requirements
 
 ### Requirement: Programmatic API runs validated flows
-The system SHALL provide a public `lib.py` programmatic API that runs benchmark flows constructed in Python without requiring callers to write JSON flow files. The API SHALL accept flow content explicitly, accept a device handle, accept keyword-only runtime options, revalidate the flow before execution, run evidence collection, generate reports, return `None` on success, and report failure by raising an exception. Runtime options SHALL include `out_dir`, `reboot`, `device_log`, `repeats`, and `smaps_filter`. The `out_dir` option SHALL be resolved against the caller's current working directory at run entry and atomically reserved once before any device actions for every repeat count. An already existing output directory SHALL fail the run without changing its contents. The `smaps_filter` option SHALL accept a `re.Pattern[str] | None` value used to restrict report aggregation to matching smaps tags. The previous `logs` and `hilog` keyword options SHALL NOT be accepted. Memmem logger setup SHALL be available separately through public `configure_logger`, `get_logger`, and `reset_logger` helpers.
+The public facade SHALL expose `execute_flow(flow: Flow, device: Device, dst: Path, *, reboot: bool = False, device_log: bool = True) -> Path` in place of `run`. It SHALL revalidate canonical flow and all backend command support before evidence reservation/device actions, execute exactly once, receive evidence, perform shared local structural validation, and return the lexically normalized absolute destination. It SHALL exclusively create the exact dst, never append a layout prefix, and reject existing destinations without modifying them. It SHALL NOT repeat execution, accept a smaps filter, generate reports, write parent flow provenance, configure/reset logging, or convert failures to statuses. Newly created partial evidence SHALL remain on failure. Removed `run`, `logs`, and `hilog` interfaces SHALL NOT be retained as compatibility shims. Public `configure_logger`, `get_logger`, and `reset_logger` helpers SHALL remain separately available.
 
-#### Scenario: Programmatic run succeeds
-- **WHEN** a caller passes a valid programmatically constructed flow, a device handle, and explicit `out_dir` to `lib.run()`
-- **THEN** the system executes the benchmark, generates reports, writes output under the requested directory, and returns `None`
+#### Scenario: Execution succeeds
+- **WHEN** a caller supplies canonical flow, a device and a new destination
+- **THEN** execution returns that normalized absolute evidence path, whose required structure and declared files pass the local reader, with no view generated
+
+#### Scenario: Flow was mutated after construction
+- **WHEN** a supplied flow violates canonical invariants
+- **THEN** execution raises before destination reservation or device actions
+
+#### Scenario: Command is unsupported
+- **WHEN** the device reports a canonical command unsupported
+- **THEN** execution raises before reserving its evidence destination or preparing the device
+
+#### Scenario: Destination exists
+- **WHEN** dst already exists
+- **THEN** execution fails without modifying it or performing device actions
+
+#### Scenario: Library failure occurs
+- **WHEN** capture, receive, cleanup or final structural validation fails
+- **THEN** the call raises, retains new partial evidence, and preserves caller logger configuration
+
+#### Scenario: Caller disables device logging
+- **WHEN** `execute_flow` receives `device_log=False`
+- **THEN** device log setup, stream handling and receive are disabled without affecting memmem application logging
 
 #### Scenario: Runtime options are keyword-only
-- **WHEN** a caller invokes `lib.run()`
-- **THEN** the caller MUST provide `out_dir` as a keyword argument and MAY provide `reboot`, `device_log`, `repeats`, and `smaps_filter` keyword arguments
+- **WHEN** `execute_flow` is called
+- **THEN** reboot and device_log are keyword-only, while flow, device and dst follow the declared new signature
 
 #### Scenario: Runtime option defaults match CLI
-- **WHEN** a caller omits `reboot`, `device_log`, `repeats`, and `smaps_filter` from `lib.run()`
-- **THEN** the system uses `reboot=False`, `device_log=True`, `repeats=1`, and `smaps_filter=None`
+- **WHEN** `execute_flow` omits optional controls
+- **THEN** reboot is False and device_log is True; repeats and filters are not execution options
 
-#### Scenario: Programmatic out dir resolves against the caller's working directory
-- **WHEN** a caller passes a relative `out_dir` to `lib.run()`
-- **THEN** the system resolves the directory against the caller's current working directory at run entry
+#### Scenario: Programmatic destination resolves against the caller's working directory
+- **WHEN** dst is relative
+- **THEN** `execute_flow` anchors and lexically normalizes it at entry and returns its absolute form
 
-#### Scenario: Programmatic out dir already exists
-- **WHEN** a caller passes an `out_dir` that already exists to `lib.run()`
-- **THEN** the run fails before device actions and leaves every existing directory and file byte-for-byte unchanged
+#### Scenario: Repeated execution is caller-orchestrated
+- **WHEN** a caller needs repeated execution
+- **THEN** it invokes `execute_flow` once per new evidence destination or uses CLI repeats; `execute_flow` does not accept repeats
 
-#### Scenario: Repeated run root already exists
-- **WHEN** a caller passes `repeats` greater than `1` and an existing `out_dir` without an `iteration_0` directory
-- **THEN** the run fails before device actions and does not create iteration or summary directories
-
-#### Scenario: Programmatic flow is revalidated
-- **WHEN** a caller passes a flow object whose invariants were broken after construction
-- **THEN** `lib.run()` fails validation before performing device actions
-
-#### Scenario: Programmatic run failure raises
-- **WHEN** benchmark execution or report generation fails during `lib.run()`
-- **THEN** the failure is reported by raising an exception rather than returning a status object
-
-#### Scenario: Programmatic repeats greater than one
-- **WHEN** a caller passes `repeats` greater than `1` to `lib.run()`
-- **THEN** the system executes the flow once per iteration, writes each iteration to an `iteration_{i}` directory under `out_dir`, and writes averaged results to `out_dir/summary/`
-
-#### Scenario: Programmatic repeats is non-positive
-- **WHEN** a caller passes a non-positive `repeats` value to `lib.run()`
-- **THEN** the system rejects the value before performing device actions
-
-#### Scenario: Programmatic device-log collection is disabled
-- **WHEN** a caller passes `device_log=False` to `lib.run()`
-- **THEN** the system disables run-wide device hilog collection for benchmark execution
-
-#### Scenario: Programmatic smaps filter restricts reports
-- **WHEN** a caller passes a compiled pattern as `smaps_filter` to `lib.run()`
-- **THEN** report generation aggregates only matching smaps tags into breakdowns, summary rows, and plots, and treats snapshots with no matching tags as absent with a per-file warning
-
-#### Scenario: Programmatic smaps filter default does not restrict reports
-- **WHEN** a caller omits `smaps_filter` from `lib.run()`
-- **THEN** the system aggregates every smaps tag exactly as before
-
-#### Scenario: Programmatic legacy log keywords are removed
-- **WHEN** a caller passes `logs=False`, `logs=True`, `hilog=False`, or `hilog=True` to `lib.run()`
-- **THEN** the system rejects the unexpected keyword argument
+#### Scenario: Legacy execution keywords are removed
+- **WHEN** logs, hilog, repeats, or smaps_filter is supplied to `execute_flow`
+- **THEN** the unexpected keyword is rejected
 
 #### Scenario: Programmatic memmem log level is configured
-- **WHEN** a caller invokes `lib.configure_logger("info")` before `lib.run()`
-- **THEN** the system emits memmem info logs during benchmark execution and result processing
+- **WHEN** a caller configures info logging before `execute_flow`
+- **THEN** the API honors and preserves that logger configuration
 
 #### Scenario: Programmatic memmem log file is configured
-- **WHEN** a caller invokes `lib.configure_logger("info", log_file)` with a non-empty log file path before `lib.run()`
-- **THEN** the system writes emitted memmem logs only to that file
+- **WHEN** a caller configures a log file before `execute_flow`
+- **THEN** emitted memmem logs use that destination and the API does not reset it
 
 ### Requirement: Programmatic API constructs flows with thin wrappers
-The system SHALL provide public `lib.py` wrapper functions for constructing benchmark flows, app flows, and command models. These wrappers SHALL construct the existing validated Pydantic schema models immediately and SHALL NOT introduce hidden defaults unless the underlying schema model defines them. The `flow` wrapper MAY accept optional description metadata. The API SHALL also provide builder wrappers for the unprocessed flow form: `unprocessed_flow`, `unprocessed_app_flow`, `unprocessed_snapshot`, `unprocessed_screenshot`, and `repeat`, following the same construction and no-hidden-defaults rules.
+The facade SHALL preserve `flow`, `app_flow`, all existing canonical command builders, and `unprocessed_flow`, `unprocessed_app_flow`, `unprocessed_snapshot`, `unprocessed_screenshot`, and `repeat` builders as thin validated-model wrappers with no hidden defaults beyond their underlying models. Flow description SHALL remain optional. App-flow construction SHALL require label, bundle, ability, terminate and commands. Repeat construction SHALL require n_iter, iter_var and commands and accept empty commands under existing validation. Builders SHALL raise validation errors immediately. `app` SHALL remain absent from public exports. Canonical builder output SHALL be executable through `execute_flow`; macro-bearing output SHALL first pass through the unchanged public `preprocess_flow`.
 
 #### Scenario: Flow wrapper accepts app models
 - **WHEN** a caller invokes `lib.flow()` with a list of app models constructed by `lib.app_flow()`
@@ -118,14 +106,25 @@ The system SHALL provide public `lib.py` wrapper functions for constructing benc
 
 #### Scenario: Repetitive scenarios can be generated with Python
 - **WHEN** a caller uses Python loops or helper functions to assemble repeated command sequences
-- **THEN** the wrapper-produced models can be combined into a valid flow for `lib.run()`
+- **THEN** the wrapper-produced models can be combined into a valid flow for `lib.execute_flow()`
 
 #### Scenario: Old app wrapper is not public
 - **WHEN** a caller imports documented public helpers from `lib.py`
 - **THEN** `app_flow` is available and `app` is not part of the public facade
 
+### Requirement: Programmatic API constructs multi-touch commands
+The system SHALL provide `lib.multi_touch_input(finger_list: list[dict[str, int]], duration_ms: int)`. The wrapper SHALL construct and return the canonical validated `MultiTouchInputCommand` immediately, SHALL expose no schema class or dataclass in its parameters, and SHALL introduce no hidden defaults.
+
+#### Scenario: Multi-touch wrapper constructs a canonical command
+- **WHEN** a caller invokes `lib.multi_touch_input` with a valid two- or three-item finger list and duration
+- **THEN** the wrapper returns a validated canonical `MultiTouchInputCommand`
+
+#### Scenario: Multi-touch wrapper validates immediately
+- **WHEN** a caller invokes `lib.multi_touch_input` with an invalid finger list or duration
+- **THEN** the wrapper raises schema validation failure during construction
+
 ### Requirement: Programmatic API exports public type names
-The system SHALL expose through `lib.py` the type names needed to write mypy-checked programmatic user scripts without importing documented APIs from `src.*`. Public type exports SHALL include flow model types, command model types used by public builders, the backend-neutral Device protocol, HDC and ABD handle types, device handle types used by public helper and run signatures, the preprocessing function `preprocess_flow`, the unprocessed flow and app-flow model types `UnprocessedFlow` and `UnprocessedAppFlow`, the macro union type `Macro`, the repeat macro type `RepeatMacro`, and the unprocessed command types `UnprocessedSnapshotCommand` and `UnprocessedScreenshotCommand`. Payload structs, macro payload structs such as `RepeatMacroPayload`, the unprocessed command union `UnprocessedCommand`, and internal runner orchestration types SHALL NOT be public exports.
+The facade SHALL continue exporting existing public flow, app-flow, command, Device, Hdc, Abd, unprocessed flow/app-flow, Macro, RepeatMacro, UnprocessedSnapshotCommand and UnprocessedScreenshotCommand types and `preprocess_flow` for typed scripts without `src` imports. It SHALL export `execute_flow` and `create_view` and SHALL NOT export `run`. Payload structs/aliases, UnprocessedCommand, generic model bases, storage/parsed objects, equivalence helpers, and internal runner options SHALL remain internal.
 
 #### Scenario: Typed user script annotates flow helpers
 - **WHEN** a user script annotates helper functions or variables with `lib.Flow`, `lib.AppFlow`, or `lib.Command`
@@ -187,15 +186,15 @@ The system SHALL provide a public `lib.preprocess_flow(flow: UnprocessedFlow) ->
 - **THEN** the function raises a validation error before producing a canonical flow
 
 ### Requirement: Programmatic API creates device handles through public helpers
-The system SHALL provide public `lib.py` helpers for constructing HDC, ABD, and their matching device handles without requiring documented user scripts to import `src.*` modules. `lib.get_hdc_device()` SHALL construct an HDC device handle, and ABD helpers SHALL be additive.
+The system SHALL preserve `get_hdc`, `get_hdc_device`, `get_abd`, and `get_abd_device` helper contracts. Executable path inputs SHALL retain string-or-Path acceptance and use lexical invocation-relative absolutization without symlink resolution. Device handles SHALL remain usable by `execute_flow` without callers importing `src` modules.
 
 #### Scenario: HDC helper accepts path-like input
 - **WHEN** a caller invokes `lib.get_hdc()` and `lib.get_hdc_device()` with an HDC executable path and HDC handle
-- **THEN** the system returns a device handle usable by `lib.run()`
+- **THEN** the system returns a device handle usable by `lib.execute_flow()`
 
 #### Scenario: Device helper wraps HDC handle
 - **WHEN** a caller invokes `lib.get_hdc_device()` with an HDC handle
-- **THEN** the system returns a device handle usable by `lib.run()`
+- **THEN** the system returns a device handle usable by `lib.execute_flow()`
 
 #### Scenario: ABD helper accepts path-like input
 - **WHEN** a caller invokes the ABD helper with a string or `pathlib.Path` ABD executable path
@@ -203,8 +202,27 @@ The system SHALL provide public `lib.py` helpers for constructing HDC, ABD, and 
 
 #### Scenario: Andr0id device helper wraps ABD handle
 - **WHEN** a caller invokes the Andr0id device helper with an ABD handle returned by the ABD helper
-- **THEN** the system returns a device handle usable by `lib.run()`
+- **THEN** the system returns a device handle usable by `lib.execute_flow()`
 
 #### Scenario: Public script avoids src imports
 - **WHEN** a user follows documented programmatic API examples
 - **THEN** the script imports from `lib.py` and does not need to import from `src.*`
+
+### Requirement: Programmatic API creates independent views
+The facade SHALL expose `create_view(dirs: list[Path], dst: Path, smaps_filter: Pattern[str] = re.compile(".*")) -> Path`. It SHALL reject an empty source list, duplicate normalized absolute source paths, None/bytes/non-pattern filters, invalid evidence, or incompatible evidence. It SHALL preserve source order, parse declared raw evidence directly, and create exactly the new dst using the uniform view contracts. It SHALL return the normalized absolute dst, never access devices or `.env`, never require earlier views, and never overwrite prior destinations or modify evidence files. New partial views SHALL remain on failure. No source/destination ancestry guard or symlink identity resolution SHALL be imposed; callers SHALL choose separate destinations. Library logging configuration SHALL remain caller-owned.
+
+#### Scenario: Multiple views use the same evidence
+- **WHEN** a caller supplies the same evidence with different patterns and different new destinations
+- **THEN** independent views are created without changing evidence or prior views
+
+#### Scenario: Default filter is omitted
+- **WHEN** `create_view` is called without smaps_filter
+- **THEN** a compiled string pattern `.*` includes every normalized mapping tag
+
+#### Scenario: Empty and duplicate source lists
+- **WHEN** dirs is empty or contains lexical aliases of the same normalized absolute path
+- **THEN** the call rejects the input rather than creating a zero-source view or double-counting a source
+
+#### Scenario: Offline evidence is supplied
+- **WHEN** valid evidence is copied without parent flow provenance and no backend configuration is available
+- **THEN** `create_view` analyzes it without opening a device or requiring parent `flow.json`
