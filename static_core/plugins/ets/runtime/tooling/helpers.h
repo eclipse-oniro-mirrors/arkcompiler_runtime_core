@@ -122,7 +122,7 @@ constexpr ark::tooling::VRegValue EtsValueToVRegValue(EtsDouble value)
 template <typename T, typename std::enable_if_t<std::is_same_v<ObjectHeader *, T>, int> = 0>
 inline ark::tooling::VRegValue EtsValueToVRegValue(ObjectHeader *value)
 {
-    if (value == nullptr || IsNullOrNullValue(EtsObject::FromCoreType(value))) {
+    if (value == nullptr) {
         return ark::tooling::VRegValue(0);
     }
     return ark::tooling::VRegValue(reinterpret_cast<int64_t>(value));
@@ -151,10 +151,14 @@ inline bool IsTaggedSignature(std::string_view typeSignature)
 EtsObject *TaggedVRegValueToEtsObject(ark::tooling::VRegValue vregValue, EtsExecutionContext *executionCtx);
 
 // Converts an EtsObject back into a raw tagged VRegValue for writing to a
-// tagged (signature 'A') vreg.
+// tagged (signature 'A') vreg. A raw null reference denotes `undefined`,
+// the std.core.Null singleton denotes `null`.
 inline ark::tooling::VRegValue EtsObjectToTaggedVRegValue(EtsObject *obj)
 {
-    if (obj == nullptr || IsNullOrNullValue(obj)) {
+    if (obj == nullptr) {
+        return ark::tooling::VRegValue(static_cast<int64_t>(coretypes::TaggedValue::Undefined().GetRawData()));
+    }
+    if (IsNullOrNullValue(obj)) {
         return ark::tooling::VRegValue(static_cast<int64_t>(coretypes::TaggedValue::Null().GetRawData()));
     }
     return ark::tooling::VRegValue(reinterpret_cast<int64_t>(obj->GetCoreType()));
@@ -213,27 +217,39 @@ inline ark::tooling::VRegValue UnboxPrimitiveToVReg<EtsLong>(EtsObject *obj)
 
 ark::tooling::VRegValue UnboxToVRegValueBySig(EtsObject *obj, char sig);
 
+// Reference vregs store the value as-is: the std.core.Null singleton for
+// `null`, a raw zero for `undefined`.
+inline ark::tooling::VRegValue EtsObjectToRefVRegValue(EtsObject *obj)
+{
+    if (obj == nullptr) {
+        return ark::tooling::VRegValue(0);
+    }
+    return ark::tooling::VRegValue(reinterpret_cast<int64_t>(obj->GetCoreType()));
+}
+
 inline ark::tooling::VRegValue EtsObjectToVRegValue(EtsObject *obj, std::string_view typeSignature)
 {
     if (IsTaggedSignature(typeSignature)) {
         return EtsObjectToTaggedVRegValue(obj);
     }
+    if (IsRefSignature(typeSignature)) {
+        return EtsObjectToRefVRegValue(obj);
+    }
     if (obj == nullptr || IsNullOrNullValue(obj)) {
         return ark::tooling::VRegValue(0);
-    }
-    if (IsRefSignature(typeSignature)) {
-        return ark::tooling::VRegValue(reinterpret_cast<int64_t>(obj->GetCoreType()));
     }
     return UnboxToVRegValueBySig(obj, typeSignature[0]);
 }
 
+// Converts a reference VRegValue into an EtsObject. A raw zero denotes
+// `undefined` (a raw null reference); the std.core.Null singleton is
+// returned as-is so callers can distinguish `null` from `undefined`.
 inline EtsObject *VRegValueToRefObject(ark::tooling::VRegValue vregValue)
 {
     if (vregValue.GetValue() == 0) {
         return nullptr;
     }
-    auto *obj = EtsObject::FromCoreType(reinterpret_cast<ObjectHeader *>(vregValue.GetValue()));
-    return IsNullOrNullValue(obj) ? nullptr : obj;
+    return EtsObject::FromCoreType(reinterpret_cast<ObjectHeader *>(vregValue.GetValue()));
 }
 
 template <typename T>

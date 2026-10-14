@@ -17,6 +17,7 @@
 #include "libarkfile/debug_info_extractor.h"
 #include "libarkfile/line_number_program.h"
 #include "libarkfile/class_data_accessor-inl.h"
+#include "libarkfile/code_data_accessor.h"
 #include "libarkfile/debug_data_accessor-inl.h"
 #include "libarkbase/utils/utf.h"
 
@@ -28,7 +29,9 @@ DebugInfoExtractor::DebugInfoExtractor(const File *pf)
 
 class LineNumberProgramHandler {
 public:
-    explicit LineNumberProgramHandler(LineProgramState *state) : state_(state) {}
+    explicit LineNumberProgramHandler(LineProgramState *state, uint32_t codeSize) : state_(state), codeSize_(codeSize)
+    {
+    }
     ~LineNumberProgramHandler() = default;
 
     NO_COPY_SEMANTIC(LineNumberProgramHandler);
@@ -188,14 +191,18 @@ private:
 
     void ProcessVars()
     {
+        // Variables without an explicit END_LOCAL live until the end of the method. Fall back to
+        // the total code size (the address one past the last instruction), matching the [0,
+        // codeSize) convention the disassembler uses for synthesized parameter entries.
         for (auto &var : lvt_) {
             if (var.endOffset == 0) {
-                var.endOffset = state_->GetAddress();
+                var.endOffset = codeSize_ != 0 ? codeSize_ : state_->GetAddress();
             }
         }
     }
 
     LineProgramState *state_;
+    uint32_t codeSize_;
     LineNumberTable lnt_;
     LocalVariableTable lvt_;
     ColumnNumberTable cnt_;
@@ -257,10 +264,15 @@ void DebugInfoExtractor::Extract(const File *pf)
 
             auto paramInfo = EnumerateParameters(pf, pda, dda, mda, cda);
 
+            uint32_t codeSize = 0;
+            if (auto codeId = mda.GetCodeId()) {
+                codeSize = CodeDataAccessor(*pf, codeId.value()).GetCodeSize();
+            }
+
             LineProgramState state(*pf, sourceFileId.value_or(File::EntityId(0)), dda.GetLineStart(),
                                    dda.GetConstantPool());
 
-            LineNumberProgramHandler handler(&state);
+            LineNumberProgramHandler handler(&state, codeSize);
             LineNumberProgramProcessor<LineNumberProgramHandler> programProcessor(dda.GetLineNumberProgram(), &handler);
             programProcessor.Process();
 
