@@ -76,6 +76,20 @@ ARKVM_API_EXPORT arkvm_status ARKVM_RegisterExternalScheduler(arkvm_external_sch
 ARKVM_API_EXPORT arkvm_status ARKVM_RunScheduler(arkvm_schedule_mode mode);
 
 /**
+ * @brief Gets the native stack range of the current coroutine.
+ *
+ * @param stackAddr receives the low address of the stack.
+ * @param stackSize receives the stack size in bytes, not the used stack size.
+ *
+ * For coroutines running on the OS thread stack, returns that stack's range.
+ * The range is borrowed and must not be used after the coroutine is destroyed.
+ * Returns ARKVM_INVALID_ARGS for null output pointers, ARKVM_INVALID_CONTEXT
+ * if there is no current coroutine, or ARKVM_ERROR if querying the stack fails.
+ * Valid output pointers are reset to null/zero on context or query failure.
+ */
+ARKVM_API_EXPORT arkvm_status ARKVM_GetCoroutineStackRange(void **stackAddr, size_t *stackSize);
+
+/**
  * @brief Batch register profile path mappings for ABC files.
  *
  * This function is used during the module loading phase to register, in a single call,
