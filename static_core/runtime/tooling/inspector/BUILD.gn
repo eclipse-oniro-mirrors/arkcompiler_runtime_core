@@ -109,6 +109,7 @@ ohos_shared_library("libarkinspector") {
   } else {
     output_extension = "so"
   }
+  install_enable = false
   part_name = ark_part_name
   subsystem_name = "$ark_subsystem_name"
 }
