@@ -1,0 +1,11 @@
+{
+    "compilerOptions": {
+        "baseUrl": ".",
+        "cacheDir": "${WORK_DIR}/${SUITE_NAME}/gen/ets-common-tests/override_bridge_simult/build/cache",
+        "rootDir": "${WORK_DIR}/${SUITE_NAME}/gen/ets-common-tests/override_bridge_simult"
+    },
+    "files": [
+        "./main.ets",
+        "./lib_dummy.ets"
+    ]
+}

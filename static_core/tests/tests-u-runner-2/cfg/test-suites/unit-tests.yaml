@@ -43,12 +43,16 @@ collections:
         exclude:
             - dynamic_declaration
             - relative_path
+            - override_bridge_simult
     ets-common-tests/dynamic_declaration:
         generator-class: runner.extensions.generators.ets_cts.ets_templates_generator.EtsTemplatesGenerator
     ets-common-tests/dynamic_declaration/modules: |-
     ets-common-tests/relative_path:
         generator-class: runner.extensions.generators.ets_cts.ets_templates_generator.EtsTemplatesGenerator
     ets-common-tests/relative_path/build/cache: |-
+    ets-common-tests/override_bridge_simult:
+        generator-class: runner.extensions.generators.ets_cts.ets_templates_generator.EtsTemplatesGenerator
+    ets-common-tests/override_bridge_simult/build/cache: |-
     ets-common-tests/atomics:
         parameters:
             ark-test-suite-args:
