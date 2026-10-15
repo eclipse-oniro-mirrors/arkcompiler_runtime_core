@@ -42,7 +42,6 @@ extern ani_class g_regexpMatchArrayClass;
 }  // namespace refs
 
 constexpr const char *LAST_INDEX_FIELD_NAME = "lastIndex";
-constexpr const char *IS_CORRECT_FIELD_NAME = "isCorrect";
 constexpr int32_t SKIP_ONE_SYM = 1;
 
 struct ExecData {
@@ -78,8 +77,8 @@ InputExecutionKind SelectExecutionKind(const EtsRegExp &re, const ExecData &data
 ani_status CreateResultArray(ani_env *env, const std::vector<ani_object> &results, ani_array *out);
 ani_status PopulateRegExpResultObject(ani_env *env, ani_class regexpResultClass, ani_object regexpResultObject,
                                       const RegExpExecResult &execResult);
-ani_status CreateRegExpResultObject(ani_env *env, ani_class regexpResultClass, ani_method regexpResultCtor,
-                                    const RegExpExecResult &execResult, ani_object *out);
+ani_object CreateRegExpResultObject(ani_env *env, ani_class regexpResultClass, ani_string input,
+                                    const RegExpExecResult &execResult);
 
 inline bool IsUtf16(ani_env *env, ani_string str)
 {
@@ -113,15 +112,6 @@ inline std::vector<uint16_t> &GetUtf16ScratchB()
     // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
     thread_local std::vector<uint16_t> sBufB;
     return sBufB;
-}
-
-inline ani_status SetIsCorrectField(ani_env *env, ani_class regexpResultClass, ani_object regexpExecArrayObj,
-                                    bool value)
-{
-    ani_field resultCorrectField;
-    ANI_FATAL_IF_ERROR(env->Class_FindField(regexpResultClass, IS_CORRECT_FIELD_NAME, &resultCorrectField));
-    ANI_FATAL_IF_ERROR(env->Object_SetField_Boolean(regexpExecArrayObj, resultCorrectField, value));
-    return ANI_OK;
 }
 
 inline ani_status SetLastIndex(ani_env *env, ani_object regexp, ani_field lastIndexField, ani_int value)
