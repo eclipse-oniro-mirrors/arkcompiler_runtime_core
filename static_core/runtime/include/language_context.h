@@ -28,6 +28,7 @@
 #include "runtime/include/itable_builder.h"
 #include "runtime/include/language_config.h"
 #include "runtime/include/vtable_builder_interface.h"
+#include "runtime/interpreter/frame.h"
 #include "runtime/include/tooling/pt_lang_extension.h"
 #include "runtime/include/stack_walker.h"
 #include "runtime/mem/gc/gc_types.h"
@@ -208,7 +209,7 @@ public:
 
     virtual uint32_t GetFrameExtSize() const
     {
-        return 0;
+        return CORE_EXT_FRAME_DATA_SIZE;
     }
 
     virtual const uint8_t *GetIncompatibleClassChangeErrorDescriptor() const

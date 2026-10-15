@@ -33,17 +33,24 @@ CompiledCodeToInterpreterBridge:
     CFI_STARTPROC
     CFI_DEF_CFA(sp, 0)
 
-    // construct the frame
-    sub sp, sp, #16
-    CFI_ADJUST_CFA_OFFSET(16)
-    str lr, [sp, #12]
-    CFI_REL_OFFSET(lr, 12)
+    // Standard FP frame + boundary frame (zero redundancy):
+    //   [fp+4]  = lr           (RETURN_OFFSET=1, standard saved_lr)
+    //   [fp+0]  = saved_fp     (FP_OFFSET=0, standard saved_fp)
+    //   [fp-4]  = marker       (METHOD_OFFSET=-1)
+    //   [fp-8]  = anchor       (CALLEES_OFFSET=-2, placeholder)
+    push {fp, lr}
+    CFI_ADJUST_CFA_OFFSET(8)
+    CFI_REL_OFFSET(lr, 4)
+    CFI_REL_OFFSET(fp, 0)
+    mov fp, sp
+    CFI_DEF_CFA(fp, 8)
+
+    // Push marker below fp
     mov ip, #COMPILED_CODE_TO_INTERPRETER_BRIDGE
-    str ip, [sp, #8]
-    str fp, [sp, #4]
-    CFI_REL_OFFSET(fp, 4)
-    add fp, sp, #4
-    CFI_DEF_CFA(fp, 12)
+    push {ip}
+
+    // Placeholder for CALLEES_OFFSET=-2 alignment
+    sub sp, sp, #4
 
     // Save return address to the TLS field
     str lr, [THREAD_REG, #MANAGED_THREAD_NATIVE_PC_OFFSET]
@@ -51,22 +58,22 @@ CompiledCodeToInterpreterBridge:
     // save all the callee saved registers to the stack
     // stack walker will read them during stack unwinding
     push {r4 - r10}
-    CFI_REL_OFFSET(r10, -(2 * 4))
-    CFI_REL_OFFSET(r9,  -(3 * 4))
-    CFI_REL_OFFSET(r8,  -(4 * 4))
-    CFI_REL_OFFSET(r7,  -(5 * 4))
-    CFI_REL_OFFSET(r6,  -(6 * 4))
-    CFI_REL_OFFSET(r5,  -(7 * 4))
-    CFI_REL_OFFSET(r4,  -(8 * 4))
+    CFI_REL_OFFSET(r10, -(3 * 4))
+    CFI_REL_OFFSET(r9,  -(4 * 4))
+    CFI_REL_OFFSET(r8,  -(5 * 4))
+    CFI_REL_OFFSET(r7,  -(6 * 4))
+    CFI_REL_OFFSET(r6,  -(7 * 4))
+    CFI_REL_OFFSET(r5,  -(8 * 4))
+    CFI_REL_OFFSET(r4,  -(9 * 4))
     vpush {d8 - d15}
-    CFI_REL_OFFSET(d15, -(10 * 4))
-    CFI_REL_OFFSET(d14, -(12 * 4))
-    CFI_REL_OFFSET(d13, -(14 * 4))
-    CFI_REL_OFFSET(d12, -(16 * 4))
-    CFI_REL_OFFSET(d11, -(18 * 4))
-    CFI_REL_OFFSET(d10, -(20 * 4))
-    CFI_REL_OFFSET(d9,  -(22 * 4))
-    CFI_REL_OFFSET(d8,  -(24 * 4))
+    CFI_REL_OFFSET(d15, -(11 * 4))
+    CFI_REL_OFFSET(d14, -(13 * 4))
+    CFI_REL_OFFSET(d13, -(15 * 4))
+    CFI_REL_OFFSET(d12, -(17 * 4))
+    CFI_REL_OFFSET(d11, -(19 * 4))
+    CFI_REL_OFFSET(d10, -(21 * 4))
+    CFI_REL_OFFSET(d9,  -(23 * 4))
+    CFI_REL_OFFSET(d8,  -(25 * 4))
 
     // align to 8
     sub sp, sp, #4
@@ -88,21 +95,23 @@ CompiledCodeToInterpreterBridge:
 
     // Compilation finished, so recover caller's frame in the TLS.
     sub sp, fp, #4
-    ldr fp, [sp, #4]
     CFI_REMEMBER_STATE
+    CFI_DEF_CFA(sp, 12)
+
+    pop {ip}                // skip marker
+    CFI_ADJUST_CFA_OFFSET(-4)
+    pop {fp, lr}            // restore saved_fp and lr
+    CFI_ADJUST_CFA_OFFSET(-8)
     CFI_RESTORE(fp)
-    CFI_DEF_CFA(sp, 16)
+    CFI_RESTORE(lr)
+    CFI_DEF_CFA(sp, 0)
 
     str fp, [THREAD_REG, #MANAGED_THREAD_FRAME_OFFSET]
-    ldr lr, [sp, #12]
-    CFI_RESTORE(lr)
-    add sp, sp, #16 // c2i
-    CFI_ADJUST_CFA_OFFSET(-16)
 
     ldr pc, [r0, #METHOD_COMPILED_ENTRY_POINT_OFFSET]
 
     CFI_RESTORE_STATE
-    CFI_DEF_CFA(fp, 12)
+    CFI_DEF_CFA(fp, 8)
 
 .Lnot_compiled:
     vpop {d0 - d7}
@@ -136,7 +145,7 @@ CompiledCodeToInterpreterBridge:
     add r4, sp, #16
     mov r5, r4
     add r6, r5, #64
-    add r7, fp, #12
+    add r7, fp, #8
 
     // parameter 'this' of instance methods is not encoded in the shorty
     // in case of instance method hack SHORTY_REG by replacing the return type by REF
@@ -252,7 +261,7 @@ CompiledCodeToInterpreterBridge:
     vmov.f64 d0, r4, r5
     blx FreeFrame
 
-4:  sub sp, fp, #(4 + 7 * 4 + 8 * 8)
+4:  sub sp, fp, #(4 + 4 + 7 * 4 + 8 * 8)
     vpop {d8 - d15}
     CFI_RESTORE(d15)
     CFI_RESTORE(d14)
@@ -272,13 +281,10 @@ CompiledCodeToInterpreterBridge:
     CFI_RESTORE(r5)
     CFI_RESTORE(r4)
 
-    ldr fp, [sp, #4]
-    CFI_DEF_CFA(sp, 16)
+    add sp, sp, #8                // skip placeholder + marker
+    pop {fp, lr}                  // restore saved_fp and lr
     CFI_RESTORE(fp)
-
-    ldr lr, [sp, #12]
     CFI_RESTORE(lr)
-    add sp, sp, #16 // c2i
-    CFI_ADJUST_CFA_OFFSET(-16)
+    CFI_DEF_CFA(sp, 0)
     bx lr
     CFI_ENDPROC

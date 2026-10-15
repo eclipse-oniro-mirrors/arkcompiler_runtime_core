@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -88,17 +88,17 @@ MAKE_ASM_NAME(DeoptimizeAfterCFrame):
     CFI_REL_OFFSET(d9, -((CFRAME_CALLEE_REGS_START_SLOT + 16) * 8))
     CFI_REL_OFFSET(d8, -((CFRAME_CALLEE_REGS_START_SLOT + 17) * 8))
 
-    // Morph CFrame into C2I bridge frame
-    // FROM         TO
-    //  lr          lr
-    //  fp <----    COMPILED_CODE_TO_INTERPRETER_BRIDGE
-    //  method      fp <----
+    // Morph CFrame into C2I boundary frame
+    // The CFrame layout already matches the new boundary frame layout:
+    //   [fp+8]  = lr           (CFrame LrSlot, RETURN_OFFSET=1 + standard saved_lr)
+    //   [fp+0]  = saved_fp     (CFrame PrevFrameSlot, FP_OFFSET=0 + standard saved_fp)
+    //   [fp-8]  = marker       (CFrame MethodSlot, overwritten with COMPILED_CODE_TO_INTERPRETER)
+    //   [fp-16] = flags        (CFrame FlagsSlot)
+    //   [fp-...] = callee regs (CFrame callee regs area, CALLEES_OFFSET=-2)
+    // So we only need to overwrite the MethodSlot with the marker value.
     sub sp, x3, #(((CFRAME_HEADER_SIZE - 2) * 8) + CALLEE_SAVED_SIZE)
-    ldr x7, [x3]
     mov x8, #COMPILED_CODE_TO_INTERPRETER_BRIDGE
-    stp x7, x8, [x3, #-8]!
-    CFI_ADJUST_CFA_OFFSET(8)
-    CFI_REL_OFFSET(fp, 0)
+    str x8, [x3, #-8]           // [fp-8] = marker (overwrite CFrame MethodSlot)
 
     mov fp, x3
     CFI_DEF_CFA_REGISTER(fp)
@@ -106,7 +106,7 @@ MAKE_ASM_NAME(DeoptimizeAfterCFrame):
     // Set last IFrame's prev_frame to this C2I bridge frame
     str x3, [x4, #FRAME_PREV_FRAME_OFFSET]
 
-    BOUNDARY_FRAME_SLOT = ((CFRAME_HEADER_SIZE - 3) + 1)
+    BOUNDARY_FRAME_SLOT = ((CFRAME_HEADER_SIZE - 3) + 2)
 
     // Copy callee saved registers from StackWalker into boundary frame.
     // Note, we do not preserve x5 (holding a pointer to a callee-saved
@@ -186,16 +186,14 @@ MAKE_ASM_NAME(DeoptimizeAfterCFrame):
     CFI_RESTORE(d9)
     CFI_RESTORE(d8)
 
-    # Restore stack pointer
+    // Restore stack pointer to the beginning of the cframe
     add sp, sp, #(((CFRAME_HEADER_SIZE - 2) * 8) + CALLEE_SAVED_SIZE)
 
-    ldr fp, [sp, #-8]
+    // Restore standard FP frame: [sp+0]=saved_fp, [sp+8]=lr
+    ldp fp, lr, [sp], #16
     CFI_RESTORE(fp)
-    CFI_DEF_CFA(sp, (2 * 8))
-    ldr lr, [sp, #8]
     CFI_RESTORE(lr)
-    add sp, sp, #16
-    CFI_ADJUST_CFA_OFFSET(-(2 * 8))
+    CFI_DEF_CFA(sp, 0)
     mov THREAD_REG, x7
     CFI_RESTORE(THREAD_REG)
     fmov d0, x0

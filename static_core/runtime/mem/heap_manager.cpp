@@ -303,7 +303,11 @@ Frame *HeapManager::AllocateExtFrame(size_t size, size_t extSz)
 {
     ASSERT(GetGC()->IsMutatorAllowed());
     StackFrameAllocator *frameAllocator = GetCurrentStackFrameAllocator();
-    return Frame::FromExt(frameAllocator->Alloc(size), extSz);
+    void *mem = frameAllocator->Alloc(size);
+    if (UNLIKELY(mem == nullptr)) {
+        return nullptr;
+    }
+    return Frame::FromExt(mem, extSz);
 }
 
 bool HeapManager::CreateNewTLAB(ManagedThread *thread)

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -22,28 +22,35 @@
 \name:
     CFI_STARTPROC
     CFI_DEF_CFA(sp, 0)
-    sub sp, sp, #16
-    CFI_ADJUST_CFA_OFFSET(16)
-    str lr, [sp, #12]
-    CFI_REL_OFFSET(lr, 12)
-    mov ip, #COMPILED_CODE_TO_INTERPRETER_BRIDGE
-    str ip, [sp, #8]
-    str fp, [sp, #4]
-    CFI_REL_OFFSET(fp, 4)
-    add fp, sp, #4
+
+    // Standard FP frame + boundary frame (zero redundancy):
+    //   [fp+4]  = lr           (RETURN_OFFSET=1, standard saved_lr)
+    //   [fp+0]  = saved_fp     (FP_OFFSET=0, standard saved_fp)
+    //   [fp-4]  = marker       (METHOD_OFFSET=-1)
+    push {fp, lr}
+    CFI_ADJUST_CFA_OFFSET(8)
+    CFI_REL_OFFSET(lr, 4)
+    CFI_REL_OFFSET(fp, 0)
+    mov fp, sp
     CFI_DEF_CFA_REGISTER(fp)
-    CFI_ADJUST_CFA_OFFSET(-4)
+
+    // Push marker below fp
+    mov ip, #COMPILED_CODE_TO_INTERPRETER_BRIDGE
+    push {ip}
+
+    // Placeholder for CALLEES_OFFSET=-2 alignment
+    sub sp, sp, #4
 
     // save all the callee saved registers to the stack
     // stack walker will read them during stack unwinding
     push {r4 - r10}
-    CFI_REL_OFFSET(r10, -(2 * 4))
-    CFI_REL_OFFSET(r9,  -(3 * 4))
-    CFI_REL_OFFSET(r8,  -(4 * 4))
-    CFI_REL_OFFSET(r7,  -(5 * 4))
-    CFI_REL_OFFSET(r6,  -(6 * 4))
-    CFI_REL_OFFSET(r5,  -(7 * 4))
-    CFI_REL_OFFSET(r4,  -(8 * 4))
+    CFI_REL_OFFSET(r10, -(3 * 4))
+    CFI_REL_OFFSET(r9,  -(4 * 4))
+    CFI_REL_OFFSET(r8,  -(5 * 4))
+    CFI_REL_OFFSET(r7,  -(6 * 4))
+    CFI_REL_OFFSET(r6,  -(7 * 4))
+    CFI_REL_OFFSET(r5,  -(8 * 4))
+    CFI_REL_OFFSET(r4,  -(9 * 4))
 
     // align to 8
     sub sp, sp, #4
@@ -63,11 +70,11 @@
 1:
 
     mov r1, sp
-    add r2, fp, #12
+    add r2, fp, #8                // stack args: [fp+4]=lr, [fp+8]=caller's stack args
     blx \entry
 
     // Restore callee registers, since GC may change its values while moving objects.
-    sub sp, fp, #4
+    sub sp, fp, #8
 
     mov r2, r7
 
@@ -80,11 +87,11 @@
     CFI_RESTORE(r5)
     CFI_RESTORE(r4)
 
-    sub sp, fp, #4
+    sub sp, fp, #8
     CFI_DEF_CFA(sp, 16)
-    ldr fp, [sp, #4]
+    ldr fp, [sp, #8]             // skip marker + placeholder
     CFI_RESTORE(fp)
-    add sp, sp, #12 // c2i
+    add sp, sp, #12              // c2i
     CFI_ADJUST_CFA_OFFSET(-12)
 
     // check native exception

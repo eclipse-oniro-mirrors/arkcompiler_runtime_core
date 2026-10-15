@@ -311,7 +311,7 @@ private:
     /// Lock used for preventing object heap modifications (for example at GC<->JIT,ManagedCode interaction during STW)
     MutatorLock *mutatorLock_;
     MutatorManager *mutatorManager_ {nullptr};
-    uint32_t frameExtSize_ {EMPTY_EXT_FRAME_DATA_SIZE};
+    uint32_t frameExtSize_ {CORE_EXT_FRAME_DATA_SIZE};
 
     AsyncDebuggerConfig asyncDebuggerConfig_;
     LoadableAgentHandle debuggerAgent_;

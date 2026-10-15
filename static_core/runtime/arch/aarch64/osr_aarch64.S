@@ -108,11 +108,11 @@ MAKE_ASM_NAME(OsrEntryAfterCFrame):
 
     // We're going to replace C2I frame by new cframe
     ldr x16, [x0, #FRAME_PREV_FRAME_OFFSET]
-    add x18, x16, #24
+    add x18, x16, #16
 
     // We will return to the caller cframe skipping interpreter and C2I bridge
     ldr fp, [x16]
-    ldr lr, [x16, #16]
+    ldr lr, [x16, #8]
 
     // Copy callee saved registers from boundary frame into cframe.
     // Destination - callee saved stack in the cframe

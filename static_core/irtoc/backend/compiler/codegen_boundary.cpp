@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -20,33 +20,36 @@ namespace ark::compiler {
 
 static void PushStackRegister(Encoder *encoder, Target target, Reg threadReg, size_t tlsFrameOffset)
 {
-    static constexpr ssize_t FP_OFFSET = 2;
-    const auto wordSize = static_cast<ssize_t>(target.WordSize());
-    ASSERT(sizeof(FrameBridgeKind) <= static_cast<size_t>(wordSize));
-    constexpr ssize_t MAX_ALLOWED = std::numeric_limits<ssize_t>::max() / FP_OFFSET;
-    if (wordSize > MAX_ALLOWED) {
-        LOG(FATAL, IRTOC) << "WordSize too large for signed offset";
-        return;
-    }
+    // standard FP frame shares slots with boundary frame (zero redundancy)
+    //   [fp+0]  = saved_fp   (FP_OFFSET=0)
+    //   [fp-8]  = marker      (METHOD_OFFSET=-1)
+    // Push saved_fp first (at sp-8), then marker below (at sp-16).
+    // boundary_fp = sp-8 (fp points to saved_fp).
+    static constexpr ssize_t MARKER_OFFSET = 2;
+    const auto wordSize = target.WordSize();
+    encoder->EncodeStr(target.GetFrameReg(), MemRef(target.GetStackReg(), -wordSize));
     encoder->EncodeSti(FrameBridgeKind::COMPILED_CODE_TO_INTERPRETER, wordSize,
-                       MemRef(target.GetStackReg(), -wordSize));
-    encoder->EncodeStr(target.GetFrameReg(), MemRef(target.GetStackReg(), -FP_OFFSET * wordSize));
-
+                       MemRef(target.GetStackReg(), -(MARKER_OFFSET * wordSize)));
     {
         ScopedTmpReg tmp(encoder);
-        encoder->EncodeSub(tmp, target.GetStackReg(), Imm(2U * target.WordSize()));
+        encoder->EncodeSub(tmp, target.GetStackReg(), Imm(target.WordSize()));
         encoder->EncodeStr(tmp, MemRef(threadReg, tlsFrameOffset));
     }
 }
 
 static void PushLinkAndStackRegister(Encoder *encoder, Target target, Reg threadReg, size_t tlsFrameOffset)
 {
-    ScopedTmpReg tmp(encoder);
-    static constexpr ssize_t FP_OFFSET = 3;
-    static constexpr ssize_t LR_OFFSET = 2;
-    encoder->EncodeMov(tmp, Imm(FrameBridgeKind::COMPILED_CODE_TO_INTERPRETER));
-    encoder->EncodeStp(tmp, target.GetLinkReg(), MemRef(target.GetStackReg(), -LR_OFFSET * target.WordSize()));
-    encoder->EncodeStr(target.GetFrameReg(), MemRef(target.GetStackReg(), -FP_OFFSET * target.WordSize()));
+    // standard FP frame shares slots with boundary frame (zero redundancy)
+    //   [fp+8]  = lr           (RETURN_OFFSET=1, standard saved_lr)
+    //   [fp+0]  = saved_fp     (FP_OFFSET=0, standard saved_fp)
+    //   [fp-8]  = marker       (METHOD_OFFSET=-1)
+    static constexpr ssize_t FP_OFFSET = 2;
+    static constexpr ssize_t MARKER_OFFSET = 3;
+    const auto wordSize = target.WordSize();
+    encoder->EncodeStp(target.GetFrameReg(), target.GetLinkReg(),
+                       MemRef(target.GetStackReg(), -(FP_OFFSET * wordSize)));
+    encoder->EncodeSti(FrameBridgeKind::COMPILED_CODE_TO_INTERPRETER, wordSize,
+                       MemRef(target.GetStackReg(), -(MARKER_OFFSET * wordSize)));
 
     encoder->EncodeSub(target.GetLinkReg(), target.GetStackReg(), Imm(FP_OFFSET * target.WordSize()));
     encoder->EncodeStr(target.GetLinkReg(), MemRef(threadReg, tlsFrameOffset));
@@ -195,15 +198,18 @@ void CodegenBoundary::RemoveBoundaryFrame(const BasicBlock *bb) const
     encoder->EncodeAdd(GetTarget().GetStackReg(), GetTarget().GetStackReg(), Imm(frame->GetFrameSize()));
 
     if (GetTarget().SupportLinkReg()) {
-        static constexpr ssize_t FP_OFFSET = -3;
-        const auto wordSize = static_cast<ssize_t>(GetTarget().WordSize());
-        constexpr ssize_t MAX_ALLOWED = std::numeric_limits<ssize_t>::max() / -FP_OFFSET;
-        if (wordSize > MAX_ALLOWED) {
-            LOG(FATAL, IRTOC) << "Frame offset calculation overflow";
-            return;
-        }
+        // sp is now at the position after PushLinkAndStackRegister.
+        // Stack: [sp-8]=lr, [sp-16]=saved_fp, [sp-24]=marker
+        static constexpr ssize_t FP_OFFSET = 2;
+        const auto wordSize = GetTarget().WordSize();
         encoder->EncodeLdr(GetTarget().GetLinkReg(), false, MemRef(GetTarget().GetStackReg(), -wordSize));
-        encoder->EncodeLdr(GetTarget().GetFrameReg(), false, MemRef(GetTarget().GetStackReg(), FP_OFFSET * wordSize));
+        encoder->EncodeLdr(GetTarget().GetFrameReg(), false,
+                           MemRef(GetTarget().GetStackReg(), -(FP_OFFSET * wordSize)));
+    } else {
+        // sp is now at the position after PushLinkAndStackRegister.
+        // Stack: [sp-8]=saved_fp, [sp-16]=marker
+        const auto wordSize = GetTarget().WordSize();
+        encoder->EncodeLdr(GetTarget().GetFrameReg(), false, MemRef(GetTarget().GetStackReg(), -wordSize));
     }
 }
 }  // namespace ark::compiler

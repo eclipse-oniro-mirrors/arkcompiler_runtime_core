@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -37,17 +37,23 @@ CompiledCodeToInterpreterBridge:
     push {r0-r3}
     CFI_ADJUST_CFA_OFFSET(16)
 
-    // construct the frame
-    mov r1, #COMPILED_CODE_TO_INTERPRETER_BRIDGE
-    push {r1, lr}
+    // Standard FP frame + boundary frame (zero redundancy):
+    //   [fp+4]  = lr           (RETURN_OFFSET=1, standard saved_lr)
+    //   [fp+0]  = saved_fp     (FP_OFFSET=0, standard saved_fp)
+    //   [fp-4]  = marker       (METHOD_OFFSET=-1)
+    push {fp, lr}
     CFI_ADJUST_CFA_OFFSET(8)
     CFI_REL_OFFSET(lr, 4)
-    push {r1, fp}
-    CFI_ADJUST_CFA_OFFSET(8)
-    CFI_REL_OFFSET(fp, 4)
-    add fp, sp, #4
-    CFI_ADJUST_CFA_OFFSET(-4)
+    CFI_REL_OFFSET(fp, 0)
+    mov fp, sp
     CFI_DEF_CFA_REGISTER(fp)
+
+    // Push marker below fp
+    mov r1, #COMPILED_CODE_TO_INTERPRETER_BRIDGE
+    push {r1}
+
+    // Placeholder for CALLEES_OFFSET=-2 alignment
+    sub sp, sp, #4
 
     // Save return address to the TLS field
     str lr, [THREAD_REG, #MANAGED_THREAD_NATIVE_PC_OFFSET]
@@ -55,24 +61,24 @@ CompiledCodeToInterpreterBridge:
     // save all the callee saved registers to the stack
     // stack walker will read them during stack unwinding
     push {r4 - r10}
-    CFI_REL_OFFSET(r10, -(2 * 4))
-    CFI_REL_OFFSET(r9,  -(3 * 4))
-    CFI_REL_OFFSET(r8,  -(4 * 4))
-    CFI_REL_OFFSET(r7,  -(5 * 4))
-    CFI_REL_OFFSET(r6,  -(6 * 4))
-    CFI_REL_OFFSET(r5,  -(7 * 4))
-    CFI_REL_OFFSET(r4,  -(8 * 4))
+    CFI_REL_OFFSET(r10, -(3 * 4))
+    CFI_REL_OFFSET(r9,  -(4 * 4))
+    CFI_REL_OFFSET(r8,  -(5 * 4))
+    CFI_REL_OFFSET(r7,  -(6 * 4))
+    CFI_REL_OFFSET(r6,  -(7 * 4))
+    CFI_REL_OFFSET(r5,  -(8 * 4))
+    CFI_REL_OFFSET(r4,  -(9 * 4))
 
 #ifndef PANDA_TARGET_ARM32_ABI_SOFT
     vpush {d8 - d15}
-    CFI_REL_OFFSET(d15, -(10 * 4))
-    CFI_REL_OFFSET(d14, -(12 * 4))
-    CFI_REL_OFFSET(d13, -(14 * 4))
-    CFI_REL_OFFSET(d12, -(16 * 4))
-    CFI_REL_OFFSET(d11, -(18 * 4))
-    CFI_REL_OFFSET(d10, -(20 * 4))
-    CFI_REL_OFFSET(d9,  -(22 * 4))
-    CFI_REL_OFFSET(d8,  -(24 * 4))
+    CFI_REL_OFFSET(d15, -(11 * 4))
+    CFI_REL_OFFSET(d14, -(13 * 4))
+    CFI_REL_OFFSET(d13, -(15 * 4))
+    CFI_REL_OFFSET(d12, -(17 * 4))
+    CFI_REL_OFFSET(d11, -(19 * 4))
+    CFI_REL_OFFSET(d10, -(21 * 4))
+    CFI_REL_OFFSET(d9,  -(23 * 4))
+    CFI_REL_OFFSET(d8,  -(25 * 4))
 #endif
 
     // align to 8
@@ -95,22 +101,21 @@ CompiledCodeToInterpreterBridge:
     // Compilation finished, so recover caller's frame in the TLS.
     sub sp, fp, #4
     CFI_REMEMBER_STATE
-    CFI_DEF_CFA(sp, 32)
+    CFI_DEF_CFA(sp, 28)
 
-    pop {r1, fp}
+    pop {r1}                // skip marker
+    CFI_ADJUST_CFA_OFFSET(-4)
+    pop {fp, lr}            // restore saved_fp and lr
     CFI_ADJUST_CFA_OFFSET(-8)
     CFI_RESTORE(fp)
-
-    str fp, [THREAD_REG, #MANAGED_THREAD_FRAME_OFFSET]
-    pop {r1, lr}
-    CFI_ADJUST_CFA_OFFSET(-8)
     CFI_RESTORE(lr)
+    str fp, [THREAD_REG, #MANAGED_THREAD_FRAME_OFFSET]
     pop {r0-r3}
     CFI_ADJUST_CFA_OFFSET(-16)
 
     ldr pc, [r0, #METHOD_COMPILED_ENTRY_POINT_OFFSET]
     CFI_RESTORE_STATE
-    CFI_DEF_CFA(fp, 28)
+    CFI_DEF_CFA_REGISTER(fp)
 
 .Lnot_compiled:
     pop {r0 - r3}
@@ -136,7 +141,7 @@ CompiledCodeToInterpreterBridge:
     INIT_SHORTY_REG
     add r2, r6, #FRAME_VREGS_OFFSET
     add r2, r2, r5, lsl #3
-    add r3, fp, #16
+    add r3, fp, #12               // [fp+4]=lr, [fp+8]=r0, [fp+12]=r1, [fp+16]=r2, [fp+20]=r3, [fp+24]=stack args
 
     // parameter 'this' of instance methods is not encoded in the shorty
     // in case of instance method hack SHORTY_REG by replacing the return type by REF
@@ -221,7 +226,7 @@ CompiledCodeToInterpreterBridge:
 
 3:
 #ifndef PANDA_TARGET_ARM32_ABI_SOFT
-    sub sp, fp, #(4 + 7 * 4 + 8 * 8)
+    sub sp, fp, #(4 + 4 + 7 * 4 + 8 * 8)
     vpop {d8 - d15}
     CFI_RESTORE(d15)
     CFI_RESTORE(d14)
@@ -232,7 +237,7 @@ CompiledCodeToInterpreterBridge:
     CFI_RESTORE(d9)
     CFI_RESTORE(d8)
 #else
-    sub sp, fp, #(4 + 7 * 4)
+    sub sp, fp, #(4 + 4 + 7 * 4)
 #endif
 
     pop {r4 - r10}
@@ -244,13 +249,11 @@ CompiledCodeToInterpreterBridge:
     CFI_RESTORE(r5)
     CFI_RESTORE(r4)
 
-    ldr fp, [sp, #4]
-    CFI_DEF_CFA(sp, 32)
+    add sp, sp, #8                // skip placeholder + marker
+    pop {fp, lr}                 // restore saved_fp and lr
     CFI_RESTORE(fp)
-
-    ldr lr, [sp, #12]
     CFI_RESTORE(lr)
-    add sp, sp, #32 // c2i + r0 - r3
-    CFI_ADJUST_CFA_OFFSET(-32)
+    add sp, sp, #16              // skip r0-r3
+    CFI_DEF_CFA(sp, 0)
     bx lr
     CFI_ENDPROC

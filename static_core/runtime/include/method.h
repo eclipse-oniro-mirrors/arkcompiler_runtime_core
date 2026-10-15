@@ -535,7 +535,7 @@ public:
 
     size_t GetFrameSize() const
     {
-        return Frame::GetAllocSize(GetNumArgs() + GetNumVregs(), EMPTY_EXT_FRAME_DATA_SIZE);
+        return Frame::GetAllocSize(GetNumArgs() + GetNumVregs(), CORE_EXT_FRAME_DATA_SIZE);
     }
 
     uint32_t GetNumericalAnnotation(AnnotationField fieldId) const;

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -17,7 +17,10 @@
 
 #include <cstdint>
 
+#include "libarkbase/utils/cframe_layout.h"
 #include "runtime/compiler.h"
+#include "runtime/include/cframe.h"
+#include "runtime/include/stack_walker.h"
 #include "runtime/interpreter/frame.h"
 #include "runtime/tests/test_utils.h"
 
@@ -53,7 +56,7 @@ private:
 template <bool IS_DYNAMIC = false>
 Frame *CreateFrame(size_t nregs, Method *method, Frame *prev)
 {
-    uint32_t extSz = EMPTY_EXT_FRAME_DATA_SIZE;
+    uint32_t extSz = CORE_EXT_FRAME_DATA_SIZE;
     void *mem = aligned_alloc(8, ark::Frame::GetAllocSize(Frame::GetActualSize<IS_DYNAMIC>(nregs), extSz));
     return new (Frame::FromExt(mem, extSz)) ark::Frame(mem, method, prev, nregs);
 }
@@ -125,6 +128,38 @@ TEST_F(FrameTest, Test)
     EXPECT_EQ(frameHandler.GetVReg(0).GetAs<double>(), f64);
 
     ark::test::FreeFrame(f);
+}
+
+// The c2i bridge assembles the boundary frame as a standard FP frame
+// (see cframe_layout.h and runtime/bridge/arch/*/compiled_code_to_interpreter_bridge*.S):
+//   [fp+0] = saved_fp, [fp+1 slot] = lr, [fp-1 slot] = boundary marker.
+// Pin the three slots so a layout regression fails fast.
+TEST(BoundaryFrameTest, C2IBoundaryFrameThreeSlotLayout)
+{
+    using Boundary = BoundaryFrame<FrameKind::INTERPRETER>;
+    static_assert(Boundary::FP_OFFSET == 0);
+    static_assert(Boundary::RETURN_OFFSET == 1);
+    static_assert(Boundary::METHOD_OFFSET == -1);
+
+    EXPECT_EQ(Boundary::FP_OFFSET, 0);
+    EXPECT_EQ(Boundary::RETURN_OFFSET, 1);
+    EXPECT_EQ(Boundary::METHOD_OFFSET, -1);
+
+    // Build the boundary frame exactly like Method::InvokeEntry (method-inl.h):
+    // v[0] = callee regs, v[1] = marker, v[2] = saved_fp, v[3] = lr
+    constexpr size_t FP_INDEX = 2;
+    // NOLINTNEXTLINE(readability-magic-numbers)
+    constexpr uintptr_t SAVED_FP = 0XDEADBEEF;
+    // NOLINTNEXTLINE(readability-magic-numbers)
+    constexpr uintptr_t LR = 0XCAFEBABE;
+    C2IBridge bridge = {0, COMPILED_CODE_TO_INTERPRETER, SAVED_FP, LR};
+    void *boundary = &bridge.v[FP_INDEX];
+    // Read the slots the way an fp unwinder does
+    auto *slots = reinterpret_cast<uintptr_t *>(boundary);
+
+    EXPECT_TRUE(StackWalker::IsBoundaryFrame<FrameKind::INTERPRETER>(boundary));  // [fp-8] == marker
+    EXPECT_EQ(slots[Boundary::FP_OFFSET], SAVED_FP);                              // [fp+0] == saved_fp
+    EXPECT_EQ(slots[Boundary::RETURN_OFFSET], LR);                                // [fp+8] == lr
 }
 
 }  // namespace ark::test

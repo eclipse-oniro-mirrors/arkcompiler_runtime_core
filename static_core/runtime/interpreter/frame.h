@@ -787,7 +787,7 @@ union EmptyExtFrameData {
     __extension__ int v[0];  // NOLINT(modernize-avoid-c-arrays)
 };
 constexpr uint32_t EMPTY_EXT_FRAME_DATA_SIZE = ExtFrame<EmptyExtFrameData>::GetExtSize();
-constexpr uint32_t CORE_EXT_FRAME_DATA_SIZE = 0;
+constexpr uint32_t CORE_EXT_FRAME_DATA_SIZE = 8;
 static_assert(EMPTY_EXT_FRAME_DATA_SIZE == 0, "Nonzero EMPTY_EXT_FRAME_DATA_SIZE");
 #pragma GCC diagnostic pop
 

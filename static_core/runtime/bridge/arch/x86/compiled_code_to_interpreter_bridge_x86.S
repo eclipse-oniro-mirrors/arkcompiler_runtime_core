@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -30,15 +30,16 @@
 .type CompiledCodeToInterpreterBridge, %function
 CompiledCodeToInterpreterBridge:
     // %esp % 16 == 12 here (-4 == 12 (mod 16))
-    movl %esp, %eax
 
-    // construct the frame
+    // Construct standard FP frame + boundary frame (zero redundancy):
+    //   [ebp+4]  = return_addr (RETURN_OFFSET=1, standard return address)
+    //   [ebp+0]  = saved_fp    (FP_OFFSET=0, standard saved_fp)
+    //   [ebp-4]  = marker      (METHOD_OFFSET=-1)
     pushl %ebp
+    movl %esp, %ebp
     pushl $COMPILED_CODE_TO_INTERPRETER_BRIDGE
 
-    movl %eax, %ebp // set frame pointer
-
-    pushl 4(%ebp)
+    pushl 8(%ebp)
     calll DecrementHotnessCounter
     addl $4, %esp
 
@@ -61,8 +62,8 @@ CompiledCodeToInterpreterBridge:
     pushl %edi
     // %esp % 16 == 8 here
 
-    movl 4(%ebp), %ebx // method*
-    leal -8(%ebp), %ecx // prev*
+    movl 8(%ebp), %ebx // method*
+    movl %ebp, %ecx // prev*
 
     pushl %ecx
     pushl %ebx
@@ -81,7 +82,7 @@ CompiledCodeToInterpreterBridge:
     shll $3, %edi
     addl %eax, %edi // iframe.vregs_ + num_vregs_
 
-    leal 8(%ebp), %esi // args
+    leal 12(%ebp), %esi // args
 
     movl METHOD_SHORTY_OFFSET(%ebx), %SHORTY_PTR_REG
     INIT_SHORTY_REG
@@ -221,7 +222,7 @@ CompiledCodeToInterpreterBridge:
     fldl (%esp)
     addl $8, %esp
 4:
-    leal -20(%ebp), %esp
+    leal -16(%ebp), %esp
 
     popl %edi
     popl %esi

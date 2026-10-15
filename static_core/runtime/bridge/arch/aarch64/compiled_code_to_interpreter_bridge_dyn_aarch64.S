@@ -33,45 +33,45 @@ MAKE_ASM_NAME(CompiledCodeToInterpreterBridgeDyn):
 
     // method:      x0
     // num_args:    x1
-    // arg_i:       24(fp, i, 8)
+    // arg_i:       16(fp, i, 8)
 
-    // Construct bridge frame:
-    // lr
-    // COMPILED_CODE_TO_INTERPRETER_BRIDGE
-    // fp  <- fp
-    // ==  <- sp
-
+    // Construct standard FP frame + boundary frame (new layout):
+    //   [fp+8]  = lr           (RETURN_OFFSET=1)
+    //   [fp+0]  = saved_fp     (FP_OFFSET=0)
+    //   [fp-8]  = marker       (METHOD_OFFSET=-1)
+    //   [fp-16] = placeholder  (CALLEES_OFFSET=-2)
     sub sp, sp, #32
     CFI_ADJUST_CFA_OFFSET(4 * 8)
     str lr, [sp, #24]
     CFI_REL_OFFSET(lr, 24)
+    str fp, [sp, #16]
+    CFI_REL_OFFSET(fp, 16)
+    add fp, sp, #16
+    CFI_DEF_CFA(fp, (2 * 8))
     mov lr, #COMPILED_CODE_TO_INTERPRETER_BRIDGE
-    stp fp, lr, [sp, #8]
-    CFI_REL_OFFSET(fp, 8)
-    add fp, sp, #8
-    CFI_DEF_CFA(fp, (3 * 8))
+    str lr, [sp, #8]            // [fp-8] = marker
 
     // save all the callee saved registers to the stack
     // stack walker will read them during stack unwinding
     PUSH_CALLEE_REGS sp
-    CFI_REL_OFFSET(x28, -(2 * 8))
-    CFI_REL_OFFSET(x27, -(3 * 8))
-    CFI_REL_OFFSET(x26, -(4 * 8))
-    CFI_REL_OFFSET(x25, -(5 * 8))
-    CFI_REL_OFFSET(x24, -(6 * 8))
-    CFI_REL_OFFSET(x23, -(7 * 8))
-    CFI_REL_OFFSET(x22, -(8 * 8))
-    CFI_REL_OFFSET(x21, -(9 * 8))
-    CFI_REL_OFFSET(x20, -(10 * 8))
-    CFI_REL_OFFSET(x19, -(11 * 8))
-    CFI_REL_OFFSET(d15, -(12 * 8))
-    CFI_REL_OFFSET(d14, -(13 * 8))
-    CFI_REL_OFFSET(d13, -(14 * 8))
-    CFI_REL_OFFSET(d12, -(15 * 8))
-    CFI_REL_OFFSET(d11, -(16 * 8))
-    CFI_REL_OFFSET(d10, -(17 * 8))
-    CFI_REL_OFFSET(d9, -(18 * 8))
-    CFI_REL_OFFSET(d8, -(19 * 8))
+    CFI_REL_OFFSET(x28, -(3 * 8))
+    CFI_REL_OFFSET(x27, -(4 * 8))
+    CFI_REL_OFFSET(x26, -(5 * 8))
+    CFI_REL_OFFSET(x25, -(6 * 8))
+    CFI_REL_OFFSET(x24, -(7 * 8))
+    CFI_REL_OFFSET(x23, -(8 * 8))
+    CFI_REL_OFFSET(x22, -(9 * 8))
+    CFI_REL_OFFSET(x21, -(10 * 8))
+    CFI_REL_OFFSET(x20, -(11 * 8))
+    CFI_REL_OFFSET(x19, -(12 * 8))
+    CFI_REL_OFFSET(d15, -(13 * 8))
+    CFI_REL_OFFSET(d14, -(14 * 8))
+    CFI_REL_OFFSET(d13, -(15 * 8))
+    CFI_REL_OFFSET(d12, -(16 * 8))
+    CFI_REL_OFFSET(d11, -(17 * 8))
+    CFI_REL_OFFSET(d10, -(18 * 8))
+    CFI_REL_OFFSET(d9, -(19 * 8))
+    CFI_REL_OFFSET(d8, -(20 * 8))
 
     // Before we call DecrementHotnessCounterDyn we should set pointer to C2I frame in the TLS,
     // because compilation may fall into safepoint, so we need to make caller's callee registers
@@ -81,7 +81,7 @@ MAKE_ASM_NAME(CompiledCodeToInterpreterBridgeDyn):
     PUSH_ARGS_REGS
 
     // Pass this function as second arg
-    ldr x1, [fp, #24]
+    ldr x1, [fp, #16]
     mov x2, THREAD_REG
     bl MAKE_ASM_NAME(DecrementHotnessCounterDyn)
 
@@ -94,8 +94,8 @@ MAKE_ASM_NAME(CompiledCodeToInterpreterBridgeDyn):
 
     POP_ARGS_REGS
 
-    sub sp, fp, #8
-    ldr fp, [sp, #8]
+    sub sp, fp, #16
+    ldr fp, [sp, #16]
     CFI_REMEMBER_STATE
     CFI_RESTORE(fp)
     CFI_DEF_CFA(sp, (4 * 8))
@@ -108,7 +108,7 @@ MAKE_ASM_NAME(CompiledCodeToInterpreterBridgeDyn):
     ldr x16, [x0, #METHOD_COMPILED_ENTRY_POINT_OFFSET]
     br  x16
     CFI_RESTORE_STATE
-    CFI_DEF_CFA(fp, (3 * 8))
+    CFI_DEF_CFA_REGISTER(fp)
 
 .Lnot_compiled:
     // Restore x0 and x1 args since they contain Method* and actual_num_args
@@ -146,7 +146,7 @@ MAKE_ASM_NAME(CompiledCodeToInterpreterBridgeDyn):
 
     // copy actual args
     // x0           - incoming stack arguments
-    add x0, fp, 24
+    add x0, fp, 16
     sub w1, w20, 1
     lsl w1, w1, 3
 .Lloop_actual:
@@ -178,7 +178,7 @@ MAKE_ASM_NAME(CompiledCodeToInterpreterBridgeDyn):
     // Setup EcmascriptEnvironment
     // %x0       - this func (1st arg)
     // %x23      - iframe ext data
-    ldr x0, [fp, #24]
+    ldr x0, [fp, #16]
     sub x23, x21, #(EXTFRAME_FRAME_OFFSET - EXTFRAME_EXT_DATA_OFFSET)
 
     // Store constant pool to iframe
@@ -211,7 +211,7 @@ MAKE_ASM_NAME(CompiledCodeToInterpreterBridgeDyn):
     mov x0, x19
     mov x1, x20
 
-    sub sp, fp, #8
+    sub sp, fp, #16
     // Restore callee registers, since GC may change its values while moving objects.
     mov x16, sp
     ldp x27, x28, [x16, #-16]!
@@ -230,7 +230,7 @@ MAKE_ASM_NAME(CompiledCodeToInterpreterBridgeDyn):
     CFI_RESTORE(x20)
     CFI_RESTORE(x19)
 
-    ldr fp, [sp, #8]
+    ldr fp, [sp, #16]
     CFI_RESTORE(fp)
     CFI_DEF_CFA(sp, (4 * 8))
     ldr lr, [sp, #24]

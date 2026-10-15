@@ -426,9 +426,6 @@ private:
     CalleeRegsBuffer deoptCalleeRegs_ = {0};
 };
 
-static_assert((BoundaryFrame<FrameKind::INTERPRETER>::METHOD_OFFSET) * sizeof(uintptr_t) == Frame::GetMethodOffset());
-static_assert((BoundaryFrame<FrameKind::INTERPRETER>::FP_OFFSET) * sizeof(uintptr_t) == Frame::GetPrevFrameOffset());
-
 }  // namespace ark
 
 #endif  // PANDA_RUNTIME_STACK_WALKER_H

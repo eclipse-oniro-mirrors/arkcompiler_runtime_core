@@ -228,16 +228,19 @@
     sub sp, sp, #BRIDGE_FRAME_SIZE
     CFI_ADJUST_CFA_OFFSET(BRIDGE_FRAME_SIZE)
 
-    // BoundaryFrame setup
-    str lr, [sp, #(BRIDGE_FRAME_SIZE - 8)]    // Bridge frame, slot 1 = npc = LR (the StackMap is just after the bridge call)
+    // BoundaryFrame setup (new layout):
+    //   [fp+8]  = lr         (RETURN_OFFSET=1)
+    //   [fp+0]  = saved_fp   (FP_OFFSET=0)
+    //   [fp-8]  = marker     (METHOD_OFFSET=-1)
+    str lr, [sp, #(BRIDGE_FRAME_SIZE - 8)]    // Bridge frame, slot 1 = npc = LR
     CFI_REL_OFFSET(lr, (BRIDGE_FRAME_SIZE - 1 * 8))
     str lr, [THREAD_REG, #MANAGED_THREAD_NATIVE_PC_OFFSET]   // ManagedThread.npc update
+    str fp, [sp, #(BRIDGE_FRAME_SIZE - 16)]   // Bridge frame, slot 2 = parent frame pointer (saved_fp)
+    CFI_REL_OFFSET(fp, (BRIDGE_FRAME_SIZE - 2 * 8))
+    add x17, sp, #(BRIDGE_FRAME_SIZE - 16)    // x17 = boundary_fp = &saved_fp
+    str x17, [THREAD_REG, #MANAGED_THREAD_FRAME_OFFSET]    // ManagedThread._frame = this boundary frame
     mov lr, #COMPILED_CODE_TO_INTERPRETER_BRIDGE
-    str lr, [sp, #(BRIDGE_FRAME_SIZE - 16)] // Bridge frame, slot 2 = COMPILED_CODE_TO_INTERPRETER
-    str fp, [sp, #(BRIDGE_FRAME_SIZE - 24)] // Bridge frame, slot 3 = parent frame pointer
-    CFI_REL_OFFSET(fp, (BRIDGE_FRAME_SIZE - 3 * 8))
-    add lr, sp, #(BRIDGE_FRAME_SIZE - 24)
-    str lr, [THREAD_REG, #MANAGED_THREAD_FRAME_OFFSET]    // ManagedThread._frame = this boundary frame
+    str lr, [x17, #-8]                        // marker at [boundary_fp - 8] (METHOD_OFFSET=-1)
 
     SAVE_CALLEE_GP_REGS sp, BRIDGE_FRAME_SIZE
     // StackWalker requires callee-saved FP registers to be saved unconditionally in the runtime bridge
