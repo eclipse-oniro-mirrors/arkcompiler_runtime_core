@@ -202,6 +202,13 @@
                     }
                 },
                 {
+                    "name": "//arkcompiler/runtime_core/static_core/libarkfile:libarktsfile",
+                    "header": {
+                        "header_files": [],
+                        "header_base": "//arkcompiler/runtime_core/static_core/libarkfile"
+                    }
+                },
+                {
                     "name": "//arkcompiler/runtime_core/static_core/libarkfile:libarktsfile_package",
                     "header": {
                         "header_files": [],
