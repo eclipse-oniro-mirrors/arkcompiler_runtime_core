@@ -33,8 +33,7 @@ panda_file::File::EntityId EtsAnnotation::FindAsyncAnnotation(const Method *meth
 panda_file::File::EntityId EtsAnnotation::OptionalParameters(const Method *method)
 {
     return FindAnnotation(
-        method,
-        utf::CStringAsMutf8(EtsPlatformTypes::DESCRIPTOR_arkruntimeAnnotationFunctionsOptionalParametersAnnotation));
+        method, utf::CStringAsMutf8(EtsPlatformTypes::DESCRIPTOR_annotationsFunctionsOptionalParametersAnnotation));
 }
 
 /*static*/
