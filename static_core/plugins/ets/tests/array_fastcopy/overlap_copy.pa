@@ -1,0 +1,391 @@
+# Copyright (c) 2026 Huawei Device Co., Ltd.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Regression test for the ArrayFastCopyToRef* fast paths and the std.core
+# native copy helpers. Same-array copies where dst_start > src_start overlap
+# and must behave like memmove (backward iteration). Verifications compare
+# references saved before the copy, so they do not rely on string interning.
+
+.language eTS
+
+.record std.core.Object <external>
+
+.record std.core.ETSGLOBAL <external>
+
+.function void std.core.ETSGLOBAL.copyToFastWithBarriers(std.core.Object[] a0, std.core.Object[] a1, i32 a2, i32 a3, i32 a4) <external, static, access.function=public>
+
+.function void std.core.ETSGLOBAL.copyToFast(std.core.Object[] a0, std.core.Object[] a1, i32 a2, i32 a3, i32 a4) <external, static, access.function=public>
+
+# Same-array copy, dst ahead of src, copyToFastWithBarriers.
+.function i32 test_with_barriers_backward() <static> {
+    movi v0, 0x8
+    newarr v1, v0, std.core.Object[]
+    movi v2, 0x0
+    lda.str "s0"
+    starr.obj v1, v2
+    movi v2, 0x1
+    lda.str "s1"
+    starr.obj v1, v2
+    movi v2, 0x2
+    lda.str "s2"
+    starr.obj v1, v2
+    movi v2, 0x3
+    lda.str "s3"
+    starr.obj v1, v2
+    movi v2, 0x4
+    lda.str "s4"
+    starr.obj v1, v2
+    movi v2, 0x5
+    lda.str "s5"
+    starr.obj v1, v2
+    movi v2, 0x6
+    lda.str "s6"
+    starr.obj v1, v2
+    movi v2, 0x7
+    lda.str "s7"
+    starr.obj v1, v2
+    # save source references: v10 = arr[0], v11 = arr[1], v12 = arr[2]
+    movi v2, 0x0
+    lda v2
+    ldarr.obj v1
+    sta.obj v10
+    movi v2, 0x1
+    lda v2
+    ldarr.obj v1
+    sta.obj v11
+    movi v2, 0x2
+    lda v2
+    ldarr.obj v1
+    sta.obj v12
+    # copyToFastWithBarriers(arr, arr, dstStart=2, srcStart=0, srcEnd=3)
+    mov.obj v5, v1
+    mov.obj v6, v1
+    movi v7, 0x2
+    movi v8, 0x0
+    movi v9, 0x3
+    call.range std.core.ETSGLOBAL.copyToFastWithBarriers:(std.core.Object[],std.core.Object[],i32,i32,i32), v5
+    # arr[2] must be the old arr[0]
+    movi v2, 0x2
+    lda v2
+    ldarr.obj v1
+    sta.obj v13
+    lda.obj v10
+    jeq.obj v13, ok_0
+    ldai 0x1
+    return
+ok_0:
+    # arr[3] must be the old arr[1]
+    movi v2, 0x3
+    lda v2
+    ldarr.obj v1
+    sta.obj v13
+    lda.obj v11
+    jeq.obj v13, ok_1
+    ldai 0x1
+    return
+ok_1:
+    # arr[4] must be the old arr[2]
+    movi v2, 0x4
+    lda v2
+    ldarr.obj v1
+    sta.obj v13
+    lda.obj v12
+    jeq.obj v13, ok_2
+    ldai 0x1
+    return
+ok_2:
+    ldai 0x0
+    return
+}
+
+# Same-array copy, dst behind src (forward iteration), copyToFastWithBarriers.
+.function i32 test_with_barriers_forward() <static> {
+    movi v0, 0x8
+    newarr v1, v0, std.core.Object[]
+    movi v2, 0x0
+    lda.str "s0"
+    starr.obj v1, v2
+    movi v2, 0x1
+    lda.str "s1"
+    starr.obj v1, v2
+    movi v2, 0x2
+    lda.str "s2"
+    starr.obj v1, v2
+    movi v2, 0x3
+    lda.str "s3"
+    starr.obj v1, v2
+    movi v2, 0x4
+    lda.str "s4"
+    starr.obj v1, v2
+    # save source references: v10 = arr[1], v11 = arr[2], v12 = arr[3]
+    movi v2, 0x1
+    lda v2
+    ldarr.obj v1
+    sta.obj v10
+    movi v2, 0x2
+    lda v2
+    ldarr.obj v1
+    sta.obj v11
+    movi v2, 0x3
+    lda v2
+    ldarr.obj v1
+    sta.obj v12
+    # copyToFastWithBarriers(arr, arr, dstStart=0, srcStart=1, srcEnd=4)
+    mov.obj v5, v1
+    mov.obj v6, v1
+    movi v7, 0x0
+    movi v8, 0x1
+    movi v9, 0x4
+    call.range std.core.ETSGLOBAL.copyToFastWithBarriers:(std.core.Object[],std.core.Object[],i32,i32,i32), v5
+    # arr[0] must be the old arr[1]
+    movi v2, 0x0
+    lda v2
+    ldarr.obj v1
+    sta.obj v13
+    lda.obj v10
+    jeq.obj v13, ok_0
+    ldai 0x1
+    return
+ok_0:
+    # arr[1] must be the old arr[2]
+    movi v2, 0x1
+    lda v2
+    ldarr.obj v1
+    sta.obj v13
+    lda.obj v11
+    jeq.obj v13, ok_1
+    ldai 0x1
+    return
+ok_1:
+    # arr[2] must be the old arr[3]
+    movi v2, 0x2
+    lda v2
+    ldarr.obj v1
+    sta.obj v13
+    lda.obj v12
+    jeq.obj v13, ok_2
+    ldai 0x1
+    return
+ok_2:
+    ldai 0x0
+    return
+}
+
+# Same-array overlapping copy, dst ahead of src, copyToFast (no-barrier variant).
+.function i32 test_copy_to_fast_backward() <static> {
+    movi v0, 0x8
+    newarr v1, v0, std.core.Object[]
+    movi v2, 0x0
+    lda.str "s0"
+    starr.obj v1, v2
+    movi v2, 0x1
+    lda.str "s1"
+    starr.obj v1, v2
+    movi v2, 0x2
+    lda.str "s2"
+    starr.obj v1, v2
+    movi v2, 0x3
+    lda.str "s3"
+    starr.obj v1, v2
+    movi v2, 0x4
+    lda.str "s4"
+    starr.obj v1, v2
+    # save source references: v10..v12 = arr[0..2]
+    movi v2, 0x0
+    lda v2
+    ldarr.obj v1
+    sta.obj v10
+    movi v2, 0x1
+    lda v2
+    ldarr.obj v1
+    sta.obj v11
+    movi v2, 0x2
+    lda v2
+    ldarr.obj v1
+    sta.obj v12
+    # copyToFast(arr, arr, dstStart=1, srcStart=0, srcEnd=4): ranges {0..3} -> {1..4} overlap
+    mov.obj v5, v1
+    mov.obj v6, v1
+    movi v7, 0x1
+    movi v8, 0x0
+    movi v9, 0x4
+    call.range std.core.ETSGLOBAL.copyToFast:(std.core.Object[],std.core.Object[],i32,i32,i32), v5
+    # arr[1] must be the old arr[0]
+    movi v2, 0x1
+    lda v2
+    ldarr.obj v1
+    sta.obj v13
+    lda.obj v10
+    jeq.obj v13, ok_0
+    ldai 0x1
+    return
+ok_0:
+    # arr[2] must be the old arr[1]
+    movi v2, 0x2
+    lda v2
+    ldarr.obj v1
+    sta.obj v13
+    lda.obj v11
+    jeq.obj v13, ok_1
+    ldai 0x1
+    return
+ok_1:
+    # arr[3] must be the old arr[2]
+    movi v2, 0x3
+    lda v2
+    ldarr.obj v1
+    sta.obj v13
+    lda.obj v12
+    jeq.obj v13, ok_2
+    ldai 0x1
+    return
+ok_2:
+    ldai 0x0
+    return
+}
+
+# Different arrays: copyToFastWithBarriers between two arrays.
+.function i32 test_different_arrays() <static> {
+    movi v0, 0x5
+    newarr v1, v0, std.core.Object[]
+    movi v2, 0x0
+    lda.str "s0"
+    starr.obj v1, v2
+    movi v2, 0x1
+    lda.str "s1"
+    starr.obj v1, v2
+    movi v2, 0x2
+    lda.str "s2"
+    starr.obj v1, v2
+    movi v2, 0x3
+    lda.str "s3"
+    starr.obj v1, v2
+    movi v2, 0x4
+    lda.str "s4"
+    starr.obj v1, v2
+    movi v0, 0x4
+    newarr v14, v0, std.core.Object[]
+    # save source references: v10 = arr1[1], v11 = arr1[2], v12 = arr1[3]
+    movi v2, 0x1
+    lda v2
+    ldarr.obj v1
+    sta.obj v10
+    movi v2, 0x2
+    lda v2
+    ldarr.obj v1
+    sta.obj v11
+    movi v2, 0x3
+    lda v2
+    ldarr.obj v1
+    sta.obj v12
+    # copyToFastWithBarriers(arr1, arr2, dstStart=1, srcStart=1, srcEnd=4)
+    mov.obj v5, v1
+    mov.obj v6, v14
+    movi v7, 0x1
+    movi v8, 0x1
+    movi v9, 0x4
+    call.range std.core.ETSGLOBAL.copyToFastWithBarriers:(std.core.Object[],std.core.Object[],i32,i32,i32), v5
+    # arr2[1] must be the old arr1[1]
+    movi v2, 0x1
+    lda v2
+    ldarr.obj v14
+    sta.obj v13
+    lda.obj v10
+    jeq.obj v13, ok_0
+    ldai 0x1
+    return
+ok_0:
+    # arr2[2] must be the old arr1[2]
+    movi v2, 0x2
+    lda v2
+    ldarr.obj v14
+    sta.obj v13
+    lda.obj v11
+    jeq.obj v13, ok_1
+    ldai 0x1
+    return
+ok_1:
+    # arr2[3] must be the old arr1[3]
+    movi v2, 0x3
+    lda v2
+    ldarr.obj v14
+    sta.obj v13
+    lda.obj v12
+    jeq.obj v13, ok_2
+    ldai 0x1
+    return
+ok_2:
+    ldai 0x0
+    return
+}
+
+# Single-element same-array copy, dst ahead of src (loop boundary: one
+# backward iteration, terminating offset exactly zero).
+.function i32 test_single_element_backward() <static> {
+    movi v0, 0x4
+    newarr v1, v0, std.core.Object[]
+    movi v2, 0x0
+    lda.str "s0"
+    starr.obj v1, v2
+    movi v2, 0x1
+    lda.str "s1"
+    starr.obj v1, v2
+    movi v2, 0x2
+    lda.str "s2"
+    starr.obj v1, v2
+    movi v2, 0x3
+    lda.str "s3"
+    starr.obj v1, v2
+    # save source reference: v10 = arr[2]
+    movi v2, 0x2
+    lda v2
+    ldarr.obj v1
+    sta.obj v10
+    # copyToFastWithBarriers(arr, arr, dstStart=3, srcStart=2, srcEnd=3)
+    mov.obj v5, v1
+    mov.obj v6, v1
+    movi v7, 0x3
+    movi v8, 0x2
+    movi v9, 0x3
+    call.range std.core.ETSGLOBAL.copyToFastWithBarriers:(std.core.Object[],std.core.Object[],i32,i32,i32), v5
+    # arr[3] must be the old arr[2]
+    movi v2, 0x3
+    lda v2
+    ldarr.obj v1
+    sta.obj v13
+    lda.obj v10
+    jeq.obj v13, ok_0
+    ldai 0x1
+    return
+ok_0:
+    ldai 0x0
+    return
+}
+
+.function i32 main() <static> {
+    call test_with_barriers_backward
+    jnez fail
+    call test_with_barriers_forward
+    jnez fail
+    call test_copy_to_fast_backward
+    jnez fail
+    call test_different_arrays
+    jnez fail
+    call test_single_element_backward
+    jnez fail
+    ldai 0x0
+    return
+fail:
+    ldai 0x1
+    return
+}

@@ -601,6 +601,7 @@ endif()
 
 add_subdirectory(common)
 add_subdirectory(equals)
+add_subdirectory(array_fastcopy)
 add_subdirectory(lookup_by_name)
 add_subdirectory(ets_test_suite)
 add_subdirectory(runtime)
