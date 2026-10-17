@@ -1,6 +1,6 @@
 'use static'
 /*
- * Copyright (c) 2022-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2022-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -16,12 +16,12 @@
 export type A = Any;
 export type PersonEmployee = Any;
 export type LoggerValidator = Any;
-type User = Any;
+export type User = Any;
 export type ActiveUser = Any;
-declare class Logger {
+export declare class Logger {
     log(message: string): void;
 }
-declare class Validator {
+export declare class Validator {
     validate(data: Any): boolean;
 }
 export declare interface Person {
