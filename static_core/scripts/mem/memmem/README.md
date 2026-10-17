@@ -1,6 +1,6 @@
 # memmem
 
-Small OpenHarmony memory benchmark runner. It launches configured apps, executes flow commands, captures `/proc/<pid>/smaps` and screenshots, receives raw evidence, and writes CSV reports and SVG memory trend plots.
+Small OpenHarmony and Andr0id memory benchmark runner. It launches configured apps, executes flow commands, captures `/proc/<pid>/smaps` and screenshots, receives raw evidence, and writes CSV reports and SVG memory trend plots.
 
 ## Authors
 
@@ -10,13 +10,14 @@ Small OpenHarmony memory benchmark runner. It launches configured apps, executes
 ## Prerequisites
 
 - Python 3.11
-- HDC available on host
-- Connected OpenHarmony device with `uitest`, `aa`, `pidof`, `cat`, `date`, `mkdir`, and `rm`
+- HDC available on host for OpenHarmony, or ABD available on host for Andr0id
+- Connected rooted OpenHarmony device or a rooted Andr0id device
 
 Create `.env`:
 
 ```bash
 HDC_PATH=/path/to/hdc
+ABD_PATH=/path/to/abd
 ```
 
 ## Setup
@@ -29,28 +30,30 @@ source .venv/bin/activate
 ## Run (run.py)
 
 ```bash
-python run.py --flow flow.json
+python run.py --flow flow.json --backend hdc
+python run.py --flow flow.json --backend abd
 ```
 
+- `--backend`: device backend, `hdc` or `abd`; defaults to `hdc`. The selected backend requires its matching executable path in `.env`; the other path may be empty or absent.
 - `--flow`: benchmark flow JSON; may contain repeat macros in the unprocessed form; output `flow.json` is the canonicalized validated expanded flow and may differ in formatting from the input file
 - `--out-dir`: directory to store benchmark results; when omitted, a timestamped `memmem-out-YYYYMMDD_HHMMSS_microseconds` directory is created; the directory must not exist yet
 - `--repeats`: number of times to repeat the flow to collect averaged measurements; a positive int, defaults to `1`
 - `--reboot` / `--no-reboot`: reboot before running the flow; defaults to `--no-reboot`
-- `--hilog` / `--no-hilog`: collect one run-wide device hilog artifact; defaults to `--hilog`
+- `--device-log` / `--no-device-log`: collect one run-wide device-log artifact; defaults to `--device-log`
 - `--memmem-log-level`: memmem app log level, one of `info`, `warn`, or `err`; defaults to `err`
 - `--memmem-log-file`: optional memmem app log file; when omitted, info/warnings go to stdout and errors go to stderr; when set, all emitted memmem logs overwrite that file. Passing an empty string is invalid: **breaking change** from previous behavior where `""` routed to stdout/stderr and `None`/omitted now does that instead
 - `--smaps-filter`: Regex matched with `re.match` against each normalized smaps tag; Only matching mappings are counted in reports; E.g. `.*\.so` counts contribution of only shared-library mappings
 - output is written to a timestamped `memmem-out-YYYYMMDD_HHMMSS_microseconds` directory
 
-Path arguments (`--flow`, `--out-dir`, `--memmem-log-file`, and `HDC_PATH` from `.env`) are resolved against the directory the CLI was invoked from unless the path is absolute.
+Path arguments (`--flow`, `--out-dir`, `--memmem-log-file`, `HDC_PATH`, and `ABD_PATH`) are resolved against the directory the CLI was invoked from unless the path is absolute.
 
-## Record (record.py)
+## Record (record_hdc.py)
 
 ```bash
-python record.py --timeout 30
+python record_hdc.py --timeout 30
 ```
 
-`record.py` records UI inputs from the connected device with `uitest uiRecord` and writes a generated `flow-YYYYMMDD_HHMMSS_microseconds.json` file.
+`record_hdc.py` records UI inputs from an OpenHarmony device with `uitest uiRecord` and writes a generated `flow-YYYYMMDD_HHMMSS_microseconds.json` file. Andr0id recording is not supported.
 
 - optional `--timeout`: recording duration in seconds; if omitted, recording continues until you type `y` and press Enter
 - script will prompt user for input when ready
@@ -163,11 +166,11 @@ scenario = lib.flow(
     desc="Measures memory across repeated scroll samples.",
 )
 
-device = lib.get_device(lib.get_hdc(pathlib.Path("/path/to/hdc")))
+device = lib.get_hdc_device(lib.get_hdc(pathlib.Path("/path/to/hdc")))
 out_dir = pathlib.Path("memmem-out-1234")
 
 lib.configure_logger("info")
-lib.run(scenario, device, out_dir=out_dir, reboot=False, hilog=True)
+lib.run(scenario, device, out_dir=out_dir, reboot=False, device_log=True)
 ```
 
 `lib.run()` raises on failure. Since `out_dir` is passed explicitly, user can inspect that directory after the run for results.
@@ -198,7 +201,7 @@ scenario = lib.unprocessed_flow([
 ], desc="Measures memory across repeated scroll samples.")
 
 canonical = lib.preprocess_flow(scenario)
-lib.run(canonical, device, out_dir=out_dir, reboot=False, hilog=True)
+lib.run(canonical, device, out_dir=out_dir, reboot=False, device_log=True)
 ```
 
 However, use of `lib.unprocessed_*` API is highly discouraged for programmatic users -- for better readability, prefer python statements to construct flows that do not need preprocessing.
@@ -280,6 +283,10 @@ Directional fling:
 
 `direction` is one of `left`, `right`, `up`, `down`.
 
+## Andr0id Backend Notes
+
+With `--backend abd`, `bundle` and `ability` are interpreted as the Andr0id package and activity, for example `com.example.app` and `.MainActivity`. Andr0id devices must be rooted so the shell can capture app smaps. Device logs are collected with `logcat` but retain the existing `hilog/hilog.log` evidence path. Andr0id `input` does not expose all UITest gesture semantics, so double taps, long taps, drags, flings, velocity, and step length are replayed on a best-effort basis.
+
 ## Output
 
 ### Single run (`--repeats 1`)
@@ -312,6 +319,30 @@ The filtered report omits rows that appear only in discarded iterations. When no
 Averaging fails if no iteration produced a `summary.csv`.
 
 Reboot, when enabled, applies before each iteration's flow execution.
+
+### Summarize an interrupted repeated run (`summarize.py`)
+
+If `run.py --repeats N` stops before it writes the averaged reports, summarize the completed iteration directories without rerunning the benchmark:
+
+```bash
+python summarize.py --out-dir memmem-out-YYYYMMDD_HHMMSS_microseconds
+```
+
+The utility reads every `iteration_N/summary.csv`, warns about iteration directories without that report, and writes the same averaged reports under `<out-dir>/summary/` as a completed repeated run. It safely replaces an existing `summary/` only after a full recovery succeeds; a failed recovery leaves the prior summary unchanged.
+
+### Compare result directories (`compare.py`)
+
+Compare one baseline with one or more result directories without rerunning benchmarks:
+
+```bash
+python compare.py \
+  --base memmem-out-baseline \
+  --change memmem-out-change-a \
+  --change memmem-out-change-b \
+  --out-dir memmem-comparison
+```
+
+Each input may be a single-run output directory or a repeated-run root containing `summary/`. For repeated runs, `summary_filtered.csv` is compared when present; otherwise `summary.csv` is used. Inputs must have identical ordered `(app_label, snapshot_label)` rows and matching breakdown file paths. The new `--out-dir` must not exist. The output contains `summary.csv` and `breakdowns/` CSVs with one base value and one value/percentage pair for every `--change` argument in command-line order. Breakdown rows include the union of tags from all inputs; unavailable values and percentage deltas against a zero baseline are empty. Invalid or incompatible input fails before creating the comparison output directory.
 
 ## Testing
 

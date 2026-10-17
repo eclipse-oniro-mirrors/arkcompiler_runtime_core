@@ -21,8 +21,10 @@ from unittest import mock
 
 from test.mock.hdc import FakeHdc
 
-from src.device import Device, Point
-from src.hdc import Hdc, HdcResult, TIMEOUT_ERR_CODE
+from src.device import CommandResult as HdcResult, Point
+from src.connection import TIMEOUT_ERR_CODE
+from src.platform.ohos.hdc import Hdc
+from src.platform.ohos.hdc_device import HdcDevice as Device
 
 
 class HdcTest(unittest.TestCase):
@@ -40,7 +42,7 @@ class HdcTest(unittest.TestCase):
             f"$(touch {pathlib.PurePosixPath('/', 'data', 'local', 'tmp', 'injected')})",
         ]
 
-        with mock.patch("src.hdc.subprocess.run", return_value=self.completed) as run:
+        with mock.patch("src.platform.ohos.hdc.subprocess.run", return_value=self.completed) as run:
             for payload in payloads:
                 with self.subTest(payload=payload):
                     Hdc(self.hdc_path).shell(
@@ -57,7 +59,7 @@ class HdcTest(unittest.TestCase):
                     run.reset_mock()
 
     def test_shell_without_arguments_preserves_interactive_invocation(self) -> None:
-        with mock.patch("src.hdc.subprocess.run", return_value=self.completed) as run:
+        with mock.patch("src.platform.ohos.hdc.subprocess.run", return_value=self.completed) as run:
             Hdc(self.hdc_path).shell(timeout=3)
 
         self.assertEqual(
@@ -67,7 +69,7 @@ class HdcTest(unittest.TestCase):
     def test_shell_raw_preserves_deliberate_shell_syntax(self) -> None:
         command = f"cat {pathlib.PurePosixPath('/', 'proc', '42', 'smaps')} > '{pathlib.PurePosixPath('/', 'data', 'local', 'tmp', 'out file.smaps')}'"
 
-        with mock.patch("src.hdc.subprocess.run", return_value=self.completed) as run:
+        with mock.patch("src.platform.ohos.hdc.subprocess.run", return_value=self.completed) as run:
             Hdc(self.hdc_path).shell_raw(command, timeout=4)
 
         self.assertEqual(
@@ -76,7 +78,7 @@ class HdcTest(unittest.TestCase):
 
     def test_shell_timeout_keeps_hdc_result_contract(self) -> None:
         with mock.patch(
-            "src.hdc.subprocess.run",
+            "src.platform.ohos.hdc.subprocess.run",
             side_effect=subprocess.TimeoutExpired(cmd="hdc", timeout=1),
         ):
             result = Hdc(self.hdc_path).shell("date", timeout=1)
@@ -91,7 +93,7 @@ class HdcTest(unittest.TestCase):
         input_text = "input 'quoted'; $(echo input-injected)"
         text = "focused text && echo text-injected"
 
-        with mock.patch("src.hdc.subprocess.run", return_value=self.completed) as run:
+        with mock.patch("src.platform.ohos.hdc.subprocess.run", return_value=self.completed) as run:
             device = Device(Hdc(self.hdc_path))
             device.launch_app(bundle, ability)
             device.input_text(Point(13, 14), input_text)
@@ -112,7 +114,7 @@ class HdcTest(unittest.TestCase):
         remote_path = pathlib.PurePosixPath(
             "/", "data", "local", "tmp", "snapshot dir", "result;ignored.smaps")
 
-        with mock.patch("src.hdc.subprocess.run", return_value=self.completed) as run:
+        with mock.patch("src.platform.ohos.hdc.subprocess.run", return_value=self.completed) as run:
             self.assertTrue(Device(Hdc(self.hdc_path)).capture_smaps(
                 42, remote_path))
 
@@ -124,12 +126,12 @@ class HdcTest(unittest.TestCase):
                 "/", "proc", "42", "smaps")), ">", str(remote_path)],
         )
 
-    def test_start_hilog_quotes_dynamic_remote_path(self) -> None:
+    def test_start_log_capture_quotes_dynamic_remote_path(self) -> None:
         remote_path = pathlib.PurePosixPath(
             "/", "data", "local", "tmp", "hilog dir", "hilog;ignored.log")
 
-        with mock.patch("src.hdc.subprocess.Popen") as popen:
-            Device(Hdc(self.hdc_path)).start_hilog(remote_path)
+        with mock.patch("src.platform.ohos.hdc.subprocess.Popen") as popen:
+            Device(Hdc(self.hdc_path)).start_log_capture(remote_path)
 
         host_command = popen.call_args.args[0]
         self.assertEqual(host_command[:2], [str(self.hdc_path), "shell"])

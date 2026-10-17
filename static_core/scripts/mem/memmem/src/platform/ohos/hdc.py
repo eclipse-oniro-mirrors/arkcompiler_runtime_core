@@ -13,32 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import dataclasses
 import pathlib
 import shlex
 import subprocess
 import typing
 
 from src.log import get_logger
-
-TIMEOUT_ERR_CODE = 127
-
-
-@dataclasses.dataclass(frozen=True)
-class HdcResult:
-    returncode: int
-    stdout: str
-    stderr: str
-
-    def is_error(self) -> bool:
-        return self.returncode != 0 or self.stderr != ""
+from src.connection import TIMEOUT_ERR_CODE
+from src.device import CommandResult
 
 
 class Hdc:
     def __init__(self, hdc_path: pathlib.Path) -> None:
         self.hdc_path = hdc_path
 
-    def run(self, *args: str, timeout: int = -1) -> HdcResult:
+    def run(self, *args: str, timeout: int = -1) -> CommandResult:
         cmd = [str(self.hdc_path), *args]
         get_logger().info(f"$ {' '.join(cmd)}")
         try:
@@ -52,20 +41,20 @@ class Hdc:
                 timeout=None if timeout == -1 else timeout,
             )
         except subprocess.TimeoutExpired:
-            return HdcResult(TIMEOUT_ERR_CODE, "", f"memmem: TIMEOUT {cmd}")
-        return HdcResult(
+            return CommandResult(TIMEOUT_ERR_CODE, "", f"memmem: TIMEOUT {cmd}")
+        return CommandResult(
             returncode=completed.returncode,
             stdout=completed.stdout,
             stderr=completed.stderr,
         )
 
-    def shell(self, *args: str, timeout: int = -1) -> HdcResult:
+    def shell(self, *args: str, timeout: int = -1) -> CommandResult:
         """Run argv-style arguments through the remote POSIX shell."""
         if not args:
             return self.run("shell", timeout=timeout)
         return self.run("shell", shlex.join(args), timeout=timeout)
 
-    def shell_raw(self, command: str, timeout: int = -1) -> HdcResult:
+    def shell_raw(self, command: str, timeout: int = -1) -> CommandResult:
         """Run a pre-serialized remote command that deliberately uses shell syntax."""
         return self.run("shell", command, timeout=timeout)
 

@@ -46,7 +46,7 @@ from src.schema import (
     TapPayload,
 )
 from run import load_config
-from src.hdc import Hdc
+from src.platform.ohos.hdc import Hdc
 from src.types import positive_int
 
 _STARTUP_TIMEOUT_S = 120.0
@@ -517,6 +517,8 @@ def main() -> int:
         output = output_path(datetime.now())
 
         config = load_config(pathlib.Path(".env"))
+        if config.hdc_path is None:
+            raise ValueError("HDC_PATH is required")
         hdc = Hdc(config.hdc_path)
         flow = convert_ui_inputs_into_flow(hdc, timeout)
 

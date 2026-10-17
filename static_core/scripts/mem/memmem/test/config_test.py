@@ -27,7 +27,7 @@ class ConfigTest(unittest.TestCase):
             env_path.write_text("HDC_PATH=/opt/hdc\n", encoding="utf-8")
 
             self.assertEqual(load_config(env_path),
-                             Config(pathlib.Path("/opt/hdc")))
+                             Config(pathlib.Path("/opt/hdc"), None))
 
     def test_loads_quoted_value(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -37,7 +37,7 @@ class ConfigTest(unittest.TestCase):
 
             self.assertEqual(
                 load_config(env_path),
-                Config(pathlib.Path("/opt/hdc with spaces")),
+                Config(pathlib.Path("/opt/hdc with spaces"), None),
             )
 
     def test_missing_env_fails(self) -> None:
@@ -47,21 +47,26 @@ class ConfigTest(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 load_config(env_path)
 
-    def test_missing_hdc_path_fails(self) -> None:
+    def test_missing_paths_are_optional(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             env_path = pathlib.Path(directory) / ".env"
             env_path.write_text("OTHER=value\n", encoding="utf-8")
 
-            with self.assertRaises(ValueError):
-                load_config(env_path)
+            self.assertEqual(load_config(env_path), Config(None, None))
 
-    def test_empty_hdc_path_fails(self) -> None:
+    def test_empty_paths_are_optional(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             env_path = pathlib.Path(directory) / ".env"
             env_path.write_text("HDC_PATH=\n", encoding="utf-8")
 
-            with self.assertRaises(ValueError):
-                load_config(env_path)
+            self.assertEqual(load_config(env_path), Config(None, None))
+
+    def test_loads_abd_path(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            env_path = pathlib.Path(directory) / ".env"
+            env_path.write_text("ABD_PATH=/opt/abd\n", encoding="utf-8")
+            self.assertEqual(load_config(env_path), Config(
+                None, pathlib.Path("/opt/abd")))
 
 
 if __name__ == "__main__":

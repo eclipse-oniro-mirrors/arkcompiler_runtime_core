@@ -20,6 +20,7 @@ import time
 import typing
 
 from src.device import Device, Point, ScreenBounds
+from src.log import get_logger
 from src.metadata import AppMetadata, ArtifactMetadata, RelativeParts
 from src.result import ResultStore
 from src.schema import (
@@ -59,7 +60,8 @@ class ExecutionContext:
     device: Device
     store: ResultStore
     flow: Flow
-    apps: list[AppMetadata]
+    launched_processes: list[AppMetadata]
+    active_processes: list[AppMetadata]
     pending_artifacts: list[PendingArtifact]
     artifact_metadata: dict[pathlib.Path, list[ArtifactMetadata]]
     child_processes: list[subprocess.Popen[typing.Any]]
@@ -123,8 +125,11 @@ def execute_snapshot(
     )
     remote_snapshot_dir = context.store.remote_snapshot_dir(payload)
     pending_artifacts: list[PendingArtifact] = []
-    for process in context.apps:
+    for process in list(context.active_processes):
         if not context.device.pid_exists(process.pid):
+            context.active_processes.remove(process)
+            get_logger().warn(
+                f"removing inactive process: label={process.label} pid={process.pid}")
             continue
 
         if not context.device.make_dir(remote_snapshot_dir):

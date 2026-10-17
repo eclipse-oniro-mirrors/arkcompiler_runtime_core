@@ -17,7 +17,8 @@ import subprocess
 import sys
 from typing import Any
 
-from src.hdc import HdcResult, TIMEOUT_ERR_CODE
+from src.device import CommandResult as HdcResult
+from src.connection import TIMEOUT_ERR_CODE
 
 
 class FakeHdc:

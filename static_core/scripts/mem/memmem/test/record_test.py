@@ -25,8 +25,10 @@ import unittest
 from unittest import mock
 from test.mock.hdc import FakeHdc
 
-import record
-from src.hdc import Hdc, HdcResult
+import record_hdc as record
+from src.device import CommandResult as HdcResult
+from src.platform.ohos.hdc import Hdc
+from run import Config
 from src.schema import DoubleTapCommand, FlingCommand, Flow, KeyCommand, TapCommand
 
 
@@ -42,6 +44,15 @@ _SUPPORTED_RECORD = (
 
 
 class RecordTest(unittest.TestCase):
+    def test_main_rejects_missing_hdc_path(self) -> None:
+        with mock.patch("record_hdc.load_config", return_value=Config(None, None)):
+            with mock.patch("record_hdc.build_parser") as parser:
+                parser.return_value.parse_args.return_value = mock.Mock(
+                    timeout=None)
+                with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                    self.assertEqual(record.main(), 1)
+        self.assertIn("HDC_PATH is required", stderr.getvalue())
+
     def test_bounds_parsing_and_normalization(self) -> None:
         bounds = record._parse_bounds_from_line(
             "windowBounds : (0,0,1280,2832)")

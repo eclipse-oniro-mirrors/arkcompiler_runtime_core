@@ -379,8 +379,8 @@ class PreprocessTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             out_dir = pathlib.Path(directory).joinpath("out")
 
-            lib.run(flow, device, out_dir=out_dir,  # type: ignore[arg-type]
-                    hilog=False)
+            lib.run(flow, device, out_dir=out_dir,
+                    device_log=False)
 
             flow_json = json.loads(
                 out_dir.joinpath("flow.json").read_text(encoding="utf-8"))

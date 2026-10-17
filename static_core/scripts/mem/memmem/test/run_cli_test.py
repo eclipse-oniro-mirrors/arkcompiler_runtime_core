@@ -40,12 +40,13 @@ class RunCliTest(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0)
         self.assertIn("--flow", result.stdout)
+        self.assertIn("--backend", result.stdout)
         self.assertIn("--out-dir", result.stdout)
         self.assertIn("--repeats", result.stdout)
         self.assertIn("--reboot", result.stdout)
         self.assertIn("--no-reboot", result.stdout)
-        self.assertIn("--hilog", result.stdout)
-        self.assertIn("--no-hilog", result.stdout)
+        self.assertIn("--device-log", result.stdout)
+        self.assertIn("--no-device-log", result.stdout)
         self.assertIn("--memmem-log-level", result.stdout)
         self.assertIn("--memmem-log-file", result.stdout)
         self.assertIn("--smaps-filter", result.stdout)
@@ -55,12 +56,24 @@ class RunCliTest(unittest.TestCase):
         args = build_parser().parse_args(["--flow", "flow.json"])
 
         self.assertFalse(args.reboot)
-        self.assertTrue(args.hilog)
+        self.assertEqual(args.backend, "hdc")
+        self.assertTrue(args.device_log)
         self.assertEqual(args.repeats, 1)
         self.assertEqual(args.memmem_log_level, "err")
         self.assertEqual(args.memmem_log_file, None)
         self.assertIsNone(args.smaps_filter)
         self.assertIsNone(args.out_dir)
+
+    def test_abd_backend_parses(self) -> None:
+        args = build_parser().parse_args(
+            ["--flow", "flow.json", "--backend", "abd"])
+        self.assertEqual(args.backend, "abd")
+
+    def test_invalid_backend_is_rejected(self) -> None:
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                build_parser().parse_args(
+                    ["--flow", "flow.json", "--backend", "other"])
 
     def test_out_dir_parses(self) -> None:
         args = build_parser().parse_args(
@@ -107,11 +120,11 @@ class RunCliTest(unittest.TestCase):
 
         self.assertFalse(args.reboot)
 
-    def test_no_hilog_disables_hilog(self) -> None:
+    def test_no_device_log_disables_device_log(self) -> None:
         args = build_parser().parse_args(
-            ["--flow", "flow.json", "--no-hilog"])
+            ["--flow", "flow.json", "--no-device-log"])
 
-        self.assertFalse(args.hilog)
+        self.assertFalse(args.device_log)
 
     def test_memmem_log_options_parse(self) -> None:
         args = build_parser().parse_args(
@@ -131,18 +144,23 @@ class RunCliTest(unittest.TestCase):
                 build_parser().parse_args(
                     ["--flow", "flow.json", "--memmem-log-level", "debug"])
 
-    def test_removed_logs_options_fail(self) -> None:
+    def test_removed_log_options_fail(self) -> None:
         with contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit):
                 build_parser().parse_args(["--flow", "flow.json", "--logs"])
             with self.assertRaises(SystemExit):
                 build_parser().parse_args(["--flow", "flow.json", "--no-logs"])
+            with self.assertRaises(SystemExit):
+                build_parser().parse_args(["--flow", "flow.json", "--hilog"])
+            with self.assertRaises(SystemExit):
+                build_parser().parse_args(
+                    ["--flow", "flow.json", "--no-hilog"])
 
     def test_contradictory_boolean_options_fail(self) -> None:
         with contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit):
                 build_parser().parse_args(
-                    ["--flow", "flow.json", "--hilog", "--no-hilog"])
+                    ["--flow", "flow.json", "--device-log", "--no-device-log"])
             with self.assertRaises(SystemExit):
                 build_parser().parse_args(
                     ["--flow", "flow.json", "--reboot", "--no-reboot"])
@@ -185,6 +203,42 @@ class RunCliTest(unittest.TestCase):
         self.assertIn("memmem error:", result.stderr)
         self.assertIn("missing.json", result.stderr)
         self.assertNotIn("Traceback", result.stderr)
+
+    def test_selected_backend_path_is_required(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            root.joinpath(".env").write_text(
+                "ABD_PATH=/bin/false\n", encoding="utf-8")
+            flow_path = root.joinpath("flow.json")
+            flow_path.write_text('{"flow": []}', encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(_ROOT / "run.py"),
+                 "--flow", str(flow_path)],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("HDC_PATH is required", result.stderr)
+
+    def test_abd_backend_requires_only_abd_path(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            root.joinpath(".env").write_text(
+                "HDC_PATH=/bin/false\n", encoding="utf-8")
+            flow_path = root.joinpath("flow.json")
+            flow_path.write_text('{"flow": []}', encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(_ROOT / "run.py"), "--flow",
+                 str(flow_path), "--backend", "abd"],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("ABD_PATH is required", result.stderr)
 
     def test_invalid_flow_json_fails_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

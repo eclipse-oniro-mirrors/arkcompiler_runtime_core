@@ -13,7 +13,7 @@ mypy:
 .PHONY: mypy
 
 autopep8:
-	find test src run.py lib.py record.py -type f -name "*.py" | xargs autopep8 -i
+	find test src run.py lib.py record_hdc.py summarize.py compare.py -type f -name "*.py" | xargs autopep8 -i
 .PHONY: autopep8
 
 tests_full:
