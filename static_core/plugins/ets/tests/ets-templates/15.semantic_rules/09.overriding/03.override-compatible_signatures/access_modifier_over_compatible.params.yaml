@@ -51,6 +51,7 @@ cases:
     use: |-
       new Derived<String, Number>().get_foo(new Number());
       arktest.assertEQ(res, 11);
+    expected_out: "Semantic error ESE0131: Function foo with this assembly signature already declared."
 
   - decl: |-
       class Derived extends Base {

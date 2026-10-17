@@ -195,7 +195,7 @@ class ClassWithDefaultParameterMethods {
 }
 
 class DerivedClassWithDefaultParameterMethods extends ClassWithDefaultParameterMethods {
-    public intParameterMethod(arg: int): int {
+    public intParameterMethod(arg: int = 1): int {
         return -arg;
     }
 }

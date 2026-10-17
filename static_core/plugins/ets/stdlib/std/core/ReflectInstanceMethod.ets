@@ -124,7 +124,7 @@ export final class InstanceMethod extends Method {
      * @syscap SystemCapability.Utils.Lang
      * @FaAndStageModel
      */
-    public invoke(thisObj: Object, args?: FixedArray<Any>): Any {
+    public invoke(thisObj: Object | undefined, args?: FixedArray<Any>): Any {
         return super.invoke(thisObj, args)
     }
 }

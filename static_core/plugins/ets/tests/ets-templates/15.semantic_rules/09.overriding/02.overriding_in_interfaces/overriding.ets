@@ -20,6 +20,10 @@ desc: >-
     A method is defined in a subinterface with the same name as the method
     in the superinterface.
     If signatures are override-compatible, then overriding is used.
+{% if c.expected_out %}
+tags: [compile-only, negative]
+expected_out: "{{c.expected_out}}"
+{% endif %}
 ---*/
 
 class A {}

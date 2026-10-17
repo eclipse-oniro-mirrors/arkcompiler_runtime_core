@@ -20,6 +20,10 @@ desc: >-
     The supertype for string literals (see String Literals) is type string.
     This affects the overriding -
     {{c.doc}}
+{% if c.expected_out %}
+tags: [compile-only, negative]
+expected_out: "{{c.expected_out}}"
+{% endif %}
 ---*/
 
 {{c.decl|indent}}

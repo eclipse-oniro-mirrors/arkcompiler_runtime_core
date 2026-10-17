@@ -262,6 +262,7 @@ cases:
       arktest.assertEQ(res, 21);
       Derived.foo([1.0f, true]);
       arktest.assertEQ(res, 22);
+    expected_out: "Semantic error ESE0131: Function foo with this assembly signature already declared."
 
   - doc: |-
       CTE due to covariant relationship presence
@@ -289,6 +290,7 @@ cases:
       arktest.assertEQ(res, 21);
       Derived.foo([new E, new C]);
       arktest.assertEQ(res, 22);
+    expected_out: "Semantic error ESE0131: Function foo with this assembly signature already declared."
 
   - doc: |-
       CTE due to different length of tuples
@@ -342,6 +344,7 @@ cases:
       arktest.assertEQ(res, 21);
       Derived.foo(tpl1);
       arktest.assertEQ(res, 22);
+    expected_out: "Semantic error ESE0131: Function foo with this assembly signature already declared."
 
   - doc: |-
       After reverting Any bytecode support, Any and Object produce the same bytecode signature.
@@ -366,6 +369,7 @@ cases:
       arktest.assertEQ(foo(new Derived()), 3)
       arktest.assertEQ(bar(new Base()), 2)
       arktest.assertEQ(bar(new Derived()), 4)
+    expected_out: "Semantic error ESE0131: Function bar with this assembly signature already declared."
 
   - doc: |-
       After reverting Any bytecode support, bar(a: Any) and bar(a: Object) produce the same
@@ -420,6 +424,7 @@ cases:
     use: |-
       arktest.assertEQ(foo(new Base()), 1)
       arktest.assertEQ(foo(new Derived()), 2)
+    expected_out: "Semantic error ESE0131: Function foo with this assembly signature already declared."
 
   - doc: |-
       After reverting Any bytecode support, FixedArray<Any> and FixedArray<Object> produce
@@ -438,26 +443,42 @@ cases:
     use: |-
       arktest.assertEQ(foo(new Base()), 1)
       arktest.assertEQ(foo(new Derived()), 2)
-
+    
   - doc: |-
       After reverting Any bytecode support, Any and Object produce the same bytecode signature.
       When mixed in multi-parameter methods, all (Any, Object) positions collapse to Object,
-      so Derived.foo and Derived.bar override their Base counterparts via vtable dispatch.
+      so Derived.foo overrides its Base counterpart via vtable dispatch.
     decl: |-
       class Base {
         foo(a: Any, b: Object): int { return 1 }
-        bar(a: Object, b: Any): int { return 2 }
       }
 
       class Derived extends Base {
         foo(a: Object, b: Any): int { return 3 }
-        bar(a: Any, b: Object): int { return 4 }
       }
 
       function foo(a: Base) { return a.foo(1, new Object()) }
-      function bar(a: Base) { return a.bar(new Object(), 1) }
     use: |-
       arktest.assertEQ(foo(new Base()), 1)
       arktest.assertEQ(foo(new Derived()), 3)
+    expected_out: "Semantic error ESE0131: Function foo with this assembly signature already declared."
+
+  - doc: |-
+      After reverting Any bytecode support, Any and Object produce the same bytecode signature.
+      When mixed in multi-parameter methods, all (Any, Object) positions collapse to Object,
+      so Derived.bar overrides its Base counterpart via vtable dispatch.
+    decl: |-
+      class Base {
+        bar(a: Object, b: Any): int { return 2 }
+      }
+
+      class Derived extends Base {
+        bar(a: Any, b: Object): int { return 4 }
+      }
+
+      function bar(a: Base) { return a.bar(new Object(), 1) }
+    use: |-
       arktest.assertEQ(bar(new Base()), 2)
       arktest.assertEQ(bar(new Derived()), 4)
+    expected_out: "Semantic error ESE0131: Function bar with this assembly signature already declared."
+    
