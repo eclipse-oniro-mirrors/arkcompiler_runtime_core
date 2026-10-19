@@ -29,7 +29,6 @@ namespace ark::ets::stdlib {
 
 namespace {
 
-constexpr const char *INDEX_FIELD_NAME = "index_";
 constexpr const char *RESULT_FIELD_NAME = "resultRaw_";
 constexpr const char *GROUP_KEYS_FIELD_NAME = "groupKeysRaw_";
 constexpr const char *GROUP_VALS_FIELD_NAME = "groupValsRaw_";
@@ -68,14 +67,6 @@ ani_status SetResultField(ani_env *env, ani_class regexpResultClass, ani_object 
     const auto flat = FlattenPairs(matches, [](const auto &match) { return match; });
     ANI_FATAL_IF_ERROR(env->ValueArray_SetRegion_Int(intArray, 0, count, flat.data()));
     ANI_FATAL_IF_ERROR(env->Object_SetField_Ref(regexpExecArray, resultField, static_cast<ani_ref>(intArray)));
-    return ANI_OK;
-}
-
-ani_status SetIndexField(ani_env *env, ani_class regexpResultClass, ani_object regexpExecArrayObj, uint32_t index)
-{
-    ani_field indexField;
-    ANI_FATAL_IF_ERROR(env->Class_FindField(regexpResultClass, INDEX_FIELD_NAME, &indexField));
-    ANI_FATAL_IF_ERROR(env->Object_SetField_Int(regexpExecArrayObj, indexField, static_cast<double>(index)));
     return ANI_OK;
 }
 
@@ -219,20 +210,36 @@ ani_status CreateResultArray(ani_env *env, const std::vector<ani_object> &result
 ani_status PopulateRegExpResultObject(ani_env *env, ani_class regexpResultClass, ani_object regexpResultObject,
                                       const RegExpExecResult &execResult)
 {
-    ANI_FATAL_IF_ERROR(SetIsCorrectField(env, regexpResultClass, regexpResultObject, true));
-    ANI_FATAL_IF_ERROR(SetIndexField(env, regexpResultClass, regexpResultObject, execResult.index));
     ANI_FATAL_IF_ERROR(SetResultField(env, regexpResultClass, regexpResultObject, execResult.indices));
     ANI_FATAL_IF_ERROR(SetGroupKeysField(env, regexpResultClass, regexpResultObject, execResult.namedGroups));
     ANI_FATAL_IF_ERROR(SetGroupValsField(env, regexpResultClass, regexpResultObject, execResult.namedGroups));
     return ANI_OK;
 }
 
-ani_status CreateRegExpResultObject(ani_env *env, ani_class regexpResultClass, ani_method regexpResultCtor,
-                                    const RegExpExecResult &execResult, ani_object *out)
+ani_object CreateRegExpResultObject(ani_env *env, ani_class regexpResultClass, ani_string input,
+                                    const RegExpExecResult &execResult)
 {
+    ani_method regexpResultCtor;
+    ANI_FATAL_IF_ERROR(env->Class_FindMethod(
+        regexpResultClass, "<ctor>", "iC{std.core.String}C{std.core.Array}C{std.core.Array}:", &regexpResultCtor));
+    // isCorrect is set to true in the constructor. Pass empty arrays for result and indices —
+    // the actual data is set by PopulateRegExpResultObject via field writes.
+    ani_ref undefined {};
+    ANI_FATAL_IF_ERROR(env->GetUndefined(&undefined));
+    ani_array emptyArr;
+    ani_status status = env->Array_New(0, undefined, &emptyArr);
+    if (status != ANI_OK) {
+        return nullptr;
+    }
+    ani_object out = nullptr;
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
-    ANI_RETURN_ON_PENDING_ERROR(env->Object_New(regexpResultClass, regexpResultCtor, out));
-    return PopulateRegExpResultObject(env, regexpResultClass, *out, execResult);
+    status = env->Object_New(regexpResultClass, regexpResultCtor, &out, static_cast<ani_int>(execResult.index), input,
+                             emptyArr, emptyArr);
+    if (status != ANI_OK) {
+        return nullptr;
+    }
+    ANI_FATAL_IF_ERROR(PopulateRegExpResultObject(env, regexpResultClass, out, execResult));
+    return out;
 }
 
 }  // namespace ark::ets::stdlib

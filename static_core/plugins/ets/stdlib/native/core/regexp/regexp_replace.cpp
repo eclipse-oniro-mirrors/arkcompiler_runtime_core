@@ -207,14 +207,16 @@ ani_string ReplaceLiteralCore(EtsRegExp &re, uint32_t matchFlags, ani_env *env, 
 template <typename CharT>
 // CC-OFFNXT(G.FUN.01, huge_method) solid logic
 ani_status AdvanceReplaceLoop(EtsRegExp &re, const CharT *input, int32_t inputSize, bool unicode, ani_env *env,
-                              ani_object regexp, ani_field lif, ani_class resCls, ani_method resCtor,
+                              ani_object regexp, ani_field lif, ani_class resCls, ani_string inputStr,
                               const RegExpExecResult &er, bool gOrS, int32_t &lastIndex,
                               std::vector<ani_object> &results, bool *shouldContinue)
 {
     *shouldContinue = false;
 
-    ani_object resultObj = nullptr;
-    ANI_RETURN_ON_PENDING_ERROR(CreateRegExpResultObject(env, resCls, resCtor, er, &resultObj));
+    ani_object resultObj = CreateRegExpResultObject(env, resCls, inputStr, er);
+    if (resultObj == nullptr) {
+        return ANI_PENDING_ERROR;
+    }
     results.push_back(resultObj);
     if (gOrS) {
         SetLastIndex(env, regexp, lif, er.endIndex);
@@ -243,7 +245,7 @@ ani_status AdvanceReplaceLoop(EtsRegExp &re, const CharT *input, int32_t inputSi
 template <typename CharT>
 // CC-OFFNXT(G.FUN.01, huge_method) solid logic
 ani_array RunReplaceLoop(EtsRegExp &re, uint32_t matchFlags, const CharT *input, int32_t inputSize, bool unicode,
-                         ani_env *env, ani_object regexp, ani_field lif, ani_class resCls, ani_method resCtor,
+                         ani_env *env, ani_object regexp, ani_field lif, ani_class resCls, ani_string inputStr,
                          const ExecData &execData)
 {
     std::vector<ani_object> results;
@@ -266,7 +268,7 @@ ani_array RunReplaceLoop(EtsRegExp &re, uint32_t matchFlags, const CharT *input,
             break;
         }
         bool shouldContinue = false;
-        ani_status status = AdvanceReplaceLoop(re, input, inputSize, unicode, env, regexp, lif, resCls, resCtor, er,
+        ani_status status = AdvanceReplaceLoop(re, input, inputSize, unicode, env, regexp, lif, resCls, inputStr, er,
                                                gOrS, lastIndex, results, &shouldContinue);
         if (status != ANI_OK) {
             // Reset lastIndex (advanced by a previous iteration) so a retry after this
@@ -287,18 +289,18 @@ ani_array RunReplaceLoop(EtsRegExp &re, uint32_t matchFlags, const CharT *input,
 
 // CC-OFFNXT(G.FUN.01, huge_method) solid logic
 ani_array RunReplaceNativeImpl(EtsRegExp &re, const ExecData &execData, int32_t inputSize, ani_env *env,
-                               ani_object regexp, ani_field lif, ani_class resCls, ani_method resCtor,
-                               InputExecutionKind ek, uint32_t matchFlags)
+                               ani_object regexp, ani_field lif, ani_class resCls, InputExecutionKind ek,
+                               uint32_t matchFlags)
 {
     return PrepareInputAndRun<ani_array>(
         re, execData, env, ek, InputRunMode::MATERIALIZE,
-        [&re, matchFlags, inputSize, env, regexp, lif, resCls, resCtor, execData](const uint8_t *p) -> ani_array {
-            return RunReplaceLoop<uint8_t>(re, matchFlags, p, inputSize, false, env, regexp, lif, resCls, resCtor,
-                                           execData);
+        [&re, matchFlags, inputSize, env, regexp, lif, resCls, execData](const uint8_t *p) -> ani_array {
+            return RunReplaceLoop<uint8_t>(re, matchFlags, p, inputSize, false, env, regexp, lif, resCls,
+                                           execData.input, execData);
         },
-        [&re, matchFlags, inputSize, env, regexp, lif, resCls, resCtor, execData](const uint16_t *p) -> ani_array {
+        [&re, matchFlags, inputSize, env, regexp, lif, resCls, execData](const uint16_t *p) -> ani_array {
             return RunReplaceLoop<uint16_t>(re, matchFlags, p, inputSize, re.HasUnicodeOrUnicodeSetsFlag(), env, regexp,
-                                            lif, resCls, resCtor, execData);
+                                            lif, resCls, execData.input, execData);
         });
 }
 
@@ -343,14 +345,12 @@ ani_array ReplaceNativeImpl(ani_env *env, ani_object regexp, ani_string pattern,
     EtsRegExp re(env);
     re.SetFlags(ConvertFromAniString(env, execData.flags));
 
-    ani_method resCtor;
-    ANI_FATAL_IF_ERROR(env->Class_FindMethod(refs::g_regexpExecArrayClass, "<ctor>", ":", &resCtor));
     ani_field lif = nullptr;
     ANI_FATAL_IF_ERROR(FindLastIndexField(env, &lif));
 
-    ani_array result = RunReplaceNativeImpl(re, execData, static_cast<int32_t>(strSize), env, regexp, lif,
-                                            refs::g_regexpExecArrayClass, resCtor, SelectExecutionKind(re, execData),
-                                            re.GetMatchFlags());
+    ani_array result =
+        RunReplaceNativeImpl(re, execData, static_cast<int32_t>(strSize), env, regexp, lif,
+                             refs::g_regexpExecArrayClass, SelectExecutionKind(re, execData), re.GetMatchFlags());
     if (re.HasCompiledRe()) {
         re.Destroy();
     }

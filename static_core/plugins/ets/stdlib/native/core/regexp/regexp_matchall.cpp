@@ -42,7 +42,6 @@ struct MatchMeta {
 };
 
 struct FieldCache {
-    ani_field isCorrect = nullptr;
     ani_field index = nullptr;
     ani_field result = nullptr;
     ani_field groupKeys = nullptr;
@@ -261,7 +260,6 @@ MatchMeta BuildMatchMeta(EtsRegExp &re)
 ani_status PopulateFromOvector(ani_env *env, const FieldCache &fields, ani_object obj, const PCRE2_SIZE *ovector,
                                uint32_t ovectorPairCount, const MatchMeta &meta)
 {
-    ANI_FATAL_IF_ERROR(env->Object_SetField_Boolean(obj, fields.isCorrect, true));
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     ANI_FATAL_IF_ERROR(env->Object_SetField_Int(obj, fields.index, static_cast<ani_int>(ovector[0])));
 
@@ -341,7 +339,7 @@ ani_status PopulateFromOvector(ani_env *env, const FieldCache &fields, ani_objec
 template <typename CharT>
 // CC-OFFNXT(G.FUN.01, huge_method) solid logic
 ani_array RunMatchAllLoop(EtsRegExp &re, uint32_t matchFlags, const CharT *input, int32_t inputSize, bool unicode,
-                          ani_env *env, ani_class resultClass, ani_method resultCtor, int32_t lastIndex)
+                          ani_env *env, ani_class resultClass, ani_string inputStr, int32_t lastIndex)
 {
     std::vector<ani_object> results;
     if (lastIndex < 0) {
@@ -354,12 +352,22 @@ ani_array RunMatchAllLoop(EtsRegExp &re, uint32_t matchFlags, const CharT *input
     }
 
     FieldCache fields;
-    ANI_FATAL_IF_ERROR(env->Class_FindField(resultClass, IS_CORRECT_FIELD_NAME, &fields.isCorrect));
     ANI_FATAL_IF_ERROR(env->Class_FindField(resultClass, "index_", &fields.index));
     ANI_FATAL_IF_ERROR(env->Class_FindField(resultClass, "resultRaw_", &fields.result));
     ANI_FATAL_IF_ERROR(env->Class_FindField(resultClass, "groupKeysRaw_", &fields.groupKeys));
     ANI_FATAL_IF_ERROR(env->Class_FindField(resultClass, "groupValsRaw_", &fields.groupVals));
     ANI_FATAL_IF_ERROR(env->FindClass("std.core.String", &fields.stringClass));
+
+    ani_method resultCtor;
+    ANI_FATAL_IF_ERROR(env->Class_FindMethod(resultClass, "<ctor>",
+                                             "iC{std.core.String}C{std.core.Array}C{std.core.Array}:", &resultCtor));
+
+    ani_ref undefined {};
+    ANI_FATAL_IF_ERROR(env->GetUndefined(&undefined));
+    ani_array emptyArr;
+    if (env->Array_New(0, undefined, &emptyArr) != ANI_OK) {
+        return nullptr;
+    }
 
     auto meta = BuildMatchMeta<CharT>(re);
     auto compiled = std::is_same_v<CharT, uint8_t> ? re.GetCompiledRe8() : re.GetCompiledRe16();
@@ -413,7 +421,8 @@ ani_array RunMatchAllLoop(EtsRegExp &re, uint32_t matchFlags, const CharT *input
 
         ani_object resultObj = nullptr;
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
-        if (env->Object_New(resultClass, resultCtor, &resultObj) != ANI_OK) {
+        if (env->Object_New(resultClass, resultCtor, &resultObj, static_cast<ani_int>(matchStart), inputStr, emptyArr,
+                            emptyArr) != ANI_OK) {
             return nullptr;
         }
         if (PopulateFromOvector(env, fields, resultObj, ovector, ovectorPairCount, meta) != ANI_OK) {
@@ -445,7 +454,7 @@ ani_array RunMatchAllLoop(EtsRegExp &re, uint32_t matchFlags, const CharT *input
 
 // CC-OFFNXT(G.FUN.01-CPP) solid logic
 ani_array RunWithStableLatin1Input(EtsRegExp &re, const ExecData &execData, ani_env *env, uint32_t matchFlags,
-                                   ani_method regexpMatchArrayCtor, int32_t inputSize)
+                                   int32_t inputSize)
 {
     std::vector<uint8_t> inputStorage;
     {
@@ -467,13 +476,13 @@ ani_array RunWithStableLatin1Input(EtsRegExp &re, const ExecData &execData, ani_
         inputStorage.assign(inputData, inputData + execData.inputSize);
     }
     return RunMatchAllLoop<uint8_t>(re, matchFlags, inputStorage.data(), inputSize, false, env,
-                                    refs::g_regexpMatchArrayClass, regexpMatchArrayCtor, execData.lastIndex);
+                                    refs::g_regexpMatchArrayClass, execData.input, execData.lastIndex);
 }
 
 // CC-OFFNXT(G.FUN.01-CPP) solid logic
 ani_array RunWithStableUtf16Input(EtsRegExp &re, const ExecData &execData, ani_env *env,
                                   [[maybe_unused]] InputExecutionKind executionKind, uint32_t matchFlags,
-                                  ani_method regexpMatchArrayCtor, int32_t inputSize)
+                                  int32_t inputSize)
 {
     std::vector<uint16_t> inputStorage;
     {
@@ -485,7 +494,7 @@ ani_array RunWithStableUtf16Input(EtsRegExp &re, const ExecData &execData, ani_e
         }
     }
     return RunMatchAllLoop<uint16_t>(re, matchFlags, inputStorage.data(), inputSize, re.HasUnicodeOrUnicodeSetsFlag(),
-                                     env, refs::g_regexpMatchArrayClass, regexpMatchArrayCtor, execData.lastIndex);
+                                     env, refs::g_regexpMatchArrayClass, execData.input, execData.lastIndex);
 }
 
 }  // namespace
@@ -507,16 +516,13 @@ ani_array MatchAllNativeImpl(ani_env *env, [[maybe_unused]] ani_object regexp, a
     EtsRegExp re(env);
     re.SetFlags(ConvertFromAniString(env, execData.flags));
 
-    ani_method regexpMatchArrayCtor;
-    ANI_FATAL_IF_ERROR(env->Class_FindMethod(refs::g_regexpMatchArrayClass, "<ctor>", ":", &regexpMatchArrayCtor));
-
     const InputExecutionKind executionKind = SelectExecutionKind(re, execData);
     const uint32_t matchFlags = re.GetMatchFlags();
     ani_array result = nullptr;
     if (executionKind == InputExecutionKind::LATIN1_DIRECT) {
-        result = RunWithStableLatin1Input(re, execData, env, matchFlags, regexpMatchArrayCtor, inputSize);
+        result = RunWithStableLatin1Input(re, execData, env, matchFlags, inputSize);
     } else {
-        result = RunWithStableUtf16Input(re, execData, env, executionKind, matchFlags, regexpMatchArrayCtor, inputSize);
+        result = RunWithStableUtf16Input(re, execData, env, executionKind, matchFlags, inputSize);
     }
 
     if (re.HasCompiledRe()) {

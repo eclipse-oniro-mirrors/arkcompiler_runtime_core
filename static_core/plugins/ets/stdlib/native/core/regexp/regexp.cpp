@@ -54,8 +54,10 @@ constexpr const char *REGEXP_CLASS_NAME = "std.core.RegExp";
 constexpr const char *EXEC_ARRAY_CLASS_NAME = "std.core.RegExpExecArray";
 constexpr const char *MATCH_ARRAY_CLASS_NAME = "std.core.RegExpMatchArray";
 
-ani_object CreateObjectOrNullOnPendingError(ani_env *env, ani_class klass, ani_method ctor)
+ani_object CreateObjectOrNullOnPendingError(ani_env *env, ani_class klass)
 {
+    ani_method ctor;
+    ANI_FATAL_IF_ERROR(env->Class_FindMethod(klass, "<ctor>", ":", &ctor));
     ani_object object = nullptr;
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
     ani_status status = env->Object_New(klass, ctor, &object);
@@ -72,8 +74,7 @@ ani_object CreateObjectOrNullOnPendingError(ani_env *env, ani_class klass, ani_m
 }  // namespace
 
 // CC-OFFNXT(G.FUN.01, huge_method) solid logic
-static ani_object DoExec(ani_env *env, ani_object regexp, ani_class resultClass, ani_object resultObject,
-                         ExecData execData)
+static ani_object DoExec(ani_env *env, ani_object regexp, ani_class resultClass, ExecData execData)
 {
     EtsRegExp re(env);
     re.SetFlags(ConvertFromAniString(env, execData.flags));
@@ -91,8 +92,7 @@ static ani_object DoExec(ani_env *env, ani_object regexp, ani_class resultClass,
         if (globalOrSticky) {
             ANI_FATAL_IF_ERROR(SetLastIndex(env, regexp, lastIndexField, 0));
         }
-        ANI_FATAL_IF_ERROR(SetIsCorrectField(env, resultClass, resultObject, false));
-        return resultObject;
+        return CreateObjectOrNullOnPendingError(env, resultClass);
     }
     auto executionKind = SelectExecutionKind(re, execData);
     auto execResult = PrepareInputAndRun<RegExpExecResult>(
@@ -116,25 +116,20 @@ static ani_object DoExec(ani_env *env, ani_object regexp, ani_class resultClass,
         if (globalOrSticky) {
             ANI_FATAL_IF_ERROR(SetLastIndex(env, regexp, lastIndexField, 0));
         }
-        ANI_FATAL_IF_ERROR(SetIsCorrectField(env, resultClass, resultObject, false));
-        return resultObject;
+        return CreateObjectOrNullOnPendingError(env, resultClass);
     }
 
     if (globalOrSticky) {
         ANI_FATAL_IF_ERROR(SetLastIndex(env, regexp, lastIndexField, execResult.endIndex));
     }
-    ANI_FATAL_IF_ERROR(PopulateRegExpResultObject(env, resultClass, resultObject, execResult));
 
-    return resultObject;
+    return CreateRegExpResultObject(env, resultClass, execData.input, execResult);
 }
 
 // CC-OFFNXT(G.FUN.01-CPP, huge_method) solid logic
 static ani_object Exec(ani_env *env, ani_object regexp, ani_string pattern, ani_string flags, ani_string str,
                        ani_int patternSize, ani_int strSize, ani_int lastIndex, ani_boolean requiresUtf16Execution)
 {
-    ani_method regexpExecArrayCtor;
-    ANI_FATAL_IF_ERROR(env->Class_FindMethod(refs::g_regexpExecArrayClass, "<ctor>", ":", &regexpExecArrayCtor));
-
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
     ExecData execData;
     ani_status status =
@@ -143,21 +138,13 @@ static ani_object Exec(ani_env *env, ani_object regexp, ani_string pattern, ani_
         return nullptr;
     }
 
-    ani_object regexpExecArrayObject =
-        CreateObjectOrNullOnPendingError(env, refs::g_regexpExecArrayClass, regexpExecArrayCtor);
-    if (regexpExecArrayObject == nullptr) {
-        return nullptr;
-    }
-    return DoExec(env, regexp, refs::g_regexpExecArrayClass, regexpExecArrayObject, execData);
+    return DoExec(env, regexp, refs::g_regexpExecArrayClass, execData);
 }
 
 // CC-OFFNXT(G.FUN.01-CPP, huge_method) solid logic
 static ani_object Match(ani_env *env, ani_object regexp, ani_string pattern, ani_string flags, ani_string str,
                         ani_int patternSize, ani_int strSize, ani_int lastIndex, ani_boolean requiresUtf16Execution)
 {
-    ani_method regexpMatchArrayCtor;
-    ANI_FATAL_IF_ERROR(env->Class_FindMethod(refs::g_regexpMatchArrayClass, "<ctor>", ":", &regexpMatchArrayCtor));
-
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
     ExecData execData;
     ani_status status =
@@ -166,12 +153,7 @@ static ani_object Match(ani_env *env, ani_object regexp, ani_string pattern, ani
         return nullptr;
     }
 
-    ani_object regexpMatchArrayObject =
-        CreateObjectOrNullOnPendingError(env, refs::g_regexpMatchArrayClass, regexpMatchArrayCtor);
-    if (regexpMatchArrayObject == nullptr) {
-        return nullptr;
-    }
-    return DoExec(env, regexp, refs::g_regexpMatchArrayClass, regexpMatchArrayObject, execData);
+    return DoExec(env, regexp, refs::g_regexpMatchArrayClass, execData);
 }
 
 // CC-OFFNXT(G.FUN.01-CPP, huge_method) solid logic
