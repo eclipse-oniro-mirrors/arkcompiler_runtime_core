@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2021-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -47,6 +47,10 @@ set(PANDA_THIRD_PARTY_CONFIG_DIR ${PANDA_ROOT}/cmake/third_party)
 set(ARKFILE_ROOT ${PANDA_ROOT}/libarkfile)
 
 add_definitions(-DBUILD_FOLDER="${CMAKE_CURRENT_BINARY_DIR}")
+
+if (PANDA_SDK_BUILD)
+    add_compile_definitions(PANDA_SDK_BUILD)
+endif()
 
 # List for accumulation of all core gtests binary paths.
 # It's used by CI to archive these binaries into a single artifact

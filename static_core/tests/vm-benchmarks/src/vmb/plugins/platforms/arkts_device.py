@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2024-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -85,6 +85,9 @@ class Platform(PlatformBase):
         self.ark(bu)
 
     def lazy_setup(self):
+        if self.target == Target.OHOS:
+            log.info('setting persist.sta.ark.EnableLoadAbcFromMemory=true on OHOS device')
+            self.x_sh.run('param set persist.sta.ark.EnableLoadAbcFromMemory true')
         if OptFlags.AOT_SKIP_LIBS in self.flags:
             log.info('Skipping aot compilation of libs')
         else:

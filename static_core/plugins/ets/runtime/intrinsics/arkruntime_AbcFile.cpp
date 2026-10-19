@@ -87,6 +87,10 @@ static bool GetIsEnableLoadAbcFromMemory()
 #else
 #ifdef PANDA_OHOS_GET_PARAMETER
     return OHOS::system::GetBoolParameter("persist.sta.ark.EnableLoadAbcFromMemory", false);
+#elif defined(PANDA_SDK_BUILD)
+    // PANDA_SDK_BUILD is used for the CMake compilation architecture.
+    // It requires enabling the loading of abc from memory, which is used for VMB in BZ.
+    return true;
 #else
     return false;
 #endif  // PANDA_OHOS_GET_PARAMETER
