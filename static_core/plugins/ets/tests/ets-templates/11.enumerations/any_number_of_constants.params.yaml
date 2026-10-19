@@ -19,9 +19,7 @@ cases:
     expected_error: ""
 
   - id: 2
-    expected_error: |-
-      E/bytecode_optimizer: Optimizing any_number_of_constants_2.GeneratedEnum.<cctor>:void;: Running optimizations failed!
+    expected_error: ""
 
   - id: 3
-    expected_error: |-
-      E/bytecode_optimizer: Optimizing any_number_of_constants_3.GeneratedEnum.<cctor>:void;: Running optimizations failed!
+    expected_error: ""

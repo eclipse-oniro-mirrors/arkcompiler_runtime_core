@@ -79,13 +79,13 @@ bool RunOptimizations(compiler::Graph *graph, BytecodeOptIrInterface *iface)
 
     graph->RunPass<compiler::Cleanup>();
     if (!RegAlloc(graph)) {
-        LOG(ERROR, BYTECODE_OPTIMIZER) << "Failed compiler::RegAlloc";
+        LOG(WARNING, BYTECODE_OPTIMIZER) << "Failed compiler::RegAlloc";
         return false;
     }
 
     graph->RunPass<compiler::Cleanup>();
     if (!graph->RunPass<RegEncoder>()) {
-        LOG(ERROR, BYTECODE_OPTIMIZER) << "Failed RegEncoder";
+        LOG(WARNING, BYTECODE_OPTIMIZER) << "Failed RegEncoder";
         return false;
     }
 
@@ -203,8 +203,8 @@ static bool SkipFunction(const pandasm::Function &function, const std::string &f
     }
 
     if ((function.regs_num + function.GetParamsNum()) > compiler::VIRTUAL_FRAME_SIZE) {
-        LOG(ERROR, BYTECODE_OPTIMIZER) << "Unable to optimize " << func_name
-                                       << ": Function frame size is larger than allowed one";
+        LOG(WARNING, BYTECODE_OPTIMIZER) << "Unable to optimize " << func_name
+                                         << ": Function frame size is larger than allowed one";
         return true;
     }
     return false;
@@ -360,7 +360,7 @@ static void AnalysisModuleConstantValue(panda_file::ClassDataAccessor &cda, cons
         auto graph = allocator.New<compiler::Graph>(&allocator, &local_allocator, Arch::NONE, method_ptr, &adapter,
                                                     false, nullptr, is_dynamic, true);
         if ((graph == nullptr) || !graph->RunPass<panda::compiler::IrBuilder>()) {
-            LOG(ERROR, BYTECODE_OPTIMIZER) << "Analysis " << func_name << ": IR builder failed!";
+            LOG(WARNING, BYTECODE_OPTIMIZER) << "Analysis " << func_name << ": IR builder failed!";
             return false;
         }
 
@@ -452,17 +452,17 @@ bool OptimizeFunction(pandasm::Program *prog, const pandasm::AsmEmitter::PandaFi
     BuildMapFromPcToIns(function, ir_interface, graph, method_ptr);
 
     if ((graph == nullptr) || !graph->RunPass<panda::compiler::IrBuilder>()) {
-        LOG(ERROR, BYTECODE_OPTIMIZER) << "Optimizing " << func_name << ": IR builder failed!";
+        LOG(WARNING, BYTECODE_OPTIMIZER) << "Optimizing " << func_name << ": IR builder failed!";
         return false;
     }
 
     if (graph->HasIrreducibleLoop()) {
-        LOG(ERROR, BYTECODE_OPTIMIZER) << "Optimizing " << func_name << ": Graph has irreducible loop!";
+        LOG(WARNING, BYTECODE_OPTIMIZER) << "Optimizing " << func_name << ": Graph has irreducible loop!";
         return false;
     }
 
     if (!RunOptimizations(graph, &ir_interface)) {
-        LOG(ERROR, BYTECODE_OPTIMIZER) << "Optimizing " << func_name << ": Running optimizations failed!";
+        LOG(WARNING, BYTECODE_OPTIMIZER) << "Optimizing " << func_name << ": Running optimizations failed!";
         return false;
     }
 

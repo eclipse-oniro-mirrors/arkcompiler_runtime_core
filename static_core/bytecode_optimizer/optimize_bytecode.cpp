@@ -126,12 +126,12 @@ bool RunOptimizations(compiler::Graph *graph, BytecodeOptIrInterface *iface)
 
     graph->RunPass<compiler::Cleanup>(false);
     if (!RegAlloc(graph)) {
-        LOG(ERROR, BYTECODE_OPTIMIZER) << "Failed compiler::RegAlloc";
+        LOG(WARNING, BYTECODE_OPTIMIZER) << "Failed compiler::RegAlloc";
         return false;
     }
 
     if (!graph->RunPass<RegEncoder>()) {
-        LOG(ERROR, BYTECODE_OPTIMIZER) << "Failed RegEncoder";
+        LOG(WARNING, BYTECODE_OPTIMIZER) << "Failed RegEncoder";
         return false;
     }
     graph->RunPass<RenumberAnyIcSlots>();
@@ -315,7 +315,7 @@ bool OptimizeFunction(pandasm::Program *prog, const pandasm::AsmEmitter::PandaFi
     }
 
     if (!RunOptimizations(graph, &irInterface)) {
-        LOG(ERROR, BYTECODE_OPTIMIZER) << "Optimizing " << funcName << ": Running optimizations failed!";
+        LOG(WARNING, BYTECODE_OPTIMIZER) << "Optimizing " << funcName << ": Running optimizations failed!";
         return false;
     }
 
