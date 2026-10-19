@@ -31,6 +31,7 @@ template("ark_runtime_unittest") {
     deps += [
       "${ark_root}/assembler:libarktsassembler",
       "${ark_root}/libarkbase:libarktsbase",
+      "${ark_root}/libarkfile:libarktsfile",
       "${ark_root}/platforms/target_defaults:arktarget_options",
       "${ark_root}/runtime:libarkruntime",
     ]

@@ -111,19 +111,10 @@ ohos_source_set("libarktsfile_static") {
     "$ark_root/libziparchive:libarktsziparchive",
   ]
 
-  external_deps = [ sdk_libc_secshared_dep ]
-
-  if (!ark_standalone_build) {
-    external_deps += [
-      "zlib:libz",
-      "zlib:shared_libz",
-    ]
-  } else {
-    external_deps += [
-      "zlib:libz",
-      "zlib:shared_libz",
-    ]
-  }
+  external_deps = [
+    sdk_libc_secshared_dep,
+    zlib_dep,
+  ]
 
   part_name = ark_part_name
   subsystem_name = "$ark_subsystem_name"
@@ -172,20 +163,10 @@ ohos_source_set("libarktsfile_frontend_set_static") {
     "$ark_root/libziparchive:libarktsziparchive_frontend_static",
   ]
 
-  external_deps = [ sdk_libc_secshared_dep ]
-
-  if (!ark_standalone_build) {
-    external_deps += [ "zlib:libz" ]
-    if (!is_mac &&
-        !(defined(ohos_indep_compiler_enable) && ohos_indep_compiler_enable)) {
-      external_deps += [ "zlib:shared_libz" ]
-    }
-  } else {
-    external_deps += [ "zlib:libz" ]
-    if (!is_mac) {
-      external_deps += [ "zlib:shared_libz" ]
-    }
-  }
+  external_deps = [
+    sdk_libc_secshared_dep,
+    zlib_dep,
+  ]
 
   part_name = ark_part_name
   subsystem_name = "$ark_subsystem_name"
