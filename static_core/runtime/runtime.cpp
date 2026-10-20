@@ -747,15 +747,14 @@ bool Runtime::Destroy()
     // Listeners that use RemoveListener (ScopedStopTheWorld) must be cleared while mutators can still rendezvous.
     instance_->GetPandaVM()->StopListeners();
 
+    // Coverage listener must stay active while UninitializeThreads executes pending managed jobs.
+    instance_->StopCoverageListener();
     // Note JIT thread (compiler) may access to thread data,
     // so, it should be stopped before thread destroy
     /* @sync 1
      * @description Before starting to unitialize threads
      * */
     instance_->GetPandaVM()->UninitializeThreads();
-
-    // Coverage listener must stay active while UninitializeThreads executes pending managed jobs.
-    instance_->StopCoverageListener();
 
     /* @sync 2
      * @description After uninitialization of threads all deamon threads should have gone into the termination loop and
