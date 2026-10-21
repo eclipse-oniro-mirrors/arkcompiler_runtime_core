@@ -439,16 +439,6 @@ export class Date {
         second: "numeric"
     }
 
-    private static isoDateRegExp: RegExp = new RegExp(
-        "^((?:[0-9]{4}|(?!-000000)(?:-|\\+)[0-9]{6}))" +  // capture group 1：4 digits only, or 6 digits with `-` or `+`;
-        "(?:-(0[1-9]|1[0-2])" +          // month, 01-12
-        "(?:-(0[1-9]|[12][0-9]|3[01]))?)?" + // date, 01-31
-        "(?:T([01][0-9]|2[0-3])" +       // hours, 00-23
-        "(?::[0-5][0-9])?" +             // minute, 00-59
-        "(?::[0-5][0-9](?:\\.[0-9]+)?)?)?" + // seconds, 00-59 and milliseconds (options)
-        "(Z|(?:[+-])(?:[01][0-9]|2[0-3]):?[0-5][0-9])?$" // timezone (Z or ±HH:mm/±HHmm)
-    );
-
     private static readonly DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
         year: "numeric",
         month: "numeric",
@@ -461,15 +451,6 @@ export class Date {
         second: "numeric"
     }
 
-    /**
-     * Regular Expression to Check if a String is an ISO Date Format
-     *
-     * @param dateStr Date in string format
-     * @returns If the string is in ISO date format, return true; otherwise, return false.
-     */
-    private static isIsoDate(dateStr: String): boolean {
-        return Date.isoDateRegExp.test(dateStr);
-    }
 
     /** Stored value of Date, milliseconds */
     private ms: long;
@@ -497,7 +478,8 @@ export class Date {
      * @throws {RangeError} if the argument doesn't represent a valid date.
      */
     private static parseDateFromString(dateStr: String): long {
-        if (!Date.isIsoDate(dateStr)) {
+        let parseResult = ISODateParser.parse(dateStr)
+        if (parseResult == undefined) {
             const parser = new LegacyDateParser(dateStr)
             const parsedDate = parser.parseDate()
             if (parsedDate === INVALID_DATE) {
@@ -506,32 +488,21 @@ export class Date {
             return parsedDate
         }
 
-        let parseResult: ISODateParseResult
-        try {
-            parseResult = new ISODateParser(dateStr).parse()
-        } catch (parseError) {
-            throw new FormatError(`Invalid time value: '${dateStr}'`)
-        }
-
-        const date = new Date(0)
-        date.setUTCFullYear(parseResult.year)
-        if (parseResult.month > 0) {
-            date.setUTCMonth(parseResult.month - 1)
-        }
-        date.setUTCDate(parseResult.day)
-        date.setUTCHours(parseResult.hour)
-        date.setUTCMinutes(parseResult.minute)
-        date.setUTCSeconds(parseResult.second)
-        date.setUTCMilliseconds(parseResult.ms)
+        let day: long = ecmaMakeDay(parseResult.year.toLong(),
+                                    (parseResult.month - 1).toLong(),
+                                    parseResult.day.toLong())
+        let time: long = ecmaMakeTime(parseResult.hour.toLong(), parseResult.minute.toLong(),
+                                      parseResult.second.toLong(), parseResult.ms.toLong())
+        let result: long = ecmaMakeDate(day, time)
 
         const tzOffset = parseResult.tzOffset
         if (tzOffset !== undefined) {
-            return date.valueOf() + tzOffset
+            return ecmaTimeClip(result + tzOffset)
         }
-        if (dateStr.includes('T')) {
-            return date.valueOf() + Date.getLocalTimezoneOffset(date.getTime()) * msPerMinute;
+        if (parseResult.hasTime) {
+            return ecmaTimeClip(result + Date.getLocalTimezoneOffset(result) * msPerMinute);
         }
-        return date.valueOf()
+        return ecmaTimeClip(result)
     }
 
     /**
@@ -1977,12 +1948,10 @@ export class Date {
         let absOffset = abs(offset);
         let absHours = absOffset / 60;
         let absMinutes = absOffset % 60;
-
         if (absHours < 10) {
             sb.append("0");
         }
         sb.append(absHours);
-
         if (absMinutes < 10) {
             sb.append("0");
         }
@@ -2077,13 +2046,14 @@ export class Date {
 
 class ISODateParseResult {
     year: int = 0
-    month: int = 0
+    month: int = 1
     day: int = 1
     hour: int = 0
     minute: int = 0
     second: int = 0
     ms: int = 0
     tzOffset: long | undefined = undefined
+    hasTime: boolean = false
 
     public override toString(): string {
         return `{ year: ${this.year}, month: ${this.month}, day: ${this.day}, hour: ${this.hour}, minute: ${this.minute}, second: ${this.second}, ms: ${this.ms}, TZ offset: ${this.tzOffset} }`
@@ -2108,163 +2078,156 @@ final class ISODateParseError extends Error { }
 
 // https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-date-time-string-format
 class ISODateParser {
-    private readonly dateStr: string
-    private currentPos: int = 0
-    // limitPos
-    private readonly endPos: int
-
-    constructor(dateStr: string) {
-        this.dateStr = dateStr
-        this.endPos = dateStr.length.toInt()
-    }
-
-    public parse(): ISODateParseResult {
-        const parseResult = this.parseDate()
-
-        // end-of-text check
-        if (this.currentPos != this.endPos) {
-            throw new ISODateParseError()
-        }
-
-        return parseResult
-    }
-
-    public parseDate(): ISODateParseResult {
+    public static parse(dateStr: string): ISODateParseResult | undefined {
         const result = new ISODateParseResult()
+        const a: ValueArray<char> = dateStr.getValueArrayChars()
+        let pos: int = 0
+        let end: int = a.length
 
-        if (this.match("+")) {
-            // expanded year +YYYYYY
-            result.year = this.parseInt(EXPANDED_YEAR_COMPONENT_LENGTH)
-        } else if (this.match("-")) {
-            // expanded year -YYYYYY
-            result.year = -this.parseInt(EXPANDED_YEAR_COMPONENT_LENGTH)
-        } else {
-            const remainingLength = this.endPos - this.currentPos
-            if (remainingLength >= 10 &&
-                this.currentPos + 5 <= this.endPos &&
-                this.dateStr.charAt(this.currentPos + 4) !== c'-' &&
-                this.dateStr.charAt(this.currentPos + 5) === c'-') {
-                const yearStr = this.dateStr.substring(this.currentPos, this.currentPos + 5)
-                for (const literalChar of yearStr.getChars()) {
-                    if (!Char.isDecDigit(literalChar)) {
-                        throw new ISODateParseError()
-                    }
-                }
-                result.year = Double.parseInt(yearStr).toInt()
-                this.currentPos += 5
-            } else {
-                result.year = this.parseInt(YEAR_COMPONENT_LENGTH)
-            }
-        }
+        pos = ISODateParser.parseYearPart(a, pos, end, result)
+        if (pos < 0) { return undefined }
+        pos = ISODateParser.parseDatePart(a, pos, end, result)
+        if (pos < 0) { return undefined }
+        pos = ISODateParser.parseTimePart(a, pos, end, result)
+        if (pos < 0) { return undefined }
+        pos = ISODateParser.parseTimeZonePart(a, pos, end, result)
+        if (pos < 0) { return undefined }
 
-        if (!this.match(DATE_COMPONENTS_SEPARATOR)) {
-            return result
-        }
-
-        result.month = this.parseInt(MONTH_COMPONENT_LENGTH)
-        if (!this.match(DATE_COMPONENTS_SEPARATOR)) {
-            return result
-        }
-
-        result.day = this.parseInt(DAY_COMPONENT_LENGTH)
-        if (!this.match(DATE_TIME_SEPARATOR)) {
-            // ISO date only TZ = UTC
-            result.tzOffset = 0
-            return result
-        }
-
-        result.hour = this.parseInt(HOUR_COMPONENT_LENGTH)
-        if (!this.match(TIME_COMPONENTS_SEPARATOR)) {
-            throw new ISODateParseError()
-        }
-
-        result.minute = this.parseInt(MINUTE_COMPONENT_LENGTH)
-        if (this.match(TIME_COMPONENTS_SEPARATOR)) {
-            result.second = this.parseInt(SECOND_COMPONENT_LENGTH)
-            if (this.match(FRACTIONAL_SECONDS_SEPARATOR)) {
-                result.ms = this.parseMillis()
-            }
-        }
-
-        if (this.match("Z")) {
-            result.tzOffset = 0
-            return result
-        } else if (this.match("+")) {
-            result.tzOffset = -this.parseTimeZoneOffset()
-            return result
-        } else if (this.match("-")) {
-            result.tzOffset = this.parseTimeZoneOffset()
-            return result
-        }
-
-        // local timezone case
         return result
     }
 
-    private parseTimeZoneOffset(): long {
-        const tzOffsetHour = this.parseInt(HOUR_COMPONENT_LENGTH)
-        this.match(TIME_COMPONENTS_SEPARATOR)
-        const tzOffsetMinute = this.parseInt(MINUTE_COMPONENT_LENGTH)
-        return tzOffsetHour * msPerHour + tzOffsetMinute * msPerMinute
+    private static parseYearPart(a: ValueArray<char>, pos: int, end: int, result: ISODateParseResult): int {
+        if (pos == end) { return -1 }
+        if (a[pos] == c'+' || a[pos] == c'-') {
+            let sign: int = a[pos] == c'-' ? -1 : 1
+            pos++
+            if (pos + EXPANDED_YEAR_COMPONENT_LENGTH > end) { return -1 }
+            let yearVal: int = ISODateParser.parseNDigits(a, pos, EXPANDED_YEAR_COMPONENT_LENGTH)
+            if (yearVal < 0) { return -1 }
+            if (sign < 0 && yearVal == 0) {
+                // -000000 is invalid per ECMA262 21.4.1.32.1; reject directly without Legacy fallback.
+                if (pos + EXPANDED_YEAR_COMPONENT_LENGTH == end) {
+                    throw new FormatError(`Invalid time value: '-000000'`)
+                }
+                return -1
+            }
+            result.year = sign * yearVal
+            pos += EXPANDED_YEAR_COMPONENT_LENGTH
+        } else {
+            if (pos + YEAR_COMPONENT_LENGTH > end) { return -1 }
+            result.year = ISODateParser.parseNDigits(a, pos, YEAR_COMPONENT_LENGTH)
+            if (result.year < 0) { return -1 }
+            pos += YEAR_COMPONENT_LENGTH
+        }
+        if (result.year > maxDateYears || result.year < -maxDateYears) {
+            return -1
+        }
+        return pos
     }
 
-    private parseInt(length: int): int {
-        const startPos = this.currentPos
-        const endPos = this.currentPos + length
-
-        if (endPos > this.endPos) {
-            throw new ISODateParseError()
+    private static parseDatePart(a: ValueArray<char>, pos: int, end: int, result: ISODateParseResult): int {
+        if (pos == end) { return pos }
+        if (a[pos] != c'-' || pos + MONTH_COMPONENT_LENGTH + 1 > end) { return -1 }
+        pos++
+        result.month = ISODateParser.parseNDigits(a, pos, MONTH_COMPONENT_LENGTH)
+        if (result.month < 1 || result.month > 12) {
+            return -1
         }
+        pos += MONTH_COMPONENT_LENGTH
+        if (pos == end) { return pos }
 
-        const literalText = this.dateStr.substring(startPos, endPos)
-        for (const literalChar of literalText.getChars()) {
-            if (!Char.isDecDigit(literalChar)) {
-                throw new ISODateParseError()
+        if (a[pos] != c'-' || pos + DAY_COMPONENT_LENGTH + 1 > end) { return -1 }
+        pos++
+        result.day = ISODateParser.parseNDigits(a, pos, DAY_COMPONENT_LENGTH)
+        if (result.day < 1 || result.day > 31) {
+            return -1
+        }
+        pos += DAY_COMPONENT_LENGTH
+        return pos
+    }
+
+    private static parseTimePart(a: ValueArray<char>, pos: int, end: int, result: ISODateParseResult): int {
+        if (pos == end) {
+            result.tzOffset = 0
+            return pos
+        }
+        if (a[pos] != c'T' || pos + HOUR_COMPONENT_LENGTH + 1 > end) { return -1 }
+        pos++
+        result.hasTime = true
+        result.hour = ISODateParser.parseNDigits(a, pos, HOUR_COMPONENT_LENGTH)
+        if (result.hour < 0 || result.hour > 24) { return -1 }
+        pos += HOUR_COMPONENT_LENGTH
+
+        if (pos >= end || a[pos] != c':' || pos + MINUTE_COMPONENT_LENGTH + 1 > end) { return -1 }
+        pos++
+        result.minute = ISODateParser.parseNDigits(a, pos, MINUTE_COMPONENT_LENGTH)
+        if (result.minute < 0 || result.minute > 59) { return -1 }
+        pos += MINUTE_COMPONENT_LENGTH
+
+        if (pos < end && a[pos] == c':') {
+            pos++
+            if (pos + SECOND_COMPONENT_LENGTH > end) { return -1 }
+            result.second = ISODateParser.parseNDigits(a, pos, SECOND_COMPONENT_LENGTH)
+            if (result.second < 0 || result.second > 59) { return -1 }
+            pos += SECOND_COMPONENT_LENGTH
+
+            if (pos < end && a[pos] == c'.') {
+                pos++
+                let msStart: int = pos
+                while (pos < end && a[pos] >= c'0' && a[pos] <= c'9') { pos++ }
+                let msLen: int = pos - msStart
+                if (msLen == 0) { return -1 }
+                let msVal: int = 0
+                // Truncate to MS_COMPONENT_LENGTH digits if more, zero-pad if less, for ISO 8601 compatibility.
+                for (let i: int = 0; i < MS_COMPONENT_LENGTH; i++) {
+                    msVal *= 10
+                    if (i < msLen) {
+                        msVal += a[msStart + i].toInt() - c'0'.toInt()
+                    }
+                }
+                result.ms = msVal
             }
         }
-
-        const literalValue = Double.parseInt(literalText).toInt()
-        this.currentPos += length
-
-        return literalValue
+        if (result.hour == 24 && (result.minute != 0 || result.second != 0 || result.ms != 0)) {
+            return -1
+        }
+        return pos
     }
 
-    private parseMillis(): int {
-        const startPos = this.currentPos
-
-        let currentPos = startPos
-        while (currentPos < this.endPos && Char.isDecDigit(this.dateStr.charAt(currentPos))) {
-            currentPos++
+    private static parseTimeZonePart(a: ValueArray<char>, pos: int, end: int, result: ISODateParseResult): int {
+        if (pos == end) {
+            return pos
         }
+        if (a[pos] == c'Z') {
+            result.tzOffset = 0
+            pos++
+        } else if (a[pos] == c'+' || a[pos] == c'-') {
+            let sign: int = a[pos] == c'-' ? 1 : -1
+            pos++
+            if (pos + HOUR_COMPONENT_LENGTH > end) { return -1 }
+            let tzH: int = ISODateParser.parseNDigits(a, pos, HOUR_COMPONENT_LENGTH)
+            if (tzH < 0 || tzH > 23) { return -1 }
+            pos += HOUR_COMPONENT_LENGTH
 
-        const millisTextLength = currentPos - startPos
-        if (millisTextLength == 0) {
-            throw new ISODateParseError()
+            if (pos < end && a[pos] == c':') { pos++ }
+            if (pos + MINUTE_COMPONENT_LENGTH > end) { return -1 }
+            let tzM: int = ISODateParser.parseNDigits(a, pos, MINUTE_COMPONENT_LENGTH)
+            if (tzM < 0 || tzM > 59) { return -1 }
+            pos += MINUTE_COMPONENT_LENGTH
+            result.tzOffset = sign * (tzH * msPerHour + tzM * msPerMinute)
         }
-
-        const millisText = (millisTextLength > MS_COMPONENT_LENGTH)
-            ? this.dateStr.substring(startPos, startPos + MS_COMPONENT_LENGTH)
-            : this.dateStr.substring(startPos, currentPos).padEnd(MS_COMPONENT_LENGTH, "0")
-
-        const millisValue = Double.parseInt(millisText).toInt()
-
-        this.currentPos = currentPos
-        return millisValue
+        if (pos != end) { return -1 }
+        return pos
     }
 
-    private match(expectedToken: string): boolean {
-        const expectedTokenLength = expectedToken.length.toInt()
-        if (this.currentPos + expectedTokenLength > this.endPos) {
-            return false
+    private static parseNDigits(a: ValueArray<char>, pos: int, n: int): int {
+        let v: int = 0
+        for (let i: int = 0; i < n; i++) {
+            let ch: char = a[pos + i]
+            if (ch < c'0' || ch > c'9') { return -1 }
+            v = v * 10 + ch.toInt() - c'0'.toInt()
         }
-
-        const actualToken = this.dateStr.substring(this.currentPos, this.currentPos + expectedTokenLength)
-        if (actualToken == expectedToken) {
-            this.currentPos += actualToken.length.toInt()
-            return true
-        }
-
-        return false
+        return v
     }
 }
 
