@@ -1,0 +1,82 @@
+/*
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * GNU ld version script for libarktsassembler.so.
+ *
+ * Whitelist mode: only symbols matching the patterns below are exported;
+ * everything else is hidden by `local: *`.
+ *
+ * libarktsassembler's external contract is the whole `ark::pandasm` C++
+ * surface (Parser/AsmEmitter/Program/Function/Record/Field/Ins/Type/
+ * LiteralArray/Metadata families, incl. nested namespaces ::ets, ::extensions,
+ * ::debuginfo), consumed by mangled name from in-repo targets
+ * (disassembler, abc2program, bytecode_optimizer, runtime, aptool, inspector)
+ * and from ets_frontend (es2panda codegen). The surface is too wide to
+ * enumerate exactly, so it is covered by the `_ZN3ark7pandasm*` prefix
+ * family instead — the same approach libarktsbase uses for namespace ark.
+ *
+ * IMPORTANT: the global patterns are scoped to `7pandasm` and deliberately
+ * NOT the broader `_ZN3ark*` used by arktsbase.version. `ark::panda_file`
+ * mangles as `_ZN3ark10panda_file...`, which also matches `_ZN3ark*`; its
+ * vtables leak into this .so from libarkfile headers and are duplicated with
+ * other system libraries. The scoped prefix keeps them hidden. GNU ld uses
+ * first-match precedence, so a later `local:` rule cannot override an
+ * over-broad `global:` wildcard (see the same pitfall documented in
+ * plugins/ets/arkruntime.version).
+ *
+ * Pattern notes (Itanium ABI):
+ *   - `_ZNK3ark7pandasm*` — const member functions; `_ZN3ark*` does NOT
+ *     match the `_ZNK` prefix, so it must be listed separately.
+ *   - `_ZTV/_ZTI/_ZTSN3ark7pandasm*` — vtable/typeinfo/typeinfo-name for
+ *     polymorphic classes (cross-DSO dynamic_cast and exception matching).
+ *   - `_ZGVN3ark7pandasm*`, `_ZGVZN3ark7pandasm*`, `_ZZN3ark7pandasm*` —
+ *     guard variables and function-local statics.
+ *   - `_ZTv*_N3ark7pandasm*` — virtual thunks.
+ *   - No extern "C" exact names: libarktsassembler exports none.
+ *   - No `_ZN5panda*` legacy wrappers: the assembler namespace is uniformly
+ *     ark::pandasm.
+ *
+ * What gets hidden: secshared wrappers (Sec*) statically linked from
+ * sdk_libc_secshared_dep, libc++ template-instantiation leaks, and the
+ * ark::panda_file vague-linkage vtables described above.
+ */
+
+{
+    global:
+        /* ark::pandasm functions, methods and data (non-const) */
+        _ZN3ark7pandasm*;
+        /* ark::pandasm const member functions (_ZNK prefix) */
+        _ZNK3ark7pandasm*;
+        /* vtables for ark::pandasm classes */
+        _ZTVN3ark7pandasm*;
+        /* typeinfo for ark::pandasm classes */
+        _ZTIN3ark7pandasm*;
+        /* typeinfo names for ark::pandasm classes */
+        _ZTSN3ark7pandasm*;
+        /* guard variables for ark::pandasm static data */
+        _ZGVN3ark7pandasm*;
+        /* function-local statics inside ark::pandasm functions */
+        _ZZN3ark7pandasm*;
+        /* guard variables for those local statics */
+        _ZGVZN3ark7pandasm*;
+        /* virtual thunks for ark::pandasm classes */
+        _ZTv*_N3ark7pandasm*;
+        /* virtual thunks for const member functions */
+        _ZTv*_NK3ark7pandasm*;
+
+    local:
+        *;
+};

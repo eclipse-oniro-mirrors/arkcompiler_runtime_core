@@ -127,6 +127,26 @@ endif()
 panda_add_library(arkassembler ${PANDA_DEFAULT_LIB_TYPE} $<TARGET_OBJECTS:arkassembler_obj>)
 panda_target_link_libraries(arkassembler arkassembler_obj)
 
+# Version script that controls the exported symbols of libarkassembler.so
+set(ARKASSEMBLER_VERSION_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/arktsassembler.version)
+if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug" OR
+    "${CMAKE_BUILD_TYPE}" STREQUAL "DebugDetailed" OR
+    "${CMAKE_BUILD_TYPE}" STREQUAL "FastVerify" OR
+    "${CMAKE_BUILD_TYPE}" STREQUAL "RelWithDebInfo")
+    set(ARKASSEMBLER_DEBUG_BUILD ON)
+endif()
+get_target_property(ARKASSEMBLER_LIB_TYPE arkassembler TYPE)
+if (PANDA_TARGET_UNIX AND NOT PANDA_TARGET_WINDOWS AND NOT PANDA_TARGET_MACOS
+    AND NOT ARKASSEMBLER_DEBUG_BUILD AND ARKASSEMBLER_LIB_TYPE STREQUAL "SHARED_LIBRARY")
+    set_target_properties(arkassembler PROPERTIES
+        LINK_FLAGS "-Wl,--version-script=${ARKASSEMBLER_VERSION_SCRIPT} -Wl,--gc-sections"
+    )
+    set_target_properties(arkassembler PROPERTIES
+        LINK_DEPENDS ${ARKASSEMBLER_VERSION_SCRIPT}
+    )
+    panda_target_compile_options(arkassembler_obj PRIVATE -ffunction-sections -fdata-sections)
+endif ()
+
 if (PANDA_ENABLE_AFL)
     include("${PANDA_ROOT}/extras/fuzzing/Fuzzing.cmake")
     panda_substitute_libs(TARGET arkassembler_obj LIBS arkbase c_secshared arkfile)
