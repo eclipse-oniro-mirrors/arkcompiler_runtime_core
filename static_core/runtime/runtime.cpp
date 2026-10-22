@@ -483,9 +483,13 @@ bool Runtime::Create(const RuntimeOptions &options)
 
 #ifdef PANDA_TARGET_UNIX
     std::unique_ptr<RuntimeSignalCatcher> signalCatcher;
+    // AppRecovery uses a thread-directed SIGQUIT to suspend the main thread on OHOS. Do not block the signal here
+    // until SIGQUIT ownership is coordinated between the two components.
+#ifndef PANDA_TARGET_OHOS
     if (options.GetSignalCatcher() != 0 && options.GetSigquitFlag() != 0) {
         signalCatcher = std::make_unique<RuntimeSignalCatcher>();
     }
+#endif  // PANDA_TARGET_OHOS
 #endif
 
     BlockSignals();
