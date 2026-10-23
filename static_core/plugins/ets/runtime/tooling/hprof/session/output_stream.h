@@ -104,6 +104,9 @@ private:
 
     int fd_;
     bool ownsFd_;
+#if defined(PANDA_TARGET_OHOS) && defined(PANDA_BUILD_IN_OHOS_TREE)
+    uint64_t fdOwnerTag_ = 0;
+#endif
     os::memory::Mutex mutex_;
     std::vector<uint8_t> buffer_;
     size_t pos_ = 0;

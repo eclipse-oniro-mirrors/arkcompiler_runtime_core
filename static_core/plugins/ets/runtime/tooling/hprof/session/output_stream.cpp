@@ -22,6 +22,9 @@
 #include <fcntl.h>
 #include <iterator>
 #include <unistd.h>
+#if defined(PANDA_TARGET_OHOS) && defined(PANDA_BUILD_IN_OHOS_TREE)
+#include <cstdio>
+#endif
 #include "securec.h"
 
 namespace ark::tooling::hprof {
@@ -34,10 +37,23 @@ OutputStream::OutputStream(const std::string &path, size_t bufferSize) : fd_(-1)
     fd_ = ::open(path.c_str(), OPEN_FLAGS, DEFAULT_FILE_MODE);
     if (fd_ < 0) {
         LOG(ERROR, RUNTIME) << "[HybDump][Sta] Output file open failed: path=" << path << ", errno=" << errno;
+        return;
     }
+#if defined(PANDA_TARGET_OHOS) && defined(PANDA_BUILD_IN_OHOS_TREE)
+    fdOwnerTag_ = fdsan_create_owner_tag(FDSAN_OWNER_TYPE_FILE, reinterpret_cast<uintptr_t>(this));
+    fdsan_exchange_owner_tag(fd_, 0, fdOwnerTag_);
+#endif
 }
 
-OutputStream::OutputStream(int fd, size_t bufferSize, bool ownsFd) : fd_(fd), ownsFd_(ownsFd), buffer_(bufferSize) {}
+OutputStream::OutputStream(int fd, size_t bufferSize, bool ownsFd) : fd_(fd), ownsFd_(ownsFd), buffer_(bufferSize)
+{
+    if (fd_ >= 0 && ownsFd_) {
+#if defined(PANDA_TARGET_OHOS) && defined(PANDA_BUILD_IN_OHOS_TREE)
+        fdOwnerTag_ = fdsan_create_owner_tag(FDSAN_OWNER_TYPE_FILE, reinterpret_cast<uintptr_t>(this));
+        fdsan_exchange_owner_tag(fd_, 0, fdOwnerTag_);
+#endif
+    }
+}
 
 OutputStream::~OutputStream()
 {
@@ -45,7 +61,12 @@ OutputStream::~OutputStream()
     if (fd_ >= 0) {
         (void)FlushLocked();
         if (ownsFd_) {
-            ::close(fd_);
+#if defined(PANDA_TARGET_OHOS) && defined(PANDA_BUILD_IN_OHOS_TREE)
+            (void)fdsan_close_with_tag(fd_, fdOwnerTag_);
+#else
+            (void)::close(fd_);
+#endif
+            fd_ = -1;
         }
     }
 }
@@ -74,7 +95,11 @@ void OutputStream::Close()
     os::memory::LockHolder lock(mutex_);
     (void)FlushLocked();
     if (ownsFd_ && fd_ >= 0) {
-        ::close(fd_);
+#if defined(PANDA_TARGET_OHOS) && defined(PANDA_BUILD_IN_OHOS_TREE)
+        (void)fdsan_close_with_tag(fd_, fdOwnerTag_);
+#else
+        (void)::close(fd_);
+#endif
         fd_ = -1;
     }
 }
