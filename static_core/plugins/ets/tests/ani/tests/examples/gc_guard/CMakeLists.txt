@@ -11,8 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# NOTE: Enable gtest for AARCH64 when #22303 is solved.
-if (PANDA_COMPILER_TARGET_AARCH64)
+# Death tests cannot run reliably under ARM32 qemu-user: threadsafe mode
+# cannot re-exec the target binary and fast mode may hang after fork().
+if (PANDA_COMPILER_TARGET_AARCH64 OR (PANDA_TARGET_ARM32 AND PANDA_QEMU_BUILD))
     return()
 endif()
 
