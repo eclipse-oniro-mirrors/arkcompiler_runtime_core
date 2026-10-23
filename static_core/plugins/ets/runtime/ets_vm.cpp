@@ -596,7 +596,6 @@ void PandaEtsVM::PostZygoteFork()
 
 void PandaEtsVM::PostForkStart()
 {
-    isPostFork_ = true;
     // Add a delay GCTask.
     if ((!Runtime::GetCurrent()->IsZygote()) && (!mm_->GetGC()->GetSettings()->RunGCInPlace()) &&
         (mm_->GetGC()->GetSettings()->UseTaskManagerForGC())) {
@@ -605,15 +604,22 @@ void PandaEtsVM::PostForkStart()
         size_t startupLimit = startupTargetFootprint / 2;
         mm_->GetGCTrigger()->SetMinTargetFootprint(startupTargetFootprint);
         originSize_ = mm_->GetGC()->AdjustStartupLimit(startupLimit);
+        // Begin the restrain before publishing the fork state, so an early callback observes the ON_STARTUP phase
+        mm_->GetGCTrigger()->BeginStartupRestrain();
+        // Set the flag after origin_size_ is saved: the store publishes the armed startup state
+        // to the cold-start callback thread
+        isPostFork_ = true;
+        // Fallback: ease the startup GC restrain if no cold-start-finished event arrives in time
         [[maybe_unused]] auto waiterId = mm_->GetGC()->GetWorkersTaskQueue()->AddBackgroundTaskInWaitList(
-            [this]() {
-                PostForkEnd();
-                this->GetGC()->AddGCTask(false, MakePandaUnique<GCTask>(GCTaskCause::STARTUP_COMPLETE_CAUSE));
-            },
-            DISABLE_GC_DURATION_MS);
+            [this]() { NotifyColdStartJustFinish(); }, DISABLE_GC_DURATION_MS);
         LOG_IF(waiterId == taskmanager::INVALID_WAITER_ID, FATAL, GC)
             << "Failed to create task to turn on GC after start-up";
-        LOG(DEBUG, GC) << "Add Startup Complete GCTask";
+        // The whole startup restrain expires: restore the ordinary floor and collect the startup garbage
+        [[maybe_unused]] auto expiryId = mm_->GetGC()->GetWorkersTaskQueue()->AddBackgroundTaskInWaitList(
+            [this]() { NotifyStartupFinished(); }, STARTUP_RESTRAIN_DURATION_MS);
+        LOG_IF(expiryId == taskmanager::INVALID_WAITER_ID, FATAL, GC)
+            << "Failed to create task to expire the startup GC restrain";
+        LOG(DEBUG, GC) << "Add startup GC restrain task";
     }
 }
 
@@ -621,6 +627,28 @@ void PandaEtsVM::PostForkEnd()
 {
     mm_->GetGC()->AdjustStartupLimit(originSize_);
     isPostFork_ = false;
+}
+
+void PandaEtsVM::NotifyColdStartJustFinish()
+{
+    if (!IsPostFork()) {
+        return;
+    }
+    // Restore the young space limit and allow sensitive-scene GC handling
+    PostForkEnd();
+    mm_->GetGCTrigger()->JustFinishStartupRestrain(Runtime::GetOptions().GetHeapSizeLimit() /
+                                                   JUST_FINISH_STARTUP_FOOTPRINT_DIV);
+    LOG(INFO, RUNTIME) << "Cold start finished";
+}
+
+void PandaEtsVM::NotifyStartupFinished()
+{
+    // The fallback task might be starved: finish the skipped young space restore here
+    if (IsPostFork()) {
+        PostForkEnd();
+    }
+    mm_->GetGCTrigger()->FinishStartupRestrain();
+    GetGC()->AddGCTask(false, MakePandaUnique<GCTask>(GCTaskCause::STARTUP_COMPLETE_CAUSE));
 }
 
 void PandaEtsVM::InitializeGC()

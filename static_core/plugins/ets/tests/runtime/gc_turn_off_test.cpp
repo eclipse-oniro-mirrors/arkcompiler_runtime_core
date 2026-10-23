@@ -75,7 +75,7 @@ TEST_F(GCTurnOffTest, GCTurnOffTest)
     auto end = std::chrono::system_clock::now();
 
     // In milliseconds
-    constexpr uint64_t TIME_TO_WAIT_IN_MS = 2ULL * 1000ULL;
+    constexpr uint64_t TIME_TO_WAIT_IN_MS = 8ULL * 1000ULL;
     constexpr uint64_t THRESHOLD_PERCENT = 150ULL;  // If system is highly loaded we can get huge overtime
     constexpr uint64_t DOWN_THRESHOLD = 5ULL;       // Sometimes the time is slightly less
 
