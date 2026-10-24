@@ -14,6 +14,7 @@
  */
 
 #include "assembly-emitter.h"
+#include "cross_module_hole_check.h"
 
 #include <type_traits>
 #include <unordered_set>
@@ -1537,6 +1538,7 @@ bool AsmEmitter::EmitPrograms(const std::string &filename, const std::vector<Pro
     // items so the merged abc carries one LiteralArrayItem per unique content. Only in release mode —
     // debug builds keep all arrays for faithful round-trip disassembly.
     if (!emitterConfig.isDebug) {
+        EliminateCrossModuleHoleChecks(progs);
         DeduplicateLiteralArrays(progs);
     }
     {

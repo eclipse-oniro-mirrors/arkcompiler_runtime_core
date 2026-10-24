@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2022 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -27,6 +27,9 @@ bool AnalysisBytecode(pandasm::Program *prog, const pandasm::AsmEmitter::PandaFi
 bool RunOptimizations(compiler::Graph *graph, BytecodeOptIrInterface *iface = nullptr);
 bool OptimizeBytecode(pandasm::Program *prog, const pandasm::AsmEmitter::PandaFileToPandaAsmMaps *maps,
                       const std::string &pandafile_name, bool is_dynamic = false, bool has_memory_pool = false);
+
+void ComputeEntryNonHoleSeeds(pandasm::Program *prog, BytecodeOptIrInterface *iface,
+                              std::unordered_map<std::string, std::unordered_set<uint32_t>> *outSeeds);
 }  // namespace panda::bytecodeopt
 
 #endif  // BYTECODE_OPTIMIZER_OPTIMIZE_BYTECODE_H

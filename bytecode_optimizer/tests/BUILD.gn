@@ -88,6 +88,7 @@ host_unittest_action("BytecodeOptimizerTest") {
     "constant_propagation_test.cpp",
     "dynamic_cse_test.cpp",
     "excluded_keys_test.cpp",
+    "hole_check_elimination_test.cpp",
     "optimize_bytecode_test.cpp",
     "peephole_optimizer_test.cpp",
     "reg_acc_alloc_test.cpp",

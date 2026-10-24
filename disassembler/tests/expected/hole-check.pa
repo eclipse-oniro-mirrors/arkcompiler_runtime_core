@@ -1,0 +1,236 @@
+# source binary: hole-check.abc
+
+# ====================
+# LITERALS
+
+
+# ====================
+# RECORDS
+
+.language ECMAScript
+.record _ESExpectedPropertyCountAnnotation {
+}
+
+.language ECMAScript
+.record _ESModuleRecord {
+	u32 hole-check.js = 0x5b1
+}
+
+.language ECMAScript
+.record _ESScopeNamesRecord {
+	u32 hole-check.js = 0x59e
+}
+
+.language ECMAScript
+.record _ESSlotNumberAnnotation {
+}
+
+# ====================
+# METHODS
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0x1 }
+.language ECMAScript
+.function any #*#canCrossBlockStore(any a0, any a1, any a2, any a3) <static> {
+	ldlexvar 0x0, 0x0
+	throw.undefinedifholewithname "captured"
+	ldai 0x1
+	stlexvar 0x0, 0x0
+	lda a3
+	callruntime.isfalse 0x0
+	jnez jump_label_0
+	ldlexvar 0x0, 0x0
+	return
+jump_label_0:
+	ldai 0x0
+	return
+}
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0x3 }
+.language ECMAScript
+.function any #*#canEntrySeed(any a0, any a1, any a2) <static> {
+	newlexenv 0x1
+	ldai 0x1
+	stlexvar 0x0, 0x0
+	definefunc 0x0, #*@0*#inner:(any,any,any), 0x0
+	callarg0 0x1
+	return
+}
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0x3 }
+.language ECMAScript
+.function any #*#canEntrySeedNonConst(any a0, any a1, any a2) <static> {
+	newlexenv 0x1
+	ldlexvar 0x1, 0x1
+	throw.undefinedifholewithname "other"
+	stlexvar 0x0, 0x0
+	definefunc 0x0, #*@1*#inner:(any,any,any), 0x0
+	callarg0 0x1
+	return
+}
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0x1 }
+.language ECMAScript
+.function any #*#canMultiReadNoStore(any a0, any a1, any a2) <static> {
+	ldlexvar 0x0, 0x0
+	sta v0
+	throw.undefinedifholewithname "captured"
+	ldlexvar 0x0, 0x0
+	add2 0x0, v0
+	return
+}
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0x0 }
+.language ECMAScript
+.function any #*#canStoreNonConst(any a0, any a1, any a2) <static> {
+	ldlexvar 0x0, 0x1
+	sta v0
+	throw.undefinedifholewithname "other"
+	ldlexvar 0x0, 0x0
+	throw.undefinedifholewithname "captured"
+	lda v0
+	stlexvar 0x0, 0x0
+	ldlexvar 0x0, 0x0
+	return
+}
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0x0 }
+.language ECMAScript
+.function any #*#canStoreThenRead(any a0, any a1, any a2) <static> {
+	ldlexvar 0x0, 0x0
+	throw.undefinedifholewithname "captured"
+	ldai 0x1
+	stlexvar 0x0, 0x0
+	ldlexvar 0x0, 0x0
+	return
+}
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0x1 }
+.language ECMAScript
+.function any #*#cantCondInit(any a0, any a1, any a2, any a3) <static> {
+	lda a3
+	callruntime.isfalse 0x0
+	jnez jump_label_0
+	ldlexvar 0x0, 0x0
+	throw.undefinedifholewithname "captured"
+	ldai 0x1
+	stlexvar 0x0, 0x0
+jump_label_0:
+	ldlexvar 0x0, 0x0
+	throw.undefinedifholewithname "captured"
+	return
+}
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0x3 }
+.language ECMAScript
+.function any #*#cantEntrySeedStoreAfter(any a0, any a1, any a2) <static> {
+	newlexenv 0x1
+	definefunc 0x0, #*@2*#inner:(any,any,any), 0x0
+	sta v0
+	ldai 0x1
+	stlexvar 0x0, 0x0
+	lda v0
+	callarg0 0x1
+	return
+}
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0x0 }
+.language ECMAScript
+.function any #*#cantReadOnlyCapture(any a0, any a1, any a2) <static> {
+	ldlexvar 0x0, 0x0
+	throw.undefinedifholewithname "captured"
+	return
+}
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0x0 }
+.language ECMAScript
+.function any #*#cantTryCatch(any a0, any a1, any a2) <static> {
+	nop
+try_begin_label_0:
+	ldlexvar 0x0, 0x0
+	throw.undefinedifholewithname "captured"
+	ldai 0x1
+	stlexvar 0x0, 0x0
+	ldlexvar 0x0, 0x0
+	return
+try_end_label_0:
+	ldai 0x0
+	return
+
+.catchall try_begin_label_0, try_end_label_0, try_end_label_0
+}
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0x0 }
+.language ECMAScript
+.function any #*#cantWriteOnly(any a0, any a1, any a2) <static> {
+	ldlexvar 0x0, 0x0
+	throw.undefinedifholewithname "captured"
+	ldai 0x1
+	stlexvar 0x0, 0x0
+	returnundefined
+}
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0x0 }
+.language ECMAScript
+.function any #*@0*#inner(any a0, any a1, any a2) <static> {
+	ldlexvar 0x0, 0x0
+	return
+}
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0x0 }
+.language ECMAScript
+.function any #*@1*#inner(any a0, any a1, any a2) <static> {
+	ldlexvar 0x0, 0x0
+	return
+}
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0x0 }
+.language ECMAScript
+.function any #*@2*#inner(any a0, any a1, any a2) <static> {
+	ldlexvar 0x0, 0x0
+	throw.undefinedifholewithname "x"
+	return
+}
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0xb }
+.language ECMAScript
+.function any func_main_0(any a0, any a1, any a2) <static> {
+	newlexenv 0x2
+	definefunc 0x0, #*#canCrossBlockStore:(any,any,any,any), 0x1
+	definefunc 0x1, #*#canEntrySeed:(any,any,any), 0x0
+	definefunc 0x2, #*#canEntrySeedNonConst:(any,any,any), 0x0
+	definefunc 0x3, #*#canMultiReadNoStore:(any,any,any), 0x0
+	definefunc 0x4, #*#canStoreNonConst:(any,any,any), 0x0
+	definefunc 0x5, #*#canStoreThenRead:(any,any,any), 0x0
+	definefunc 0x6, #*#cantCondInit:(any,any,any,any), 0x1
+	definefunc 0x7, #*#cantEntrySeedStoreAfter:(any,any,any), 0x0
+	definefunc 0x8, #*#cantReadOnlyCapture:(any,any,any), 0x0
+	definefunc 0x9, #*#cantTryCatch:(any,any,any), 0x0
+	definefunc 0xa, #*#cantWriteOnly:(any,any,any), 0x0
+	ldundefined
+	stlexvar 0x0, 0x0
+	ldundefined
+	stlexvar 0x0, 0x1
+	returnundefined
+}
+
+# ====================
+# STRING
+
+[offset:0x1f0, name_value:captured]
+[offset:0x1fa, name_value:other]
+[offset:0x201, name_value:x]

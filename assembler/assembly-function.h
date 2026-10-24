@@ -31,6 +31,7 @@
 #include "bytecode_emitter.h"
 #include "extensions/extensions.h"
 #include "file_items.h"
+#include "hole_check_target.h"
 #include "file_item_container.h"
 #include "ide_helpers.h"
 #include "meta.h"
@@ -80,6 +81,8 @@ struct Function {
     std::unique_ptr<FunctionMetadata> metadata;
 
     std::unordered_map<std::string, panda::pandasm::Label> label_table;
+    std::unordered_map<const Ins *, HoleCheckTarget> holeCheckVarTable;
+    std::unordered_map<const Ins *, HoleCheckTarget> storeVarTable;
     std::vector<InsPtr> ins; /* function instruction list */
     std::vector<panda::pandasm::debuginfo::LocalVariable> local_variable_debug;
     std::string source_file; /* The file in which the function is defined or empty */
