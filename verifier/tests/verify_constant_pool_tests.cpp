@@ -22,6 +22,7 @@
 #include <unordered_map>
 
 #include "file.h"
+#include "class_data_accessor-inl.h"
 #include "utils.h"
 
 using namespace testing::ext;
@@ -598,36 +599,51 @@ HWTEST_F(VerifierConstantPool, verifier_constant_pool_013, TestSize.Level1)
 HWTEST_F(VerifierConstantPool, verifier_constant_pool_014, TestSize.Level1)
 {
     const std::string base_file_name = GRAPH_TEST_ABC_DIR "test_constant_pool_content.abc";
-    {
-        panda::verifier::Verifier ver {base_file_name};
-        ver.CollectIdInfos();
-        EXPECT_TRUE(ver.VerifyConstantPoolContent());
-    }
+    panda::verifier::Verifier original {base_file_name};
+    original.CollectIdInfos();
+    ASSERT_TRUE(original.VerifyConstantPoolContent());
     std::ifstream base_file(base_file_name, std::ios::binary);
-    EXPECT_TRUE(base_file.is_open());
-
+    ASSERT_TRUE(base_file.is_open());
     std::vector<unsigned char> buffer(std::istreambuf_iterator<char>(base_file), {});
 
-    unsigned char tries_size = 0x00;        // The known tries_size of the method in the abc file
-    unsigned char method_code_size = 0x2D;  // The known code_size of the method in the abc file
-
-    for (size_t i = 0; i < buffer.size() - 1; ++i) {
-        if (buffer[i] == method_code_size && buffer[i + 1] == tries_size) {
-            auto invalid_code_size = 0;
-            buffer[i] = static_cast<unsigned char>(invalid_code_size);
-            break;
+    auto file = panda_file::File::Open(base_file_name);
+    ASSERT_NE(file, nullptr);
+    std::vector<panda_file::File::EntityId> method_ids;
+    for (auto class_id : file->GetClasses()) {
+        panda_file::File::EntityId id {class_id};
+        if (!file->IsExternal(id)) {
+            panda_file::ClassDataAccessor klass {*file, id};
+            klass.EnumerateMethods(
+                [&](panda_file::MethodDataAccessor &method) { method_ids.push_back(method.GetMethodId()); });
         }
     }
+    bool modified = false;
+    for (auto method_id : method_ids) {
+        panda_file::MethodDataAccessor method {*file, method_id};
+        if (!method.GetCodeId().has_value()) {
+            continue;
+        }
+        panda_file::CodeDataAccessor code {*file, method.GetCodeId().value()};
+        if (code.GetCodeSize() == 0 || code.GetCodeSize() >= 0x80U || code.GetTriesSize() != 0) {
+            continue;
+        }
+        auto data = file->GetSpanFromId(method.GetCodeId().value());
+        panda_file::helpers::SkipULeb128(&data);  // num_vregs
+        panda_file::helpers::SkipULeb128(&data);  // num_args
+        auto offset = static_cast<size_t>(data.data() - file->GetBase());
+        ASSERT_EQ(buffer.at(offset), code.GetCodeSize());
+        // Keep the one-byte header field width while making nonempty code invalid.
+        buffer.at(offset) = 0;
+        modified = true;
+        break;
+    }
+    ASSERT_TRUE(modified);
 
     const std::string target_file_name = GRAPH_TEST_ABC_DIR "verifier_constant_pool_014.abc";
     GenerateModifiedAbc(buffer, target_file_name);
-    base_file.close();
-
-    {
-        panda::verifier::Verifier ver {target_file_name};
-        ver.CollectIdInfos();
-        EXPECT_FALSE(ver.VerifyConstantPoolContent());
-    }
+    panda::verifier::Verifier ver {target_file_name};
+    ver.CollectIdInfos();
+    EXPECT_FALSE(ver.VerifyConstantPoolContent());
 }
 
 /**

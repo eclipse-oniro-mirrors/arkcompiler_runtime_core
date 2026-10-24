@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2022 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -18,6 +18,21 @@
 #include "compiler/optimizer/ir/basicblock.h"
 
 namespace panda::bytecodeopt {
+
+static bool IsAccPreservingCheck(const compiler::Inst *inst)
+{
+    if (!inst->IsIntrinsic()) {
+        return false;
+    }
+    switch (inst->CastToIntrinsic()->GetIntrinsicId()) {
+        case compiler::RuntimeInterface::IntrinsicId::THROW_UNDEFINEDIFHOLEWITHNAME_PREF_ID16:
+        case compiler::RuntimeInterface::IntrinsicId::THROW_IFSUPERNOTCORRECTCALL_PREF_IMM8:
+        case compiler::RuntimeInterface::IntrinsicId::THROW_IFSUPERNOTCORRECTCALL_PREF_IMM16:
+            return true;
+        default:
+            return false;
+    }
+}
 
 /**
  * Decide if accumulator register gets dirty between two instructions.
@@ -57,7 +72,9 @@ bool IsAccWriteBetween(compiler::Inst *src_inst, compiler::Inst *dst_inst)
             if (inst->IsAccRead()) {
                 compiler::Inst *input = inst->GetInput(AccReadIndex(inst)).GetInst();
 
-                if (input->GetDstReg() != compiler::ACC_REG_ID) {
+                // Some stores marked as acc readers overwrite it in the interpreter. Only
+                // known preserving checks may reuse an input before its producer is marked ACC.
+                if ((input != src_inst || !IsAccPreservingCheck(inst)) && input->GetDstReg() != compiler::ACC_REG_ID) {
                     return true;
                 }
             }
@@ -91,7 +108,13 @@ bool RegAccAlloc::IsAccRead(compiler::Inst *inst) const
  */
 bool RegAccAlloc::IsAccWrite(compiler::Inst *inst) const
 {
-    return UNLIKELY(inst->IsPhi()) ? IsPhiOptimizable(inst) : inst->IsAccWrite();
+    if (UNLIKELY(inst->IsPhi())) {
+        return IsPhiOptimizable(inst);
+    }
+    if (UNLIKELY(inst->IsCatchPhi())) {
+        return inst->CastToCatchPhi()->IsAcc();
+    }
+    return inst->IsAccWrite();
 }
 
 /**

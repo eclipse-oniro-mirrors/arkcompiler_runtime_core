@@ -15,6 +15,7 @@
 
 #include "dynamic_cse.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <utility>
@@ -27,6 +28,35 @@ namespace panda::bytecodeopt {
 namespace {
 
 using IntrinsicId = compiler::RuntimeInterface::IntrinsicId;
+using InstructionOrder = ArenaUnorderedMap<const compiler::Inst *, size_t>;
+
+bool Dominates(const compiler::Inst *producer, const compiler::Inst *current, const InstructionOrder &order)
+{
+    auto *producerBlock = producer->GetBasicBlock();
+    auto *currentBlock = current->GetBasicBlock();
+    if (producerBlock == currentBlock) {
+        return order.at(producer) <= order.at(current);
+    }
+    return producerBlock->IsDominate(currentBlock);
+}
+
+// Candidates are visited in RPO and instruction order. A value used only in its defining block cannot
+// satisfy the reuse heuristic once all of those uses have been visited. Keep Phi and cross-block users:
+// their positions cannot be compared to the current instruction with this local rule.
+bool HasOnlyVisitedLocalUses(const compiler::Inst *producer, const compiler::Inst *current,
+                             const InstructionOrder &order)
+{
+    for (const auto &user : producer->GetUsers()) {
+        auto *userInst = user.GetInst();
+        if (userInst->IsPhi() || userInst->IsCatchPhi() || userInst->GetBasicBlock() != producer->GetBasicBlock()) {
+            return false;
+        }
+        if (current->GetBasicBlock() == producer->GetBasicBlock() && order.at(userInst) >= order.at(current)) {
+            return false;
+        }
+    }
+    return true;
+}
 
 struct ExpressionKey {
     IntrinsicId id;
@@ -158,11 +188,13 @@ bool BuildKey(compiler::Inst *inst, ExpressionKey *key)
     return true;
 }
 
-bool IsAlreadyLiveAcross(compiler::Inst *producer, compiler::Inst *current)
+bool HasDominatedUse(compiler::Inst *producer, compiler::Inst *current, const InstructionOrder &order)
 {
+    // A dominated use is a profitability heuristic, not a bound on the new live range.
     for (const auto &user : producer->GetUsers()) {
         auto *userInst = user.GetInst();
-        if (userInst != nullptr && !userInst->IsPhi() && !userInst->IsCatchPhi() && current->IsDominate(userInst)) {
+        if (userInst != nullptr && !userInst->IsPhi() && !userInst->IsCatchPhi() &&
+            Dominates(current, userInst, order)) {
             return true;
         }
     }
@@ -175,8 +207,10 @@ bool IsEhBlock(const compiler::BasicBlock *block)
            block->IsCatchEnd();
 }
 
-bool IsSafeRegion(compiler::Inst *producer, compiler::Inst *current)
+bool HasCompatibleEhEndpoints(compiler::Inst *producer, compiler::Inst *current)
 {
+    // Only the endpoints are checked; intervening paths need not be free of EH blocks.
+    // Reuse relies on the pure whitelist or an identical super check that has already passed.
     auto *producerBlock = producer->GetBasicBlock();
     auto *currentBlock = current->GetBasicBlock();
     if (producerBlock == currentBlock) {
@@ -190,19 +224,23 @@ using CandidateList = ArenaVector<compiler::Inst *>;
 template <typename Key, typename KeyHash>
 using CandidateMap = ArenaUnorderedMap<Key, CandidateList, KeyHash>;
 
-// Returns an already collected candidate equivalent to 'inst' when it dominates 'inst'
-// within a safe EH region (and additionally stays live across 'inst' when required for
-// value-producing expressions); otherwise records 'inst' as a new candidate and returns nullptr.
 template <typename Key, typename KeyHash>
 compiler::Inst *FindDominatedDuplicate(compiler::Inst *inst, const Key &key, ArenaAllocator *allocator,
-                                       CandidateMap<Key, KeyHash> &candidates, bool requireProducerLiveAcross)
+                                       CandidateMap<Key, KeyHash> &candidates, bool requireProducerLiveAcross,
+                                       const InstructionOrder &order)
 {
     auto &equivalentInsts = candidates.try_emplace(key, allocator->Adapter()).first->second;
+    if (requireProducerLiveAcross) {
+        equivalentInsts.erase(
+            std::remove_if(equivalentInsts.begin(), equivalentInsts.end(),
+                           [&order, inst](auto *producer) { return HasOnlyVisitedLocalUses(producer, inst, order); }),
+            equivalentInsts.end());
+    }
     for (auto *producer : equivalentInsts) {
-        if (!producer->IsDominate(inst) || !IsSafeRegion(producer, inst)) {
+        if (!Dominates(producer, inst, order) || !HasCompatibleEhEndpoints(producer, inst)) {
             continue;
         }
-        if (requireProducerLiveAcross && !IsAlreadyLiveAcross(producer, inst)) {
+        if (requireProducerLiveAcross && !HasDominatedUse(producer, inst, order)) {
             continue;
         }
         return producer;
@@ -213,15 +251,16 @@ compiler::Inst *FindDominatedDuplicate(compiler::Inst *inst, const Key &key, Are
 
 bool ProcessInstruction(compiler::Inst *inst, ArenaAllocator *allocator,
                         CandidateMap<ExpressionKey, ExpressionKeyHash> &candidates,
-                        CandidateMap<SuperCheckKey, SuperCheckKeyHash> &superCheckCandidates)
+                        CandidateMap<SuperCheckKey, SuperCheckKeyHash> &superCheckCandidates,
+                        const InstructionOrder &order)
 {
-    if (!inst->IsIntrinsic()) {
+    if (!inst->IsIntrinsic() || (!inst->HasUsers() && !inst->IsNotRemovable())) {
         return false;
     }
 
     SuperCheckKey superCheckKey {};
     if (BuildSuperCheckKey(inst, &superCheckKey)) {
-        if (FindDominatedDuplicate(inst, superCheckKey, allocator, superCheckCandidates, false) != nullptr) {
+        if (FindDominatedDuplicate(inst, superCheckKey, allocator, superCheckCandidates, false, order) != nullptr) {
             inst->ClearFlag(compiler::inst_flags::NO_DCE);
             return true;
         }
@@ -233,7 +272,7 @@ bool ProcessInstruction(compiler::Inst *inst, ArenaAllocator *allocator,
         return false;
     }
 
-    auto *producer = FindDominatedDuplicate(inst, key, allocator, candidates, true);
+    auto *producer = FindDominatedDuplicate(inst, key, allocator, candidates, true, order);
     if (producer == nullptr) {
         return false;
     }
@@ -247,13 +286,21 @@ bool ProcessInstruction(compiler::Inst *inst, ArenaAllocator *allocator,
 bool DynamicCse::RunImpl()
 {
     GetGraph()->RunPass<compiler::DominatorsTree>();
+    // Uses and flags change during this pass, but instruction order does not.
+    InstructionOrder order(GetGraph()->GetLocalAllocator()->Adapter());
+    for (auto *block : GetGraph()->GetBlocksRPO()) {
+        size_t position = 0;
+        for (auto *inst : block->AllInsts()) {
+            order.emplace(inst, position++);
+        }
+    }
     bool changed = false;
     const auto allocator = GetGraph()->GetLocalAllocator();
     CandidateMap<ExpressionKey, ExpressionKeyHash> candidates(allocator->Adapter());
     CandidateMap<SuperCheckKey, SuperCheckKeyHash> superCheckCandidates(allocator->Adapter());
     for (auto *block : GetGraph()->GetBlocksRPO()) {
         for (auto *inst : block->AllInsts()) {
-            changed = ProcessInstruction(inst, allocator, candidates, superCheckCandidates) || changed;
+            changed = ProcessInstruction(inst, allocator, candidates, superCheckCandidates, order) || changed;
         }
     }
     return changed;

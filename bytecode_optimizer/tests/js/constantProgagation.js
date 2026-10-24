@@ -12,7 +12,7 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  *
- Copyright (c) 2024 Huawei Device Co., Ltd.
+ Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
  You may obtain a copy of the License at
@@ -525,23 +525,55 @@ function sccpNoEffectInfinityWithBoolAndDouble() {
 function sccpNoEffectArithmetic() {
     let a = 1;
     let b = 2;
-    print(a * b);
-    print(a + b);
-    print(a - b);
-    print(a / b);
     print(a >> b);
     print(a << b);
     print(a >>> b);
 
     a = 1.2;
     b = 2.2;
-    print(a * b);
-    print(a + b);
-    print(a - b);
-    print(a / b);
     print(a >> b);
     print(a << b);
     print(a >>> b);
+}
+
+function sccpFoldArithmetic() {
+    let a = 6;
+    let b = 3;
+    print(a + b);
+    print(a - b);
+    print(a * b);
+    print(a / b);
+    print(a % b);
+    print(-a);
+    let c = a + b;
+    print(c * b);
+}
+
+function sccpFoldArithmeticDouble() {
+    let a = 1.5;
+    let b = 0.5;
+    print(a + b);
+    print(a - b);
+    print(a * b);
+    print(a / b);
+    print(a % b);
+    print(-a);
+}
+
+function sccpNumericBoundaries() {
+    let zero = 0;
+    let negative = -1;
+    let minusFour = -4;
+    let two = 2;
+    let max = 2147483647;
+    let min = -2147483648;
+    print(-zero);
+    print(zero * negative);
+    print(negative * zero);
+    print(minusFour % two);
+    print(max + two);
+    print(max * two);
+    print(-min);
 }
 
 function sccpIfCheck() {

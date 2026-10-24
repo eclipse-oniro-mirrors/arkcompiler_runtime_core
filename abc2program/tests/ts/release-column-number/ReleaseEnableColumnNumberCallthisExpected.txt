@@ -3,11 +3,11 @@
 # ====================
 # LITERALS
 
-_ESModuleRecord_951 { 6 [ i32:0, i32:0, i32:0, i32:0, i32:0, i32:0, ]}
+_ESModuleRecord_975 { 6 [ i32:0, i32:0, i32:0, i32:0, i32:0, i32:0, ]}
 
-_ESScopeNamesRecord_947 
+_ESScopeNamesRecord_971 
 
-_GLOBAL_979 { 38 [ tag_value:5, string:"test", tag_value:6, method:.#~A>#test, tag_value:9, method_affiliate:0, tag_value:5, string:"callthis1", tag_value:6, method:.#~A>#callthis1, tag_value:9, method_affiliate:1, tag_value:5, string:"callthis2", tag_value:6, method:.#~A>#callthis2, tag_value:9, method_affiliate:2, tag_value:5, string:"callthis3", tag_value:6, method:.#~A>#callthis3, tag_value:9, method_affiliate:3, tag_value:5, string:"callthisRange", tag_value:6, method:.#~A>#callthisRange, tag_value:9, method_affiliate:4, tag_value:5, string:"withRestParams", tag_value:6, method:.#~A>#withRestParams, tag_value:9, method_affiliate:0, tag_value:2, i32:6, ]}
+_GLOBAL_1003 { 38 [ tag_value:5, string:"test", tag_value:6, method:.#~A>#test, tag_value:9, method_affiliate:0, tag_value:5, string:"callthis1", tag_value:6, method:.#~A>#callthis1, tag_value:9, method_affiliate:1, tag_value:5, string:"callthis2", tag_value:6, method:.#~A>#callthis2, tag_value:9, method_affiliate:2, tag_value:5, string:"callthis3", tag_value:6, method:.#~A>#callthis3, tag_value:9, method_affiliate:3, tag_value:5, string:"callthisRange", tag_value:6, method:.#~A>#callthisRange, tag_value:9, method_affiliate:4, tag_value:5, string:"withRestParams", tag_value:6, method:.#~A>#withRestParams, tag_value:9, method_affiliate:0, tag_value:2, i32:6, ]}
 
 
 
@@ -21,13 +21,13 @@ _GLOBAL_979 { 38 [ tag_value:5, string:"test", tag_value:6, method:.#~A>#test, t
 
 .language ECMAScript
 .record _ESModuleRecord {
-	u32 arkcompiler/runtime_core/abc2program/tests/ts/release-column-number/ReleaseEnableColumnNumberCallthis.ts _ESModuleRecord_951
+	u32 arkcompiler/runtime_core/abc2program/tests/ts/release-column-number/ReleaseEnableColumnNumberCallthis.ts _ESModuleRecord_975
 }
 .record.source_file 
 
 .language ECMAScript
 .record _ESScopeNamesRecord {
-	u32 arkcompiler/runtime_core/abc2program/tests/ts/release-column-number/ReleaseEnableColumnNumberCallthis.ts _ESScopeNamesRecord_947
+	u32 arkcompiler/runtime_core/abc2program/tests/ts/release-column-number/ReleaseEnableColumnNumberCallthis.ts _ESScopeNamesRecord_971
 }
 .record.source_file 
 
@@ -100,9 +100,7 @@ _GLOBAL_979 { 38 [ tag_value:5, string:"test", tag_value:6, method:.#~A>#test, t
 	throw.undefinedifholewithname A          # line: 22           # column: 0
 	ldai 0x2                                 # line: 22           # column: 0
 	sta v1                                   # line: 22           # column: 0
-	mov v2, v0                               # line: 22           # column: 0
-	mov v3, v1                               # line: 22           # column: 0
-	newobjrange 0x0, 0x2, v2                 # line: 22           # column: 0
+	newobjrange 0x0, 0x2, v0                 # line: 22           # column: 0
 	return                                   # line: 23           # column: 0
 }
 
@@ -127,7 +125,7 @@ _GLOBAL_979 { 38 [ tag_value:5, string:"test", tag_value:6, method:.#~A>#test, t
 	label@4:                                 # line: 0           # column: 0
 	ldhole                                   # line: 15           # column: 0
 	sta v7                                   # line: 15           # column: 0
-	defineclasswithbuffer 0x0, .#~A=#A, _GLOBAL_979, 0x1, v7 # line: 15           # column: 0
+	defineclasswithbuffer 0x0, .#~A=#A, _GLOBAL_1003, 0x1, v7 # line: 15           # column: 0
 	sta v6                                   # line: 15           # column: 0
 	sta v8                                   # line: 15           # column: 0
 	lda v8                                   # line: 15           # column: 0

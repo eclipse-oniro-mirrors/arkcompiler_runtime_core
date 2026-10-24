@@ -1,4 +1,4 @@
-# Copyright (c) 2022 Huawei Device Co., Ltd.
+# Copyright (c) 2022-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -89,6 +89,8 @@ host_unittest_action("BytecodeOptimizerTest") {
     "dynamic_cse_test.cpp",
     "excluded_keys_test.cpp",
     "optimize_bytecode_test.cpp",
+    "peephole_optimizer_test.cpp",
+    "reg_acc_alloc_test.cpp",
     "reg_encoder_test.cpp",
   ]
   configs = bcopt_test_config

@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright (c) 2024 Shenzhen Kaihong Digital Industry Development Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -110,6 +110,9 @@ private:
     LatticeElement *FoldingConstant(RuntimeInterface::IntrinsicId id);
     LatticeElement *FoldingConstant(ConstantElement *lattice, RuntimeInterface::IntrinsicId id);
     LatticeElement *FoldingConstant(ConstantElement *left, ConstantElement *right, RuntimeInterface::IntrinsicId id);
+    LatticeElement *FoldingNumeric(ConstantElement *left, ConstantElement *right, RuntimeInterface::IntrinsicId id);
+    LatticeElement *FoldingNeg(ConstantElement *lattice);
+    LatticeElement *CreateNumericConstant(double value);
     LatticeElement *FoldingCompare(const ConstantElement *left, const ConstantElement *right,
                                    compiler::ConditionCode cc);
 

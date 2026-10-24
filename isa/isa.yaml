@@ -762,10 +762,12 @@ groups:
         acc: inout:top
         opcode_idx: [0x23]
         format: [op_none]
+        properties: [no_side_effect]
       - sig: isfalse
         acc: inout:top
         opcode_idx: [0x24]
         format: [op_none]
+        properties: [no_side_effect]
 
   - title: comparation instructions
     description: comparation instructions
@@ -796,12 +798,12 @@ groups:
         acc: inout:top
         opcode_idx: [0x27]
         format: [op_imm_8_v_8]
-        properties: [jit_ic_slot, one_slot, eight_bit_ic]
+        properties: [jit_ic_slot, one_slot, eight_bit_ic, no_side_effect]
       - sig: stricteq imm:u8, v:in:top
         acc: inout:top
         opcode_idx: [0x28]
         format: [op_imm_8_v_8]
-        properties: [jit_ic_slot, one_slot, eight_bit_ic]
+        properties: [jit_ic_slot, one_slot, eight_bit_ic, no_side_effect]
 
   - title: call runtime functions
     description: instructions which call runtime functions

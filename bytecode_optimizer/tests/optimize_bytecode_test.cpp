@@ -13,6 +13,10 @@
  * limitations under the License.
  */
 
+#include <algorithm>
+#include <iterator>
+#include <vector>
+
 #include <gtest/gtest.h>
 
 #include "assembler/assembly-parser.h"
@@ -33,6 +37,12 @@ public:
     static void TearDownTestCase(void) {}
     void SetUp() {}
     void TearDown() {}
+
+    static size_t CountOpcode(const std::vector<pandasm::InsPtr> &instructions, pandasm::Opcode opcode)
+    {
+        return std::count_if(instructions.begin(), instructions.end(),
+                             [opcode](const auto &inst) { return inst->GetOpcode() == opcode; });
+    }
 
     void EmitAndOptimize(const std::string &abc_file_name, panda::pandasm::Program &program) const
     {
@@ -222,6 +232,133 @@ HWTEST_F(OptimizeBytecodeTest, optimize_bytecode_test_003, TestSize.Level1) {
     EXPECT_TRUE(panda::bytecodeopt::OptimizeBytecode(&program, &panda_file_to_asm_maps, abc_file_name, true));
 }
 
+HWTEST_F(OptimizeBytecodeTest, RemovesUnusedSideEffectFreeResults, TestSize.Level1)
+{
+    const auto source = R"(
+        .language ECMAScript
+        .function any func_main_0(any a0) <static> {
+            lda a0
+            istrue
+            lda a0
+            isfalse
+            lda a0
+            sta v0
+            stricteq 0x0, v0
+            lda a0
+            strictnoteq 0x0, v0
+            lda a0
+            eq 0x0, v0
+            ldundefined
+            returnundefined
+        }
+    )";
+
+    panda::pandasm::Parser parser;
+    auto res = parser.Parse(source);
+    ASSERT_TRUE(res.HasValue());
+    auto &program = res.Value();
+    const std::string fun_name = "func_main_0:(any)";
+    auto it = program.function_table.find(fun_name);
+    ASSERT_NE(it, program.function_table.end());
+
+    EmitAndOptimize("unusedPureResults.abc", program);
+
+    const auto &instructions = it->second.ins;
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::ISTRUE), 0U);
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::ISFALSE), 0U);
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::STRICTEQ), 0U);
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::STRICTNOTEQ), 0U);
+    EXPECT_GT(CountOpcode(instructions, pandasm::Opcode::EQ), 0U);
+}
+
+HWTEST_F(OptimizeBytecodeTest, RemovesUnusedRegisterSave, TestSize.Level1)
+{
+    const auto source = R"(
+        .language ECMAScript
+        .function any func_main_0() <static> {
+            tryldglobalbyname 0x0, "unused"
+            sta v0
+            ldundefined
+            returnundefined
+        }
+    )";
+
+    panda::pandasm::Parser parser;
+    auto res = parser.Parse(source);
+    ASSERT_TRUE(res.HasValue());
+    auto &program = res.Value();
+    const std::string fun_name = "func_main_0:()";
+    auto it = program.function_table.find(fun_name);
+    ASSERT_NE(it, program.function_table.end());
+
+    EmitAndOptimize("unusedRegisterSave.abc", program);
+
+    const auto &instructions = it->second.ins;
+    EXPECT_GT(CountOpcode(instructions, pandasm::Opcode::TRYLDGLOBALBYNAME), 0U);
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::STA), 0U);
+}
+
+HWTEST_F(OptimizeBytecodeTest, KeepsUsedSideEffectFreeResults, TestSize.Level1)
+{
+    const auto source = R"(
+        .language ECMAScript
+        .function any func_main_0(any a0) <static> {
+            lda a0
+            istrue
+            return
+        }
+    )";
+
+    panda::pandasm::Parser parser;
+    auto res = parser.Parse(source);
+    ASSERT_TRUE(res.HasValue());
+    auto &program = res.Value();
+    const std::string fun_name = "func_main_0:(any)";
+    auto it = program.function_table.find(fun_name);
+    ASSERT_NE(it, program.function_table.end());
+
+    EmitAndOptimize("usedSideEffectFreeResult.abc", program);
+
+    const auto &instructions = it->second.ins;
+    EXPECT_GT(CountOpcode(instructions, pandasm::Opcode::ISTRUE), 0U);
+}
+
+HWTEST_F(OptimizeBytecodeTest, FoldsNullishCheckChain, TestSize.Level1)
+{
+    const auto source = R"(
+        .language ECMAScript
+        .function any func_main_0(any a0) <static> {
+            ldnull
+            strictnoteq 0x0, a0
+            jeqz nullish
+            ldundefined
+            strictnoteq 0x1, a0
+            jnez nonnull
+        nullish:
+            ldai 0x0
+            return
+        nonnull:
+            ldai 0x1
+            return
+        }
+    )";
+
+    panda::pandasm::Parser parser;
+    auto res = parser.Parse(source);
+    ASSERT_TRUE(res.HasValue());
+    auto &program = res.Value();
+    const std::string fun_name = "func_main_0:(any)";
+    auto it = program.function_table.find(fun_name);
+    ASSERT_NE(it, program.function_table.end());
+
+    EmitAndOptimize("nullishCheckChain.abc", program);
+
+    const auto &instructions = it->second.ins;
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::NOTEQ), 1);
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::STRICTNOTEQ), 0);
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::LDUNDEFINED), 0);
+}
+
 HWTEST_F(OptimizeBytecodeTest, EliminatesRepeatedDynamicStrictEqInPipeline, TestSize.Level1)
 {
     const auto source = R"(
@@ -249,17 +386,14 @@ HWTEST_F(OptimizeBytecodeTest, EliminatesRepeatedDynamicStrictEqInPipeline, Test
     auto res = parser.Parse(source);
     ASSERT_TRUE(res.HasValue());
     auto &program = res.Value();
-    const std::string funName = "func_main_0:(any,any)";
-    auto it = program.function_table.find(funName);
+    const std::string fun_name = "func_main_0:(any,any)";
+    auto it = program.function_table.find(fun_name);
     ASSERT_NE(it, program.function_table.end());
 
     EmitAndOptimize("dynamicCsePositive.abc", program);
 
     const auto &instructions = it->second.ins;
-    auto strictEqCount = std::count_if(instructions.begin(), instructions.end(), [](const auto &inst) {
-        return inst->GetOpcode() == pandasm::Opcode::STRICTEQ;
-    });
-    EXPECT_EQ(strictEqCount, 1U);
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::STRICTEQ), 1U);
 }
 
 HWTEST_F(OptimizeBytecodeTest, KeepsRepeatedDynamicStrictEqWhenProducerIsNotLiveAcrossCurrent, TestSize.Level1)
@@ -286,17 +420,14 @@ HWTEST_F(OptimizeBytecodeTest, KeepsRepeatedDynamicStrictEqWhenProducerIsNotLive
     auto res = parser.Parse(source);
     ASSERT_TRUE(res.HasValue());
     auto &program = res.Value();
-    const std::string funName = "func_main_0:(any,any)";
-    auto it = program.function_table.find(funName);
+    const std::string fun_name = "func_main_0:(any,any)";
+    auto it = program.function_table.find(fun_name);
     ASSERT_NE(it, program.function_table.end());
 
     EmitAndOptimize("dynamicCseNegative.abc", program);
 
     const auto &instructions = it->second.ins;
-    auto strictEqCount = std::count_if(instructions.begin(), instructions.end(), [](const auto &inst) {
-        return inst->GetOpcode() == pandasm::Opcode::STRICTEQ;
-    });
-    EXPECT_EQ(strictEqCount, 2U);
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::STRICTEQ), 2U);
 }
 
 HWTEST_F(OptimizeBytecodeTest, EliminatesRepeatedSuperCallStateChecksInPipeline, TestSize.Level1)
@@ -317,23 +448,19 @@ HWTEST_F(OptimizeBytecodeTest, EliminatesRepeatedSuperCallStateChecksInPipeline,
     auto res = parser.Parse(source);
     ASSERT_TRUE(res.HasValue());
     auto &program = res.Value();
-    const std::string funName = "func_main_0:(any)";
-    auto it = program.function_table.find(funName);
+    const std::string fun_name = "func_main_0:(any)";
+    auto it = program.function_table.find(fun_name);
     ASSERT_NE(it, program.function_table.end());
 
-    const auto CountOpcode = [](const auto &instructions, pandasm::Opcode opcode) {
-        return std::count_if(instructions.begin(), instructions.end(),
-                             [opcode](const auto &inst) { return inst->GetOpcode() == opcode; });
-    };
-    auto ldaCountBefore = CountOpcode(it->second.ins, pandasm::Opcode::LDA);
-    auto staCountBefore = CountOpcode(it->second.ins, pandasm::Opcode::STA);
+    auto lda_count_before = CountOpcode(it->second.ins, pandasm::Opcode::LDA);
+    auto sta_count_before = CountOpcode(it->second.ins, pandasm::Opcode::STA);
 
     EmitAndOptimize("redundantSuperCheck.abc", program);
 
     const auto &instructions = it->second.ins;
     EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::THROW_IFSUPERNOTCORRECTCALL), 1U);
-    EXPECT_LE(CountOpcode(instructions, pandasm::Opcode::LDA), ldaCountBefore);
-    EXPECT_LE(CountOpcode(instructions, pandasm::Opcode::STA), staCountBefore);
+    EXPECT_LE(CountOpcode(instructions, pandasm::Opcode::LDA), lda_count_before);
+    EXPECT_LE(CountOpcode(instructions, pandasm::Opcode::STA), sta_count_before);
 }
 
 HWTEST_F(OptimizeBytecodeTest, KeepsSuperChecksAcrossThisInitializationInPipeline, TestSize.Level1)
@@ -357,16 +484,107 @@ HWTEST_F(OptimizeBytecodeTest, KeepsSuperChecksAcrossThisInitializationInPipelin
     auto res = parser.Parse(source);
     ASSERT_TRUE(res.HasValue());
     auto &program = res.Value();
-    const std::string funName = "func_main_0:(any,any)";
-    auto it = program.function_table.find(funName);
+    const std::string fun_name = "func_main_0:(any,any)";
+    auto it = program.function_table.find(fun_name);
     ASSERT_NE(it, program.function_table.end());
 
     EmitAndOptimize("superCheckStateTransition.abc", program);
 
     const auto &instructions = it->second.ins;
-    auto checkCount = std::count_if(instructions.begin(), instructions.end(), [](const auto &inst) {
-        return inst->GetOpcode() == pandasm::Opcode::THROW_IFSUPERNOTCORRECTCALL;
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::THROW_IFSUPERNOTCORRECTCALL), 2U);
+}
+
+HWTEST_F(OptimizeBytecodeTest, KeepsCatchExceptionInAccumulatorForAsyncReject, TestSize.Level1)
+{
+    const auto source = R"(
+        .language ECMAScript
+        .function any func_main_0(any a0) <static> {
+            asyncfunctionenter
+            sta v0
+        try_begin_label_0:
+            lda a0
+            throw
+        try_end_label_0:
+            jmp handler_end_label_0_0
+        handler_begin_label_0_0:
+            sta v1
+            lda v1
+            asyncfunctionreject v0
+            return
+        handler_end_label_0_0:
+            ldundefined
+            returnundefined
+
+        .catchall try_begin_label_0, try_end_label_0, handler_begin_label_0_0, handler_end_label_0_0
+        }
+    )";
+
+    panda::pandasm::Parser parser;
+    auto res = parser.Parse(source);
+    ASSERT_TRUE(res.HasValue());
+    auto &program = res.Value();
+    const std::string fun_name = "func_main_0:(any)";
+    auto it = program.function_table.find(fun_name);
+    ASSERT_NE(it, program.function_table.end());
+
+    EmitAndOptimize("catchAccAsyncReject.abc", program);
+
+    const auto &instructions = it->second.ins;
+    auto reject = std::find_if(instructions.begin(), instructions.end(), [](const auto &inst) {
+        return inst->GetOpcode() == pandasm::Opcode::ASYNCFUNCTIONREJECT;
     });
-    EXPECT_EQ(checkCount, 2U);
+    ASSERT_NE(reject, instructions.end());
+    ASSERT_NE(reject, instructions.begin());
+    EXPECT_NE((*std::prev(reject))->GetOpcode(), pandasm::Opcode::LDA);
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::STA), 1U);
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::LDA), 1U);
+}
+
+HWTEST_F(OptimizeBytecodeTest, MaterializesCatchExceptionAfterAccumulatorWrite, TestSize.Level1)
+{
+    const auto source = R"(
+        .language ECMAScript
+        .function any func_main_0(any a0) <static> {
+            asyncfunctionenter
+            sta v0
+        try_begin_label_0:
+            lda a0
+            throw
+        try_end_label_0:
+            jmp handler_end_label_0_0
+        handler_begin_label_0_0:
+            sta v1
+            ldai 0x1
+            stglobalvar 0x0, "catchMarker"
+            lda v1
+            asyncfunctionreject v0
+            return
+        handler_end_label_0_0:
+            ldundefined
+            returnundefined
+
+        .catchall try_begin_label_0, try_end_label_0, handler_begin_label_0_0, handler_end_label_0_0
+        }
+    )";
+
+    panda::pandasm::Parser parser;
+    auto res = parser.Parse(source);
+    ASSERT_TRUE(res.HasValue());
+    auto &program = res.Value();
+    const std::string fun_name = "func_main_0:(any)";
+    auto it = program.function_table.find(fun_name);
+    ASSERT_NE(it, program.function_table.end());
+
+    EmitAndOptimize("catchAccOverwrite.abc", program);
+
+    const auto &instructions = it->second.ins;
+    auto reject = std::find_if(instructions.begin(), instructions.end(), [](const auto &inst) {
+        return inst->GetOpcode() == pandasm::Opcode::ASYNCFUNCTIONREJECT;
+    });
+    ASSERT_NE(reject, instructions.end());
+    ASSERT_NE(reject, instructions.begin());
+    EXPECT_EQ((*std::prev(reject))->GetOpcode(), pandasm::Opcode::LDA);
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::STA), 2U);
+    EXPECT_EQ(CountOpcode(instructions, pandasm::Opcode::LDA), 2U);
 }
 }  // namespace panda::bytecodeopt

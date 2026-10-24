@@ -120,11 +120,7 @@ HWTEST_F(ExcludedKeysTest, excluded_keys_001, testing::ext::TestSize.Level1)
             sta v2
             lda.str "c"
             sta v3
-            mov v4, v0
-            mov v5, v1
-            mov v6, v2
-            mov v7, v3
-            createobjectwithexcludedkeys 0x2, v4, v5
+            createobjectwithexcludedkeys 0x2, v0, v1
             sttoglobalrecord 0xa, "d"
             returnundefined
         }

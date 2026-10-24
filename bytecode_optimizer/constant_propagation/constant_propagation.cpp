@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright (c) 2024 Shenzhen Kaihong Digital Industry Development Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -28,6 +28,9 @@
 
 #include "constant_propagation.h"
 #include "bytecode_optimizer/bytecode_analysis_results.h"
+
+#include <cmath>
+#include <limits>
 
 namespace panda::bytecodeopt {
 
@@ -408,6 +411,12 @@ LatticeElement *ConstantPropagation::FoldingConstant(ConstantElement *left, Cons
                                                      RuntimeInterface::IntrinsicId id)
 {
     switch (id) {
+        case RuntimeInterface::IntrinsicId::ADD2_IMM8_V8:
+        case RuntimeInterface::IntrinsicId::SUB2_IMM8_V8:
+        case RuntimeInterface::IntrinsicId::MUL2_IMM8_V8:
+        case RuntimeInterface::IntrinsicId::DIV2_IMM8_V8:
+        case RuntimeInterface::IntrinsicId::MOD2_IMM8_V8:
+            return FoldingNumeric(left, right, id);
         case RuntimeInterface::IntrinsicId::GREATER_IMM8_V8:
         case RuntimeInterface::IntrinsicId::GREATEREQ_IMM8_V8: {
             return FoldingGreater(left, right, id == RuntimeInterface::IntrinsicId::GREATEREQ_IMM8_V8);
@@ -462,6 +471,8 @@ LatticeElement *ConstantPropagation::FoldingConstant(RuntimeInterface::Intrinsic
 LatticeElement *ConstantPropagation::FoldingConstant(ConstantElement *lattice, RuntimeInterface::IntrinsicId id)
 {
     switch (id) {
+        case RuntimeInterface::IntrinsicId::NEG_IMM8:
+            return FoldingNeg(lattice);
         case RuntimeInterface::IntrinsicId::ISFALSE:
         case RuntimeInterface::IntrinsicId::ISTRUE:
         case RuntimeInterface::IntrinsicId::CALLRUNTIME_ISFALSE_PREF_IMM8:
@@ -475,6 +486,99 @@ LatticeElement *ConstantPropagation::FoldingConstant(ConstantElement *lattice, R
             return GetGraph()->GetLocalAllocator()->New<ConstantElement>(
                 is_true_ins ? cst : !cst);
         }
+        default:
+            return BottomElement::GetInstance();
+    }
+}
+
+LatticeElement *ConstantPropagation::FoldingNumeric(ConstantElement *left, ConstantElement *right,
+                                                    RuntimeInterface::IntrinsicId id)
+{
+    if (left == nullptr || right == nullptr || left->GetType() != right->GetType()) {
+        return BottomElement::GetInstance();
+    }
+
+    double lhs;
+    double rhs;
+    switch (left->GetType()) {
+        case ConstantValue::CONSTANT_INT32:
+            lhs = left->GetValue<int32_t>();
+            rhs = right->GetValue<int32_t>();
+            break;
+        case ConstantValue::CONSTANT_INT64: {
+            constexpr int64_t MAX_SAFE_INTEGER = (1LL << 53U) - 1;
+            auto left_value = left->GetValue<int64_t>();
+            auto right_value = right->GetValue<int64_t>();
+            if (left_value < -MAX_SAFE_INTEGER || left_value > MAX_SAFE_INTEGER || right_value < -MAX_SAFE_INTEGER ||
+                right_value > MAX_SAFE_INTEGER) {
+                return BottomElement::GetInstance();
+            }
+            lhs = static_cast<double>(left_value);
+            rhs = static_cast<double>(right_value);
+            break;
+        }
+        case ConstantValue::CONSTANT_DOUBLE:
+            lhs = left->GetValue<double>();
+            rhs = right->GetValue<double>();
+            break;
+        default:
+            return BottomElement::GetInstance();
+    }
+
+    double result;
+    switch (id) {
+        case RuntimeInterface::IntrinsicId::ADD2_IMM8_V8:
+            result = lhs + rhs;
+            break;
+        case RuntimeInterface::IntrinsicId::SUB2_IMM8_V8:
+            result = lhs - rhs;
+            break;
+        case RuntimeInterface::IntrinsicId::MUL2_IMM8_V8:
+            result = lhs * rhs;
+            break;
+        case RuntimeInterface::IntrinsicId::DIV2_IMM8_V8:
+        case RuntimeInterface::IntrinsicId::MOD2_IMM8_V8:
+            if (!std::isfinite(lhs) || !std::isfinite(rhs) || rhs == 0.0) {
+                return BottomElement::GetInstance();
+            }
+            result = id == RuntimeInterface::IntrinsicId::DIV2_IMM8_V8 ? lhs / rhs : std::fmod(lhs, rhs);
+            break;
+        default:
+            return BottomElement::GetInstance();
+    }
+    return CreateNumericConstant(result);
+}
+
+LatticeElement *ConstantPropagation::CreateNumericConstant(double value)
+{
+    auto *allocator = GetGraph()->GetLocalAllocator();
+    // ldai encodes a signed 32-bit immediate even when the IR constant has type INT64.
+    // Keep negative zero and all other Number values in fldai's double representation.
+    if (value >= std::numeric_limits<int32_t>::min() && value <= std::numeric_limits<int32_t>::max() &&
+        std::trunc(value) == value && !(value == 0.0 && std::signbit(value))) {
+        return allocator->New<ConstantElement>(static_cast<int32_t>(value));
+    }
+    return allocator->New<ConstantElement>(value);
+}
+
+LatticeElement *ConstantPropagation::FoldingNeg(ConstantElement *lattice)
+{
+    if (lattice == nullptr) {
+        return BottomElement::GetInstance();
+    }
+    switch (lattice->GetType()) {
+        case ConstantValue::CONSTANT_INT32:
+            return CreateNumericConstant(-static_cast<double>(lattice->GetValue<int32_t>()));
+        case ConstantValue::CONSTANT_INT64: {
+            constexpr int64_t MAX_SAFE_INTEGER = (1LL << 53U) - 1;
+            auto value = lattice->GetValue<int64_t>();
+            if (value < -MAX_SAFE_INTEGER || value > MAX_SAFE_INTEGER) {
+                return BottomElement::GetInstance();
+            }
+            return CreateNumericConstant(-static_cast<double>(value));
+        }
+        case ConstantValue::CONSTANT_DOUBLE:
+            return CreateNumericConstant(-lattice->GetValue<double>());
         default:
             return BottomElement::GetInstance();
     }

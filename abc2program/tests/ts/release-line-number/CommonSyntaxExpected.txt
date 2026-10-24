@@ -3,29 +3,29 @@
 # ====================
 # LITERALS
 
-_ESModuleRecord_2716 { 8 [ i32:0, i32:0, i32:0, i32:1, string:"ClassA", string:"ClassA", i32:0, i32:0, ]}
+_ESModuleRecord_2661 { 8 [ i32:0, i32:0, i32:0, i32:1, string:"ClassA", string:"ClassA", i32:0, i32:0, ]}
 
-_ESScopeNamesRecord_2682 { 12 [ tag_value:5, string:"Person", tag_value:5, string:"fetchData", tag_value:5, string:"TestA", tag_value:5, string:"ClassA", tag_value:5, string:"Parent", tag_value:5, string:"Child", ]}
+_ESScopeNamesRecord_2627 { 12 [ tag_value:5, string:"Person", tag_value:5, string:"fetchData", tag_value:5, string:"TestA", tag_value:5, string:"ClassA", tag_value:5, string:"Parent", tag_value:5, string:"Child", ]}
 
-_GLOBAL_2752 { 8 [ tag_value:5, string:"sayHello", tag_value:6, method:.#~@4>#sayHello, tag_value:9, method_affiliate:0, tag_value:2, i32:1, ]}
+_GLOBAL_2697 { 8 [ tag_value:5, string:"sayHello", tag_value:6, method:.#~@4>#sayHello, tag_value:9, method_affiliate:0, tag_value:2, i32:1, ]}
 
-_GLOBAL_2774 { 8 [ tag_value:5, string:"sayHello", tag_value:6, method:.#~@5>#sayHello, tag_value:9, method_affiliate:0, tag_value:2, i32:1, ]}
+_GLOBAL_2719 { 8 [ tag_value:5, string:"sayHello", tag_value:6, method:.#~@5>#sayHello, tag_value:9, method_affiliate:0, tag_value:2, i32:1, ]}
 
-_GLOBAL_2796 { 4 [ tag_value:5, string:"mySymbol", tag_value:5, string:"prop", ]}
+_GLOBAL_2741 { 4 [ tag_value:5, string:"mySymbol", tag_value:5, string:"prop", ]}
 
-_GLOBAL_2810 { 6 [ tag_value:2, i32:1, tag_value:2, i32:2, tag_value:2, i32:3, ]}
+_GLOBAL_2755 { 6 [ tag_value:2, i32:1, tag_value:2, i32:2, tag_value:2, i32:3, ]}
 
-_GLOBAL_2829 { 14 [ tag_value:5, string:"name", tag_value:5, string:"Alice", tag_value:5, string:"age", tag_value:2, i32:25, tag_value:5, string:"greet", tag_value:6, method:.#*#greet^1, tag_value:9, method_affiliate:0, ]}
+_GLOBAL_2774 { 14 [ tag_value:5, string:"name", tag_value:5, string:"Alice", tag_value:5, string:"age", tag_value:2, i32:25, tag_value:5, string:"greet", tag_value:6, method:.#*#greet^1, tag_value:9, method_affiliate:0, ]}
 
-_GLOBAL_2866 { 8 [ tag_value:5, string:"gender", tag_value:5, string:"男", tag_value:5, string:"grade", tag_value:5, string:"2", ]}
+_GLOBAL_2811 { 8 [ tag_value:5, string:"gender", tag_value:5, string:"男", tag_value:5, string:"grade", tag_value:5, string:"2", ]}
 
-_GLOBAL_2890 { 6 [ tag_value:2, i32:1, tag_value:2, i32:2, tag_value:2, i32:3, ]}
+_GLOBAL_2835 { 6 [ tag_value:2, i32:1, tag_value:2, i32:2, tag_value:2, i32:3, ]}
 
-_GLOBAL_2909 { 8 [ tag_value:5, string:"greet", tag_value:6, method:.#~@0>#greet, tag_value:9, method_affiliate:0, tag_value:2, i32:1, ]}
+_GLOBAL_2854 { 8 [ tag_value:5, string:"greet", tag_value:6, method:.#~@0>#greet, tag_value:9, method_affiliate:0, tag_value:2, i32:1, ]}
 
-_GLOBAL_2931 { 2 [ tag_value:2, i32:0, ]}
+_GLOBAL_2876 { 2 [ tag_value:2, i32:0, ]}
 
-_GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
+_GLOBAL_2885 { 2 [ tag_value:2, i32:0, ]}
 
 
 
@@ -39,13 +39,13 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 
 .language ECMAScript
 .record _ESModuleRecord {
-	u32 arkcompiler/runtime_core/abc2program/tests/ts/release-line-number/CommonSyntax.ts _ESModuleRecord_2716
+	u32 arkcompiler/runtime_core/abc2program/tests/ts/release-line-number/CommonSyntax.ts _ESModuleRecord_2661
 }
 .record.source_file 
 
 .language ECMAScript
 .record _ESScopeNamesRecord {
-	u32 arkcompiler/runtime_core/abc2program/tests/ts/release-line-number/CommonSyntax.ts _ESScopeNamesRecord_2682
+	u32 arkcompiler/runtime_core/abc2program/tests/ts/release-line-number/CommonSyntax.ts _ESScopeNamesRecord_2627
 }
 .record.source_file 
 
@@ -236,41 +236,38 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 	suspendgenerator v0                      # line: 140           # column: 0
 	lda v0                                   # line: 140           # column: 0
 	resumegenerator                          # line: 140           # column: 0
-	sta v4                                   # line: 140           # column: 0
+	sta v3                                   # line: 140           # column: 0
 	lda v0                                   # line: 140           # column: 0
 	getresumemode                            # line: 140           # column: 0
-	sta v5                                   # line: 140           # column: 0
+	sta v4                                   # line: 140           # column: 0
 	ldai 0x1                                 # line: 140           # column: 0
-	eq 0x2, v5                               # line: 140           # column: 0
+	eq 0x2, v4                               # line: 140           # column: 0
 	jeqz label@19                            # line: 140           # column: 0
-	lda v4                                   # line: 140           # column: 0
+	lda v3                                   # line: 140           # column: 0
 	throw                                    # line: 140           # column: 0
 	label@19:                                # line: 0           # column: 0
 	tryldglobalbyname 0x3, console           # line: 141           # column: 0
-	sta v5                                   # line: 141           # column: 0
+	sta v4                                   # line: 141           # column: 0
 	ldobjbyname 0x4, log                     # line: 141           # column: 0
-	callthis1 0x6, v5, v4                    # line: 141           # column: 0
+	callthis1 0x6, v4, v3                    # line: 141           # column: 0
 	label@23:                                # line: 0           # column: 0
 	jmp label@34                             # line: 141           # column: 0
 	label@24:                                # line: 0           # column: 0
-	sta v3                                   # line: 142           # column: 0
+	sta v2                                   # line: 142           # column: 0
 	mov v1, v0                               # line: 142           # column: 0
 	tryldglobalbyname 0x8, console           # line: 143           # column: 0
-	sta v4                                   # line: 143           # column: 0
+	sta v3                                   # line: 143           # column: 0
 	ldobjbyname 0x9, error                   # line: 143           # column: 0
-	sta v5                                   # line: 143           # column: 0
+	sta v4                                   # line: 143           # column: 0
 	lda.str An error occurred:               # line: 143           # column: 0
-	sta v6                                   # line: 143           # column: 0
-	lda v5                                   # line: 143           # column: 0
-	callthis2 0xb, v4, v6, v3                # line: 143           # column: 0
+	sta v5                                   # line: 143           # column: 0
+	lda v4                                   # line: 143           # column: 0
+	callthis2 0xb, v3, v5, v2                # line: 143           # column: 0
 	label@34:                                # line: 0           # column: 0
-	mov v1, v0                               # line: 143           # column: 0
 	ldundefined                              # line: 4294967295           # column: 0
 	asyncfunctionresolve v0                  # line: 4294967295           # column: 0
 	return                                   # line: 145           # column: 0
-	label@38:                                # line: 0           # column: 0
-	sta v2                                   # line: 138           # column: 0
-	lda v2                                   # line: 138           # column: 0
+	label@37:                                # line: 0           # column: 0
 	asyncfunctionreject v1                   # line: 138           # column: 0
 	return                                   # line: 145           # column: 0
 .catchall :
@@ -280,9 +277,9 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 	catch_end_label : label@24
 .catchall :
 	try_begin_label : label@3
-	try_end_label : label@38
-	catch_begin_label : label@38
-	catch_end_label : label@38
+	try_end_label : label@37
+	catch_begin_label : label@37
+	catch_end_label : label@37
 }
 
 .function_kind FunctionKind::FUNCTION
@@ -294,9 +291,7 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 	sta v0                                   # line: 125           # column: 0
 	definefunc 0x1, .#*@1*#, 0x2             # line: 125           # column: 0
 	sta v1                                   # line: 125           # column: 0
-	mov v2, v0                               # line: 125           # column: 0
-	mov v3, v1                               # line: 125           # column: 0
-	newobjrange 0x2, 0x2, v2                 # line: 125           # column: 0
+	newobjrange 0x2, 0x2, v0                 # line: 125           # column: 0
 	return                                   # line: 130           # column: 0
 }
 
@@ -440,9 +435,7 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 	throw.undefinedifholewithname TestA      # line: 153           # column: 0
 	ldai 0x64                                # line: 153           # column: 0
 	sta v1                                   # line: 153           # column: 0
-	mov v2, v0                               # line: 153           # column: 0
-	mov v3, v1                               # line: 153           # column: 0
-	newobjrange 0x0, 0x2, v2                 # line: 153           # column: 0
+	newobjrange 0x0, 0x2, v0                 # line: 153           # column: 0
 	stobjbyname 0x2, a, a2                   # line: 153           # column: 0
 	lda a2                                   # line: 154           # column: 0
 	return                                   # line: 154           # column: 0
@@ -520,9 +513,9 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 	sta v7                                   # line: 22           # column: 0
 	ldbigint 10                              # line: 23           # column: 0
 	sta v8                                   # line: 23           # column: 0
-	createobjectwithbuffer 0x6, _GLOBAL_2796 # line: 24           # column: 0
+	createobjectwithbuffer 0x6, _GLOBAL_2741 # line: 24           # column: 0
 	sta v9                                   # line: 24           # column: 0
-	createarraywithbuffer 0x7, _GLOBAL_2810  # line: 27           # column: 0
+	createarraywithbuffer 0x7, _GLOBAL_2755  # line: 27           # column: 0
 	sta v10                                  # line: 27           # column: 0
 	definefunc 0x8, .#*#sum, 0x2             # line: 29           # column: 0
 	sta v11                                  # line: 29           # column: 0
@@ -534,8 +527,7 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 	callargs2 0x9, v12, v13                  # line: 32           # column: 0
 	tryldglobalbyname 0xb, Date              # line: 34           # column: 0
 	sta v11                                  # line: 34           # column: 0
-	mov v14, v11                             # line: 34           # column: 0
-	newobjrange 0xc, 0x1, v14                # line: 34           # column: 0
+	newobjrange 0xc, 0x1, v11                # line: 34           # column: 0
 	tryldglobalbyname 0xe, console           # line: 36           # column: 0
 	sta v11                                  # line: 36           # column: 0
 	ldobjbyname 0xf, log                     # line: 36           # column: 0
@@ -557,7 +549,7 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 	callthisrange 0x13, 0x9, v14             # line: 36           # column: 0
 	ldai 0x12                                # line: 36           # column: 0
 	greatereq 0x15, v0                       # line: 39           # column: 0
-	jeqz label@69                            # line: 39           # column: 0
+	jeqz label@68                            # line: 39           # column: 0
 	tryldglobalbyname 0x16, console          # line: 40           # column: 0
 	sta v3                                   # line: 40           # column: 0
 	ldobjbyname 0x17, log                    # line: 40           # column: 0
@@ -566,8 +558,8 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 	sta v5                                   # line: 40           # column: 0
 	lda v4                                   # line: 40           # column: 0
 	callthis1 0x19, v3, v5                   # line: 40           # column: 0
-	jmp label@77                             # line: 40           # column: 0
-	label@69:                                # line: 0           # column: 0
+	jmp label@76                             # line: 40           # column: 0
+	label@68:                                # line: 0           # column: 0
 	tryldglobalbyname 0x1b, console          # line: 42           # column: 0
 	sta v3                                   # line: 42           # column: 0
 	ldobjbyname 0x1c, log                    # line: 42           # column: 0
@@ -576,17 +568,17 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 	sta v5                                   # line: 42           # column: 0
 	lda v4                                   # line: 42           # column: 0
 	callthis1 0x1e, v3, v5                   # line: 42           # column: 0
-	label@77:                                # line: 0           # column: 0
+	label@76:                                # line: 0           # column: 0
 	lda.str Monday                           # line: 46           # column: 0
 	sta v3                                   # line: 46           # column: 0
 	lda.str Monday                           # line: 48           # column: 0
 	strictnoteq 0x20, v3                     # line: 48           # column: 0
-	jeqz label@86                            # line: 48           # column: 0
+	jeqz label@85                            # line: 48           # column: 0
 	lda.str Friday                           # line: 51           # column: 0
 	strictnoteq 0x21, v3                     # line: 51           # column: 0
-	jeqz label@95                            # line: 51           # column: 0
-	jmp label@104                            # line: 51           # column: 0
-	label@86:                                # line: 0           # column: 0
+	jeqz label@94                            # line: 51           # column: 0
+	jmp label@103                            # line: 51           # column: 0
+	label@85:                                # line: 0           # column: 0
 	tryldglobalbyname 0x22, console          # line: 49           # column: 0
 	sta v3                                   # line: 49           # column: 0
 	ldobjbyname 0x23, log                    # line: 49           # column: 0
@@ -595,8 +587,8 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 	sta v5                                   # line: 49           # column: 0
 	lda v4                                   # line: 49           # column: 0
 	callthis1 0x25, v3, v5                   # line: 49           # column: 0
-	jmp label@112                            # line: 49           # column: 0
-	label@95:                                # line: 0           # column: 0
+	jmp label@111                            # line: 49           # column: 0
+	label@94:                                # line: 0           # column: 0
 	tryldglobalbyname 0x27, console          # line: 52           # column: 0
 	sta v3                                   # line: 52           # column: 0
 	ldobjbyname 0x28, log                    # line: 52           # column: 0
@@ -605,8 +597,8 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 	sta v5                                   # line: 52           # column: 0
 	lda v4                                   # line: 52           # column: 0
 	callthis1 0x2a, v3, v5                   # line: 52           # column: 0
-	jmp label@112                            # line: 52           # column: 0
-	label@104:                               # line: 0           # column: 0
+	jmp label@111                            # line: 52           # column: 0
+	label@103:                               # line: 0           # column: 0
 	tryldglobalbyname 0x2c, console          # line: 55           # column: 0
 	sta v3                                   # line: 55           # column: 0
 	ldobjbyname 0x2d, log                    # line: 55           # column: 0
@@ -615,16 +607,16 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 	sta v5                                   # line: 55           # column: 0
 	lda v4                                   # line: 55           # column: 0
 	callthis1 0x2f, v3, v5                   # line: 55           # column: 0
-	label@112:                               # line: 0           # column: 0
+	label@111:                               # line: 0           # column: 0
 	ldai 0x5                                 # line: 55           # column: 0
 	sta v3                                   # line: 55           # column: 0
 	ldai 0x0                                 # line: 55           # column: 0
 	sta v4                                   # line: 55           # column: 0
 	mov v5, v4                               # line: 55           # column: 0
-	label@117:                               # line: 0           # column: 0
+	label@116:                               # line: 0           # column: 0
 	lda v3                                   # line: 59           # column: 0
 	less 0x31, v5                            # line: 59           # column: 0
-	jeqz label@129                           # line: 59           # column: 0
+	jeqz label@128                           # line: 59           # column: 0
 	tryldglobalbyname 0x32, console          # line: 60           # column: 0
 	sta v6                                   # line: 60           # column: 0
 	ldobjbyname 0x33, log                    # line: 60           # column: 0
@@ -633,13 +625,13 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 	tonumeric 0x37                           # line: 59           # column: 0
 	inc 0x38                                 # line: 59           # column: 0
 	sta v5                                   # line: 59           # column: 0
-	jmp label@117                            # line: 59           # column: 0
-	label@129:                               # line: 0           # column: 0
+	jmp label@116                            # line: 59           # column: 0
+	label@128:                               # line: 0           # column: 0
 	mov v5, v4                               # line: 59           # column: 0
-	label@130:                               # line: 0           # column: 0
+	label@129:                               # line: 0           # column: 0
 	lda v3                                   # line: 65           # column: 0
 	less 0x39, v5                            # line: 65           # column: 0
-	jeqz label@142                           # line: 65           # column: 0
+	jeqz label@141                           # line: 65           # column: 0
 	tryldglobalbyname 0x3a, console          # line: 66           # column: 0
 	sta v6                                   # line: 66           # column: 0
 	ldobjbyname 0x3b, log                    # line: 66           # column: 0
@@ -648,8 +640,8 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 	tonumeric 0x3f                           # line: 67           # column: 0
 	inc 0x40                                 # line: 67           # column: 0
 	sta v5                                   # line: 67           # column: 0
-	jmp label@130                            # line: 67           # column: 0
-	label@142:                               # line: 0           # column: 0
+	jmp label@129                            # line: 67           # column: 0
+	label@141:                               # line: 0           # column: 0
 	tryldglobalbyname 0x41, console          # line: 71           # column: 0
 	sta v6                                   # line: 71           # column: 0
 	ldobjbyname 0x42, log                    # line: 71           # column: 0
@@ -660,14 +652,14 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 	sta v5                                   # line: 72           # column: 0
 	lda v3                                   # line: 73           # column: 0
 	less 0x48, v5                            # line: 73           # column: 0
-	jnez label@142                           # line: 73           # column: 0
+	jnez label@141                           # line: 73           # column: 0
 	definefunc 0x49, .#*#greet, 0x1          # line: 76           # column: 0
 	sta v5                                   # line: 76           # column: 0
 	lda.str js                               # line: 79           # column: 0
 	sta v6                                   # line: 79           # column: 0
 	lda v5                                   # line: 79           # column: 0
 	callarg1 0x4a, v6                        # line: 79           # column: 0
-	createobjectwithbuffer 0x4c, _GLOBAL_2829 # line: 82           # column: 0
+	createobjectwithbuffer 0x4c, _GLOBAL_2774 # line: 82           # column: 0
 	sta v5                                   # line: 82           # column: 0
 	ldobjbyname 0x4d, greet                  # line: 89           # column: 0
 	callthis0 0x4f, v5                       # line: 89           # column: 0
@@ -680,14 +672,14 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 	sta v6                                   # line: 93           # column: 0
 	lda.str !                                # line: 93           # column: 0
 	add2 0x52, v6                            # line: 93           # column: 0
-	createobjectwithbuffer 0x53, _GLOBAL_2866 # line: 96           # column: 0
+	createobjectwithbuffer 0x53, _GLOBAL_2811 # line: 96           # column: 0
 	lda v5                                   # line: 97           # column: 0
 	ldobjbyname 0x54, gender                 # line: 97           # column: 0
 	lda v5                                   # line: 97           # column: 0
 	ldobjbyname 0x56, grade                  # line: 97           # column: 0
 	lda v1                                   # line: 103           # column: 0
 	callarg0 0x58                            # line: 103           # column: 0
-	createarraywithbuffer 0x5a, _GLOBAL_2890 # line: 106           # column: 0
+	createarraywithbuffer 0x5a, _GLOBAL_2835 # line: 106           # column: 0
 	sta v1                                   # line: 106           # column: 0
 	createemptyarray 0x5b                    # line: 107           # column: 0
 	sta v5                                   # line: 107           # column: 0
@@ -707,7 +699,7 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 	inc 0x63                                 # line: 107           # column: 0
 	ldhole                                   # line: 110           # column: 0
 	sta v1                                   # line: 110           # column: 0
-	defineclasswithbuffer 0x64, .#~@0=#Person, _GLOBAL_2909, 0x2, v1 # line: 110           # column: 0
+	defineclasswithbuffer 0x64, .#~@0=#Person, _GLOBAL_2854, 0x2, v1 # line: 110           # column: 0
 	sta v1                                   # line: 110           # column: 0
 	ldobjbyname 0x65, prototype              # line: 110           # column: 0
 	lda.str Alice                            # line: 120           # column: 0
@@ -739,14 +731,14 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 	callarg0 0x79                            # line: 146           # column: 0
 	ldhole                                   # line: 148           # column: 0
 	sta v0                                   # line: 148           # column: 0
-	defineclasswithbuffer 0x7b, .#~@2=#TestA, _GLOBAL_2931, 0x1, v0 # line: 148           # column: 0
+	defineclasswithbuffer 0x7b, .#~@2=#TestA, _GLOBAL_2876, 0x1, v0 # line: 148           # column: 0
 	sta v0                                   # line: 148           # column: 0
 	ldobjbyname 0x7c, prototype              # line: 148           # column: 0
 	lda v0                                   # line: 148           # column: 0
 	stlexvar 0x0, 0x1                        # line: 148           # column: 0
 	ldhole                                   # line: 152           # column: 0
 	sta v0                                   # line: 152           # column: 0
-	defineclasswithbuffer 0x7e, .#~@3=#ClassA, _GLOBAL_2940, 0x0, v0 # line: 152           # column: 0
+	defineclasswithbuffer 0x7e, .#~@3=#ClassA, _GLOBAL_2885, 0x0, v0 # line: 152           # column: 0
 	sta v0                                   # line: 152           # column: 0
 	ldobjbyname 0x7f, prototype              # line: 152           # column: 0
 	lda v0                                   # line: 152           # column: 0
@@ -785,14 +777,13 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 	callthis0 0x9b, v0                       # line: 170           # column: 0
 	ldhole                                   # line: 173           # column: 0
 	sta v0                                   # line: 173           # column: 0
-	defineclasswithbuffer 0x9d, .#~@4=#Parent, _GLOBAL_2752, 0x0, v0 # line: 173           # column: 0
+	defineclasswithbuffer 0x9d, .#~@4=#Parent, _GLOBAL_2697, 0x0, v0 # line: 173           # column: 0
 	sta v0                                   # line: 173           # column: 0
 	ldobjbyname 0x9e, prototype              # line: 173           # column: 0
-	defineclasswithbuffer 0xa0, .#~@5=#Child, _GLOBAL_2774, 0x0, v0 # line: 179           # column: 0
+	defineclasswithbuffer 0xa0, .#~@5=#Child, _GLOBAL_2719, 0x0, v0 # line: 179           # column: 0
 	sta v0                                   # line: 179           # column: 0
 	ldobjbyname 0xa1, prototype              # line: 179           # column: 0
-	mov v14, v0                              # line: 179           # column: 0
-	newobjrange 0xa3, 0x1, v14               # line: 186           # column: 0
+	newobjrange 0xa3, 0x1, v0                # line: 186           # column: 0
 	sta v0                                   # line: 186           # column: 0
 	tryldglobalbyname 0xa5, console          # line: 187           # column: 0
 	sta v1                                   # line: 187           # column: 0
@@ -838,7 +829,7 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 	sta v0                                   # line: 210           # column: 0
 	ldnull                                   # line: 209           # column: 0
 	noteq 0xcc, v0                           # line: 209           # column: 0
-	jeqz label@342                           # line: 209           # column: 0
+	jeqz label@340                           # line: 209           # column: 0
 	lda v0                                   # line: 211           # column: 0
 	ldobjbyname 0xcd, prop2                  # line: 211           # column: 0
 	callthis0 0xcf, v0                       # line: 211           # column: 0
@@ -847,23 +838,23 @@ _GLOBAL_2940 { 2 [ tag_value:2, i32:0, ]}
 	sta v1                                   # line: 212           # column: 0
 	ldnull                                   # line: 209           # column: 0
 	noteq 0xd3, v1                           # line: 209           # column: 0
-	jeqz label@342                           # line: 209           # column: 0
+	jeqz label@340                           # line: 209           # column: 0
 	lda v1                                   # line: 212           # column: 0
 	callthis0 0xd4, v0                       # line: 212           # column: 0
-	label@342:                               # line: 0           # column: 0
+	label@340:                               # line: 0           # column: 0
 	tryldglobalbyname 0xd6, getContext       # line: 215           # column: 0
 	callarg0 0xd7                            # line: 215           # column: 0
 	ldobjbyname 0xd9, config                 # line: 216           # column: 0
 	sta v0                                   # line: 216           # column: 0
 	ldnull                                   # line: 215           # column: 0
 	noteq 0xdb, v0                           # line: 215           # column: 0
-	jeqz label@354                           # line: 215           # column: 0
+	jeqz label@352                           # line: 215           # column: 0
 	lda.str someKey                          # line: 217           # column: 0
 	ldobjbyvalue 0xdc, v0                    # line: 217           # column: 0
 	sta v0                                   # line: 217           # column: 0
 	ldobjbyname 0xde, toLowerCase            # line: 218           # column: 0
 	callthis0 0xe0, v0                       # line: 218           # column: 0
-	label@354:                               # line: 0           # column: 0
+	label@352:                               # line: 0           # column: 0
 	returnundefined                          # line: 4294967295           # column: 0
 }
 

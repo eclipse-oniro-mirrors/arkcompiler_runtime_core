@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2022 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -14,6 +14,8 @@
  */
 
 #include "reg_alloc_graph_coloring.h"
+#include "compiler/optimizer/ir/basicblock.h"
+#include "compiler/optimizer/ir/range_intrinsics.h"
 
 namespace panda::compiler {
 RegAllocGraphColoring::RegAllocGraphColoring(Graph *graph) : RegAllocBase(graph) {}
@@ -73,6 +75,86 @@ void RegAllocGraphColoring::BuildIG(InterferenceGraph *ig, WorkingRanges *ranges
             });
         active_nodes.insert(ranges_iter, node);
     }
+}
+
+namespace {
+#ifdef ENABLE_BYTECODE_OPT
+ColorNode *FindNodeByInterval(InterferenceGraph *ig, LifeIntervals *interval)
+{
+    for (auto &node : ig->GetNodes()) {
+        if (node.GetLifeIntervals() == interval) {
+            return &node;
+        }
+    }
+    return nullptr;
+}
+#endif
+}  // namespace
+
+void RegAllocGraphColoring::BuildConsecutivePreferences(InterferenceGraph *ig, ConsecutivePreferences *preferences)
+{
+#ifndef ENABLE_BYTECODE_OPT
+    static_cast<void>(ig);
+    static_cast<void>(preferences);
+    return;
+#else
+    if (!GetGraph()->IsBytecodeOptimizer()) {
+        return;
+    }
+
+    auto &liveness = GetGraph()->GetAnalysis<LivenessAnalyzer>();
+    for (auto *block : GetGraph()->GetBlocksRPO()) {
+        for (auto *inst : block->AllInsts()) {
+            if (!inst->IsIntrinsic() || !IsRangeIntrinsic(inst->CastToIntrinsic()->GetIntrinsicId())) {
+                continue;
+            }
+
+            auto nargs = inst->GetInputsCount() - (inst->RequireState() ? 1 : 0);
+            if (nargs < 2 || nargs > VIRTUAL_FRAME_SIZE) {
+                continue;
+            }
+
+            auto *range_interval = liveness.GetInstLifeIntervals(inst);
+            if (range_interval == nullptr || range_interval->GetBegin() == 0) {
+                continue;
+            }
+
+            ConsecutivePreference preference;
+            auto input_position = range_interval->GetBegin() - 1U;
+            bool valid = true;
+            for (size_t index = 0; index < nargs; ++index) {
+                auto *input = inst->GetDataFlowInput(index);
+                if (input == nullptr || input->IsConst() || input->IsPhi() || input->IsCatchPhi() ||
+                    input->GetDstReg() == ACC_REG_ID) {
+                    valid = false;
+                    break;
+                }
+
+                auto *input_interval = liveness.GetInstLifeIntervals(input);
+                auto *input_sibling =
+                    input_interval == nullptr ? nullptr : input_interval->FindSiblingAt(input_position);
+                if (input_sibling == nullptr || input_sibling->IsSplitSibling() || input_sibling->IsPreassigned() ||
+                    input_sibling->IsPhysical()) {
+                    valid = false;
+                    break;
+                }
+
+                auto *node = FindNodeByInterval(ig, input_sibling);
+                if (node == nullptr || node->IsFixedColor() ||
+                    std::find(preference.nodes.begin(), preference.nodes.end(), node->GetNumber()) !=
+                        preference.nodes.end()) {
+                    valid = false;
+                    break;
+                }
+                preference.nodes.push_back(node->GetNumber());
+            }
+
+            if (valid) {
+                preferences->push_back(std::move(preference));
+            }
+        }
+    }
+#endif
 }
 
 namespace {
@@ -232,6 +314,8 @@ Register RegAllocGraphColoring::AllocateRegisters(InterferenceGraph *ig, Working
     Presplit(ranges);
     // Build and precolor IG
     BuildIG(ig, ranges);
+    ConsecutivePreferences consecutive_preferences;
+    BuildConsecutivePreferences(ig, &consecutive_preferences);
     BuildBias(ig, PrecolorIG(ig, map));
 
 #ifdef NDEBUG
@@ -243,7 +327,8 @@ Register RegAllocGraphColoring::AllocateRegisters(InterferenceGraph *ig, Working
     // Color IG
     unsigned colors = 0;
     if (GetGraph()->IsBytecodeOptimizer()) {
-        colors = ig->AssignColors<VIRTUAL_FRAME_SIZE>(map.GetAvailableRegsCount(), map.GetBorder());
+        colors = ig->AssignColors<VIRTUAL_FRAME_SIZE>(map.GetAvailableRegsCount(), map.GetBorder(),
+                                                      &consecutive_preferences);
     } else {
         colors = ig->AssignColors<MAX_NUM_REGS>(map.GetAvailableRegsCount(), map.GetBorder());
     }
