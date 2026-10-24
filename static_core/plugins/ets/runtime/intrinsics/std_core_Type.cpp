@@ -680,7 +680,7 @@ EtsClass *TypeAPIGetDeclaringClassImpl(EtsTypeAPIType *type)
 
 EtsString *TypeAPIGetFunctionObjectNameFromAnnotation(EtsObject *functionObj)
 {
-    static constexpr std::string_view ANNO_NAME = EtsPlatformTypes::DESCRIPTOR_arkruntimeAnnotationNamedFunctionObject;
+    static constexpr std::string_view ANNO_NAME = "Lstd/core/NamedFunctionObject;";
 
     auto *executionCtx = EtsExecutionContext::GetCurrent();
     [[maybe_unused]] EtsHandleScope scope(executionCtx);
