@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -96,8 +96,8 @@ void CollectUtil::ProcessNestLiteralArray(const panda_file::File &file_, std::un
         panda_file::File::EntityId nest_unprocess_id_entity_id(nest_unprocess_id);
         literal_data_accessor.EnumerateLiteralVals(
             nest_unprocess_id_entity_id,
-            [processed_ids, &nest_unprocessed_ids](const panda_file::LiteralDataAccessor::LiteralValue &value,
-                                                 const panda_file::LiteralTag &tag) {
+            [&processed_ids, &nest_unprocessed_ids](const panda_file::LiteralDataAccessor::LiteralValue &value,
+                                                   const panda_file::LiteralTag &tag) {
                 if (tag != panda_file::LiteralTag::LITERALARRAY) {
                     return;
                 }
