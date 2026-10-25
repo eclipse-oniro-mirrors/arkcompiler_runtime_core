@@ -35,6 +35,7 @@ class << Options
       opts.on('--ir-api=API', 'API to emit during C++ code generation') { |v| self.ir_api = v }
       opts.on('--isa=PATH', 'ISA YAML file') { |v| self.isa = v }
       opts.on('--plugins=PATH', 'Plugins file') { |v| self.plugins = v }
+      opts.on('--builder-inputs=PATH', 'Extra input files for ir-builder mode') { |v| self.builder_inputs = v }
       opts.on('--working-dir=PATH', 'Run in specified working directory') { |v| self.working_dir = v }
     end.parse!
 
@@ -74,6 +75,14 @@ class << Options
       self.plugins = new_plugins
     else
       self.plugins = Hash.new { |h, k| h[k] = [] }
+    end
+
+    # Collect extra builder input files (only passed to ir-builder mode)
+    if self.builder_inputs
+      File.open(self.builder_inputs).readlines.each do |line|
+        next if line.strip.empty?
+        self.input_files << line.chomp
+      end
     end
 
     # Determine target architecture

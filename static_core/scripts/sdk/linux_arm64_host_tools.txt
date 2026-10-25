@@ -14,6 +14,7 @@ lib/libarkbytecodeopt.so
 lib/libarkcompiler.so
 lib/libarkdisassembler.so
 lib/libarkfile.so
+lib/libarkinterpreter.so
 lib/libarklinker.so
 lib/libarkruntime.so
 lib/libarktarget_options.so

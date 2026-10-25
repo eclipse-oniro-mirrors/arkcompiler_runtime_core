@@ -30,7 +30,11 @@ ENTRYPOINT_ODD_SAVED MAKE_ASM_NAME(<%= entrypoint.bridge_name %>), MAKE_ASM_NAME
 %   elsif entrypoint.bridge == 'odd_saved4'
 ENTRYPOINT_ODD_SAVED MAKE_ASM_NAME(<%= entrypoint.bridge_name %>), MAKE_ASM_NAME(<%= entrypoint.entrypoint %>), 4, <%= entrypoint.general_return_type %>
 %   elsif entrypoint.bridge == 'entrypoint'
+%     if entrypoint.exported?
+ENTRYPOINT           MAKE_ASM_NAME(<%= entrypoint.bridge_name %>), MAKE_ASM_NAME(<%= entrypoint.entrypoint %>), <%= entrypoint.signature.length - 1 %>, <%= entrypoint.general_return_type %>, 1
+%     else
 ENTRYPOINT           MAKE_ASM_NAME(<%= entrypoint.bridge_name %>), MAKE_ASM_NAME(<%= entrypoint.entrypoint %>), <%= entrypoint.signature.length - 1 %>, <%= entrypoint.general_return_type %>
+%     end
 %   else
 %     raise "Unsupported bridge: #{entrypoint.bridge}"
 %   end

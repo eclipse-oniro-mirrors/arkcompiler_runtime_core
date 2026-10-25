@@ -418,11 +418,6 @@ if (HOST_TOOLS)
 elseif (PANDA_LLVM_INTERPRETER AND PANDA_LLVM_INTERPRETER_INLINING)
     set(sources
             $<TARGET_PROPERTY:arkruntime_obj,SOURCE_DIR>/entrypoints/entrypoints.cpp
-            $<TARGET_PROPERTY:arkruntime_obj,SOURCE_DIR>/object_header.cpp
-            $<TARGET_PROPERTY:arkruntime_obj,SOURCE_DIR>/mem/heap_manager.cpp
-            $<TARGET_PROPERTY:arkruntime_obj,SOURCE_DIR>/mem/tlab.cpp
-            $<TARGET_PROPERTY:arkruntime_obj,SOURCE_DIR>/runtime.cpp
-            $<TARGET_PROPERTY:arkruntime_obj,SOURCE_DIR>/class_linker.cpp
     )
     set(outputs "")
     panda_add_llvm_bc_lib(TARGET irtoc_int_llvm_inl_module
@@ -506,15 +501,31 @@ else()
     set(irtoc_interpreter_target panda_host_tools-build)
 endif()
 
-set(IRTOC_LLVM_OBJECTS "")
-
-if (PANDA_LLVM_FASTPATH)
-    list(APPEND IRTOC_LLVM_OBJECTS ${IRTOC_FASTPATH_LLVM_OBJ})
-endif()
-
+# IRTOC interpreter objects — go to libarkinterpreter.so
+set(ARKINTERPRETER_OBJECTS ${IRTOC_INTERPRETER_OBJ})
 if (PANDA_LLVM_INTERPRETER)
-    list(APPEND IRTOC_LLVM_OBJECTS ${IRTOC_INTERPRETER_LLVM_OBJ})
+    list(APPEND ARKINTERPRETER_OBJECTS ${IRTOC_INTERPRETER_LLVM_OBJ})
 endif()
+
+# IRTOC fastpath objects — go to libarkruntime.so
+set(ARKRUNTIME_FASTPATH_OBJECTS ${IRTOC_FASTPATH_OBJ})
+if (PANDA_LLVM_FASTPATH)
+    list(APPEND ARKRUNTIME_FASTPATH_OBJECTS ${IRTOC_FASTPATH_LLVM_OBJ})
+endif()
+
+panda_add_library(arkinterpreter SHARED
+    ${ARKINTERPRETER_OBJECTS}
+)
+set_target_properties(arkinterpreter PROPERTIES LINKER_LANGUAGE CXX)
+get_target_property(arkinterpreter_imported arkinterpreter IMPORTED)
+if(NOT arkinterpreter_imported)
+    if(PANDA_TARGET_MACOS)
+        target_link_options(arkinterpreter PRIVATE -undefined dynamic_lookup)
+    else()
+        target_link_options(arkinterpreter PRIVATE -Wl,-z,undefs)
+    endif()
+endif()
+panda_target_link_libraries(arkinterpreter arkbase arkfile arktarget_options)
 
 set(ARKRUNTIME_SOURCES
     ${SOURCES}
@@ -535,23 +546,19 @@ if (PANDA_WITH_HIDDEN_SYMBOLS)
     )
 endif()
 
-panda_add_library(arkruntime_interpreter_static STATIC
-    $<TARGET_OBJECTS:arkruntime_interpreter_impl>
-    ${IRTOC_FASTPATH_OBJ}
-    ${IRTOC_INTERPRETER_OBJ}
-    ${IRTOC_LLVM_OBJECTS}
+panda_add_library(arkinterpreter_static STATIC
+    ${ARKINTERPRETER_OBJECTS}
 )
+set_target_properties(arkinterpreter_static PROPERTIES LINKER_LANGUAGE CXX)
 
 panda_add_library(arkruntime_static STATIC
     $<TARGET_OBJECTS:arkruntime_obj>
     $<TARGET_OBJECTS:arkruntime_interpreter_impl>
-    ${IRTOC_FASTPATH_OBJ}
-    ${IRTOC_INTERPRETER_OBJ}
-    ${IRTOC_LLVM_OBJECTS}
+    ${ARKRUNTIME_FASTPATH_OBJECTS}
 )
-panda_target_link_libraries(arkruntime_static arkruntime_obj)
+panda_target_link_libraries(arkruntime_static arkruntime_obj arkinterpreter_static)
 
-add_dependencies(arkruntime_interpreter_static
+add_dependencies(arkinterpreter_static
     intrinsics_gen_${PROJECT_NAME}
     isa_gen_pandaverification
     messages_gen_pandaverification
@@ -586,8 +593,12 @@ panda_target_include_directories(arkruntime_stack_walker_obj
 
 panda_target_sources(arkruntime_static PRIVATE ${STACK_WALKER_HOOK_BRIDGE_SOURCE})
 
-panda_add_library(arkruntime SHARED $<TARGET_OBJECTS:arkruntime_obj> $<TARGET_OBJECTS:arkruntime_interpreter_impl>)
-panda_target_link_libraries(arkruntime arkruntime_obj arkruntime_interpreter_static)
+panda_add_library(arkruntime SHARED
+    $<TARGET_OBJECTS:arkruntime_obj>
+    $<TARGET_OBJECTS:arkruntime_interpreter_impl>
+    ${ARKRUNTIME_FASTPATH_OBJECTS}
+)
+panda_target_link_libraries(arkruntime arkruntime_obj arkinterpreter)
 if (NOT PANDA_USE_PREBUILT_TARGETS)
     add_dependencies(arkruntime arkruntime_static)
 endif ()

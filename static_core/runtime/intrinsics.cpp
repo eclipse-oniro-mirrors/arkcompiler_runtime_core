@@ -336,7 +336,7 @@ ObjectHeader *ObjectCreateNonMovable(coretypes::Class *cls)
     return ObjectHeader::CreateNonMovable(cls->GetRuntimeClass());
 }
 
-void ObjectMonitorEnter(ObjectHeader *header)
+extern "C" PANDA_PUBLIC_API void ObjectMonitorEnter(ObjectHeader *header)
 {
     if (header == nullptr) {
         ark::ThrowNullPointerException();
@@ -353,7 +353,7 @@ void ObjectMonitorEnter(ObjectHeader *header)
     }
 }
 
-void ObjectMonitorExit(ObjectHeader *header)
+extern "C" PANDA_PUBLIC_API void ObjectMonitorExit(ObjectHeader *header)
 {
     if (header == nullptr) {
         ark::ThrowNullPointerException();

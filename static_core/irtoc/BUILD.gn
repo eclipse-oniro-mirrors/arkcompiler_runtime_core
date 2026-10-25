@@ -51,6 +51,13 @@ if (enable_irtoc) {
     contents = rebase_path(inputs, ark_root)
   }
 
+  generated_file("irtoc_builder_inputs_file") {
+    outputs = [ irtoc_builder_inputs_file ]
+    inputs = plugin_irtoc_builder_inputs
+    output_conversion = "list lines"
+    contents = inputs
+  }
+
   ark_gen_file("irtoc_options_h") {
     template_file = "$ark_root/templates/options/options.h.erb"
     data = [ "backend/options.yaml" ]

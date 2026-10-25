@@ -389,6 +389,22 @@ end
   end
 end
 
+macro(:f64toi32) do |arg|
+  Cast(arg).SrcType("DataType::FLOAT64").i32
+end
+
+macro(:i32tou1) do |arg|
+  res0 := 0
+  If(arg, 0).NE do
+    res1 := 1
+  end
+  Phi(res0, res1).i32
+end
+
+macro(:i64tof64) do |arg|
+  Cast(arg).SrcType("DataType::INT64").f64
+end
+
 macro(:load_class) do |obj|
   unless Options.atomic_aligned_data_access?
     Intrinsic(:UNREACHABLE).Terminator.void

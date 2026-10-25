@@ -94,20 +94,22 @@ public:
         return LoadClass(&pf, classId, pf.GetStringData(classId).data, context, errorHandler, addToRuntime);
     }
 
-    Method *GetMethod(const panda_file::File &pf, panda_file::File::EntityId id, ClassLinkerContext *context = nullptr,
-                      ClassLinkerErrorHandler *errorHandler = nullptr);
+    PANDA_PUBLIC_API Method *GetMethod(const panda_file::File &pf, panda_file::File::EntityId id,
+                                       ClassLinkerContext *context = nullptr,
+                                       ClassLinkerErrorHandler *errorHandler = nullptr);
 
-    Method *GetMethod(const Method &caller, panda_file::File::EntityId id,
-                      ClassLinkerErrorHandler *errorHandler = nullptr);
+    PANDA_PUBLIC_API Method *GetMethod(const Method &caller, panda_file::File::EntityId id,
+                                       ClassLinkerErrorHandler *errorHandler = nullptr);
 
     Method *GetMethod(const Class *klass, const panda_file::MethodDataAccessor &methodDataAccessor,
                       ClassLinkerErrorHandler *errorHandler);
 
-    Field *GetField(const panda_file::File &pf, panda_file::File::EntityId id, bool isStatic,
-                    ClassLinkerContext *context = nullptr, ClassLinkerErrorHandler *errorHandler = nullptr);
+    PANDA_PUBLIC_API Field *GetField(const panda_file::File &pf, panda_file::File::EntityId id, bool isStatic,
+                                     ClassLinkerContext *context = nullptr,
+                                     ClassLinkerErrorHandler *errorHandler = nullptr);
 
-    Field *GetField(const Method &caller, panda_file::File::EntityId id, bool isStatic,
-                    ClassLinkerErrorHandler *errorHandler = nullptr);
+    PANDA_PUBLIC_API Field *GetField(const Method &caller, panda_file::File::EntityId id, bool isStatic,
+                                     ClassLinkerErrorHandler *errorHandler = nullptr);
 
     Field *GetField(Class *klass, const panda_file::FieldDataAccessor &fda, bool isStatic,
                     ClassLinkerErrorHandler *errorHandler = nullptr);

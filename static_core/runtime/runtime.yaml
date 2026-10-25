@@ -643,6 +643,7 @@ intrinsics:
   clear_flags: [ heap_inv ]
 
 - name: ObjectMonitorEnter
+  exported: true
   space: core
   class_name: Object
   method_name: monitorEnter
@@ -653,6 +654,7 @@ intrinsics:
   impl: ark::intrinsics::ObjectMonitorEnter
 
 - name: ObjectMonitorExit
+  exported: true
   space: core
   class_name: Object
   method_name: monitorExit

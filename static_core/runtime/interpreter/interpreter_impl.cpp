@@ -33,7 +33,8 @@ extern "C" void ExecuteImplFast_LLVM(void *, void *, void *, void *);    // NOLI
 extern "C" void ExecuteImplFastEH_LLVM(void *, void *, void *, void *);  // NOLINT(readability-identifier-naming)
 #endif
 
-extern "C" void DebugSwitchFromIrtocEntrypoint(ark::ManagedThread *thread, const uint8_t *pc, ark::Frame *frame)
+extern "C" PANDA_PUBLIC_API void DebugSwitchFromIrtocEntrypoint(ark::ManagedThread *thread, const uint8_t *pc,
+                                                                ark::Frame *frame)
 {
     if (frame->IsDynamic()) {
         ark::interpreter::ExecuteImplDebug<ark::interpreter::RuntimeInterface, true>(thread, pc, frame, false);

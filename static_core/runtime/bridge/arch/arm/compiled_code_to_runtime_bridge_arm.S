@@ -279,7 +279,7 @@
       CHECK_NATIVE_EXCEPTION \ret_type
 .endm
 
-.macro ENTRYPOINT name, entry, paramsnum, ret_type
+.macro ENTRYPOINT name, entry, paramsnum, ret_type, exported=0
 .global \name
 .type \name, %function
 \name:

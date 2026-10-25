@@ -334,13 +334,16 @@ endif()
 add_dependencies(arkruntime_obj
     ${irtoc_ets_fastpath_target}
 )
+add_dependencies(arkruntime
+    ${irtoc_ets_fastpath_target}
+)
 
 set(IRTOC_ETS_LLVM_OBJECTS "")
 if (PANDA_LLVM_FASTPATH)
     list(APPEND IRTOC_ETS_LLVM_OBJECTS ${IRTOC_ETS_FASTPATH_LLVM_OBJ})
 endif()
 
-panda_target_sources(arkruntime_interpreter_static PRIVATE ${IRTOC_ETS_FASTPATH_OBJ} ${IRTOC_ETS_LLVM_OBJECTS})
 panda_target_sources(arkruntime_static PRIVATE ${IRTOC_ETS_FASTPATH_OBJ} ${IRTOC_ETS_LLVM_OBJECTS})
+panda_target_sources(arkruntime PRIVATE ${IRTOC_ETS_FASTPATH_OBJ} ${IRTOC_ETS_LLVM_OBJECTS})
 
 panda_target_link_libraries(arkruntime_obj ani_interface)

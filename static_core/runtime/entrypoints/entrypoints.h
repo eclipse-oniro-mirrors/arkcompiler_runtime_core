@@ -42,7 +42,7 @@ extern "C" Frame *CreateFrameForMethodWithActualArgsDyn(uint32_t numActualArgs, 
 
 extern "C" PANDA_PUBLIC_API void FreeFrame(Frame *frame);
 
-extern "C" void FreeFrameInterp(Frame *frame, ManagedThread *current);
+extern "C" PANDA_PUBLIC_API void FreeFrameInterp(Frame *frame, ManagedThread *current);
 
 extern "C" void ThrowInstantiationErrorEntrypoint(Class *klass);
 

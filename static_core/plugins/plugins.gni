@@ -50,6 +50,7 @@ plugin_runtime_yamls = []
 
 plugin_irtoc_scripts = []
 plugin_irtoc_plugins = []
+plugin_irtoc_builder_inputs = []
 
 plugin_isa_paths = []
 
@@ -214,6 +215,10 @@ foreach(plugin, ark_enabled_plugins) {
   if (defined(_plugin_vars.irtoc_plugins)) {
     plugin_irtoc_plugins +=
         rebase_path(_plugin_vars.irtoc_plugins, "", _plugin_dir)
+  }
+  if (defined(_plugin_vars.irtoc_builder_inputs)) {
+    plugin_irtoc_builder_inputs +=
+        rebase_path(_plugin_vars.irtoc_builder_inputs, "", _plugin_dir)
   }
   if (defined(_plugin_vars.srcs_isa)) {
     plugin_isa_paths += rebase_path(_plugin_vars.srcs_isa, "", _plugin_dir)

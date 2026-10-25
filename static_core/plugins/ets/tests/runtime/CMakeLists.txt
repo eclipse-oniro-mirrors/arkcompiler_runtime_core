@@ -211,3 +211,4 @@ add_dependencies(ets_tests_runtime_gtests
 
 add_subdirectory(types)
 add_subdirectory(tooling)
+add_subdirectory(arkinterpreter_symbol_check)
