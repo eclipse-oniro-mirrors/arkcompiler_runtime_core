@@ -115,10 +115,8 @@ if (current_toolchain == host_toolchain) {
     subsystem_name = "$ark_subsystem_name"
   }
 } else {
-  # Keep the public target available for phone builds.
-  # The host tool is built only when the host toolchain is requested.
   group("ark_aot_host") {
-    deps = []
+    deps = [ ":ark_aot_host(${host_toolchain})"]
   }
 }
 
