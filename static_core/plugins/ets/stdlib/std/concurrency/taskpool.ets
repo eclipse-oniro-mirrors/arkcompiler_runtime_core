@@ -4123,25 +4123,33 @@ export namespace taskpool {
                     return;
                 }
 
-                if (managerWorker === undefined) {
-                    // Create managerWorker, and start to trigger shrink.
-                    managerWorker = new GlobalQueueWorker();
-                    managerWorker.retriggerShrink();
-                    // Start blocked-worker expansion monitor separately from shrink logic.
-                    managerWorker.retriggerBlockedExpandMonitor();
-                }
+                let tagName = "Sta TaskPool:Init";
+                let traceId = callbackTraceIdSeq.fetchAdd(1);
+                Tracer.startAsyncTrace(tagName, traceId);
+                hilogInfo(tagName);
+                try {
+                    if (managerWorker === undefined) {
+                        // Create managerWorker, and start to trigger shrink.
+                        managerWorker = new GlobalQueueWorker();
+                        managerWorker.retriggerShrink();
+                        // Start blocked-worker expansion monitor separately from shrink logic.
+                        managerWorker.retriggerBlockedExpandMonitor();
+                    }
 
-                // Init taskpool worker pool.
-                for (let i = 0; i < initialWorkersNumber; ++i) {
-                    let w = new GlobalQueueWorker(isTaskpoolSupportInterop);
-                    workers.add(w);
+                    // Init taskpool worker pool.
+                    for (let i = 0; i < initialWorkersNumber; ++i) {
+                        let w = new GlobalQueueWorker(isTaskpoolSupportInterop);
+                        workers.add(w);
+                    }
+                    for(let i = 0; i < waitingTasksNum.load(); i++) {
+                        ConcurrencyHelpers.lockGuard(globalTaskQueuesMutex, () => {
+                            ConcurrencyHelpers.condVarNotifyOne(globalTaskCondVar, globalTaskQueuesMutex);
+                        });
+                    }
+                    isWorkersInitialized.set(true);
+                } finally {
+                    Tracer.finishAsyncTrace(tagName, traceId);
                 }
-                for(let i = 0; i < waitingTasksNum.load(); i++) {
-                    ConcurrencyHelpers.lockGuard(globalTaskQueuesMutex, () => {
-                        ConcurrencyHelpers.condVarNotifyOne(globalTaskCondVar, globalTaskQueuesMutex);
-                    });
-                }
-                isWorkersInitialized.set(true);
             })
         };
         isInitTaskLaunched.set(true);
@@ -4159,8 +4167,7 @@ export namespace taskpool {
             if (isWorkersInitialized.get() || isTaskPoolUseLaunch) {
                 return;
             }
-            let tagName = "Sta TaskPool:Init";
-            hilogDebug(tagName);
+
             if (managerWorker === undefined) {
                 // Create managerWorker, and start to trigger shrink.
                 managerWorker = new GlobalQueueWorker();

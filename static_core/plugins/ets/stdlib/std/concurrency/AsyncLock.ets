@@ -44,6 +44,9 @@ export class AsyncLock {
 
     protected constructor(name: string) {
         this.name = name;
+        this.lockTagName = "Sta AsyncLock:lockAsync:lockName:" + name;
+        this.callbackTagName = "Sta AsyncLock:Callback:lockName:" + name;
+        this.finallyCallbackTagName = "Sta AsyncLock:FinallyCallback:lockName:" + name;
         asyncLockManager.setElem(this);
     }
 
@@ -98,21 +101,27 @@ export class AsyncLock {
      *     timeout exceeded.
      */
     public lockAsync<T, U>(callback: AsyncLockCallback<T>, mode: AsyncLockMode, options: AsyncLockOptions<U>): Promise<T> {
-        let callerCID = CoroutineExtras.getCoroutineId();
-        let asyncLockInfo = new AsyncLockInfo(this.name, mode, callerCID);
-        let wrapped = (l: AsyncLock) => { return l.syncwrapper<T, U>(callback, options, asyncLockInfo); }
-        let pendingRequest: PendingLockRequest | null = null;
-        if (!this.canAcquireLock(mode, callerCID, asyncLockInfo)) {
-            ConcurrencyHelpers.mutexLock(this.mutex);
-            pendingRequest = new PendingLockRequest(asyncLockInfo);
-            this.pending.add(asyncLockInfo);
-            this.pendingQueue.push(pendingRequest);
-            ConcurrencyHelpers.mutexUnlock(this.mutex);
-            wrapped = (l: AsyncLock) => {
-                return l.wrapper<T, U>(callback, callerCID, mode, options, asyncLockInfo, pendingRequest!);
+        Tracer.startTrace(this.lockTagName);
+        hilogDebug(this.lockTagName);
+        try {
+            let callerCID = CoroutineExtras.getCoroutineId();
+            let asyncLockInfo = new AsyncLockInfo(this.name, mode, callerCID);
+            let wrapped = (l: AsyncLock) => { return l.syncwrapper<T, U>(callback, options, asyncLockInfo); }
+            let pendingRequest: PendingLockRequest | null = null;
+            if (!this.canAcquireLock(mode, callerCID, asyncLockInfo)) {
+                ConcurrencyHelpers.mutexLock(this.mutex);
+                pendingRequest = new PendingLockRequest(asyncLockInfo);
+                this.pending.add(asyncLockInfo);
+                this.pendingQueue.push(pendingRequest);
+                ConcurrencyHelpers.mutexUnlock(this.mutex);
+                wrapped = (l: AsyncLock) => {
+                    return l.wrapper<T, U>(callback, callerCID, mode, options, asyncLockInfo, pendingRequest!);
+                }
             }
+            return AsyncLock.launchPromise<T>(wrapped, this);
+        } finally {
+            Tracer.finishTrace();
         }
-        return AsyncLock.launchPromise<T>(wrapped, this);
     }
 
     private canAcquireLock(mode: AsyncLockMode, callerCID: int, asyncLockInfo: AsyncLockInfo) : boolean {
@@ -158,17 +167,29 @@ export class AsyncLock {
     }
 
     private syncwrapper<T,U>(callback: AsyncLockCallback<T>, options : AsyncLockOptions<U>, asyncLockInfo: AsyncLockInfo) : Promise<Awaited<T>> {
+        let callbackTraceId = AsyncLock.TraceIdSeq.fetchAdd(1);
+        Tracer.startAsyncTrace(this.callbackTagName, callbackTraceId);
+        hilogDebug(this.callbackTagName);
         try {
             return Promise.resolve<T>(callback()).finally(() => {
-                this.unlock(asyncLockInfo);
-                if (options.signal != null && options.signal!.aborted == true) {
-                    this.fireCondEvent();
-                    this.throwsignalAbortError<U>(options)
+                let finallyCallbackTraceId = AsyncLock.TraceIdSeq.fetchAdd(1);
+                Tracer.startAsyncTrace(this.finallyCallbackTagName, finallyCallbackTraceId);
+                hilogDebug(this.finallyCallbackTagName);
+                try {
+                    this.unlock(asyncLockInfo);
+                    if (options.signal != null && options.signal!.aborted == true) {
+                        this.fireCondEvent();
+                        this.throwsignalAbortError<U>(options)
+                    }
+                } finally {
+                    Tracer.finishAsyncTrace(this.finallyCallbackTagName, finallyCallbackTraceId);
                 }
             });
         } catch(e) {
             this.unlock(asyncLockInfo);
             throw e;
+        } finally {
+            Tracer.finishAsyncTrace(this.callbackTagName, callbackTraceId);
         }
     }
 
@@ -440,7 +461,11 @@ export class AsyncLock {
     }
 
     public readonly name: string;
+    private readonly lockTagName: string;
+    private readonly callbackTagName: string;
+    private readonly finallyCallbackTagName: string;
     private static LastAnonymousId: AtomicInt = new AtomicInt(0);
+    private static TraceIdSeq: AtomicInt = new AtomicInt(0);
     private static readonly PENDING_QUEUE_COMPACT_THRESHOLD: int = 64;
     private holderCID: int = 0;
     private mode: AsyncLockMode = AsyncLockMode.UNLOCKED;
