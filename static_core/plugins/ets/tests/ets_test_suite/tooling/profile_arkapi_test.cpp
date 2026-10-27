@@ -188,6 +188,46 @@ TEST_F(ArkDebugNativeAPITest, EmptySamplesRecordReturnsWellFormedProfile)
     EXPECT_GE((*fallbackProfiles)[0]->stopTime, THREAD_START_TIME);
 }
 
+TEST_F(ArkDebugNativeAPITest, MainThreadEntryAppendedWhenOnlyWorkersSampled)
+{
+    constexpr uint64_t MAIN_TID = 42U;
+    constexpr uint32_t MAIN_OS_TID = 4242U;
+    constexpr int MAIN_THREAD_NODE_COUNT = 3;  // (root) + (program) + (idle)
+    constexpr uint32_t WORKER_TID = 7U;
+    constexpr uint32_t WORKER_OS_TID = 777U;
+    constexpr uint64_t RECORD_START_TIME = 1000U;
+    constexpr uint64_t WORKER_SAMPLE_TIME = 1100U;
+    // Only a worker thread produced samples: the main thread must still appear in the
+    // result as an empty entry attributed to it.
+    tooling::sampler::SamplesRecord record;
+    record.SetThreadStartTime(RECORD_START_TIME);
+    record.SetMainThreadIds(MAIN_TID, MAIN_OS_TID);
+    tooling::sampler::SampleInfo workerSample {};
+    workerSample.threadInfo.threadId = WORKER_TID;
+    workerSample.threadInfo.osTid = WORKER_OS_TID;
+    workerSample.timeStamp = WORKER_SAMPLE_TIME;
+    record.AddSampleInfo(WORKER_TID, std::make_unique<tooling::sampler::OwnedSampleInfo>(workerSample));
+
+    auto profiles = record.GetAllThreadsProfileInfos();
+    ASSERT_EQ(profiles->size(), 2U);
+    const tooling::sampler::ProfileInfo *workerProfile = nullptr;
+    const tooling::sampler::ProfileInfo *mainProfile = nullptr;
+    for (const auto &p : *profiles) {
+        if (p->tid == WORKER_TID) {
+            workerProfile = p.get();
+        } else if (p->tid == MAIN_TID) {
+            mainProfile = p.get();
+        }
+    }
+    ASSERT_NE(workerProfile, nullptr);
+    ASSERT_NE(mainProfile, nullptr);
+    EXPECT_EQ(workerProfile->osTid, WORKER_OS_TID);
+    EXPECT_EQ(mainProfile->osTid, MAIN_OS_TID);
+    EXPECT_EQ(mainProfile->nodeCount, MAIN_THREAD_NODE_COUNT);
+    EXPECT_TRUE(mainProfile->samples.empty());
+    EXPECT_TRUE(mainProfile->timeDeltas.empty());
+}
+
 TEST_F(ArkDebugNativeAPITest, StopProfilingDoesNotKillSessionMode)
 {
     DebuggerPostTask postTask = [](std::function<void()> &&) {};
@@ -299,6 +339,8 @@ TEST_F(ArkDebugNativeAPITest, SamplesRecordMultiThreadProfileInfos)
 
     tooling::sampler::SamplesRecord record;
     record.SetThreadStartTime(BASE_TIMESTAMP);
+    // Mark tid 1 as the main thread so no extra idle entry is appended for it.
+    record.SetMainThreadIds(1, BASE_OS_TID + 1U);
 
     for (uint32_t tid = 1U; tid <= THREAD_COUNT; tid++) {
         for (uint32_t i = 0; i < SAMPLES_PER_THREAD; i++) {
@@ -342,10 +384,13 @@ TEST_F(ArkDebugNativeAPITest, SamplesRecordSamplesAndDeltasPaired)
     constexpr uint64_t MIXED_STACK_TIMESTAMP = 1300U;
     constexpr size_t INVALID_STACK_SIZE = 2U;
     constexpr uint32_t SINGLE_THREAD_BUCKET = 1U;
+    constexpr uint32_t SINGLE_THREAD_OS_TID = 100U;
     constexpr size_t TOTAL_SAMPLES = 3U;
 
     tooling::sampler::SamplesRecord record;
     record.SetThreadStartTime(START_TIME);
+    // Mark the sampled thread as the main thread so no extra idle entry is appended.
+    record.SetMainThreadIds(SINGLE_THREAD_BUCKET, SINGLE_THREAD_OS_TID);
 
     // Case 1: empty stack.
     tooling::sampler::SampleInfo emptySample;

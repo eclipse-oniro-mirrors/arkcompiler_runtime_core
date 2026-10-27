@@ -148,6 +148,8 @@ public:
 
 private:
     void NodeInit(ProfileInfo &profileInfo, std::map<NodeKey, int> &nodesMap);
+    // Builds the empty (root/program/idle) ProfileInfo attributed to the main thread.
+    std::unique_ptr<ProfileInfo> BuildMainThreadIdleProfile();
     using SampleInfoVector = std::vector<std::unique_ptr<OwnedSampleInfo>>;
     std::unique_ptr<ProfileInfo> GetSingleThreadProfileInfo(const SampleInfoVector &sampleInfos, bool &limitLogged);
     void BuildStackInfoMap(const SampleInfo &sampleInfo);
