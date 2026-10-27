@@ -86,7 +86,7 @@ arkbytecodeopt_deps =
 
 arkruntime_deps = [
   "$_plugin_dir:etsstdlib",
-  "$ark_root/assembler:libarktsassembler_static",
+  "$ark_root/assembler:libarktsassembler",
   "$ark_root/libarkfile:libarktsfile",
 ]
 
