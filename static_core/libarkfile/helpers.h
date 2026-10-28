@@ -49,7 +49,9 @@ inline auto Read(Span<const uint8_t> *sp)
     using UnsignedType = ark::helpers::TypeHelperT<BITWIDTH, false>;
 
     UnsignedType result = 0;
+#ifndef NDEBUG
     THROW_IF(sp->Size() < WIDTH, INVALID_SPAN_OFFSET);
+#endif  // NDEBUG
     for (size_t i = 0; i < WIDTH; i++) {
         UnsignedType tmp = static_cast<UnsignedType>((*sp)[i]) << (i * BYTE_WIDTH);
         result |= tmp;
@@ -62,7 +64,9 @@ template <>
 inline auto Read<sizeof(uint16_t)>(Span<const uint8_t> *sp)
 {
     uint16_t result = 0;
+#ifndef NDEBUG
     THROW_IF(sp->Size() < sizeof(uint16_t), INVALID_SPAN_OFFSET);
+#endif  // NDEBUG
 
     auto *p = sp->data();
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
@@ -77,7 +81,9 @@ template <>
 inline auto Read<sizeof(uint32_t)>(Span<const uint8_t> *sp)
 {
     uint32_t result = 0;
+#ifndef NDEBUG
     THROW_IF(sp->Size() < sizeof(uint32_t), INVALID_SPAN_OFFSET);
+#endif  // NDEBUG
 
     auto *p = sp->data();
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)

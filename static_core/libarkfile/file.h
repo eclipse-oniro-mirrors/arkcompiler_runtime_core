@@ -244,8 +244,10 @@ public:
     {
         const Header *header = GetHeader();
         Span file(GetBase(), header->fileSize);
+#ifndef NDEBUG
         panda_file::ThrowIfWithCheck(GetPtr(), !id.IsValid() || id.GetOffset() >= file.size(),
                                      File::INVALID_FILE_OFFSET, File::GET_SPAN_FROM_ID);
+#endif  // NDEBUG
         return file.Last(file.size() - id.GetOffset());
     }
 
