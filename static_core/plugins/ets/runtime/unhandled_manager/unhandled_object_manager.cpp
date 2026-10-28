@@ -334,8 +334,7 @@ static void InvokeErrorHandlerImpl(EtsClassLinker *etsClassLinker, EtsExecutionC
     ASSERT(executionCtx != nullptr);
     auto *exceptionClass = exception->GetClass();
     auto *platformTypes = etsClassLinker->GetEtsClassLinkerExtension()->GetPlatformTypes();
-    if (exceptionClass == platformTypes->coreOutOfMemoryError ||
-        exceptionClass == platformTypes->coreStackOverflowError) {
+    if (exceptionClass == platformTypes->coreStackOverflowError) {
         LOG(ERROR, RUNTIME) << "Unhandled exception: " << exception->GetCoreType()->ClassAddr<Class>()->GetName();
         PROCESS_EXIT(1);
         UNREACHABLE();
