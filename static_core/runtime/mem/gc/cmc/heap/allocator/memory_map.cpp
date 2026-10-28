@@ -174,8 +174,8 @@ void MemoryMap::CommitMemory(void *addr, size_t size)
 MemoryMap::MemoryMap(void *baseAddr, size_t initSize, size_t mappedSize)
     : memBaseAddr_(baseAddr), memCurrSize_(initSize), memMappedSize_(mappedSize)
 {
-    memCurrEndAddr_ = reinterpret_cast<void *>(reinterpret_cast<HeapAddress>(memBaseAddr_) + memCurrSize_);
-    memMappedEndAddr_ = reinterpret_cast<void *>(reinterpret_cast<HeapAddress>(memBaseAddr_) + memMappedSize_);
+    memCurrEndAddr_ = ToVoidPtr(ToUintPtr(memBaseAddr_) + memCurrSize_);
+    memMappedEndAddr_ = ToVoidPtr(ToUintPtr(memBaseAddr_) + memMappedSize_);
 }
 
 bool MemoryMap::ProtectMemInternal(void *addr, size_t size, int prot)

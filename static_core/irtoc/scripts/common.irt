@@ -465,7 +465,7 @@ macro(:get_entrypoint_offset) do |entrypoint_id|
 end
 
 macro(:reftoptr) do |ref_val|
-  if defines.ARK_USE_COMMON_RUNTIME && defines.PANDA_TARGET_64
+  if defines.ARK_USE_COMMON_RUNTIME && !defines.PANDA_32_BIT_MANAGED_POINTER && defines.PANDA_TARGET_64
     Bitcast(ref_val).ptr
   else
     Cast(ref_val).SrcType(Constants::COMPILER_REFERENCE).ptr

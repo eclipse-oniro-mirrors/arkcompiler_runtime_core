@@ -77,8 +77,7 @@ public:
             << "memset_s fail, cardCnt=" << cardCnt_;
     }
 
-    void VisitAllMarkedCardBefore(const std::function<void(BaseObject *)> &func, HeapAddress regionStart,
-                                  HeapAddress end)
+    void VisitAllMarkedCardBefore(const std::function<void(BaseObject *)> &func, uintptr_t regionStart, uintptr_t end)
     {
         for (size_t i = 0; i < cardCnt_; i++) {
             std::atomic<CardElement> *cardPtr = reinterpret_cast<std::atomic<CardElement> *>(&GetCardTable()[i]);
@@ -89,8 +88,8 @@ public:
             while (card != 0) {
                 index = static_cast<size_t>(__builtin_ctzll(card));
                 DCHECK(index < kBitsPerWord);
-                HeapAddress offset = static_cast<HeapAddress>((i * kBitsPerWord) * kBitsPerByte + index * kBitsPerByte);
-                HeapAddress obj = regionStart + offset;
+                auto offset = (i * kBitsPerWord) * kBitsPerByte + index * kBitsPerByte;
+                auto obj = regionStart + offset;
                 if (obj >= end) {
                     return;
                 }

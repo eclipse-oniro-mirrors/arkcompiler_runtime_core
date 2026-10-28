@@ -1502,8 +1502,9 @@ void Codegen::LoadClassFromObject(Reg classReg, Reg objReg)
 {
     Reg reg = ConvertRegister(classReg.GetId(), DataType::REFERENCE);
     GetEncoder()->EncodeLdr(reg, false, MemRef(objReg, GetRuntime()->GetObjClassOffset(GetArch())));
-#if defined(ARK_USE_COMMON_RUNTIME) && defined(PANDA_TARGET_64)
-    // The high 16 bits are used as marking flags in Ark Hybrid mode. We take the lower 48 bits as object address.
+#if defined(ARK_USE_COMMON_RUNTIME) && !defined(PANDA_32_BIT_MANAGED_POINTER) && defined(PANDA_TARGET_64)
+    // The high 16 bits are used as marking flags in Ark Hybrid mode with 64 bit references.
+    // We take the lower 48 bits as object address.
     GetEncoder()->EncodeAnd(reg, reg, Imm(0x0000'ffff'ffff'ffffULL));
 #endif
 }
@@ -2404,11 +2405,12 @@ void Codegen::CreateCmcReadViaBarrierCall(Inst *inst, MemRef mem, Reg dstReg, bo
     if (!mem.HasIndex() && !mem.HasDisp()) {
         CreateCmcReadViaBarrierCall(inst, dstReg, isVolatile, preserved, mem.GetBase());
     } else if (dstReg.GetId() != mem.GetBase().GetId()) {
-        MemRefToOffset(dstReg /* as offset */, mem);
-        GetEncoder()->EncodeAdd(dstReg, mem.GetBase(), dstReg);
-        CreateCmcReadViaBarrierCall(inst, dstReg, isVolatile, preserved, dstReg /* as refAddr */);
+        auto refAddr = dstReg.As(mem.GetBase().GetType());
+        MemRefToOffset(refAddr, mem);
+        GetEncoder()->EncodeAdd(refAddr, mem.GetBase(), refAddr);
+        CreateCmcReadViaBarrierCall(inst, dstReg, isVolatile, preserved, refAddr);
     } else {
-        ScopedTmpReg refAddr(GetEncoder());
+        ScopedTmpReg refAddr(GetEncoder(), mem.GetBase().GetType());
         MemRefToOffset(refAddr, mem);
         GetEncoder()->EncodeAdd(refAddr, mem.GetBase(), refAddr);
         CreateCmcReadViaBarrierCall(inst, dstReg, isVolatile, preserved, refAddr);

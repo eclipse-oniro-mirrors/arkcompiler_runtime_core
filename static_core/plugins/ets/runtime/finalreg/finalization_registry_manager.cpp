@@ -190,6 +190,15 @@ void FinalizationRegistryManager::LaunchCleanupJobIfNeeded(EtsExecutionContext *
     auto *jobExecCtx = JobExecutionContext::CastFromMutator(executionCtx->GetMT());
     auto *jobMan = jobExecCtx->GetManager();
 
+    // Keeps the mutator lock MainCoroutineCompleted() relies on that when it stops the world to publish the flag
+    if (jobMan->IsProgramCompletionStarted()) {
+        // MAIN has finished and the workers are being shut down. Launching a cleanup job now would make
+        // a coroutine runnable after the schedule loop has been finalized.
+        LOG(DEBUG, RUNTIME) << "[FinRegManager::" << __FUNCTION__
+                            << "] Program completion has started, skip the cleanup job";
+        return;
+    }
+
     auto *finReg = FindFinRegForCleanup(executionCtx);
     if (finReg != nullptr && UpdateFinRegJobsCountAndCheckIfCleanupNeeded()) {
         auto *event = Runtime::GetCurrent()->GetInternalAllocator()->New<CompletionEvent>(nullptr, jobMan);

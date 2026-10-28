@@ -236,6 +236,27 @@ public:
         asyncStackHelper_ = std::move(asyncStackHelper);
     }
 
+    /**
+     * @brief Marks the beginning of the program completion sequence: MAIN has finished and the workers
+     * are being shut down. No new runtime-internal job may be launched after this point, because the schedule
+     * loops are being finalized.
+     *
+     * Must be published with the world stopped (see StackfulCoroutineManager::MainCoroutineCompleted()), so
+     * that no launch is already in flight when the flag goes up.
+     */
+    void SetProgramCompletionStarted()
+    {
+        // Atomic with release order reason: publish the flag to the other workers
+        programCompletionStarted_.store(true, std::memory_order_release);
+    }
+
+    /// @return true if the program completion sequence has already started
+    bool IsProgramCompletionStarted() const
+    {
+        // Atomic with acquire order reason: sync with SetProgramCompletionStarted()
+        return programCompletionStarted_.load(std::memory_order_acquire);
+    }
+
 protected:
     /// Worker enumerator, returns true iff cb call succeeds for every worker
     virtual bool EnumerateWorkersImpl(const EnumerateWorkerCallback &cb) const = 0;
@@ -263,6 +284,8 @@ private:
     uint32_t lastJobId_ GUARDED_BY(idsLock_) = UNINITIALIZED_JOB_ID;
 
     PandaUniquePtr<dfx::AsyncStackHelper> asyncStackHelper_ {MakePandaUnique<dfx::AsyncStackHelper>()};
+
+    std::atomic_bool programCompletionStarted_ {false};
 };
 
 }  // namespace ark

@@ -28,6 +28,7 @@
 #include "runtime/execution/coroutines/stackful/stackful_coroutine_manager.h"
 #include "runtime/execution/dfx/async_stack_helper.h"
 #include "runtime/include/panda_vm.h"
+#include "runtime/mem/rendezvous.h"
 #include "runtime/include/runtime.h"
 #include "runtime/include/runtime_notification.h"
 #include "runtime/include/thread_scopes.h"
@@ -776,6 +777,15 @@ void StackfulCoroutineManager::MainCoroutineCompleted()
 {
     // precondition: MAIN is already in the native mode
     LOG(DEBUG, COROUTINES) << "StackfulCoroutineManager::MainCoroutineCompleted(): STARTED";
+    {
+        // From now on the workers and their schedule loops are being finalized, so no runtime-internal job may
+        // be launched (see FinalizationRegistryManager::LaunchCleanupJobIfNeeded). Such a job is launched with
+        // the mutator lock held and keeps it until its coroutine is registered, so stopping the world here
+        // waits out the launches already in flight; the drain below then accounts for them
+        ASSERT(!Coroutine::GetCurrent()->GetMutatorLock()->HasLock());  // MAIN is in the native mode
+        ScopedStopTheWorld stw;
+        SetProgramCompletionStarted();
+    }
     // block till only schedule loop coroutines are present
     LOG(DEBUG, COROUTINES)
         << "StackfulCoroutineManager::MainCoroutineCompleted(): waiting for other coroutines to complete";

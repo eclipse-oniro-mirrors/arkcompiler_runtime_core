@@ -68,7 +68,7 @@ public:
     virtual size_t GetUsedPageSize() const = 0;
 
 #ifndef NDEBUG
-    virtual bool IsHeapObject(HeapAddress) const = 0;
+    virtual bool IsHeapObject(uintptr_t) const = 0;
 #endif
 
     template <typename AllocBufferVisitor>

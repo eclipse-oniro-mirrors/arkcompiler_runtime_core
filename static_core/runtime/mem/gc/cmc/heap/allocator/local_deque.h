@@ -18,6 +18,7 @@
 
 #include "runtime/mem/gc/cmc/heap/allocator/memory_map.h"
 
+#include "libarkbase/mem/mem.h"
 #include "libarkbase/utils/logger.h"
 
 #include <cstddef>
@@ -52,8 +53,8 @@ public:
 #ifdef _WIN64
         MemoryMap::CommitMemory(memMap_->GetBaseAddr(), mapSize);
 #endif
-        beginAddr_ = reinterpret_cast<HeapAddress>(memMap_->GetBaseAddr());
-        endAddr_ = reinterpret_cast<HeapAddress>(memMap_->GetCurrEnd());
+        beginAddr_ = ToUintPtr(memMap_->GetBaseAddr());
+        endAddr_ = ToUintPtr(memMap_->GetCurrEnd());
         Clear();
     }
     void Init(MemoryMap &other)
@@ -61,8 +62,8 @@ public:
         // init from another sud, that is, the two suds share the same mem map
         static_assert(VAL_SIZE == sizeof(void *), "invalid val type");
         memMap_ = &other;
-        beginAddr_ = reinterpret_cast<HeapAddress>(memMap_->GetBaseAddr());
-        endAddr_ = reinterpret_cast<HeapAddress>(memMap_->GetCurrEnd());
+        beginAddr_ = ToUintPtr(memMap_->GetBaseAddr());
+        endAddr_ = ToUintPtr(memMap_->GetCurrEnd());
         Clear();
     }
     void Fini() noexcept
@@ -111,10 +112,10 @@ public:
 
 private:
     MemoryMap *memMap_ = nullptr;
-    HeapAddress beginAddr_ = 0;
-    HeapAddress frontAddr_ = 0;
-    HeapAddress topAddr_ = 0;
-    HeapAddress endAddr_ = 0;
+    uintptr_t beginAddr_ = 0;
+    uintptr_t frontAddr_ = 0;
+    uintptr_t topAddr_ = 0;
+    uintptr_t endAddr_ = 0;
 };
 
 // This stack-based deque optimizes memory usage by avoiding heap allocations,
@@ -219,8 +220,8 @@ public:
 #ifdef _WIN64
         MemoryMap::CommitMemory(memMap_->GetBaseAddr(), mapSize);
 #endif
-        currAddr_ = reinterpret_cast<HeapAddress>(memMap_->GetBaseAddr());
-        endAddr_ = reinterpret_cast<HeapAddress>(memMap_->GetCurrEnd());
+        currAddr_ = ToUintPtr(memMap_->GetBaseAddr());
+        endAddr_ = ToUintPtr(memMap_->GetCurrEnd());
         head_ = nullptr;
     }
 
@@ -252,8 +253,8 @@ public:
 
 private:
     Slot *head_ = nullptr;
-    HeapAddress currAddr_ = 0;
-    HeapAddress endAddr_ = 0;
+    uintptr_t currAddr_ = 0;
+    uintptr_t endAddr_ = 0;
     MemoryMap *memMap_ = nullptr;
 };
 }  // namespace ark::common_vm

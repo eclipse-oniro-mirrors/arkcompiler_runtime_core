@@ -451,7 +451,7 @@ HeapAddress AllocationBuffer::AllocateImpl(size_t totalSize, AllocType allocType
 }
 
 #ifndef NDEBUG
-bool RegionalHeap::IsHeapObject(HeapAddress addr) const
+bool RegionalHeap::IsHeapObject(uintptr_t addr) const
 {
     if (!IsAddressInObjectsHeap(addr)) {
         return false;
