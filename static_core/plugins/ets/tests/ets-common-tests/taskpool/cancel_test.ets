@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-import { CoroutineExtras } from 'std/debug/concurrency';
+import { CoroutineExtras, AtomicFlag } from 'std/debug/concurrency';
 
 class Event {
     constructor() {
@@ -49,6 +49,21 @@ function sleep(duration: int): Promise<void> {
     });
 }
 
+function blockRunnerTask(started: AtomicFlag, release: AtomicFlag): string {
+    started.set(true);
+    while (!release.get()) {
+    }
+    return 'first';
+}
+
+async function waitForFlag(flag: AtomicFlag, timeoutMs: number): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    while (!flag.get() && Date.now() < deadline) {
+        await sleep(1);
+    }
+    return flag.get();
+}
+
 async function cancelByTaskIdTest(){
     let event = new Event();
     let event2 = new Event();
@@ -67,9 +82,95 @@ async function cancelByTaskIdTest(){
     arktest.assertEQ(await p, 'canceled');
 }
 
+async function cancelDelayedTaskByTaskIdTest(): Promise<void> {
+    let task = new taskpool.Task(async (): Promise<string> => {
+        await sleep(10);
+        return 'executed';
+    });
+    let promise = taskpool.executeDelayed(1000, task);
+
+    taskpool.cancel(task.taskId);
+
+    let canceled = false;
+    try {
+        await promise;
+    } catch (e) {
+        canceled = true;
+        arktest.assertEQ(e.message, 'taskpool:: task has been canceled');
+    }
+    arktest.assertTrue(canceled);
+}
+
+async function cancelSequenceRunnerWaitingTaskByTaskIdTest(): Promise<void> {
+    const startTimeoutMs: number = 1000.0;
+    let runner = new taskpool.SequenceRunner();
+    let firstStarted = new AtomicFlag(false);
+    let releaseFirst = new AtomicFlag(false);
+    let firstTask = new taskpool.Task(blockRunnerTask, firstStarted, releaseFirst);
+    let waitingTask = new taskpool.Task((): string => 'second');
+    let firstPromise = runner.execute(firstTask);
+    let waitingPromise = runner.execute(waitingTask);
+
+    try {
+        arktest.assertTrue(
+            await waitForFlag(firstStarted, startTimeoutMs),
+            'the first SequenceRunner task should start before canceling the waiting task'
+        );
+        taskpool.cancel(waitingTask.taskId);
+    } finally {
+        releaseFirst.set(true);
+    }
+
+    let canceled = false;
+    try {
+        await waitingPromise;
+    } catch (e) {
+        canceled = true;
+        arktest.assertEQ(e.message, 'taskpool:: sequenceRunner task has been canceled');
+    }
+    arktest.assertTrue(canceled);
+    arktest.assertEQ(await firstPromise, 'first');
+}
+
+async function cancelAsyncRunnerWaitingTaskByTaskIdTest(): Promise<void> {
+    const startTimeoutMs: number = 1000.0;
+    let runner = new taskpool.AsyncRunner(1);
+    let firstStarted = new AtomicFlag(false);
+    let releaseFirst = new AtomicFlag(false);
+    let firstTask = new taskpool.Task(blockRunnerTask, firstStarted, releaseFirst);
+    let waitingTask = new taskpool.Task((): string => 'second');
+    let firstPromise = runner.execute(firstTask);
+    let waitingPromise = runner.execute(waitingTask);
+
+    try {
+        arktest.assertTrue(
+            await waitForFlag(firstStarted, startTimeoutMs),
+            'the first AsyncRunner task should start before canceling the waiting task'
+        );
+        taskpool.cancel(waitingTask.taskId);
+    } finally {
+        releaseFirst.set(true);
+    }
+
+    let canceled = false;
+    try {
+        await waitingPromise;
+    } catch (e) {
+        canceled = true;
+        arktest.assertEQ(e.message, 'taskpool:: asyncRunner task has been canceled');
+    }
+    arktest.assertTrue(canceled);
+    arktest.assertEQ(await firstPromise, 'first');
+}
+
 function main(): int {
     let commonTaskSuite = new arktest.ArkTestsuite('taskpool.CancelTest');
     commonTaskSuite.addAsyncTest('cancelByTaskIdTest', cancelByTaskIdTest);
+    commonTaskSuite.addAsyncTest('cancelDelayedTaskByTaskIdTest', cancelDelayedTaskByTaskIdTest);
+    commonTaskSuite.addAsyncTest(
+        'cancelSequenceRunnerWaitingTaskByTaskIdTest', cancelSequenceRunnerWaitingTaskByTaskIdTest);
+    commonTaskSuite.addAsyncTest(
+        'cancelAsyncRunnerWaitingTaskByTaskIdTest', cancelAsyncRunnerWaitingTaskByTaskIdTest);
 
     let res = commonTaskSuite.run();
     CoroutineExtras.stopTaskpool();
