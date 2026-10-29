@@ -30,6 +30,7 @@ libarkbytecodeopt_sources = [
   "$ark_root/bytecode_optimizer/constant_propagation/constant_propagation.cpp",
   "$ark_root/bytecode_optimizer/constant_propagation/lattice_element.cpp",
   "$ark_root/bytecode_optimizer/dynamic_cse.cpp",
+  "$ark_root/bytecode_optimizer/hole_check_elimination.cpp",
   "$ark_root/bytecode_optimizer/module_constant_analyzer.cpp",
   "$ark_root/bytecode_optimizer/optimize_bytecode.cpp",
   "$ark_root/bytecode_optimizer/peephole_optimizer.cpp",

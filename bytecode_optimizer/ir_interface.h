@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2022 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -17,6 +17,8 @@
 #define BYTECODE_OPTIMIZER_IR_INTERFACE_H
 
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 
 #include "assembler/assembly-emitter.h"
 #include "libpandafile/method_data_accessor-inl.h"
@@ -153,10 +155,26 @@ public:
         return prog_;
     }
 
+    using EntryNonHoleSeeds = std::unordered_map<std::string, std::unordered_set<uint32_t>>;
+    void SetEntryNonHoleSeeds(const EntryNonHoleSeeds *seeds)
+    {
+        entryNonHoleSeeds_ = seeds;
+    }
+    const std::unordered_set<uint32_t> &GetEntryNonHoleSeeds(const std::string &funcName) const
+    {
+        static const std::unordered_set<uint32_t> empty;
+        if (entryNonHoleSeeds_ == nullptr) {
+            return empty;
+        }
+        auto it = entryNonHoleSeeds_->find(funcName);
+        return it != entryNonHoleSeeds_->end() ? it->second : empty;
+    }
+
 private:
     pandasm::Program *prog_ {nullptr};
     const pandasm::AsmEmitter::PandaFileToPandaAsmMaps *maps_ {nullptr};
     std::unordered_map<size_t, pandasm::Ins *> pc_ins_map_;
+    const EntryNonHoleSeeds *entryNonHoleSeeds_ {nullptr};
 };
 }  // namespace panda::bytecodeopt
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Huawei Device Co., Ltd.
+# Copyright (c) 2023-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -201,6 +201,33 @@ foreach(file, disasm_test_js_files) {
   }
 }
 
+# Hole-check elimination: compiled with --module and NO --debug so the default
+# opt-level 2 runs the bytecode optimizer (incl. HoleCheckElimination). The
+# disassembled .pa is compared against expected/hole-check.pa.
+#
+# --source-file/--module-record-field-name pin the recorded file name to the
+# plain basename. src_js is rebased to an absolute path, so if these two are
+# left unset es2abc defaults them to that absolute input path and embeds it in
+# the .abc. The embedded path then shifts every later string-table offset,
+# which makes the golden .pa comparison fail in any checkout whose source-root
+# path length differs from the one the golden was generated in. Both options
+# must be set: leaving either unset still leaves the absolute path in the abc.
+es2abc_gen_abc("gen_hole-check_abc") {
+  test_js = "${test_js_path}hole-check.js"
+  test_abc = "$target_out_dir/hole-check.abc"
+  src_js = rebase_path(test_js)
+  dst_file = rebase_path(test_abc)
+  extra_args = [
+    "--module",
+    "--source-file",
+    "hole-check.js",
+    "--module-record-field-name",
+    "hole-check.js",
+  ]
+  in_puts = [ test_js ]
+  out_puts = [ test_abc ]
+}
+
 foreach(file, disasm_security_test_js_files) {
   es2abc_gen_abc("gen_${file}_abc") {
     test_js = "${test_js_path}${file}.js"
@@ -330,6 +357,25 @@ host_unittest_action("DisasmDebugTest") {
   foreach(file, disasm_ets_implements_test_ts_files) {
     deps += [ ":gen_${file}_abc" ]
   }
+}
+
+host_unittest_action("DisasmHoleCheckTest") {
+  module_out_path = module_output_path
+  sources = [ "disassembler_hole_check_test.cpp" ]
+  include_dirs = disasm_include_dirs
+  configs = disasm_test_configs
+  external_deps = [ sdk_libc_secshared_dep ]
+  if (enable_hilog) {
+    external_deps += [ "hilog:libhilog" ]
+  }
+  deps = disasm_test_deps
+  test_abc_dir = rebase_path(target_out_dir)
+  golden_pa = rebase_path("expected/hole-check.pa")
+  defines = [
+    "GRAPH_TEST_ABC_DIR=\"${test_abc_dir}/\"",
+    "HOLE_CHECK_GOLDEN_PA=\"${golden_pa}\"",
+  ]
+  deps += [ ":gen_hole-check_abc" ]
 }
 
 host_unittest_action("DisasmReleaseTest") {
@@ -548,6 +594,7 @@ group("host_unittest") {
   deps = [
     ":DisasmDebugTestAction",
     ":DisasmDedupLiteralArrayTestAction",
+    ":DisasmHoleCheckTestAction",
     ":DisasmImmTestAction",
     ":DisasmModuleTestAction",
     ":DisasmReleaseTestAction",

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -65,7 +65,6 @@ TEST_F(LibAbcKitCreateDynInstanceofInstTest, CreateDynInstanceofValid)
                  {{0},
                   {3, 2},
                   {{4, ABCKIT_ISA_API_DYNAMIC_OPCODE_LDLEXVAR, {}},
-                   {5, ABCKIT_ISA_API_DYNAMIC_OPCODE_THROW_UNDEFINEDIFHOLEWITHNAME, {4}},
                    {6, ABCKIT_ISA_API_DYNAMIC_OPCODE_EQ, {4, 1}},
                    {7, ABCKIT_ISA_API_DYNAMIC_OPCODE_IF, {6, 2}}}},
                  {{1},

@@ -27,6 +27,7 @@
 #include "compiler/optimizer/optimizations/regalloc/reg_alloc.h"
 #include "compiler/optimizer/optimizations/vn.h"
 #include "constant_propagation/constant_propagation.h"
+#include "hole_check_elimination.h"
 #include "dynamic_cse.h"
 #include "libpandabase/mem/pool_manager.h"
 #include "libpandafile/class_data_accessor-inl.h"
@@ -70,6 +71,8 @@ bool RunOptimizations(compiler::Graph *graph, BytecodeOptIrInterface *iface)
         graph->RunPass<ConstantPropagation>(iface);
         RunOpts<compiler::BranchElimination>(graph);
     }
+
+    graph->RunPass<HoleCheckElimination>(iface);
 
     RunOpts<compiler::ValNum>(graph);
     graph->RunPass<DynamicCse>();
@@ -421,7 +424,8 @@ bool AnalysisBytecode(pandasm::Program *prog, const pandasm::AsmEmitter::PandaFi
 }
 
 bool OptimizeFunction(pandasm::Program *prog, const pandasm::AsmEmitter::PandaFileToPandaAsmMaps *maps,
-                      const panda_file::MethodDataAccessor &mda, bool is_dynamic)
+                      const panda_file::MethodDataAccessor &mda, bool is_dynamic,
+                      const BytecodeOptIrInterface::EntryNonHoleSeeds *entryNonHoleSeeds)
 {
     ArenaAllocator allocator {SpaceType::SPACE_TYPE_COMPILER};
     ArenaAllocator local_allocator {SpaceType::SPACE_TYPE_COMPILER, nullptr, true};
@@ -429,6 +433,7 @@ bool OptimizeFunction(pandasm::Program *prog, const pandasm::AsmEmitter::PandaFi
     SetCompilerOptions();
 
     auto ir_interface = BytecodeOptIrInterface(maps, prog);
+    ir_interface.SetEntryNonHoleSeeds(entryNonHoleSeeds);
 
     auto func_name = ir_interface.GetMethodIdByOffset(mda.GetMethodId().GetOffset());
     LOG(INFO, BYTECODE_OPTIMIZER) << "Optimizing function: " << func_name;
@@ -488,12 +493,13 @@ bool OptimizeFunction(pandasm::Program *prog, const pandasm::AsmEmitter::PandaFi
     return true;
 }
 
-bool OptimizePandaFile(pandasm::Program *prog, const pandasm::AsmEmitter::PandaFileToPandaAsmMaps *maps,
-                       const std::string &pfile_name, bool is_dynamic)
+static bool OptimizePandaFile(pandasm::Program *prog, const pandasm::AsmEmitter::PandaFileToPandaAsmMaps *maps,
+                              const panda_file::File *pfile, bool is_dynamic)
 {
-    auto pfile = panda_file::OpenPandaFile(pfile_name);
-    if (!pfile) {
-        LOG(FATAL, BYTECODE_OPTIMIZER) << "Can not open binary file: " << pfile_name;
+    BytecodeOptIrInterface::EntryNonHoleSeeds entryNonHoleSeeds;
+    {
+        BytecodeOptIrInterface iface(maps, prog);
+        ComputeEntryNonHoleSeeds(prog, &iface, &entryNonHoleSeeds);
     }
 
     bool result = true;
@@ -507,9 +513,9 @@ bool OptimizePandaFile(pandasm::Program *prog, const pandasm::AsmEmitter::PandaF
         }
 
         panda_file::ClassDataAccessor cda {*pfile, record_id};
-        cda.EnumerateMethods([prog, maps, is_dynamic, &result](panda_file::MethodDataAccessor &mda) {
+        cda.EnumerateMethods([&](panda_file::MethodDataAccessor &mda) {
             if (!mda.IsExternal()) {
-                result = OptimizeFunction(prog, maps, mda, is_dynamic) && result;
+                result = OptimizeFunction(prog, maps, mda, is_dynamic, &entryNonHoleSeeds) && result;
             }
         });
     }
@@ -527,7 +533,11 @@ bool OptimizeBytecode(pandasm::Program *prog, const pandasm::AsmEmitter::PandaFi
         PoolManager::Initialize(PoolType::MALLOC);
     }
 
-    auto res = OptimizePandaFile(prog, maps, pandafile_name, is_dynamic);
+    auto pfile = panda_file::OpenPandaFile(pandafile_name);
+    if (!pfile) {
+        LOG(FATAL, BYTECODE_OPTIMIZER) << "Can not open binary file: " << pandafile_name;
+    }
+    auto res = OptimizePandaFile(prog, maps, pfile.get(), is_dynamic);
 
     if (!has_memory_pool) {
         PoolManager::Finalize();
@@ -535,4 +545,6 @@ bool OptimizeBytecode(pandasm::Program *prog, const pandasm::AsmEmitter::PandaFi
 
     return res;
 }
+
+
 }  // namespace panda::bytecodeopt
