@@ -89,8 +89,30 @@
         Ani*;
 
         /* ================================================================
+         * ark::pandasm symbols statically compiled into libarktsruntime via
+         * the libarktsassembler_static source_set (arkruntime_deps). The
+         * authoritative exported copy lives in libarktsassembler.so (see its
+         * arktsassembler.version whitelist); runtime's own copies are
+         * internal-only, and exporting them only creates duplicate-symbol
+         * ODR ambiguity between the two .so files. Rules are scoped to the
+         * `7pandasm` prefix so that PANDA_PUBLIC_API symbols of other ark::
+         * subsystems compiled into runtime stay exported.
+         * ================================================================ */
+        _ZN3ark7pandasm*;
+        _ZNK3ark7pandasm*;
+        _ZTVN3ark7pandasm*;
+        _ZTIN3ark7pandasm*;
+        _ZTSN3ark7pandasm*;
+        _ZGVN3ark7pandasm*;
+        _ZZN3ark7pandasm*;
+        _ZGVZN3ark7pandasm*;
+        _ZTv*_N3ark7pandasm*;
+        _ZTv*_NK3ark7pandasm*;
+
+        /* ================================================================
          * NOTE: ark namespace C++ internals (_ZN3ark* / _ZNK3ark*) are
-         * intentionally NOT hidden here. Many are marked PANDA_PUBLIC_API
+         * intentionally NOT hidden here — with the scoped ark::pandasm
+         * exception above. Many are marked PANDA_PUBLIC_API
          * (explicitly exported, e.g. ark::hotreload::ArkHotreloadBase::*) and
          * are referenced by name from in-repo tools/tests and external plugins
          * that link libarkruntime.so. Prefix wildcards like _ZN3ark9hotreload*

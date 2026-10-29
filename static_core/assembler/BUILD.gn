@@ -123,6 +123,23 @@ ohos_source_set("libarktsassembler_static") {
 
 ohos_shared_library("libarktsassembler") {
   deps = [ ":libarktsassembler_static" ]
+
+  # Version script that controls the exported symbols of libarktsassembler.so.
+  # GNU ld/lld only: Apple (macOS/iOS) and Windows linkers do not
+  # support --version-script.
+  # Skipped for debug builds (internal symbols are referenced differently
+  # under -O0) and for standalone layouts (no version_script support
+  # in their ohos_shared_library wrapper).
+  # NOTE: intentionally uses only GN builtins (current_cpu/current_os) and
+  # long-established build args; is_darwin/is_ios aliases in ark_config.gni
+  # are recent additions and must not be referenced here so the file stays
+  # loadable on older build baselines.
+  if (current_cpu == "arm64" && current_os != "mac" && current_os != "ios" &&
+      current_os != "win" && !is_debug && !ark_standalone_build &&
+      !ark_static_standalone_build) {
+    version_script = "$ark_root/assembler/arktsassembler.version"
+  }
+
   if (is_gcov_tools) {
     cflags = coverage_cflags
     ldflags = coverage_ldflags
