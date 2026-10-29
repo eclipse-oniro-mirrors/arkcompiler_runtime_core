@@ -19,6 +19,7 @@
 #include <unordered_map>
 #include <iostream>
 
+#include "libarkbase/os/mutex.h"
 #include "plugins/ets/runtime/ets_execution_context.h"
 #include "plugins/ets/runtime/interop_js/event_loop_module.h"
 #include "plugins/ets/runtime/interop_js/interop_context.h"
@@ -48,6 +49,7 @@ namespace ark::ets::interop::js::helper {
 // CC-OFFNXT(G.NAM.03-CPP) project code style
 static uint32_t g_nextTimerId = 0;
 static std::unordered_map<uint32_t, TimerInfo *> g_timers;
+static os::memory::Mutex g_timersMutex;
 // NOLINTEND(fuchsia-statically-constructed-objects)
 
 static void NotifyInteropPump()
@@ -73,8 +75,11 @@ static void NotifyInteropPump()
 TimerInfo::TimerInfo(napi_env env, napi_ref cb, std::vector<napi_ref> cbArgs, bool repeat)
     : env(env), cb(cb), cbArgs(std::move(cbArgs)), repeat(repeat), timer(EventLoop::CreateTimer())
 {
-    timerId = g_nextTimerId++;
-    g_timers[timerId] = this;
+    {
+        os::memory::LockHolder lock(g_timersMutex);
+        timerId = g_nextTimerId++;
+        g_timers[timerId] = this;
+    }
     timer->data = this;
     uv_loop_t *loop = nullptr;
     napi_get_uv_event_loop(env, &loop);
@@ -87,7 +92,10 @@ TimerInfo::~TimerInfo()
     for (auto &ref : cbArgs) {
         napi_delete_reference(env, ref);
     }
-    g_timers.erase(timerId);
+    {
+        os::memory::LockHolder lock(g_timersMutex);
+        g_timers.erase(timerId);
+    }
     EventLoop::CloseTimer(timer);
 }
 
@@ -122,9 +130,12 @@ static napi_value RegisterTimer(napi_env env, napi_ref cb, std::vector<napi_ref>
             std::abort();  // CC-OFF(G.STD.16-CPP) fatal error
         }
 
-        if (g_timers.find(timerId) == g_timers.end()) {
-            // timer was cleared during callback
-            return;
+        {
+            os::memory::LockHolder lock(g_timersMutex);
+            if (g_timers.find(timerId) == g_timers.end()) {
+                // timer was cleared during callback
+                return;
+            }
         }
 
         if (timerInfo->repeat) {
@@ -214,13 +225,17 @@ napi_value ClearTimerImpl(napi_env env, napi_callback_info info)
         return nullptr;
     }
 
-    auto timerIt = g_timers.find(tId);
-    if (timerIt == g_timers.end()) {
-        // timer already cleared
-        return nullptr;
+    TimerInfo *timerInfo = nullptr;
+    {
+        os::memory::LockHolder lock(g_timersMutex);
+        auto timerIt = g_timers.find(tId);
+        if (timerIt == g_timers.end()) {
+            // timer already cleared
+            return nullptr;
+        }
+        timerInfo = timerIt->second;
+        g_timers.erase(timerIt);
     }
-    auto *timerInfo = timerIt->second;
-    g_timers.erase(timerIt);
     delete timerInfo;
 
     napi_value undefined;
