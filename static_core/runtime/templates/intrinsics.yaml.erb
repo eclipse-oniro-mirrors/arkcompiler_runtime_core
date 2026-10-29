@@ -94,4 +94,7 @@
   interop_intrinsic_kind: <%= intrinsic.interop_intrinsic_kind %>
 % end
   skip_codegen_decl: <%= intrinsic.respond_to?(:skip_codegen_decl) ? intrinsic.skip_codegen_decl : false %>
+% if intrinsic.respond_to?(:exported)
+  exported: <%= intrinsic.exported %>
+% end
 % end

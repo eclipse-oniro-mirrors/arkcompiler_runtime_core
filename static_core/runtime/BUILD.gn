@@ -588,28 +588,17 @@ ohos_source_set("libarkruntime_set_static") {
   defines = []
 
   if (enable_irtoc && host_os != "mac") {
-    # Add modular irtoc targets as dependencies
-    deps += [
-      "$ark_root/irtoc:irtoc_fastpath",
-      "$ark_root/irtoc:irtoc_interpreter",
-    ]
-
-    # Link the generated object files into arkruntime
+    deps += [ "$ark_root/irtoc:irtoc_fastpath" ]
     sources += [ "$ark_root_gen_dir/irtoc_fastpath.o" ]
-
-    sources += [ "$ark_root_gen_dir/irtoc_interpreter.o" ]
-    if (is_llvm_interpreter || is_llvm_fastpath) {
-      sources += [
-        "$ark_root_gen_dir/irtoc_fastpath_llvm.o",
-        "$ark_root_gen_dir/irtoc_interpreter_llvm.o",
-      ]
+    if (is_llvm_fastpath) {
+      sources += [ "$ark_root_gen_dir/irtoc_fastpath_llvm.o" ]
     }
 
     # Note: Use host_toolchain because irtoc_ets_fastpath is only built in host toolchain
     # (host tools provide the objects)
     deps += [ "$ark_root/irtoc:irtoc_ets_fastpath(${host_toolchain})" ]
     sources += [ "$ark_root_gen_dir/irtoc_ets_fastpath.o" ]
-    if (is_llvm_fastpath || is_llvm_interpreter) {
+    if (is_llvm_fastpath) {
       sources += [ "$ark_root_gen_dir/irtoc_ets_fastpath_llvm.o" ]
     }
   }
@@ -657,15 +646,73 @@ ohos_source_set("libarkruntime_set_static_host") {
   subsystem_name = ark_subsystem_name
 }
 
+# ============================================================
+# libarkinterpreter.so - Independent interpreter shared library
+# Contains only IRTOC interpreter objects (irtoc_interpreter.o)
+# ============================================================
+
+ohos_source_set("libarkinterpreter_set_static") {
+  sources = []
+  deps = []
+
+  if (enable_irtoc && host_os != "mac") {
+    deps += [
+      "$ark_root/irtoc:irtoc_interpreter",
+      "$ark_root/libarkbase:libarktsbase",
+      "$ark_root/libarkfile:libarktsfile",
+      "$ark_root/platforms/target_defaults:arktarget_options",
+    ]
+    sources += [ "$ark_root_gen_dir/irtoc_interpreter.o" ]
+    if (is_llvm_interpreter) {
+      sources += [ "$ark_root_gen_dir/irtoc_interpreter_llvm.o" ]
+    }
+  }
+
+  part_name = ark_part_name
+  subsystem_name = ark_subsystem_name
+}
+
 runtime_static_target = ":libarkruntime_set_static"
+interpreter_static_target = ":libarkinterpreter_set_static"
 if (panda_runtime_sdk_build && current_toolchain == host_toolchain) {
   runtime_static_target = ":libarkruntime_set_static_host"
+  # Host build does not include irtoc interpreter objects
+  interpreter_static_target = ""
 }
 
 ohos_static_library("libarkruntime_static") {
   deps = []
   deps += [ runtime_static_target ]
+  if (interpreter_static_target != "") {
+    deps += [ interpreter_static_target ]
+  }
   output_extension = "a"
+  part_name = ark_part_name
+  subsystem_name = "$ark_subsystem_name"
+}
+
+config("allow_undefined_symbols") {
+  if (is_darwin) {
+    ldflags = [ "-Wl,-undefined,dynamic_lookup" ]
+  } else {
+    ldflags = [ "-Wl,-z,undefs" ]
+  }
+}
+
+ohos_shared_library("libarkinterpreter") {
+  cflags_cc = [ "-fno-emulated-tls" ]
+  ldflags = [ "-fno-emulated-tls" ]
+  configs = [ ":allow_undefined_symbols" ]
+
+  deps = [ ":libarkinterpreter_set_static" ]
+
+  if (is_mingw || is_win) {
+    output_extension = "dll"
+  } else if (is_darwin) {
+    output_extension = "dylib"
+  } else {
+    output_extension = "so"
+  }
   part_name = ark_part_name
   subsystem_name = "$ark_subsystem_name"
 }
@@ -697,7 +744,10 @@ ohos_shared_library("libarkruntime") {
   }
 
   deps = []
-  deps += [ runtime_static_target ]
+  deps += [
+    runtime_static_target,
+    ":libarkinterpreter",
+  ]
 
   external_deps = []
   cflags = []

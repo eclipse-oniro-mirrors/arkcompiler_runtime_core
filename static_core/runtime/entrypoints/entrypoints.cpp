@@ -99,6 +99,9 @@ private:
     CHECK_STACK_WALKER;    \
     LOG_ENTRYPOINT()
 
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+#define ENTRYPOINT_NO_INLINE __attribute__((noinline))
+
 extern "C" NO_ADDRESS_SANITIZE void InterpreterEntryPoint(Method *method, Frame *frame)
 {
     ASSERT(method != nullptr);
@@ -137,13 +140,15 @@ extern "C" NO_ADDRESS_SANITIZE void InterpreterEntryPoint(Method *method, Frame 
     }
 }
 
-extern "C" void AnnotateSanitizersEntrypoint([[maybe_unused]] void const *addr, [[maybe_unused]] size_t size)
+extern "C" PANDA_PUBLIC_API void AnnotateSanitizersEntrypoint([[maybe_unused]] void const *addr,
+                                                              [[maybe_unused]] size_t size)
 {
     TSAN_ANNOTATE_HAPPENS_BEFORE(const_cast<void *>(addr));
     ASAN_UNPOISON_MEMORY_REGION(addr, size);
 }
 
-extern "C" void AnnotateSanitizersPoisonEntrypoint([[maybe_unused]] void const *addr, [[maybe_unused]] size_t size)
+extern "C" PANDA_PUBLIC_API void AnnotateSanitizersPoisonEntrypoint([[maybe_unused]] void const *addr,
+                                                                    [[maybe_unused]] size_t size)
 {
     TSAN_ANNOTATE_HAPPENS_AFTER(const_cast<void *>(addr));
     ASAN_POISON_MEMORY_REGION(addr, size);
@@ -475,7 +480,7 @@ extern "C" ObjectHeader *PostBarrierWriteEntrypoint(ObjectHeader *obj, size_t si
     return obj;
 }
 
-extern "C" void CheckCastEntrypoint(const ObjectHeader *obj, Class *klass)
+extern "C" ENTRYPOINT_NO_INLINE void CheckCastEntrypoint(const ObjectHeader *obj, Class *klass)
 {
     // In case of a successful check, must not trigger GC (`is_check` IR instruction)
     BEGIN_ENTRYPOINT();
@@ -504,7 +509,7 @@ extern "C" void CheckCastDeoptimizeEntrypoint(const ObjectHeader *obj, Class *kl
     }
 }
 
-extern "C" uint8_t IsInstanceEntrypoint(ObjectHeader *obj, Class *klass)
+extern "C" ENTRYPOINT_NO_INLINE uint8_t IsInstanceEntrypoint(ObjectHeader *obj, Class *klass)
 {
     BEGIN_ENTRYPOINT();
 
@@ -1023,7 +1028,8 @@ extern "C" void CheckStoreArrayReferenceEntrypoint(coretypes::Array *array, Obje
     }
 }
 
-extern "C" void CheckStoreArrayReferenceDeoptimizeEntrypoint(coretypes::Array *array, ObjectHeader *storeObj)
+extern "C" ENTRYPOINT_NO_INLINE void CheckStoreArrayReferenceDeoptimizeEntrypoint(coretypes::Array *array,
+                                                                                  ObjectHeader *storeObj)
 {
     // In case of a successful check, must not trigger GC (`is_check` IR instruction)
     BEGIN_ENTRYPOINT();
@@ -1121,7 +1127,7 @@ extern "C" NO_ADDRESS_SANITIZE void StringIndexOutOfBoundsExceptionEntrypoint([[
     HandlePendingException(UnwindPolicy::SKIP_INLINED);
 }
 
-extern "C" NO_ADDRESS_SANITIZE void NullPointerExceptionEntrypoint()
+extern "C" ENTRYPOINT_NO_INLINE NO_ADDRESS_SANITIZE void NullPointerExceptionEntrypoint()
 {
     BEGIN_ENTRYPOINT();
     LOG(DEBUG, INTEROP) << "NullPointerExceptionEntrypoint \n";
@@ -1198,7 +1204,7 @@ extern "C" NO_ADDRESS_SANITIZE void StackOverflowExceptionEntrypoint()
     HandlePendingException(UnwindPolicy::SKIP_INLINED);
 }
 
-extern "C" NO_ADDRESS_SANITIZE void DeoptimizeEntrypoint(uint64_t deoptimizeType)
+extern "C" ENTRYPOINT_NO_INLINE NO_ADDRESS_SANITIZE void DeoptimizeEntrypoint(uint64_t deoptimizeType)
 {
     BEGIN_ENTRYPOINT();
     auto thread = ManagedThread::GetCurrent();
@@ -1372,7 +1378,7 @@ extern "C" void *AllocFrameInterp(ManagedThread *current, size_t allocSz)
     return mem;
 }
 
-extern "C" void *AllocFrameStackOverflow(ManagedThread *current)
+extern "C" PANDA_PUBLIC_API void *AllocFrameStackOverflow(ManagedThread *current)
 {
     current->DisableStackOverflowCheck();
     ark::ThrowStackOverflowException(current);
@@ -1380,13 +1386,13 @@ extern "C" void *AllocFrameStackOverflow(ManagedThread *current)
     return nullptr;
 }
 
-extern "C" Frame *InitializeFrame(void *mem, Method *method, Frame *prev, size_t nregs)
+extern "C" PANDA_PUBLIC_API Frame *InitializeFrame(void *mem, Method *method, Frame *prev, size_t nregs)
 {
     *reinterpret_cast<uintptr_t *>(mem) = 0;
     return new (Frame::FromExt(mem, CORE_EXT_FRAME_DATA_SIZE)) Frame(mem, method, prev, nregs);
 }
 
-extern "C" void SafepointEntrypointInterp(ManagedThread *thread)
+extern "C" PANDA_PUBLIC_API void SafepointEntrypointInterp(ManagedThread *thread)
 {
     BEGIN_ENTRYPOINT();
     thread->Safepoint();
@@ -1408,25 +1414,27 @@ extern "C" void DisarmSafepointTimerEntrypoint(uint32_t entryId)
     SAFEPOINT_TIME_CHECKER(SafepointTimerTable::DisarmTimer(ManagedThread::GetCurrent()->GetInternalId(), entryName));
 }
 
-extern "C" void SafepointCheckerEntrypoint([[maybe_unused]] ManagedThread *thread)
+extern "C" PANDA_PUBLIC_API void SafepointCheckerEntrypoint([[maybe_unused]] ManagedThread *thread)
 {
     BEGIN_ENTRYPOINT();
     SAFEPOINT_TIME_CHECKER(SafepointTimerTable::ResetTimers(thread->GetInternalId(), true));
 }
 
-extern "C" int IsCompiled(const void *entrypoint)
+extern "C" PANDA_PUBLIC_API int IsCompiled(const void *entrypoint)
 {
-    return static_cast<int>(entrypoint != reinterpret_cast<const void *>(CompiledCodeToInterpreterBridge));
+    return static_cast<int>(entrypoint != GetCompiledCodeToInterpreterBridge());
 }
 
-extern "C" size_t GetClassIdEntrypoint(const Method *caller, uint32_t classId)
+extern "C" ENTRYPOINT_NO_INLINE size_t GetClassIdEntrypoint(const Method *caller, uint32_t classId)
 {
     auto resolvedId = caller->GetClass()->ResolveClassIndex(BytecodeId(classId).AsIndex());
     return resolvedId.GetOffset();
 }
 
-extern "C" coretypes::Array *CreateArrayByIdEntrypoint(ManagedThread *thread, const Method *caller, uint32_t classId,
-                                                       int32_t length)
+extern "C" ENTRYPOINT_NO_INLINE PANDA_PUBLIC_API coretypes::Array *CreateArrayByIdEntrypoint(ManagedThread *thread,
+                                                                                             const Method *caller,
+                                                                                             uint32_t classId,
+                                                                                             int32_t length)
 {
     CHECK_STACK_WALKER;
     auto *klass = interpreter::RuntimeInterface::ResolveClass<true>(thread, *caller, BytecodeId(classId));
@@ -1447,9 +1455,9 @@ static coretypes::Array *CreateMultiDimArray(ManagedThread *thread, Frame *frame
     return obj;
 }
 
-extern "C" coretypes::Array *CreateMultiDimensionalArrayById(ManagedThread *thread, Frame *frame, Class *klass,
-                                                             Method *caller, uint32_t methodId, const uint8_t *pc,
-                                                             int32_t formatIdx)
+extern "C" ENTRYPOINT_NO_INLINE PANDA_PUBLIC_API coretypes::Array *CreateMultiDimensionalArrayById(
+    ManagedThread *thread, Frame *frame, Class *klass, Method *caller, uint32_t methodId, const uint8_t *pc,
+    int32_t formatIdx)
 {
     switch (formatIdx) {
         case 0U:
@@ -1467,7 +1475,8 @@ extern "C" coretypes::Array *CreateMultiDimensionalArrayById(ManagedThread *thre
     return nullptr;
 }
 
-extern "C" ObjectHeader *CreateObjectByClassInterpreter(ManagedThread *thread, Class *klass)
+extern "C" ENTRYPOINT_NO_INLINE PANDA_PUBLIC_API ObjectHeader *CreateObjectByClassInterpreter(ManagedThread *thread,
+                                                                                              Class *klass)
 {
     ASSERT(klass != nullptr);
     ASSERT(!klass->IsArrayClass());
@@ -1482,7 +1491,7 @@ extern "C" ObjectHeader *CreateObjectByClassInterpreter(ManagedThread *thread, C
     return interpreter::RuntimeInterface::CreateObject(thread, klass);
 }
 
-extern "C" uint32_t CheckCastByIdEntrypoint(ObjectHeader *obj, Class *klass)
+extern "C" ENTRYPOINT_NO_INLINE uint32_t CheckCastByIdEntrypoint(ObjectHeader *obj, Class *klass)
 {
     CHECK_STACK_WALKER;
     ASSERT(IsAddressInObjectsHeapOrNull(obj));
@@ -1494,7 +1503,8 @@ extern "C" uint32_t CheckCastByIdEntrypoint(ObjectHeader *obj, Class *klass)
     return 0;
 }
 
-extern "C" uint32_t CheckCastNoSuperTraversalEntrypoint(ark::Class *objKlass, ark::Class *klass)
+extern "C" ENTRYPOINT_NO_INLINE PANDA_PUBLIC_API uint32_t CheckCastNoSuperTraversalEntrypoint(ark::Class *objKlass,
+                                                                                              ark::Class *klass)
 {
     CHECK_STACK_WALKER;
     ASSERT(objKlass != nullptr && klass != nullptr);
@@ -1522,7 +1532,8 @@ extern "C" uint32_t IsInstanceByIdEntrypoint(ObjectHeader *obj, Class *klass)
     return IsInstanceEntrypoint(obj, klass);
 }
 
-extern "C" uint32_t IsInstanceNoSuperTraversalEntrypoint(ark::Class *objKlass, ark::Class *klass)
+extern "C" ENTRYPOINT_NO_INLINE PANDA_PUBLIC_API uint32_t IsInstanceNoSuperTraversalEntrypoint(ark::Class *objKlass,
+                                                                                               ark::Class *klass)
 {
     CHECK_STACK_WALKER;
     ASSERT(objKlass != nullptr && klass != nullptr);
@@ -1541,21 +1552,24 @@ extern "C" uint32_t IsInstanceNoSuperTraversalEntrypoint(ark::Class *objKlass, a
     return 0;
 }
 
-extern "C" coretypes::String *ResolveStringByIdEntrypoint(ManagedThread *thread, Frame *frame, FileEntityId id)
+extern "C" PANDA_PUBLIC_API coretypes::String *ResolveStringByIdEntrypoint(ManagedThread *thread, Frame *frame,
+                                                                           FileEntityId id)
 {
     BEGIN_ENTRYPOINT();
     return thread->GetVM()->ResolveString(frame, panda_file::File::EntityId(id));
 }
 
-extern "C" coretypes::Array *ResolveLiteralArrayByIdEntrypoint(ManagedThread *thread, const Method *caller,
-                                                               uint32_t typeId)
+extern "C" PANDA_PUBLIC_API coretypes::Array *ResolveLiteralArrayByIdEntrypoint(ManagedThread *thread,
+                                                                                const Method *caller, uint32_t typeId)
 {
     BEGIN_ENTRYPOINT();
     return interpreter::RuntimeInterface::ResolveLiteralArray(thread->GetVM(), *caller, BytecodeId(typeId));
 }
 
-extern "C" Class *ResolveTypeByIdEntrypoint(ManagedThread *thread, Method *caller, uint32_t id,
-                                            InterpreterCache::Entry *entry, const uint8_t *pc)
+extern "C" ENTRYPOINT_NO_INLINE PANDA_PUBLIC_API Class *ResolveTypeByIdEntrypoint(ManagedThread *thread, Method *caller,
+                                                                                  uint32_t id,
+                                                                                  InterpreterCache::Entry *entry,
+                                                                                  const uint8_t *pc)
 {
     CHECK_STACK_WALKER;
     auto klass = interpreter::RuntimeInterface::ResolveClass<false>(thread, *caller, BytecodeId(id));
@@ -1566,8 +1580,9 @@ extern "C" Class *ResolveTypeByIdEntrypoint(ManagedThread *thread, Method *calle
     return klass;
 }
 
-extern "C" Field *GetFieldByIdEntrypoint([[maybe_unused]] ManagedThread *thread, Method *caller, uint32_t fieldId,
-                                         InterpreterCache::Entry *entry, const uint8_t *pc)
+extern "C" PANDA_PUBLIC_API Field *GetFieldByIdEntrypoint([[maybe_unused]] ManagedThread *thread, Method *caller,
+                                                          uint32_t fieldId, InterpreterCache::Entry *entry,
+                                                          const uint8_t *pc)
 {
     CHECK_STACK_WALKER;
     auto resolvedId = caller->GetClass()->ResolveFieldIndex(BytecodeId(fieldId).AsIndex());
@@ -1579,8 +1594,8 @@ extern "C" Field *GetFieldByIdEntrypoint([[maybe_unused]] ManagedThread *thread,
     return field;
 }
 
-extern "C" Field *GetStaticFieldByIdEntrypoint(ManagedThread *thread, Method *caller, uint32_t fieldId,
-                                               InterpreterCache::Entry *entry, const uint8_t *pc)
+extern "C" PANDA_PUBLIC_API Field *GetStaticFieldByIdEntrypoint(ManagedThread *thread, Method *caller, uint32_t fieldId,
+                                                                InterpreterCache::Entry *entry, const uint8_t *pc)
 {
     CHECK_STACK_WALKER;
     auto *field = interpreter::RuntimeInterface::ResolveField(thread, *caller, BytecodeId(fieldId), true);
@@ -1592,8 +1607,9 @@ extern "C" Field *GetStaticFieldByIdEntrypoint(ManagedThread *thread, Method *ca
     return field;
 }
 
-extern "C" Method *GetCalleeMethodFromBytecodeId(ManagedThread *thread, Method *caller, uint32_t calleeId,
-                                                 InterpreterCache::Entry *entry, const uint8_t *pc)
+extern "C" PANDA_PUBLIC_API Method *GetCalleeMethodFromBytecodeId(ManagedThread *thread, Method *caller,
+                                                                  uint32_t calleeId, InterpreterCache::Entry *entry,
+                                                                  const uint8_t *pc)
 {
     CHECK_STACK_WALKER;
     auto *method = interpreter::RuntimeInterface::ResolveMethod(thread, *caller, BytecodeId(calleeId));
@@ -1604,15 +1620,16 @@ extern "C" Method *GetCalleeMethodFromBytecodeId(ManagedThread *thread, Method *
     return method;
 }
 
-extern "C" Class *GetMethodClassById(Method *method, uint32_t methodId)
+extern "C" ENTRYPOINT_NO_INLINE PANDA_PUBLIC_API Class *GetMethodClassById(Method *method, uint32_t methodId)
 {
     CHECK_STACK_WALKER;
     Class *klass = interpreter::RuntimeInterface::GetMethodClass(method, BytecodeId(methodId));
     return klass;  // May be nullptr if exception occured
 }
 
-extern "C" Method *ResolveVirtualMethod(const Method *callee, Frame *frame, const ObjectPointerType objPtr,
-                                        const uint8_t *pc, Method *caller)
+extern "C" PANDA_PUBLIC_API Method *ResolveVirtualMethod(const Method *callee, Frame *frame,
+                                                         const ObjectPointerType objPtr, const uint8_t *pc,
+                                                         Method *caller)
 {
     auto *obj = reinterpret_cast<const ObjectHeader *>(objPtr);
     ASSERT(IsAddressInObjectsHeap(obj));
@@ -1630,7 +1647,7 @@ extern "C" Method *ResolveVirtualMethod(const Method *callee, Frame *frame, cons
     return resolved;
 }
 
-extern "C" bool Verify(Method *method)
+extern "C" PANDA_PUBLIC_API bool Verify(Method *method)
 {
     if (UNLIKELY(!method->Verify())) {
         interpreter::RuntimeInterface::ThrowVerificationException(method->GetFullName());
@@ -1657,14 +1674,16 @@ extern "C" bool DecrementHotnessCounterDyn(Method *method, TaggedValue funcObj, 
     return method->GetCompiledEntryPoint() != GetCompiledCodeToInterpreterBridge(method);
 }
 
-extern "C" void CallCompilerSlowPath(ManagedThread *thread, Method *method)
+extern "C" PANDA_PUBLIC_API void CallCompilerSlowPath(ManagedThread *thread, Method *method)
 {
     CHECK_STACK_WALKER;
     method->DecrementHotnessCounter<false>(thread, 0, nullptr);
 }
 
-extern "C" bool CallCompilerSlowPathOSR(ManagedThread *thread, Method *method, Frame *frame, uint64_t acc,
-                                        uint64_t accTag, uint32_t insOffset, int offset)
+extern "C" ENTRYPOINT_NO_INLINE PANDA_PUBLIC_API bool CallCompilerSlowPathOSR(ManagedThread *thread, Method *method,
+                                                                              Frame *frame, uint64_t acc,
+                                                                              uint64_t accTag, uint32_t insOffset,
+                                                                              int offset)
 {
     CHECK_STACK_WALKER;
     if constexpr (ArchTraits<RUNTIME_ARCH>::SUPPORT_OSR) {
@@ -1678,8 +1697,8 @@ extern "C" bool CallCompilerSlowPathOSR(ManagedThread *thread, Method *method, F
     return false;
 }
 
-extern "C" void UpdateBranchTaken([[maybe_unused]] Method *method, Frame *frame, const uint8_t *pc,
-                                  ProfilingData *profDataIrtoc)
+extern "C" PANDA_PUBLIC_API void UpdateBranchTaken([[maybe_unused]] Method *method, Frame *frame, const uint8_t *pc,
+                                                   ProfilingData *profDataIrtoc)
 {
     // Add a second prof_data loading because without it THREAD_SANITIZER crashes
     // NOTE(aantipina): investigate and delete the second loading (issue I6DTAA)
@@ -1687,8 +1706,8 @@ extern "C" void UpdateBranchTaken([[maybe_unused]] Method *method, Frame *frame,
     profDataIrtoc->UpdateBranchTaken(pc - frame->GetInstruction());
 }
 
-extern "C" void UpdateBranchUntaken([[maybe_unused]] Method *method, Frame *frame, const uint8_t *pc,
-                                    ProfilingData *profDataIrtoc)
+extern "C" PANDA_PUBLIC_API void UpdateBranchUntaken([[maybe_unused]] Method *method, Frame *frame, const uint8_t *pc,
+                                                     ProfilingData *profDataIrtoc)
 {
     // Add a second prof_data loading because without it THREAD_SANITIZER crashes
     // NOTE(aantipina): investigate and delete the second loading
@@ -1696,7 +1715,7 @@ extern "C" void UpdateBranchUntaken([[maybe_unused]] Method *method, Frame *fram
     profDataIrtoc->UpdateBranchNotTaken(pc - frame->GetInstruction());
 }
 
-extern "C" uint32_t ReadUlebEntrypoint(const uint8_t *ptr)
+extern "C" PANDA_PUBLIC_API uint32_t ReadUlebEntrypoint(const uint8_t *ptr)
 {
     uint32_t result;
     [[maybe_unused]] size_t n;
@@ -1706,18 +1725,18 @@ extern "C" uint32_t ReadUlebEntrypoint(const uint8_t *ptr)
     return result;
 }
 
-extern "C" const uint8_t *GetInstructionsByMethod(const Method *method)
+extern "C" ENTRYPOINT_NO_INLINE PANDA_PUBLIC_API const uint8_t *GetInstructionsByMethod(const Method *method)
 {
     return method->GetInstructions();
 }
 
-extern "C" uint32_t GetNumVregsByMethod(const Method *method)
+extern "C" ENTRYPOINT_NO_INLINE PANDA_PUBLIC_API uint32_t GetNumVregsByMethod(const Method *method)
 {
     return method->GetNumVregs();
 }
 
-extern "C" void ThrowExceptionFromInterpreter(ManagedThread *thread, ObjectHeader *exception, Frame *frame,
-                                              const uint8_t *pc)
+extern "C" PANDA_PUBLIC_API void ThrowExceptionFromInterpreter(ManagedThread *thread, ObjectHeader *exception,
+                                                               Frame *frame, const uint8_t *pc)
 {
     CHECK_STACK_WALKER;
     ASSERT(!thread->HasPendingException());
@@ -1730,42 +1749,43 @@ extern "C" void ThrowExceptionFromInterpreter(ManagedThread *thread, ObjectHeade
     thread->SetException(exception);
 }
 
-extern "C" void ThrowArithmeticExceptionFromInterpreter()
+extern "C" PANDA_PUBLIC_API void ThrowArithmeticExceptionFromInterpreter()
 {
     CHECK_STACK_WALKER;
     ASSERT(!ManagedThread::GetCurrent()->HasPendingException());
     interpreter::RuntimeInterface::ThrowArithmeticException();
 }
 
-extern "C" void ThrowNullPointerExceptionFromInterpreter()
+extern "C" PANDA_PUBLIC_API void ThrowNullPointerExceptionFromInterpreter()
 {
     CHECK_STACK_WALKER;
     ASSERT(!ManagedThread::GetCurrent()->HasPendingException());
     interpreter::RuntimeInterface::ThrowNullPointerException();
 }
 
-extern "C" void ThrowClassCastExceptionFromInterpreter(Class *klass)
+extern "C" PANDA_PUBLIC_API void ThrowClassCastExceptionFromInterpreter(Class *klass)
 {
     CHECK_STACK_WALKER;
     ASSERT(!ManagedThread::GetCurrent()->HasPendingException());
     interpreter::RuntimeInterface::ThrowClassCastException(klass, nullptr);
 }
 
-extern "C" void ThrowNegativeArraySizeExceptionFromInterpreter(int32_t size)
+extern "C" PANDA_PUBLIC_API void ThrowNegativeArraySizeExceptionFromInterpreter(int32_t size)
 {
     CHECK_STACK_WALKER;
     ASSERT(!ManagedThread::GetCurrent()->HasPendingException());
     interpreter::RuntimeInterface::ThrowNegativeArraySizeException(size);
 }
 
-extern "C" void ThrowArrayIndexOutOfBoundsExceptionFromInterpreter(ssize_t idx, size_t length)
+extern "C" PANDA_PUBLIC_API void ThrowArrayIndexOutOfBoundsExceptionFromInterpreter(ssize_t idx, size_t length)
 {
     CHECK_STACK_WALKER;
     ASSERT(!ManagedThread::GetCurrent()->HasPendingException());
     interpreter::RuntimeInterface::ThrowArrayIndexOutOfBoundsException(idx, length);
 }
 
-extern "C" uint8_t CheckStoreArrayReferenceFromInterpreter(coretypes::Array *array, ObjectHeader *storeObj)
+extern "C" ENTRYPOINT_NO_INLINE PANDA_PUBLIC_API uint8_t
+CheckStoreArrayReferenceFromInterpreter(coretypes::Array *array, ObjectHeader *storeObj)
 {
     CHECK_STACK_WALKER;
     ASSERT(array != nullptr);
@@ -1787,7 +1807,9 @@ extern "C" uint8_t CheckStoreArrayReferenceFromInterpreter(coretypes::Array *arr
     return 0;
 }
 
-extern "C" uint32_t FindCatchBlockInIFramesStackless(ManagedThread **currThread, Frame **currFrame, const uint8_t *pc)
+extern "C" ENTRYPOINT_NO_INLINE PANDA_PUBLIC_API uint32_t FindCatchBlockInIFramesStackless(ManagedThread **currThread,
+                                                                                           Frame **currFrame,
+                                                                                           const uint8_t *pc)
 {
     uint32_t inst = pc - (*currFrame)->GetInstruction();
     Frame *frame = *currFrame;
@@ -1833,7 +1855,8 @@ extern "C" uint32_t FindCatchBlockInIFramesStackless(ManagedThread **currThread,
     return panda_file::INVALID_OFFSET;
 }
 
-extern "C" const uint8_t *FindCatchBlockInIFrames(ManagedThread *currThread, Frame *currFrame, const uint8_t *pc)
+extern "C" PANDA_PUBLIC_API const uint8_t *FindCatchBlockInIFrames(ManagedThread *currThread, Frame *currFrame,
+                                                                   const uint8_t *pc)
 {
     CHECK_STACK_WALKER;
 
@@ -1858,7 +1881,8 @@ extern "C" const uint8_t *FindCatchBlockInIFrames(ManagedThread *currThread, Fra
     return sp.cend();
 }
 
-extern "C" coretypes::String *VmCreateString(ManagedThread *thread, Method *method, ObjectHeader *ctorArg)
+extern "C" PANDA_PUBLIC_API coretypes::String *VmCreateString(ManagedThread *thread, Method *method,
+                                                              ObjectHeader *ctorArg)
 {
     CHECK_STACK_WALKER;
     // If ctor has the only argument (object itself), ctor_arg is allowed to contain garbage
@@ -1867,8 +1891,10 @@ extern "C" coretypes::String *VmCreateString(ManagedThread *thread, Method *meth
     return thread->GetVM()->CreateString(method, ctorArg);
 }
 
-extern "C" void DebugPrintEntrypoint([[maybe_unused]] ark::Frame *frame, [[maybe_unused]] const uint8_t *pc,
-                                     [[maybe_unused]] uint64_t accPayload, [[maybe_unused]] uint64_t accTag)
+extern "C" PANDA_PUBLIC_API void DebugPrintEntrypoint([[maybe_unused]] ark::Frame *frame,
+                                                      [[maybe_unused]] const uint8_t *pc,
+                                                      [[maybe_unused]] uint64_t accPayload,
+                                                      [[maybe_unused]] uint64_t accTag)
 {
     CHECK_STACK_WALKER;
 #ifndef NDEBUG

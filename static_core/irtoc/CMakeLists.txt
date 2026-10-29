@@ -84,11 +84,18 @@ endif()
 
 add_custom_target(interpreter_irt_combine)
 set_target_properties(interpreter_irt_combine PROPERTIES IRTOC_PLUGIN_FILES "")
+set_target_properties(interpreter_irt_combine PROPERTIES IRTOC_BUILDER_INPUTS "")
 
 function(add_irtoc_plugin YAML_FILE_PATH)
     get_target_property(YAML_FILES interpreter_irt_combine IRTOC_PLUGIN_FILES)
     list(APPEND YAML_FILES ${YAML_FILE_PATH})
     set_target_properties(interpreter_irt_combine PROPERTIES IRTOC_PLUGIN_FILES "${YAML_FILES}")
+endfunction()
+
+function(add_irtoc_builder_input FILE_PATH)
+    get_target_property(FILES interpreter_irt_combine IRTOC_BUILDER_INPUTS)
+    list(APPEND FILES ${FILE_PATH})
+    set_target_properties(interpreter_irt_combine PROPERTIES IRTOC_BUILDER_INPUTS "${FILES}")
 endfunction()
 
 # Run IRtoC front-end to generate C++ code from IRtoC sources.
@@ -100,7 +107,7 @@ endfunction()
 #   [in] WORKING_DIRECTORY - working directory for the front-end.
 function(irtoc_generate)
     set(noValues)
-    set(singleValueArgs TARGET IR_API WORKING_DIRECTORY)
+    set(singleValueArgs TARGET IR_API WORKING_DIRECTORY BUILDER_INPUTS_FILE)
     set(multiValueArgs INPUT_FILES OUTPUT_FILES)
     cmake_parse_arguments(ARG "${noValues}" "${singleValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -128,6 +135,11 @@ function(irtoc_generate)
 
     set(IRTOC_PLUGINS_FILE ${IRTOC_BUILD_DIR}/generated/plugins.txt)
 
+    set(IRTOC_BUILDER_INPUTS_ARG "")
+    if (DEFINED ARG_BUILDER_INPUTS_FILE)
+        set(IRTOC_BUILDER_INPUTS_ARG "--builder-inputs=${ARG_BUILDER_INPUTS_FILE}")
+    endif()
+
     set(irtoc_cpu_features "")
     if (NOT "${PANDA_TARGET_CPU_FEATURES}" STREQUAL "")
         set(irtoc_cpu_features "--cpu-features=${PANDA_TARGET_CPU_FEATURES}")
@@ -145,8 +157,9 @@ function(irtoc_generate)
                                 --arch ${IRTOC_TARGET}
                                 ${irtoc_cpu_features}
                                 --plugins ${IRTOC_PLUGINS_FILE}
+                                ${IRTOC_BUILDER_INPUTS_ARG}
         WORKING_DIRECTORY   ${ARG_WORKING_DIRECTORY}
-        DEPENDS             ${IRTOC_LANG_SOURCES} ${ARG_INPUT_FILES} ${ISA} ${ISAPI} ${IRTOC_SOURCE_DIR}/scripts/common.irt ${IRTOC_PLUGINS_FILE}
+        DEPENDS             ${IRTOC_LANG_SOURCES} ${ARG_INPUT_FILES} ${ISA} ${ISAPI} ${IRTOC_SOURCE_DIR}/scripts/common.irt ${IRTOC_PLUGINS_FILE} ${ARG_BUILDER_INPUTS_FILE}
     )
 
     add_custom_target(${ARG_TARGET} DEPENDS ${ARG_OUTPUT_FILES} irtoc_plugins_txt)

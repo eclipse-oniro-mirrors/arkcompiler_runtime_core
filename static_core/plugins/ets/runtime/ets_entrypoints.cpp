@@ -208,8 +208,8 @@ extern "C" ObjectHeader *LaunchFromInterpreterRange(Method *method, Frame *frame
     return LaunchFromInterpreterImpl<BytecodeInstruction::Format::PREF_V8_ID16>(method, frame, pc);
 }
 
-extern "C" Field *LookupFieldByNameEntrypoint(InterpreterCache::Entry *entry, ObjectHeader *obj, uint32_t id,
-                                              Method *caller, const uint8_t *pc)
+extern "C" PANDA_PUBLIC_API Field *LookupFieldByNameEntrypoint(InterpreterCache::Entry *entry, ObjectHeader *obj,
+                                                               uint32_t id, Method *caller, const uint8_t *pc)
 {
     auto current = static_cast<ark::Class *>(obj->ClassAddr<ark::BaseClass>());
     auto *classLinker = Runtime::GetCurrent()->GetClassLinker();
@@ -249,43 +249,43 @@ Method *LookupSetterByNameEntrypoint(InterpreterCache::Entry *entry, ObjectHeade
     return GetAccessorByName<FORMAT, false>(entry, caller, metaField, pc, current);
 }
 
-extern "C" Method *LookupGetterByNameShortEntrypoint(InterpreterCache::Entry *entry, ObjectHeader *obj, uint32_t id,
-                                                     Method *caller, const uint8_t *pc)
+extern "C" PANDA_PUBLIC_API Method *LookupGetterByNameShortEntrypoint(InterpreterCache::Entry *entry, ObjectHeader *obj,
+                                                                      uint32_t id, Method *caller, const uint8_t *pc)
 {
     return LookupGetterByNameEntrypoint<panda_file::Type::TypeId::I32>(entry, obj, id, caller, pc);
 }
 
-extern "C" Method *LookupGetterByNameLongEntrypoint(InterpreterCache::Entry *entry, ObjectHeader *obj, uint32_t id,
-                                                    Method *caller, const uint8_t *pc)
+extern "C" PANDA_PUBLIC_API Method *LookupGetterByNameLongEntrypoint(InterpreterCache::Entry *entry, ObjectHeader *obj,
+                                                                     uint32_t id, Method *caller, const uint8_t *pc)
 {
     return LookupGetterByNameEntrypoint<panda_file::Type::TypeId::I64>(entry, obj, id, caller, pc);
 }
 
-extern "C" Method *LookupGetterByNameObjEntrypoint(InterpreterCache::Entry *entry, ObjectHeader *obj, uint32_t id,
-                                                   Method *caller, const uint8_t *pc)
+extern "C" PANDA_PUBLIC_API Method *LookupGetterByNameObjEntrypoint(InterpreterCache::Entry *entry, ObjectHeader *obj,
+                                                                    uint32_t id, Method *caller, const uint8_t *pc)
 {
     return LookupGetterByNameEntrypoint<panda_file::Type::TypeId::REFERENCE>(entry, obj, id, caller, pc);
 }
 
-extern "C" Method *LookupSetterByNameShortEntrypoint(InterpreterCache::Entry *entry, ObjectHeader *obj, uint32_t id,
-                                                     Method *caller, const uint8_t *pc)
+extern "C" PANDA_PUBLIC_API Method *LookupSetterByNameShortEntrypoint(InterpreterCache::Entry *entry, ObjectHeader *obj,
+                                                                      uint32_t id, Method *caller, const uint8_t *pc)
 {
     return LookupSetterByNameEntrypoint<panda_file::Type::TypeId::I32>(entry, obj, id, caller, pc);
 }
 
-extern "C" Method *LookupSetterByNameLongEntrypoint(InterpreterCache::Entry *entry, ObjectHeader *obj, uint32_t id,
-                                                    Method *caller, const uint8_t *pc)
+extern "C" PANDA_PUBLIC_API Method *LookupSetterByNameLongEntrypoint(InterpreterCache::Entry *entry, ObjectHeader *obj,
+                                                                     uint32_t id, Method *caller, const uint8_t *pc)
 {
     return LookupSetterByNameEntrypoint<panda_file::Type::TypeId::I64>(entry, obj, id, caller, pc);
 }
 
-extern "C" Method *LookupSetterByNameObjEntrypoint(InterpreterCache::Entry *entry, ObjectHeader *obj, uint32_t id,
-                                                   Method *caller, const uint8_t *pc)
+extern "C" PANDA_PUBLIC_API Method *LookupSetterByNameObjEntrypoint(InterpreterCache::Entry *entry, ObjectHeader *obj,
+                                                                    uint32_t id, Method *caller, const uint8_t *pc)
 {
     return LookupSetterByNameEntrypoint<panda_file::Type::TypeId::REFERENCE>(entry, obj, id, caller, pc);
 }
 
-extern "C" void ThrowEtsExceptionNoSuchGetterEntrypoint(ObjectHeader *obj, uint32_t id, Method *caller)
+extern "C" PANDA_PUBLIC_API void ThrowEtsExceptionNoSuchGetterEntrypoint(ObjectHeader *obj, uint32_t id, Method *caller)
 {
     auto klass = static_cast<ark::Class *>(obj->ClassAddr<ark::BaseClass>());
     auto *classLinker = Runtime::GetCurrent()->GetClassLinker();
@@ -297,7 +297,7 @@ extern "C" void ThrowEtsExceptionNoSuchGetterEntrypoint(ObjectHeader *obj, uint3
     LookUpException<true>(klass, rawField);
 }
 
-extern "C" void ThrowEtsExceptionNoSuchSetterEntrypoint(ObjectHeader *obj, uint32_t id, Method *caller)
+extern "C" PANDA_PUBLIC_API void ThrowEtsExceptionNoSuchSetterEntrypoint(ObjectHeader *obj, uint32_t id, Method *caller)
 {
     auto klass = static_cast<ark::Class *>(obj->ClassAddr<ark::BaseClass>());
     auto *classLinker = Runtime::GetCurrent()->GetClassLinker();
@@ -309,8 +309,8 @@ extern "C" void ThrowEtsExceptionNoSuchSetterEntrypoint(ObjectHeader *obj, uint3
     LookUpException<false>(klass, rawField);
 }
 
-extern "C" Method *LookupMethodByNameEntrypoint(InterpreterCache::Entry *entry, ObjectHeader *obj, uint32_t id,
-                                                Method *caller, const uint8_t *pc)
+extern "C" PANDA_PUBLIC_API Method *LookupMethodByNameEntrypoint(InterpreterCache::Entry *entry, ObjectHeader *obj,
+                                                                 uint32_t id, Method *caller, const uint8_t *pc)
 {
     auto current = static_cast<ark::Class *>(obj->ClassAddr<ark::BaseClass>());
     auto *executionCtx = EtsExecutionContext::GetCurrent();
@@ -325,7 +325,7 @@ extern "C" Method *LookupMethodByNameEntrypoint(InterpreterCache::Entry *entry, 
     return GetMethodByName(executionCtx, cacheInfo, metaMethod, current);
 }
 
-extern "C" void ThrowEtsExceptionNoSuchMethodEntrypoint(ObjectHeader *obj, uint32_t id, Method *caller)
+extern "C" PANDA_PUBLIC_API void ThrowEtsExceptionNoSuchMethodEntrypoint(ObjectHeader *obj, uint32_t id, Method *caller)
 {
     auto klass = static_cast<ark::Class *>(obj->ClassAddr<ark::BaseClass>());
     auto *classLinker = Runtime::GetCurrent()->GetClassLinker();
@@ -388,32 +388,34 @@ extern "C" ObjectHeader *StringBuilderAppendNullStringEntrypoint(ObjectHeader *s
     return StringBuilderAppendNullString(sb);
 }
 
-extern "C" bool IsClassValueTypedEntrypoint(Class *cls)
+extern "C" PANDA_PUBLIC_API bool IsClassValueTypedEntrypoint(Class *cls)
 {
     return EtsClass::FromRuntimeClass(cls)->IsValueTyped();
 }
 
-extern "C" bool CompareETSValueTypedEntrypoint(ManagedThread *thread, ObjectHeader *obj1, ObjectHeader *obj2)
+extern "C" PANDA_PUBLIC_API bool CompareETSValueTypedEntrypoint(ManagedThread *thread, ObjectHeader *obj1,
+                                                                ObjectHeader *obj2)
 {
     auto eobj1 = EtsObject::FromCoreType(obj1);
     auto eobj2 = EtsObject::FromCoreType(obj2);
     return EtsValueTypedEquals(EtsExecutionContext::FromMT(thread), eobj1, eobj2);
 }
 
-extern "C" EtsString *EtsGetTypeofEntrypoint(ManagedThread *thread, ObjectHeader *obj)
+extern "C" PANDA_PUBLIC_API EtsString *EtsGetTypeofEntrypoint(ManagedThread *thread, ObjectHeader *obj)
 {
     EtsObject *eobj = EtsObject::FromCoreType(obj);
     return EtsGetTypeof(EtsExecutionContext::FromMT(thread), eobj);
 }
 
-extern "C" bool EtsIstrueEntrypoint(ManagedThread *thread, ObjectHeader *obj)
+extern "C" PANDA_PUBLIC_API bool EtsIstrueEntrypoint(ManagedThread *thread, ObjectHeader *obj)
 {
     EtsObject *eobj = EtsObject::FromCoreType(obj);
     return EtsIstrue(EtsExecutionContext::FromMT(thread), eobj);
 }
 
-extern "C" EtsObject *EtsEnsureCapacityForAsyncContextEntrypoint(EtsExecutionContextWrapper *wrapper,
-                                                                 ObjectHeader *asyncContextObj, uint32_t frameSize)
+extern "C" PANDA_PUBLIC_API EtsObject *EtsEnsureCapacityForAsyncContextEntrypoint(EtsExecutionContextWrapper *wrapper,
+                                                                                  ObjectHeader *asyncContextObj,
+                                                                                  uint32_t frameSize)
 {
     auto *asyncCtx = EtsAsyncContext::FromCoreType(asyncContextObj);
     ASSERT(asyncCtx != nullptr);
@@ -422,8 +424,9 @@ extern "C" EtsObject *EtsEnsureCapacityForAsyncContextEntrypoint(EtsExecutionCon
     return EtsAsyncContext::EnsureCapacityForInterpreterFrame(asyncCtx, executionCtx, frameSize);
 }
 
-extern "C" uint32_t EtsRestoreCompiledAsyncContextEntrypoint(EtsExecutionContextWrapper *wrapper, Frame *frame,
-                                                             ObjectHeader *asyncContextObj)
+extern "C" PANDA_PUBLIC_API uint32_t EtsRestoreCompiledAsyncContextEntrypoint(EtsExecutionContextWrapper *wrapper,
+                                                                              Frame *frame,
+                                                                              ObjectHeader *asyncContextObj)
 {
     auto *asyncCtx = EtsAsyncContext::FromCoreType(asyncContextObj);
     ASSERT(asyncCtx != nullptr);
@@ -730,17 +733,17 @@ extern "C" EtsObject *EtsCompilerAwaitResolutionEntrypoint(EtsPromise *promise, 
     return ark::ets::intrinsics::helpers::EtsAwaitPromiseImpl(promise, refCount, primCount, pc);
 }
 
-extern "C" EtsObject *EtsAsyncContextGetCurrentEntrypoint()
+extern "C" PANDA_PUBLIC_API EtsObject *EtsAsyncContextGetCurrentEntrypoint()
 {
     return ark::ets::EtsAsyncContext::GetCurrent(EtsExecutionContext::GetCurrent());
 }
 
-extern "C" EtsObject *EtsAwaitResolutionEntrypoint(EtsPromise *promise)
+extern "C" PANDA_PUBLIC_API EtsObject *EtsAwaitResolutionEntrypoint(EtsPromise *promise)
 {
     return ark::ets::intrinsics::helpers::EtsAwaitPromiseImpl(promise, -1, -1, -1);
 }
 
-extern "C" EtsObject *EtsAsyncUnpackEntrypoint(EtsPromise *promise)
+extern "C" PANDA_PUBLIC_API EtsObject *EtsAsyncUnpackEntrypoint(EtsPromise *promise)
 {
     auto *executionCtx = EtsExecutionContext::GetCurrent();
 
@@ -766,7 +769,7 @@ extern "C" EtsObject *EtsAsyncUnpackEntrypoint(EtsPromise *promise)
     return nullptr;
 }
 
-extern "C" EtsObject *EtsAsyncResolveEntrypoint(EtsObject *value)
+extern "C" PANDA_PUBLIC_API EtsObject *EtsAsyncResolveEntrypoint(EtsObject *value)
 {
     auto *executionCtx = EtsExecutionContext::GetCurrent();
     auto *asyncCtx = EtsAsyncContext::GetCurrent(executionCtx);
@@ -785,7 +788,7 @@ extern "C" EtsObject *EtsAsyncResolveEntrypoint(EtsObject *value)
     return hpromise.GetPtr();
 }
 
-extern "C" EtsObject *EtsAsyncRejectEntrypoint(EtsObject *error)
+extern "C" PANDA_PUBLIC_API EtsObject *EtsAsyncRejectEntrypoint(EtsObject *error)
 {
     auto *executionCtx = EtsExecutionContext::GetCurrent();
     auto *asyncCtx = EtsAsyncContext::GetCurrent(executionCtx);

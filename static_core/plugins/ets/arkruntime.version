@@ -34,9 +34,50 @@
            that link libarkruntime.so, so they must stay exported despite the
            *Bridge local rule below. An exact name here takes precedence over
            the local wildcards. */
+        GetCompiledCodeToInterpreterBridge;
         InterpreterToCompiledCodeBridge;
         InterpreterToCompiledCodeBridgeDyn;
         ThrowNativeExceptionBridge;
+
+        /* Entrypoint symbols referenced by irtoc_interpreter.o (now in
+           libarkinterpreter.so). Must stay exported so the linker can
+           resolve them across .so boundaries. */
+        AnnotateSanitizersEntrypoint;
+        AnnotateSanitizersPoisonEntrypoint;
+        CheckCastNoSuperTraversalEntrypoint;
+        CompareETSValueTypedEntrypoint;
+        CreateArrayByIdEntrypoint;
+        DebugPrintEntrypoint;
+        DebugSwitchFromIrtocEntrypoint;
+        EtsAsyncContextGetCurrentEntrypoint;
+        EtsAsyncRejectEntrypoint;
+        EtsAsyncResolveEntrypoint;
+        EtsAsyncUnpackEntrypoint;
+        EtsAwaitResolutionEntrypoint;
+        EtsEnsureCapacityForAsyncContextEntrypoint;
+        EtsGetTypeofEntrypoint;
+        EtsIstrueEntrypoint;
+        EtsRestoreCompiledAsyncContextEntrypoint;
+        GetFieldByIdEntrypoint;
+        GetStaticFieldByIdEntrypoint;
+        IsClassValueTypedEntrypoint;
+        IsInstanceNoSuperTraversalEntrypoint;
+        LookupFieldByNameEntrypoint;
+        LookupGetterByNameLongEntrypoint;
+        LookupGetterByNameObjEntrypoint;
+        LookupGetterByNameShortEntrypoint;
+        LookupMethodByNameEntrypoint;
+        LookupSetterByNameLongEntrypoint;
+        LookupSetterByNameObjEntrypoint;
+        LookupSetterByNameShortEntrypoint;
+        ReadUlebEntrypoint;
+        ResolveLiteralArrayByIdEntrypoint;
+        ResolveStringByIdEntrypoint;
+        ResolveTypeByIdEntrypoint;
+        SafepointCheckerEntrypoint;
+        ThrowEtsExceptionNoSuchGetterEntrypoint;
+        ThrowEtsExceptionNoSuchMethodEntrypoint;
+        ThrowEtsExceptionNoSuchSetterEntrypoint;
 
     local:
         /* ================================================================

@@ -86,18 +86,24 @@
     CFI_ENDPROC
 .endm
 
-.macro ENTRYPOINT name, entry, paramsnum, ret_type
+.macro ENTRYPOINT name, entry, paramsnum, ret_type, exported=0
 .global \name
 #ifdef PANDA_TARGET_MACOS
 .private_extern \name
+.if \exported == 0
 .private_extern \entry
+.endif
 #else
 #ifdef PANDA_WITH_HIDDEN_SYMBOLS
 .hidden \name
+.if \exported == 0
 .hidden \entry
+.endif
 #else
 .protected \name
+.if \exported == 0
 .protected \entry
+.endif
 #endif
 .type \name, %function
 #endif

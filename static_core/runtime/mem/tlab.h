@@ -150,7 +150,7 @@ public:
      * @param size - size of the allocated memory
      * @return pointer to the allocated memory on success, or nullptr on fail
      */
-    void *Alloc(size_t size);
+    PANDA_PUBLIC_API void *Alloc(size_t size);
 
     /**
      * @brief Iterates over all objects in this TLAB

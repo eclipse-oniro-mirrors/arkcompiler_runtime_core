@@ -41,6 +41,10 @@ class Entrypoint < OpenStruct
     has_property? 'external'
   end
 
+  def exported?
+    has_property? 'exported'
+  end
+
   def has_property? prop
     self.properties&.include? prop
   end

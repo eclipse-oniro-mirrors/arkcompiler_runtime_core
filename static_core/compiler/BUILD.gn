@@ -758,12 +758,15 @@ if (enable_irtoc) {
       "ir-builder",
       "--plugins",
       rebase_path(irtoc_plugins_file, working_dir),
+      "--builder-inputs",
+      rebase_path(irtoc_builder_inputs_file, working_dir),
       "--working-dir",
       rebase_path(working_dir, root_build_dir),
     ]
 
     deps = [
       "$ark_root/irtoc:irtoc_plugins_file",
+      "$ark_root/irtoc:irtoc_builder_inputs_file",
       "$ark_root/isa:isa_combine",
       "$ark_root/runtime:plugins_asm_defines_def",
       "$ark_root/runtime:plugins_defines_h",

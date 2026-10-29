@@ -39,7 +39,7 @@ const uint8_t *Frame::GetInstrOffset() const
     return (method_->GetInstructions());
 }
 
-bool Frame::CanOsr() const
+PANDA_PUBLIC_API bool Frame::CanOsr() const
 {
     // Currently, osr is not supported for async methods
     return Runtime::GetOptions().IsCompilerEnableOsr() && !IsDeoptimized() && !method_->HasAsyncAnnotation();

@@ -34,11 +34,11 @@ PANDA_PUBLIC_API void ThrowNullPointerException();
 // get current executing method from the managed stack.
 PANDA_PUBLIC_API void ThrowNullPointerException(const LanguageContext &ctx, ManagedThread *thread);
 
-void ThrowStackOverflowException(ManagedThread *thread);
+PANDA_PUBLIC_API void ThrowStackOverflowException(ManagedThread *thread);
 
-void ThrowArrayIndexOutOfBoundsException(coretypes::ArraySsizeT idx, coretypes::ArraySizeT length);
-void ThrowArrayIndexOutOfBoundsException(coretypes::ArraySsizeT idx, coretypes::ArraySizeT length,
-                                         const LanguageContext &ctx, ManagedThread *thread);
+PANDA_PUBLIC_API void ThrowArrayIndexOutOfBoundsException(coretypes::ArraySsizeT idx, coretypes::ArraySizeT length);
+PANDA_PUBLIC_API void ThrowArrayIndexOutOfBoundsException(coretypes::ArraySsizeT idx, coretypes::ArraySizeT length,
+                                                          const LanguageContext &ctx, ManagedThread *thread);
 
 void ThrowIndexOutOfBoundsException(coretypes::ArraySsizeT idx, coretypes::ArraySsizeT length);
 
@@ -46,21 +46,21 @@ void ThrowIllegalStateException(const PandaString &msg);
 
 void ThrowStringIndexOutOfBoundsException(coretypes::ArraySsizeT idx, coretypes::ArraySizeT length);
 
-void ThrowNegativeArraySizeException(coretypes::ArraySsizeT size);
+PANDA_PUBLIC_API void ThrowNegativeArraySizeException(coretypes::ArraySsizeT size);
 
-void ThrowNegativeArraySizeException(const PandaString &msg);
+PANDA_PUBLIC_API void ThrowNegativeArraySizeException(const PandaString &msg);
 
-void ThrowArithmeticException();
+PANDA_PUBLIC_API void ThrowArithmeticException();
 
-void ThrowClassCastException(const Class *dstType, const Class *srcType);
+PANDA_PUBLIC_API void ThrowClassCastException(const Class *dstType, const Class *srcType);
 
 void ThrowAbstractMethodError(const Method *method);
 
 void ThrowIncompatibleClassChangeErrorForMethodConflict(const Method *method);
 
-void ThrowArrayStoreException(const Class *arrayClass, const Class *elementClass);
+PANDA_PUBLIC_API void ThrowArrayStoreException(const Class *arrayClass, const Class *elementClass);
 
-void ThrowArrayStoreException(const PandaString &msg);
+PANDA_PUBLIC_API void ThrowArrayStoreException(const PandaString &msg);
 
 void ThrowRuntimeException(const PandaString &msg);
 
@@ -78,7 +78,7 @@ void ThrowOutOfMemoryError(ManagedThread *thread, const PandaString &msg);
 
 PANDA_PUBLIC_API void ThrowOutOfMemoryError(const PandaString &msg);
 
-void FindCatchBlockInCallStack(ManagedThread *thread);
+PANDA_PUBLIC_API void FindCatchBlockInCallStack(ManagedThread *thread);
 
 void DropCFrameIfNecessary(ManagedThread *thread, StackWalker *stack, Frame *origFrame, FrameAccessor nextFrame,
                            Method *method);
@@ -89,11 +89,11 @@ void ThrowIllegalAccessException(const PandaString &msg);
 
 void ThrowUnsupportedOperationException();
 
-void ThrowVerificationException(const PandaString &msg);
+PANDA_PUBLIC_API void ThrowVerificationException(const PandaString &msg);
 
-void ThrowVerificationException(const LanguageContext &ctx, const PandaString &msg);
+PANDA_PUBLIC_API void ThrowVerificationException(const LanguageContext &ctx, const PandaString &msg);
 
-void ThrowInstantiationError(const PandaString &msg);
+PANDA_PUBLIC_API void ThrowInstantiationError(const PandaString &msg);
 
 void ThrowNoClassDefFoundError(const PandaString &msg);
 

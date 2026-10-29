@@ -103,7 +103,8 @@ std::string Runtime::runtimeType_;  // NOLINT(fuchsia-statically-constructed-obj
 os::memory::Mutex Runtime::mutex_;  // NOLINT(fuchsia-statically-constructed-objects)
 bool Runtime::isTaskManagerUsed_ = false;
 
-const LanguageContextBase *g_ctxsJsRuntime = nullptr;  // Deprecated. Only for capability with js_runtime.
+// Deprecated. Only for capability with js_runtime.
+PANDA_PUBLIC_API const LanguageContextBase *g_ctxsJsRuntime = nullptr;
 
 #ifdef PANDA_TARGET_UNIX
 class RuntimeSignalCatcher final {

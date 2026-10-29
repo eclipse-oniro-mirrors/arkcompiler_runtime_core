@@ -11,6 +11,7 @@ build-sdk/sdk/ohos_arm32/lib/libarkbytecodeopt.so
 build-sdk/sdk/ohos_arm32/lib/libarkcompiler.so
 build-sdk/sdk/ohos_arm32/lib/libarkdisassembler.so
 build-sdk/sdk/ohos_arm32/lib/libarkfile.so
+build-sdk/sdk/ohos_arm32/lib/libarkinterpreter.so
 build-sdk/sdk/ohos_arm32/lib/libarkplatform.so
 build-sdk/sdk/ohos_arm32/lib/libarkruntime.so
 build-sdk/sdk/ohos_arm32/lib/libarktarget_options.so

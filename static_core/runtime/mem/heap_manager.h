@@ -152,7 +152,7 @@ public:
     void SetIsFinalizableFunc(IsObjectFinalizebleFunc func);
     void SetRegisterFinalizeReferenceFunc(RegisterFinalizeReferenceFunc func);
 
-    bool IsObjectFinalized(BaseClass *cls);
+    PANDA_PUBLIC_API bool IsObjectFinalized(BaseClass *cls);
     void RegisterFinalizedObject(ObjectHeader *object, BaseClass *cls, bool isObjectFinalizable);
 
     void SetPandaVM(PandaVM *vm);
@@ -223,7 +223,8 @@ public:
         return GetObjectAllocator().AsObjectAllocator()->ContainObject(obj);
     }
 
-    ObjectHeader *RegisterFinalizableIfNeeded(ObjectHeader *obj, BaseClass *cls, size_t size, ManagedThread *thread);
+    PANDA_PUBLIC_API ObjectHeader *RegisterFinalizableIfNeeded(ObjectHeader *obj, BaseClass *cls, size_t size,
+                                                               ManagedThread *thread);
 
     /**
      * Initialize GC bits and also zeroing memory for the whole Object memory
@@ -231,7 +232,7 @@ public:
      * @param mem - pointer to the ObjectHeader
      * @return pointer to the ObjectHeader
      */
-    ObjectHeader *InitObjectHeaderAtMem(BaseClass *cls, void *mem);
+    PANDA_PUBLIC_API ObjectHeader *InitObjectHeaderAtMem(BaseClass *cls, void *mem);
 
     HeapManager() : targetUtilization_(DEFAULT_TARGET_UTILIZATION) {}
 

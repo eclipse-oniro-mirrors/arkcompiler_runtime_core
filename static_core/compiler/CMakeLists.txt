@@ -34,15 +34,17 @@ set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${GENERATED_DIR})
 
 set(IRTOC_BUILDER_GEN ${GENERATED_DIR}/irtoc_builder.cpp)
+set(IRTOC_BUILDER_INPUTS_FILE ${PANDA_BINARY_ROOT}/irtoc/generated/irtoc_builder_inputs.txt)
 irtoc_generate(
     TARGET irtoc_generate_inst_builder
     IR_API ir-builder
     INPUT_FILES ${IRTOC_SOURCE_DIR}/scripts/interpreter.irt
     OUTPUT_FILES ${IRTOC_BUILDER_GEN}
     WORKING_DIRECTORY ${IRTOC_BUILD_DIR}/irtoc_inst_builder
+    BUILDER_INPUTS_FILE ${IRTOC_BUILDER_INPUTS_FILE}
 )
 
-add_dependencies(irtoc_generate_inst_builder asm_defines)
+add_dependencies(irtoc_generate_inst_builder asm_defines irtoc_builder_inputs_txt)
 
 set(IRTOC_IR_INLINE_GEN ${GENERATED_DIR}/irtoc_ir_inline.h)
 irtoc_generate(

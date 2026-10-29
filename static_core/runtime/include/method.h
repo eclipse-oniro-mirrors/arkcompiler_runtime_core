@@ -398,12 +398,12 @@ public:
         saverTryCounter_ = initialCounter;
     }
 
-    void TryCreateSaverTask();
+    PANDA_PUBLIC_API void TryCreateSaverTask();
 
     // CC-OFFNXT(G.INC.10) false positive: static method
     static NO_THREAD_SANITIZE int16_t GetInitialHotnessCounter();
 
-    NO_THREAD_SANITIZE void ResetHotnessCounter();
+    NO_THREAD_SANITIZE PANDA_PUBLIC_API void ResetHotnessCounter();
 
     template <class AccVRegisterPtrT>
     NO_THREAD_SANITIZE void SetAcc([[maybe_unused]] AccVRegisterPtrT acc);
@@ -746,7 +746,7 @@ public:
     }
 
     uint32_t FindCatchBlockInPandaFile(const Class *cls, uint32_t pc) const;
-    uint32_t FindCatchBlock(const Class *cls, uint32_t pc) const;
+    PANDA_PUBLIC_API uint32_t FindCatchBlock(const Class *cls, uint32_t pc) const;
 
     PANDA_PUBLIC_API panda_file::Type GetEffectiveArgType(size_t idx) const;
 
