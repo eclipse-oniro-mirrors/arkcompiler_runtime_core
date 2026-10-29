@@ -302,6 +302,14 @@ if (with_stdlib) {
   }
   es2panda_gen("etsstdlib") {
     inputs = [ "stdlib" ]
+    if (!ark_static_standalone_build && !ark_standalone_build) {
+      dependency_roots = [
+        "stdlib/std",
+        "stdlib/escompat",
+        "stdlib/arkruntime",
+        "stdlib/stdconfig.json",
+      ]
+    }
     if (ark_static_standalone_build) {
       outputs = [ "$root_build_dir/plugins/ets/etsstdlib.abc" ]
     } else {

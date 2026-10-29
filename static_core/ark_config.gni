@@ -590,6 +590,21 @@ template("es2panda_gen") {
         "--expect-output",
         "0",
       ]
+      if (defined(invoker.dependency_roots)) {
+        depfile = "$target_gen_dir/${target_name}.d"
+        args += [
+          "--depfile",
+          rebase_path(depfile, root_build_dir),
+          "--dep-target",
+          rebase_path(outputs[0], root_build_dir),
+        ]
+        foreach(root, invoker.dependency_roots) {
+          args += [
+            "--dependency-root",
+            rebase_path(root, root_build_dir),
+          ]
+        }
+      }
     }
   }
 }
