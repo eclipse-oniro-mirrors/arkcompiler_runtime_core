@@ -328,27 +328,16 @@ std::unique_ptr<ProfileInfo> SamplesRecord::GetSingleThreadProfileInfo(const Sam
 /**
  * Generates a collection of ProfileInfo objects for all threads profiling data.
  * @return A unique pointer to a vector of unique pointers to `ProfileInfo` objects, containing profiling data
- *         for all threads. An idle session (no collected samples) yields a vector with a single empty
- *         ProfileInfo (root/program/idle nodes only), so Profiler stop consumers always receive a
- *         well-formed profile.
+ *         for all threads. The main thread is always present: an idle session (no collected samples) yields a
+ *         single empty ProfileInfo, and when only worker threads produced samples an empty main-thread entry
+ *         is appended, so Profiler stop consumers always receive a well-formed profile.
  */
 std::unique_ptr<std::vector<std::unique_ptr<ProfileInfo>>> SamplesRecord::GetAllThreadsProfileInfos()
 {
     auto allThreadsProfileInfos = std::make_unique<std::vector<std::unique_ptr<ProfileInfo>>>();
     if (tidToSampleInfosMap_.empty()) {
         // No samples were collected (e.g. the profiled session stayed idle).
-        auto profileInfo = std::make_unique<ProfileInfo>();
-        std::map<NodeKey, int> nodesMap;
-        NodeInit(*profileInfo, nodesMap);
-        if (mainThreadId_ == 0) {
-            auto [mainTid, mainOsTid] = ResolveMainThreadSampleIds();
-            SetMainThreadIds(mainTid, mainOsTid);
-        }
-        profileInfo->tid = mainThreadId_;
-        profileInfo->osTid = mainThreadOsTid_;
-        profileInfo->startTime = threadStartTime_;
-        profileInfo->stopTime = threadStopTime_ != 0 ? threadStopTime_ : Sampler::GetMicrosecondsTimeStamp();
-        allThreadsProfileInfos->emplace_back(std::move(profileInfo));
+        allThreadsProfileInfos->emplace_back(BuildMainThreadIdleProfile());
         return allThreadsProfileInfos;
     }
     bool limitLogged = false;
@@ -358,6 +347,38 @@ std::unique_ptr<std::vector<std::unique_ptr<ProfileInfo>>> SamplesRecord::GetAll
             allThreadsProfileInfos->emplace_back(std::move(profileInfo));
         }
     }
+    if (mainThreadId_ == 0) {
+        auto [mainTid, mainOsTid] = ResolveMainThreadSampleIds();
+        SetMainThreadIds(mainTid, mainOsTid);
+    }
+    bool mainThreadPresent = false;
+    for (const auto &profileInfo : *allThreadsProfileInfos) {
+        if (profileInfo->tid == mainThreadId_) {
+            mainThreadPresent = true;
+            break;
+        }
+    }
+    if (!mainThreadPresent && mainThreadId_ != 0) {
+        // The main thread produced no samples (only worker threads did); the IDE still
+        // expects a main-thread entry, so append an empty one attributed to it.
+        allThreadsProfileInfos->emplace_back(BuildMainThreadIdleProfile());
+    }
     return allThreadsProfileInfos;
+}
+
+std::unique_ptr<ProfileInfo> SamplesRecord::BuildMainThreadIdleProfile()
+{
+    auto profileInfo = std::make_unique<ProfileInfo>();
+    std::map<NodeKey, int> nodesMap;
+    NodeInit(*profileInfo, nodesMap);
+    if (mainThreadId_ == 0) {
+        auto [mainTid, mainOsTid] = ResolveMainThreadSampleIds();
+        SetMainThreadIds(mainTid, mainOsTid);
+    }
+    profileInfo->tid = mainThreadId_;
+    profileInfo->osTid = mainThreadOsTid_;
+    profileInfo->startTime = threadStartTime_;
+    profileInfo->stopTime = threadStopTime_ != 0 ? threadStopTime_ : Sampler::GetMicrosecondsTimeStamp();
+    return profileInfo;
 }
 }  // namespace ark::tooling::sampler
