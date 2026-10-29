@@ -566,7 +566,9 @@ public:
 
     void NativeMethodCallEvent(ManagedThread *thread, Method *method)
     {
-        if (UNLIKELY(hasNativeMethodCallListeners_)) {
+        // Atomic with relaxed order reason: sync with adding/removing listeners
+        if (UNLIKELY(hasNativeMethodCallListeners_.load(std::memory_order_relaxed))) {
+            os::memory::ReadLockHolder rwlock(nativeMethodCallLock_);
             for (auto *listener : nativeMethodCallListeners_) {
                 if (listener != nullptr) {
                     listener->NativeMethodCall(thread, method);
@@ -676,7 +678,7 @@ private:
     PandaList<RuntimeListener *> allocationListeners_ GUARDED_BY(allocationLock_);
     PandaList<RuntimeListener *> consoleListeners_ GUARDED_BY(consoleLock_);
     PandaList<RuntimeListener *> allocationFailedListeners_ GUARDED_BY(allocationFailedLock_);
-    PandaList<RuntimeListener *> nativeMethodCallListeners_;
+    PandaList<RuntimeListener *> nativeMethodCallListeners_ GUARDED_BY(nativeMethodCallLock_);
 
     std::atomic<bool> hasBytecodePcListeners_ = false;
     std::atomic<bool> hasLoadModuleListeners_ = false;
