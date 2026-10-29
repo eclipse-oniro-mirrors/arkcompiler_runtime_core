@@ -674,7 +674,8 @@ ohos_source_set("libarkinterpreter_set_static") {
 
 runtime_static_target = ":libarkruntime_set_static"
 interpreter_static_target = ":libarkinterpreter_set_static"
-if (panda_runtime_sdk_build && current_toolchain == host_toolchain) {
+if (current_toolchain == host_toolchain && !ark_standalone_build &&
+    !ark_static_standalone_build) {
   runtime_static_target = ":libarkruntime_set_static_host"
   # Host build does not include irtoc interpreter objects
   interpreter_static_target = ""
@@ -744,10 +745,10 @@ ohos_shared_library("libarkruntime") {
   }
 
   deps = []
-  deps += [
-    runtime_static_target,
-    ":libarkinterpreter",
-  ]
+  deps += [ runtime_static_target ]
+  if (interpreter_static_target != "") {
+    deps += [ ":libarkinterpreter" ]
+  }
 
   external_deps = []
   cflags = []
