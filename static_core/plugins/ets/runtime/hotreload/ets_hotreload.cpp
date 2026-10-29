@@ -22,12 +22,12 @@
 #include "libarkbase/utils/math_helpers.h"
 
 #include "libarkbase/utils/utf.h"
-#include "libziparchive/extractortool/extractor.h"
 #include "plugins/ets/runtime/ets_class_linker_extension.h"
 #include "plugins/ets/runtime/ets_class_linker_context.h"
 #include "plugins/ets/runtime/ets_execution_context.h"
 #include "plugins/ets/runtime/ets_platform_types.h"
 #include "plugins/ets/runtime/types/ets_abc_file.h"
+#include "plugins/ets/runtime/types/ets_abc_package.h"
 #include "plugins/ets/runtime/types/ets_abc_runtime_linker.h"
 #include "plugins/ets/runtime/types/ets_array.h"
 #include "plugins/ets/runtime/types/ets_object.h"
@@ -471,44 +471,32 @@ const panda_file::File *EtsHotreload::OpenPatchPandaFile(const PandaString &patc
 #endif
     }
 
-    const std::string packagePath(patchPath.data(), patchPath.size());
-    auto extractor = std::make_shared<ark::extractor::Extractor>(packagePath);
-    if (!extractor->Init()) {
-        LOG(ERROR, HOTRELOAD) << "Cannot open patch package '" << patchPath << "'";
-        return nullptr;
-    }
-
     /*
-     * `GetSafeData` (the hap variant) verifies entry integrity via `IsEntryDataConsistent`, which
-     * `GetSafeDataForHsp` does not. A patch is pushed onto the device from outside, so the check is
-     * kept for `.hqf` as well; only genuine `.hsp` targets use the unchecked reader.
-     */
-    const PandaString derivedAbcPath = DeriveLoadedAbcPath(patchPath);
-    const std::string hspEntry(derivedAbcPath.data(), derivedAbcPath.size());
-    auto safeData = (suffix == HSP_SUFFIX) ? extractor->GetSafeDataForHsp(hspEntry)
-                                           : extractor->GetSafeData(std::string(PACKAGE_ABC_ENTRY));
-    if (safeData == nullptr) {
-        LOG(ERROR, HOTRELOAD) << "Patch package '" << patchPath << "' has no readable entry '" << PACKAGE_ABC_ENTRY
-                              << "'";
-        return nullptr;
-    }
-
-    /*
-     * The file name given here becomes `File::GetFilename()` of the new generation. It must be the
-     * target's derived name, just like the plain-abc path above, so the caller can keep using one
+     * The package entry is read through the shared package reader (`ReadPackageAbc`), which owns
+     * the entry-name and hsp/hap reading styles. The patch is opened under the target's derived
+     * name (`pfName`), just like the plain-abc path above, so the caller can keep using one
      * stable target identity. `DebugInf::AddCodeMetaInfo` therefore sees generations collide by
      * file name; that is accepted because debugger coexistence is outside hot-reload's scope.
      *
-     * `~FileMapper` deliberately does not unmap `SAFE_ABC` data, which is why the empty deleter
-     * inside `OpenPandaFileFromSecureMemory` is safe. The flip side is that the mapping lives until
-     * the process exits --- see the "repeated reload memory growth" acceptance item.
+     * The secure-memory mapping behind a package entry outlives the reader (a SAFE_ABC mapping is
+     * never unmapped), which is why the empty deleter inside `OpenPandaFileFromSecureMemory` is
+     * safe. The flip side is that the mapping lives until the process exits --- see the
+     * "repeated reload memory growth" acceptance item.
      */
-    auto pf = panda_file::OpenPandaFileFromSecureMemory(safeData->GetDataPtr(), safeData->GetDataLen(), pfName);
-    if (pf == nullptr) {
-        LOG(ERROR, HOTRELOAD) << "Entry of patch package '" << patchPath << "' is not a valid abc file";
-        return nullptr;
+    const std::string packagePath(patchPath.data(), patchPath.size());
+    std::unique_ptr<const panda_file::File> pf;
+    switch (ets::ReadPackageAbc(packagePath, suffix, pf, std::string_view(pfName))) {
+        case ets::PackageReadResult::OK:
+            return OwnPandaFile(std::move(pf));
+        case ets::PackageReadResult::NO_ABC_ENTRY:
+            LOG(ERROR, HOTRELOAD) << "Patch package '" << patchPath << "' has no readable entry '" << PACKAGE_ABC_ENTRY
+                                  << "'";
+            return nullptr;
+        case ets::PackageReadResult::OPEN_FAILED:
+        default:
+            LOG(ERROR, HOTRELOAD) << "Cannot open patch package '" << patchPath << "'";
+            return nullptr;
     }
-    return OwnPandaFile(std::move(pf));
 }
 
 Error EtsHotreload::CollectClasses(const panda_file::File *currentPf, const panda_file::File *newPf,

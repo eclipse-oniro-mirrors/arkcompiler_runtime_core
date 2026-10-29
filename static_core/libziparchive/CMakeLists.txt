@@ -16,12 +16,7 @@ cmake_minimum_required(VERSION 3.10)
 project(arkziparchive)
 
 panda_add_library(arkziparchive ${PANDA_DEFAULT_LIB_TYPE}
-    zip_archive.cpp
-    extractortool/extractor.cpp
-    extractortool/file_mapper.cpp
-    extractortool/zip_file_reader_io.cpp
-    extractortool/zip_file_reader.cpp
-    extractortool/zip_file.cpp)
+    zip_archive.cpp)
 panda_target_include_directories(arkziparchive
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
     PUBLIC ${ZLIB_ROOT}

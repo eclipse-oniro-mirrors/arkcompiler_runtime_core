@@ -103,6 +103,69 @@ class Test {
         return hapFile;
     }
 
+    private static getAdditionalAmbiguousHapFile(): string {
+        let procManager = new StdProcess.ProcessManager();
+        const hapFile = procManager.getEnvironmentVar("ADDITIONAL_AMBIGUOUS_HAP_FILE");
+        arktest.assertLT(0, hapFile.length, "this test must have additional ambiguous hap file")
+        return hapFile;
+    }
+
+    private static getAdditionalDuplicateHapFile(): string {
+        let procManager = new StdProcess.ProcessManager();
+        const hapFile = procManager.getEnvironmentVar("ADDITIONAL_DUPLICATE_HAP_FILE");
+        arktest.assertLT(0, hapFile.length, "this test must have additional duplicate hap file")
+        return hapFile;
+    }
+
+    private static getAdditionalDuplicateHspFile(): string {
+        let procManager = new StdProcess.ProcessManager();
+        const hspFile = procManager.getEnvironmentVar("ADDITIONAL_DUP_HSP_FILE");
+        arktest.assertLT(0, hspFile.length, "this test must have additional duplicate hsp file")
+        return hspFile;
+    }
+
+    private static getAdditionalDescriptorHapFile(): string {
+        let procManager = new StdProcess.ProcessManager();
+        const hapFile = procManager.getEnvironmentVar("ADDITIONAL_DESCRIPTOR_HAP_FILE");
+        arktest.assertLT(0, hapFile.length, "this test must have additional descriptor hap file")
+        return hapFile;
+    }
+
+    private static getAdditionalCorruptHapFile(): string {
+        let procManager = new StdProcess.ProcessManager();
+        const hapFile = procManager.getEnvironmentVar("ADDITIONAL_CORRUPT_HAP_FILE");
+        arktest.assertLT(0, hapFile.length, "this test must have additional corrupt hap file")
+        return hapFile;
+    }
+
+    private static getAdditionalMalformedHapFile(): string {
+        let procManager = new StdProcess.ProcessManager();
+        const hapFile = procManager.getEnvironmentVar("ADDITIONAL_MALFORMED_HAP_FILE");
+        arktest.assertLT(0, hapFile.length, "this test must have additional malformed hap file")
+        return hapFile;
+    }
+
+    private static getAdditionalCorruptCentralHapFile(): string {
+        let procManager = new StdProcess.ProcessManager();
+        const hapFile = procManager.getEnvironmentVar("ADDITIONAL_CORRUPT_CENTRAL_HAP_FILE");
+        arktest.assertLT(0, hapFile.length, "this test must have additional corrupt central hap file")
+        return hapFile;
+    }
+
+    private static getAdditionalOversizedHapFile(): string {
+        let procManager = new StdProcess.ProcessManager();
+        const hapFile = procManager.getEnvironmentVar("ADDITIONAL_OVERSIZED_HAP_FILE");
+        arktest.assertLT(0, hapFile.length, "this test must have additional oversized hap file")
+        return hapFile;
+    }
+
+    private static getAdditionalNativeOnlyHapFile(): string {
+        let procManager = new StdProcess.ProcessManager();
+        const hapFile = procManager.getEnvironmentVar("ADDITIONAL_NATIVE_ONLY_HAP_FILE");
+        arktest.assertLT(0, hapFile.length, "this test must have additional native-only hap file")
+        return hapFile;
+    }
+
     private static getAdditionalHspFile(): string {
         let procManager = new StdProcess.ProcessManager();
         const hspFile = procManager.getEnvironmentVar("ADDITIONAL_HSP_FILE");
@@ -138,7 +201,7 @@ class Test {
 
         // Load class from "additional2.ets"
         // As side effect, this must load "additional3.ets" and execute code from it
-        const cls2 = linker.loadClass(Test.additionalClass2Name, true);
+        const cls2 = linker.loadClass(Test.additionalClass2Name, false);
         arktest.assertNE(cls2, undefined, "AdditionalClass2 must be found");
         arktest.assertEQ(cls2.getLinker(), linker, "AdditionalClass2 must be loaded by custom linker");
 
@@ -304,6 +367,108 @@ class Test {
         Test.testAdditionalClass1Loaded(linker);
     }
 
+    /*
+     * The ambiguous package carries two local headers named ets/modules_static.abc while its
+     * central directory indexes only the second one. The entry must be rejected by the
+     * local-header consistency check instead of being read through the central-directory offset,
+     * so the class stays unresolved.
+     */
+    static testRuntimeLinkerRejectsAmbiguousHapFile() {
+        const linker = new AbcRuntimeLinker(undefined, []);
+        linker.addAbcFiles([Test.getAdditionalAmbiguousHapFile()]);
+        arktest.expectThrow(() => { linker.loadClass(Test.additionalClass1Name, true); },
+            (e) => e instanceof LinkerClassNotFoundError
+        );
+    }
+
+    /*
+     * The duplicate package keeps both central-directory records for ets/modules_static.abc.
+     * The first payload carries AdditionalClass1, the second AdditionalClass2; the consistency
+     * check must reject the package either way.
+     */
+    static testRuntimeLinkerRejectsDuplicateHapFile() {
+        const linker = new AbcRuntimeLinker(undefined, []);
+        linker.addAbcFiles([Test.getAdditionalDuplicateHapFile()]);
+        arktest.expectThrow(() => { linker.loadClass(Test.additionalClass1Name, true); },
+            (e) => e instanceof LinkerClassNotFoundError
+        );
+    }
+
+    /*
+     * The hsp reader selects the LAST central-directory record and skips the consistency check:
+     * the duplicate hsp must load the second payload (AdditionalClass2), not the first.
+     */
+    static testRuntimeLinkerLoadsLastEntryInHsp() {
+        const linker = new AbcRuntimeLinker(undefined, []);
+        linker.addAbcFiles([Test.getAdditionalDuplicateHspFile()]);
+        const cls2 = linker.loadClass(Test.additionalClass2Name, false);
+        arktest.assertNE(cls2, undefined, "AdditionalClass2 must be found");
+        arktest.assertEQ(cls2.getLinker(), linker, "AdditionalClass2 must be loaded by custom linker");
+        arktest.expectThrow(() => { linker.loadClass(Test.additionalClass1Name, true); },
+            (e) => e instanceof LinkerClassNotFoundError
+        );
+    }
+
+    // A data-descriptor-flagged entry before the target stops the traversal, the package is rejected.
+    static testRuntimeLinkerRejectsDescriptorHapFile() {
+        const linker = new AbcRuntimeLinker(undefined, []);
+        linker.addAbcFiles([Test.getAdditionalDescriptorHapFile()]);
+        arktest.expectThrow(() => { linker.loadClass(Test.additionalClass1Name, true); },
+            (e) => e instanceof LinkerClassNotFoundError
+        );
+    }
+
+    // A corrupt local header before the target breaks the traversal, the package is rejected.
+    static testRuntimeLinkerRejectsCorruptHapFile() {
+        const linker = new AbcRuntimeLinker(undefined, []);
+        linker.addAbcFiles([Test.getAdditionalCorruptHapFile()]);
+        arktest.expectThrow(() => { linker.loadClass(Test.additionalClass1Name, true); },
+            (e) => e instanceof LinkerClassNotFoundError
+        );
+    }
+
+    // A truncated package without an EOCD is malformed and must fail to open.
+    static testRuntimeLinkerRejectsMalformedHapFile() {
+        const linker = new AbcRuntimeLinker(undefined, []);
+        arktest.expectThrow(() => { linker.addAbcFiles([Test.getAdditionalMalformedHapFile()]); },
+            (e) => e instanceof AbcFileNotFoundError
+        );
+        arktest.expectThrow(() => { linker.loadClass(Test.additionalClass1Name, true); },
+            (e) => e instanceof LinkerClassNotFoundError
+        );
+    }
+
+    // An intact EOCD with a corrupted central-directory entry signature is malformed.
+    static testRuntimeLinkerRejectsCorruptCentralHapFile() {
+        const linker = new AbcRuntimeLinker(undefined, []);
+        arktest.expectThrow(() => { linker.addAbcFiles([Test.getAdditionalCorruptCentralHapFile()]); },
+            (e) => e instanceof AbcFileNotFoundError
+        );
+        arktest.expectThrow(() => { linker.loadClass(Test.additionalClass1Name, true); },
+            (e) => e instanceof LinkerClassNotFoundError
+        );
+    }
+
+    // A central-directory record whose declared extraSize exceeds the directory boundary is malformed.
+    static testRuntimeLinkerRejectsOversizedHapFile() {
+        const linker = new AbcRuntimeLinker(undefined, []);
+        arktest.expectThrow(() => { linker.addAbcFiles([Test.getAdditionalOversizedHapFile()]); },
+            (e) => e instanceof AbcFileNotFoundError
+        );
+        arktest.expectThrow(() => { linker.loadClass(Test.additionalClass1Name, true); },
+            (e) => e instanceof LinkerClassNotFoundError
+        );
+    }
+
+    // A valid archive without any abc entry is a native-only package, not a load error.
+    static testRuntimeLinkerAcceptsNativeOnlyHapFile() {
+        const linker = new AbcRuntimeLinker(undefined, []);
+        linker.addAbcFiles([Test.getAdditionalNativeOnlyHapFile()]);
+        arktest.expectThrow(() => { linker.loadClass(Test.additionalClass1Name, true); },
+            (e) => e instanceof LinkerClassNotFoundError
+        );
+    }
+
     static testRuntimeLinkerAddHspFile() {
         const linker = new AbcRuntimeLinker(undefined, []);
         linker.addAbcFiles([Test.getAdditionalHspFile()]);
@@ -395,6 +560,15 @@ class Test {
         Test.testRuntimeLinkerAddHapFile();
         Test.testAbcRuntimeLinkerWithHapFile();
         Test.testRuntimeLinkerAddAbcFilesWithInvalidHapFileEntry();
+        Test.testRuntimeLinkerRejectsAmbiguousHapFile();
+        Test.testRuntimeLinkerRejectsDuplicateHapFile();
+        Test.testRuntimeLinkerLoadsLastEntryInHsp();
+        Test.testRuntimeLinkerRejectsDescriptorHapFile();
+        Test.testRuntimeLinkerRejectsCorruptHapFile();
+        Test.testRuntimeLinkerRejectsMalformedHapFile();
+        Test.testRuntimeLinkerRejectsCorruptCentralHapFile();
+        Test.testRuntimeLinkerRejectsOversizedHapFile();
+        Test.testRuntimeLinkerAcceptsNativeOnlyHapFile();
         Test.testRuntimeLinkerAddHspFile();
         Test.testAbcRuntimeLinkerWithHspFile();
         Test.testMemoryRuntimeLinkerAddAbcFiles();

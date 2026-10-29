@@ -232,6 +232,7 @@ srcs_runtime = [
   "runtime/types/ets_field.cpp",
   "runtime/types/ets_abc_file.cpp",
   "runtime/types/ets_abc_package.cpp",
+  "runtime/types/extractor_adapter.cpp",
   "runtime/types/ets_abc_runtime_linker.cpp",
   "runtime/types/ets_method.cpp",
   "runtime/types/ets_async_context.cpp",

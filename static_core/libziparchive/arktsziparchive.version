@@ -19,19 +19,16 @@
  * Whitelist mode: only symbols matching patterns below are exported;
  * everything else is hidden by `local: *`.
  *
- * The library exposes two kinds of public surface, all under the `ark`
- * namespace:
- *   1. C-style zip API declared in zip_archive.h (IsZipMagic,
- *      OpenArchiveFile, CloseArchiveFile, LocateFile, GetCurrentFileInfo,
- *      OpenCurrentFile, GetCurrentFileOffset, CloseCurrentFile,
- *      ExtractToMemory, CreateOrAddFileIntoZip, ...) — consumed by
- *      libarktsfile and in-repo tests/fuzzers.
- *   2. extractortool C++ classes in ark::extractor (Extractor, ZipFile,
- *      ZipFileReader, FileMapper) — the Extractor constructor is called
- *      by name from the ETS runtime (ets_hotreload.cpp, ets_abc_package.cpp)
- *      which links this .so.
+ * The library exposes the C-style zip API declared in zip_archive.h (IsZipMagic,
+ * OpenArchiveFile, CloseArchiveFile, LocateFile, GetCurrentFileInfo,
+ * OpenCurrentFile, GetCurrentFileOffset, CloseCurrentFile,
+ * ExtractToMemory, CreateOrAddFileIntoZip, ...) — consumed by
+ * libarktsfile and in-repo tests/fuzzers, all under the `ark` namespace.
+ * Package (hap/hsp/hqf) reading is NOT part of this library: the ETS runtime
+ * plugin reuses the foundation ability_base extractortool through
+ * plugins/ets/runtime/types/extractor_adapter.*.
  *
- * The namespace-scoped wildcard `_ZN3ark*` covers all of the above without
+ * The namespace-scoped wildcard `_ZN3ark*` covers the surface without
  * needing to enumerate individual Itanium-mangled names (which are fragile
  * across compiler versions). RTTI/vtable patterns (`_ZTV`, `_ZTI`, `_ZTS`)
  * are included so that cross-DSO dynamic_cast and exception type matching
@@ -44,10 +41,10 @@
 
 {
     global:
-        /* ark namespace functions (zip API + extractortool) */
+        /* ark namespace functions (zip API) */
         _ZN3ark*;
         /* ark namespace const member functions (e.g.
-           ark::extractor::ZipFile::GetEntry(...) const) */
+           ark::GlobalStat-related getters) */
         _ZNK3ark*;
         /* vtables for ark-namespaced classes */
         _ZTVN3ark*;
