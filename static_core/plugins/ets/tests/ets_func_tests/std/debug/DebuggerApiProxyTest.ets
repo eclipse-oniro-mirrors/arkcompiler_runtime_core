@@ -159,7 +159,7 @@ function testGlobalClassStaticFieldNotFound(): void {
    let proxy = new GlobalClass(cls)
    arktest.expectError(() => {
        proxy.getField('NON_EXISTENT')
-   }, new Error(`static field 'NON_EXISTENT' not found on class 'DebuggerApiProxyTest.TestTarget'`))
+   }, new Error(`field 'NON_EXISTENT' not found on 'DebuggerApiProxyTest.TestTarget'`))
 }
 
 function testGlobalClassStaticMethodNotFound(): void {
@@ -271,7 +271,8 @@ function testInstanceFieldProxyGetSet(): void {
 
 function testStaticFieldProxyGetSet(): void {
    let cls = Class.from<TestTarget>()
-   let proxy = new StaticFieldProxy(cls, 'staticVal')
+   let field = cls.getStaticField('staticVal')!
+   let proxy = new StaticFieldProxy('staticVal', field)
    arktest.assertEQ(proxy.value(), 100)
    proxy.setValue(new ValueProxy(300 as Object))
    arktest.assertEQ(TestTarget.staticVal, 300)
@@ -343,7 +344,8 @@ function testInstanceFieldProxyGetOnModifiedField(): void {
 
 function testStaticFieldProxySetThenGet(): void {
    let cls = Class.from<TestTarget>()
-   let proxy = new StaticFieldProxy(cls, 'staticVal')
+   let field = cls.getStaticField('staticVal')!
+   let proxy = new StaticFieldProxy('staticVal', field)
    let originalVal = proxy.value()
    arktest.assertEQ(originalVal, 100)
    proxy.setValue(new ValueProxy(500 as Object))

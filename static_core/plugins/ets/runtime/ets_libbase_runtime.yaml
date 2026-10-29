@@ -10564,6 +10564,88 @@ intrinsics:
         - std.core.Object
     impl: ark::ets::intrinsics::DebuggerAPIToResizableArray
 
+  - name: DebuggerAPIGetInstanceField
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: getInstanceField
+    static: true
+    signature:
+      ret: std.core.reflect.InstanceField
+      args:
+        - std.core.Class
+        - std.core.String
+    impl: ark::ets::intrinsics::DebuggerAPIGetInstanceField
+
+  - name: DebuggerAPIGetStaticField
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: getStaticField
+    static: true
+    signature:
+      ret: std.core.reflect.StaticField
+      args:
+        - std.core.Class
+        - std.core.String
+    impl: ark::ets::intrinsics::DebuggerAPIGetStaticField
+
+  - name: DebuggerAPIGetInstanceMethods
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: getInstanceMethods
+    static: true
+    signature:
+      ret: std.core.reflect.InstanceMethod[]
+      args:
+        - std.core.Class
+    impl: ark::ets::intrinsics::DebuggerAPIGetInstanceMethods
+
+  - name: DebuggerAPIGetStaticMethods
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: getStaticMethods
+    static: true
+    signature:
+      ret: std.core.reflect.StaticMethod[]
+      args:
+        - std.core.Class
+    impl: ark::ets::intrinsics::DebuggerAPIGetStaticMethods
+
+  - name: DebuggerAPIHasSubscriptGet
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: hasSubscriptGet
+    static: true
+    signature:
+      ret: u1
+      args:
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPIHasSubscriptGet
+
+  - name: DebuggerAPISubscriptGet
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: subscriptGet
+    static: true
+    signature:
+      ret: std.core.Object
+      args:
+        - std.core.Object
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPISubscriptGet
+
+  - name: DebuggerAPISubscriptSet
+    space: ets
+    class_name: std.debug.DebuggerAPI
+    method_name: subscriptSet
+    static: true
+    signature:
+      ret: void
+      args:
+        - std.core.Object
+        - std.core.Object
+        - std.core.Object
+    impl: ark::ets::intrinsics::DebuggerAPISubscriptSet
+
 ##############################
 #      std.core.reflect      #
 ##############################

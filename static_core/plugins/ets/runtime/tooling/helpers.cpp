@@ -68,12 +68,16 @@ EtsObject *BoxVRegValueBySig(ark::tooling::VRegValue vregValue, char sig, EtsExe
 EtsObject *TaggedVRegValueToEtsObject(ark::tooling::VRegValue vregValue, EtsExecutionContext *executionCtx)
 {
     coretypes::TaggedValue tagged(static_cast<coretypes::TaggedType>(vregValue.GetValue()));
-    if (tagged.IsUndefined() || tagged.IsNull() || tagged.IsHole() || tagged.IsException()) {
+    if (tagged.IsUndefined() || tagged.IsHole() || tagged.IsException()) {
         return nullptr;
     }
+    if (tagged.IsNull()) {
+        // Map tagged null to the std.core.Null singleton so the reference-based
+        // debugger ABI can distinguish `null` from `undefined` (raw nullptr).
+        return EtsObject::FromCoreType(executionCtx->GetNullValue());
+    }
     if (tagged.IsHeapObject()) {
-        auto *obj = EtsObject::FromCoreType(tagged.GetHeapObject());
-        return IsNullOrNullValue(obj) ? nullptr : obj;
+        return EtsObject::FromCoreType(tagged.GetHeapObject());
     }
     if (tagged.IsBoolean()) {
         return EtsBoxPrimitive<EtsBoolean>::Create(executionCtx, static_cast<EtsBoolean>(tagged.IsTrue()))->AsObject();

@@ -32,10 +32,12 @@
 #include "plugins/ets/runtime/types/ets_box_primitive.h"
 #include "plugins/ets/runtime/types/ets_field.h"
 #include "plugins/ets/runtime/types/ets_method.h"
+#include "plugins/ets/runtime/types/ets_reflect_field.h"
 #include "plugins/ets/runtime/types/ets_reflect_method.h"
 #include "plugins/ets/runtime/types/ets_primitives.h"
 #include "plugins/ets/runtime/types/ets_std_core_array.h"
 #include "plugins/ets/runtime/types/ets_string.h"
+#include "plugins/ets/runtime/intrinsics/helpers/reflection_helpers.h"
 #include "runtime/include/class_linker_extension.h"
 #include "runtime/include/class_linker.h"
 #include "runtime/include/mem/panda_string.h"
@@ -345,7 +347,7 @@ EtsObject *DebuggerAPIGetLocalObject(EtsLong regNumber)
     [[maybe_unused]] HandleScope<ObjectHeader *> scope(executionCtx->GetMT());
 
     auto *obj = DebuggerAPIGetLocal<ObjectHeader *>(executionCtx, regNumber);
-    if (obj == nullptr || ark::ets::tooling::IsNullOrNullValue(EtsObject::FromCoreType(obj))) {
+    if (obj == nullptr) {
         return nullptr;
     }
     VMHandle<ObjectHeader> objHandle(executionCtx->GetMT(), obj);
@@ -517,12 +519,18 @@ static std::optional<VariableMetaInfo> FindVariableMetaInLocals(const VariableSe
                                                                 const std::string &varNameStd, uint32_t frameOffset)
 {
     auto &variables = ctx.debugInfo.GetLocalVariableTable(ctx.methodId);
+    const panda_file::LocalVariableInfo *best = nullptr;
     for (auto &variable : variables) {
         if (variable.name == varNameStd && variable.IsAccessibleAt(frameOffset)) {
-            return VariableMetaInfo {variable.regNumber, variable.typeSignature};
+            if (best == nullptr || variable.startOffset > best->startOffset) {
+                best = &variable;
+            }
         }
     }
-    return std::nullopt;
+    if (best == nullptr) {
+        return std::nullopt;
+    }
+    return VariableMetaInfo {best->regNumber, best->typeSignature};
 }
 
 // Searches parameters then locals for a variable's metadata (register + signature).
@@ -537,7 +545,7 @@ static std::optional<VariableMetaInfo> FindVariableMeta(const VariableSearchCont
 }
 
 // Returns std::optional<EtsObject*>: nullopt = variable not found,
-// nullptr value = variable found but is null, otherwise the object value.
+// nullptr value = variable found but is undefined, otherwise the object value.
 static std::optional<EtsObject *> FindVariableInParameters(const VariableSearchContext &ctx,
                                                            const std::string &varNameStd)
 {
@@ -551,8 +559,9 @@ static std::optional<EtsObject *> FindVariableInParameters(const VariableSearchC
                 ThrowDebuggerError(ctx.executionCtx, "Failed to get variable");
                 return nullptr;
             }
-            // For reference/union types, a zero vreg means null — return
-            // nullptr inside optional (variable found, value is null).
+            // For reference/union types, a zero vreg means `undefined` (a raw
+            // null reference) — return nullptr inside optional (variable
+            // found, value is undefined).
             if (ark::ets::tooling::IsRefSignature(parameters[i].signature) && vregValue.GetValue() == 0) {
                 return nullptr;
             }
@@ -563,28 +572,38 @@ static std::optional<EtsObject *> FindVariableInParameters(const VariableSearchC
 }
 
 // Returns std::optional<EtsObject*>: nullopt = variable not found,
-// nullptr value = variable found but is null, otherwise the object value.
+// nullptr value = variable found but is undefined, otherwise the object value.
+// When multiple locals share the same name (block-scoped shadowing), the
+// innermost declaration wins -i.e. the one with the largest startOffset
+// (defined latest, narrowest scope).
 static std::optional<EtsObject *> FindVariableInLocals(const VariableSearchContext &ctx, const std::string &varNameStd,
                                                        uint32_t frameOffset)
 {
     auto &variables = ctx.debugInfo.GetLocalVariableTable(ctx.methodId);
+    const panda_file::LocalVariableInfo *best = nullptr;
     for (auto &variable : variables) {
         if (variable.name == varNameStd && variable.IsAccessibleAt(frameOffset)) {
-            ark::tooling::VRegValue vregValue;
-            auto err = ctx.debugger.GetVariable(ctx.thread, ctx.frameDepth, variable.regNumber, &vregValue);
-            if (err) {
-                ThrowDebuggerError(ctx.executionCtx, "Failed to get variable");
-                return nullptr;
+            if (best == nullptr || variable.startOffset > best->startOffset) {
+                best = &variable;
             }
-            // For reference/union types, a zero vreg means null — return
-            // nullptr inside optional (variable found, value is null).
-            if (ark::ets::tooling::IsRefSignature(variable.typeSignature) && vregValue.GetValue() == 0) {
-                return nullptr;
-            }
-            return ark::ets::tooling::VRegValueToEtsObject(vregValue, variable.typeSignature, ctx.executionCtx);
         }
     }
-    return std::nullopt;
+    if (best == nullptr) {
+        return std::nullopt;
+    }
+    ark::tooling::VRegValue vregValue;
+    auto err = ctx.debugger.GetVariable(ctx.thread, ctx.frameDepth, best->regNumber, &vregValue);
+    if (err) {
+        ThrowDebuggerError(ctx.executionCtx, "Failed to get variable");
+        return nullptr;
+    }
+    // For reference/union types, a zero vreg means `undefined` (a raw null
+    // reference) - return nullptr inside optional (variable found, value is
+    // undefined).
+    if (ark::ets::tooling::IsRefSignature(best->typeSignature) && vregValue.GetValue() == 0) {
+        return nullptr;
+    }
+    return ark::ets::tooling::VRegValueToEtsObject(vregValue, best->typeSignature, ctx.executionCtx);
 }
 
 struct ModuleFieldInfo {
@@ -1882,7 +1901,7 @@ static EtsHandle<EtsObject> ReadArrayObject(const VariableSearchContext &ctx, in
         return EtsHandle<EtsObject>(ctx.executionCtx, nullptr);
     }
     auto *arrayObj = ark::ets::tooling::VRegValueToRefObject(arrVreg);
-    if (arrayObj == nullptr) {
+    if (arrayObj == nullptr || ark::ets::tooling::IsNullOrNullValue(arrayObj)) {
         ThrowDebuggerError(ctx.executionCtx, "Array variable '" + varNameStd + "' is null");
         return EtsHandle<EtsObject>(ctx.executionCtx, nullptr);
     }
@@ -3348,6 +3367,191 @@ extern "C" EtsBoolean DebuggerAPIHasRestParam(ObjectHeader *methodObj)
     auto *method = EtsReflectMethod::FromEtsObject(EtsObject::FromCoreType(methodObj))->GetEtsMethod();
     ASSERT(method != nullptr);
     return ToEtsBoolean(method->HasRestParam());
+}
+
+// Debugger-private field lookups that include non-public members. The public
+// reflection API (Class.getInstanceField / Class.getStaticField) filters out
+// private/protected fields, but the debugger must be able to inspect all
+// fields regardless of access modifier.
+extern "C" EtsReflectField *DebuggerAPIGetInstanceField(EtsClass *cls, EtsString *name)
+{
+    ASSERT(cls != nullptr);
+    ASSERT(name != nullptr);
+
+    auto *executionCtx = EtsExecutionContext::GetCurrent();
+    ASSERT(executionCtx != nullptr);
+
+    PandaVector<uint8_t> tree8Buf;
+    Field *field = cls->GetRuntimeClass()->GetDeclaredInstanceFieldByName(name->ConvertToStringView(&tree8Buf));
+    if (field == nullptr) {
+        return nullptr;
+    }
+    return EtsReflectField::CreateFromEtsField(executionCtx, EtsField::FromRuntimeField(field));
+}
+
+extern "C" EtsReflectField *DebuggerAPIGetStaticField(EtsClass *cls, EtsString *name)
+{
+    ASSERT(cls != nullptr);
+    ASSERT(name != nullptr);
+
+    auto *executionCtx = EtsExecutionContext::GetCurrent();
+    ASSERT(executionCtx != nullptr);
+
+    PandaVector<uint8_t> tree8Buf;
+    Field *field = cls->GetRuntimeClass()->GetDeclaredStaticFieldByName(name->ConvertToStringView(&tree8Buf));
+    if (field == nullptr) {
+        return nullptr;
+    }
+    return EtsReflectField::CreateFromEtsField(executionCtx, EtsField::FromRuntimeField(field));
+}
+
+// Debugger-private method lookups that include non-public members. The public
+// reflection API (Class.getInstanceMethods / Class.getStaticMethods) filters out
+// private/protected fields, but the debugger must be able to call all methods
+// regardless of access modifier.
+extern "C" ObjectHeader *DebuggerAPIGetInstanceMethods(EtsClass *cls)
+{
+    ASSERT(cls != nullptr);
+    auto *executionCtx = EtsExecutionContext::GetCurrent();
+    PandaVector<EtsMethod *> instanceMethods;
+    for (auto iter = helpers::InstanceMethodsIterator(cls, false); !iter.IsEmpty(); iter.Next()) {
+        instanceMethods.emplace_back(iter.Value());
+    }
+
+    EtsClass *klass = PlatformTypes(executionCtx)->coreReflectInstanceMethod;
+    ASSERT(klass != nullptr);
+    EtsHandleScope scope(executionCtx);
+    EtsHandle<EtsObjectArray> arrayH(executionCtx, EtsObjectArray::Create(klass, instanceMethods.size()));
+    if (UNLIKELY(arrayH.GetPtr() == nullptr)) {
+        return nullptr;
+    }
+    for (size_t idx = 0; idx < instanceMethods.size(); ++idx) {
+        auto *reflectMethod = EtsReflectMethod::CreateFromEtsMethod(executionCtx, instanceMethods[idx]);
+        arrayH->Set(idx, reflectMethod->AsObject());
+    }
+    return arrayH->AsObject()->GetCoreType();
+}
+
+extern "C" ObjectHeader *DebuggerAPIGetStaticMethods(EtsClass *cls)
+{
+    ASSERT(cls != nullptr);
+    auto *executionCtx = EtsExecutionContext::GetCurrent();
+
+    PandaVector<EtsMethod *> staticMethods;
+    Span<Method> sMethods = cls->GetRuntimeClass()->GetStaticMethods();
+    for (auto &method : sMethods) {
+        staticMethods.push_back(EtsMethod::FromRuntimeMethod(&method));
+    }
+
+    EtsClass *klass = PlatformTypes(executionCtx)->coreReflectStaticMethod;
+    ASSERT(klass != nullptr);
+    EtsHandleScope scope(executionCtx);
+    EtsHandle<EtsObjectArray> arrayH(executionCtx, EtsObjectArray::Create(klass, staticMethods.size()));
+    if (UNLIKELY(arrayH.GetPtr() == nullptr)) {
+        return nullptr;
+    }
+    for (size_t idx = 0; idx < staticMethods.size(); ++idx) {
+        auto *reflectMethod = EtsReflectMethod::CreateFromEtsMethod(executionCtx, staticMethods[idx]);
+        arrayH->Set(idx, reflectMethod->AsObject());
+    }
+    return arrayH->AsObject()->GetCoreType();
+}
+
+// Checks whether the object's class hierarchy has a $_get instance method,
+// indicating subscript-readable semantics (Record, Map, JsonElement, _).
+// Replaces the ETS-level method-walk loop to reduce abc size.
+extern "C" EtsBoolean DebuggerAPIHasSubscriptGet(EtsObject *obj)
+{
+    if (UNLIKELY(obj == nullptr)) {
+        return 0;
+    }
+    auto *cls = obj->GetClass();
+    while (cls != nullptr) {
+        auto *method = cls->GetInstanceMethod("$_get", nullptr);
+        if (method != nullptr) {
+            return 1;
+        }
+        cls = cls->GetBase();
+    }
+    return 0;
+}
+
+// Invokes $_get(key) on obj directly from C++, bypassing the ETS
+// callInstanceMember overload-resolution machinery to reduce abc size
+extern "C" EtsObject *DebuggerAPISubscriptGet(EtsObject *obj, EtsObject *key)
+{
+    auto *executionCtx = EtsExecutionContext::GetCurrent();
+    if (UNLIKELY(obj == nullptr || key == nullptr)) {
+        ThrowDebuggerError(executionCtx, "subscriptGet: receiver or key is null");
+        return nullptr;
+    }
+    // Pin the arguments: ValidateAndResolveInstanceMethod may allocate an
+    // exception and trigger a moving GC that invalidates raw pointers.
+    EtsHandleScope handleScope(executionCtx);
+    EtsHandle<EtsObject> objHandle(executionCtx, obj);
+    EtsHandle<EtsObject> keyHandle(executionCtx, key);
+
+    // No managed allocation since entry (handle construction does not
+    // allocate), so the checked raw parameters are still valid here.
+    auto *cls = obj->GetClass();
+    auto *method = cls->GetInstanceMethod("$_get", nullptr);
+    if (UNLIKELY(method == nullptr)) {
+        ThrowDebuggerError(executionCtx, "$_get not found on object");
+        return nullptr;
+    }
+    method = helpers::ValidateAndResolveInstanceMethod(executionCtx, objHandle.GetPtr(), method);
+    if (UNLIKELY(method == nullptr)) {
+        return nullptr;
+    }
+    // Re-read the pinned pointers after the potential GC window.
+    auto *pinnedObj = objHandle.GetPtr();
+    auto *pinnedKey = keyHandle.GetPtr();
+    if (UNLIKELY(pinnedObj == nullptr || pinnedKey == nullptr)) {
+        // Unreachable: checked non-null at entry and pinned in handles.
+        return nullptr;
+    }
+    Value args[] = {Value(pinnedObj->GetCoreType()), Value(pinnedKey->GetCoreType())};
+    return helpers::InvokeAndResolveReturnValue(method, executionCtx, args);
+}
+
+// Invoke $_set(key, value) on obj directly from C++
+extern "C" void DebuggerAPISubscriptSet(EtsObject *obj, EtsObject *key, EtsObject *value)
+{
+    auto *executionCtx = EtsExecutionContext::GetCurrent();
+    if (UNLIKELY(obj == nullptr || key == nullptr)) {
+        ThrowDebuggerError(executionCtx, "subscriptSet: receiver or key is null");
+        return;
+    }
+    // Pin the arguments: ValidateAndResolveInstanceMethod may allocate an
+    // exception and trigger a moving GC that invalidates raw pointers.
+    EtsHandleScope handleScope(executionCtx);
+    EtsHandle<EtsObject> objHandle(executionCtx, obj);
+    EtsHandle<EtsObject> keyHandle(executionCtx, key);
+    EtsHandle<EtsObject> valueHandle(executionCtx, value);
+
+    // No managed allocation since entry (handle construction does not
+    // allocate), so the checked raw parameters are still valid here.
+    auto *cls = obj->GetClass();
+    auto *method = cls->GetInstanceMethod("$_set", nullptr);
+    if (UNLIKELY(method == nullptr)) {
+        ThrowDebuggerError(executionCtx, "$_set not found on object");
+        return;
+    }
+    method = helpers::ValidateAndResolveInstanceMethod(executionCtx, objHandle.GetPtr(), method);
+    if (UNLIKELY(method == nullptr)) {
+        return;
+    }
+    // Re-read the pinned pointers after the potential GC window.
+    auto *pinnedObj = objHandle.GetPtr();
+    auto *pinnedKey = keyHandle.GetPtr();
+    auto *pinnedValue = valueHandle.GetPtr();
+    if (UNLIKELY(pinnedObj == nullptr || pinnedKey == nullptr)) {
+        // Unreachable: checked non-null at entry and pinned in handles.
+        return;
+    }
+    Value args[] = {Value(pinnedObj->GetCoreType()), Value(pinnedKey->GetCoreType()),
+                    Value(pinnedValue != nullptr ? pinnedValue->GetCoreType() : nullptr)};
+    helpers::InvokeAndResolveReturnValue(method, executionCtx, args);
 }
 
 }  // namespace ark::ets::intrinsics

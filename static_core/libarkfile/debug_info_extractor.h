@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -54,8 +54,10 @@ struct LocalVariableInfo {
 
     bool IsAccessibleAt(uint32_t offset) const
     {
-        // Variable is accessible strictly after its definition
-        return startOffset < offset && offset <= endOffset;
+        // Variable is accessible strictly after its definition and strictly before the end of its
+        // scope: endOffset is the address of the first instruction after the scope (END_LOCAL is
+        // emitted one past the scope's last instruction), so the upper bound must be exclusive.
+        return startOffset < offset && offset < endOffset;
     }
 };
 

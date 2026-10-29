@@ -42,7 +42,7 @@ export interface DebugProxy {
     call(method: string, ...args: FixedArray<Any>): DebugProxy
 }
 
-export class ValueProxy implements DebugProxy {
+export final class ValueProxy implements DebugProxy {
     private val_: Any
 
     constructor(val: Any) {
@@ -92,7 +92,7 @@ export class ValueProxy implements DebugProxy {
  * getField first searches fields, then falls back to method reference lookup.
  * Implements Function (unsafeCall + name) so the value can be called directly.
  */
-export class MethodRefProxy extends VariableProxy implements Function {
+export final class MethodRefProxy extends VariableProxy implements Function {
     private obj_: Object
     private field_: string
 
@@ -125,7 +125,7 @@ export class MethodRefProxy extends VariableProxy implements Function {
 }
 
 /** Static method reference proxy: MyClass.method as a function value (symmetric to MethodRefProxy). */
-export class StaticMethodRefProxy extends VariableProxy implements Function {
+export final class StaticMethodRefProxy extends VariableProxy implements Function {
     private cls_: Class
     private field_: string
 
@@ -203,16 +203,19 @@ export abstract class VariableProxy implements DebugProxy {
  * read (value()→getter invoke) and write (setValue()→setter invoke), completing the ETS
  * property semantics in the evaluate layer.
  */
-export class GetterProxy extends VariableProxy {
+export final class GetterProxy extends VariableProxy {
     private obj_: Object
     private propName_: string
-    private cls_: Class
+    private getter_: reflect.InstanceMethod
+    private setter_: reflect.InstanceMethod | undefined
 
-    constructor(obj: Object, propName: string) {
+    constructor(obj: Object, propName: string, getter: reflect.InstanceMethod,
+        setter: reflect.InstanceMethod | undefined) {
         super()
         this.obj_ = obj
         this.propName_ = propName
-        this.cls_ = Class.of(obj)
+        this.getter_ = getter
+        this.setter_ = setter
     }
 
     protected override getDisplayName(): string {
@@ -220,48 +223,31 @@ export class GetterProxy extends VariableProxy {
     }
 
     override value(): Any {
-        let getterClass: Class | undefined = this.cls_
-        while (getterClass != undefined) {
-            for (let m of getterClass.getInstanceMethods()) {
-                let mname = m.getName()
-                let propName = mname.startsWith("%%get-") ? mname.substring("%%get-".length) : ""
-                if (m.isGetter() && propName == this.propName_) {
-                    return m.invoke(this.obj_, [])
-                }
-            }
-            getterClass = getterClass.getSuper()
-        }
-        throw new Error("getter '" + this.propName_ + "' not found")
+        return this.getter_.invoke(this.obj_, [])
     }
 
     override setValue(v: DebugProxy): void {
-        let val = DebuggerAPI.unwrap(v)
-        let setterClass: Class | undefined = this.cls_
-        while (setterClass != undefined) {
-            for (let m of setterClass.getInstanceMethods()) {
-                let mname = m.getName()
-                let propName = mname.startsWith("%%set-") ? mname.substring("%%set-".length) : ""
-                if (m.isSetter() && propName == this.propName_) {
-                    val = DebuggerAPI.convertArgToParamType(val, m.getParameterTypes()[0])
-                    m.invoke(this.obj_, [val])
-                    return
-                }
-            }
-            setterClass = setterClass.getSuper()
+        let setter = this.setter_
+        if (setter == undefined) {
+            throw new Error("cannot set getter '" + this.propName_ + "' (no setter found)")
         }
-        throw new Error("cannot set getter '" + this.propName_ + "' (no setter found)")
+        let val = DebuggerAPI.unwrap(v)
+        val = DebuggerAPI.convertArgToParamType(val, setter.getParameterTypes()[0])
+        setter.invoke(this.obj_, [val])
     }
 }
 
 /** Static counterpart of GetterProxy — same semantics for static getter/setter properties. */
-export class StaticGetterProxy extends VariableProxy {
-    private cls_: Class
+export final class StaticGetterProxy extends VariableProxy {
     private propName_: string
+    private getter_: reflect.StaticMethod
+    private setter_: reflect.StaticMethod | undefined
 
-    constructor(cls: Class, propName: string) {
+    constructor(propName: string, getter: reflect.StaticMethod, setter: reflect.StaticMethod | undefined) {
         super()
-        this.cls_ = cls
         this.propName_ = propName
+        this.getter_ = getter
+        this.setter_ = setter
     }
 
     protected override getDisplayName(): string {
@@ -269,28 +255,47 @@ export class StaticGetterProxy extends VariableProxy {
     }
 
     override value(): Any {
-        for (let m of this.cls_.getStaticMethods()) {
-            let mname = m.getName()
-            let propName = mname.startsWith("%%get-") ? mname.substring("%%get-".length) : ""
-            if (m.isGetter() && propName == this.propName_) {
-                return m.invoke([])
-            }
-        }
-        throw new Error("static getter '" + this.propName_ + "' not found")
+        return this.getter_.invoke([])
     }
 
     override setValue(v: DebugProxy): void {
-        let val = DebuggerAPI.unwrap(v)
-        for (let m of this.cls_.getStaticMethods()) {
-            let mname = m.getName()
-            let propName = mname.startsWith("%%set-") ? mname.substring("%%set-".length) : ""
-            if (m.isSetter() && propName == this.propName_) {
-                val = DebuggerAPI.convertArgToParamType(val, m.getParameterTypes()[0])
-                m.invoke([val])
-                return
-            }
+        let setter = this.setter_
+        if (setter == undefined) {
+            throw new Error("cannot set static getter '" + this.propName_ + "' (no setter found)")
         }
-        throw new Error("cannot set static getter '" + this.propName_ + "' (no setter found)")
+        let val = DebuggerAPI.unwrap(v)
+        val = DebuggerAPI.convertArgToParamType(val, setter.getParameterTypes()[0])
+        setter.invoke([val])
+    }
+}
+
+/**
+ * Proxy for an subscript access on Record/Map/JsonElement types. When getField
+ * doesn't find a named field, the object may support $_get/$_set subscript
+ * access. This proxy reads via $_get(key) and writes via $_set(key, value),
+ * enabling both 'obj['a'] reads and 'obj['a'] = v' writes through the
+ * debugger's getField/setValue proxy chain.
+ */
+export final class SubscriptProxy extends VariableProxy {
+    private obj_: Object
+    private key_: string
+
+    constructor(obj: Object, key: string) {
+        super()
+        this.obj_ = obj
+        this.key_ = key
+    }
+
+    protected override getDisplayName(): string {
+        return "subscript " + this.key_
+    }
+
+    override value(): Any {
+        return DebuggerAPI.subscriptGet(this.obj_, this.key_)
+    }
+
+    override setValue(v: DebugProxy): void {
+        DebuggerAPI.subscriptSet(this.obj_, this.key_, DebuggerAPI.unwrap(v))
     }
 }
 
@@ -298,7 +303,7 @@ export class StaticGetterProxy extends VariableProxy {
  * Proxy for an instance field. Stores the owning object and the field descriptor.
  * value()/setValue() read/write the field value; getField() further chains into the field's value.
  */
-export class InstanceFieldProxy extends VariableProxy {
+export final class InstanceFieldProxy extends VariableProxy {
     private obj_: Object
     private field_: reflect.InstanceField
 
@@ -332,38 +337,30 @@ export class InstanceFieldProxy extends VariableProxy {
 
 
 /**
- * Proxy for a static field. Stores the owning class and field name.
- * value()/setValue() resolve the field each time (in case the class is redefined).
+ * Proxy for a static field. Receives the pre-resolved field handle at
+ * construction (resolved by the DebuggerAPI lookup paths).
  */
-export class StaticFieldProxy extends VariableProxy {
-    private cls_: Class
+export final class StaticFieldProxy extends VariableProxy {
     private fieldName_: string
+    private field_: reflect.StaticField
 
-    constructor(cls: Class, fieldName: string) {
+    constructor(fieldName: string, field: reflect.StaticField) {
         super()
-        this.cls_ = cls
         this.fieldName_ = fieldName
+        this.field_ = field
     }
 
     override value(): Any {
-        let f = this.cls_.getStaticField(this.fieldName_)
-        if (f == undefined) {
-            throw new Error("static field '" + this.fieldName_ + "' not found")
-        }
-        return f.getValue()
+        return this.field_.getValue()
     }
 
     override setValue(v: DebugProxy): void {
-        let f = this.cls_.getStaticField(this.fieldName_)
-        if (f == undefined) {
-            throw new Error("static field '" + this.fieldName_ + "' not found")
-        }
         let val = DebuggerAPI.unwrap(v)
-        let existing = f.getValue()
+        let existing = this.field_.getValue()
         if (existing != null && val != null) {
             val = DebuggerAPI.widenNumericBox(val as Object, existing as Object)
         }
-        f.setValue(val)
+        this.field_.setValue(val)
     }
 
     protected override getDisplayName(): string {
@@ -372,7 +369,7 @@ export class StaticFieldProxy extends VariableProxy {
 }
 
 /** Represents a local variable */
-export class LocalVariable extends VariableProxy {
+export final class LocalVariable extends VariableProxy {
     private thread: int
     private frame: int
     private name: string
@@ -403,7 +400,7 @@ export class LocalVariable extends VariableProxy {
 }
 
 /** Represents `this` expression */
-export class This extends VariableProxy {
+export final class This extends VariableProxy {
     private thisObj: Object | null
 
     constructor(thisObj: Object | null) {
@@ -437,7 +434,7 @@ export class This extends VariableProxy {
  * `InstanceField` descriptor (`field`) that corresponds to the captured variable,
  * enabling the debugger to read and write the variable's value during evaluation.
  */
-export class CapturedVariable extends VariableProxy {
+export final class CapturedVariable extends VariableProxy {
     private name: string
     // The capture context object is always an object reference or null (when the
     // capture context is unavailable, e.g. the scope has been exited). It is never
@@ -475,7 +472,7 @@ export class CapturedVariable extends VariableProxy {
 }
 
 /** Represents a global variable */
-export class GlobalVariable extends VariableProxy {
+export final class GlobalVariable extends VariableProxy {
     private name: string
 
     constructor(name: string) {
@@ -497,7 +494,7 @@ export class GlobalVariable extends VariableProxy {
 }
 
 /** Represents a global function */
-export class GlobalFunction implements DebugProxy {
+export final class GlobalFunction implements DebugProxy {
     private method_: reflect.StaticMethod
 
     constructor(method: reflect.StaticMethod) {
@@ -526,7 +523,7 @@ export class GlobalFunction implements DebugProxy {
 }
 
 /** Represents a global class / namespace */
-export class GlobalClass implements DebugProxy {
+export final class GlobalClass implements DebugProxy {
     private cls_: Class
 
     constructor(cls: Class) {
@@ -546,11 +543,7 @@ export class GlobalClass implements DebugProxy {
     }
 
     override getField(field: string): DebugProxy {
-        let staticField = this.cls_.getStaticField(field)
-        if (staticField == undefined) {
-            throw new Error("static field '" + field + "' not found on class '" + this.cls_.getName() + "'")
-        }
-        return new StaticFieldProxy(this.cls_, field)
+        return DebuggerAPI.getFieldOnValue(this.cls_, this.cls_.getName(), field)
     }
 
     override call(method: string, ...args: FixedArray<Any>): DebugProxy {
@@ -606,7 +599,7 @@ export final class DebuggerAPI {
 
     public static native setLocalLong(regNumber: long, value: long): void
 
-    public static native setLocalObject(regNumber: long, value: Object): void
+    public static native setLocalObject(regNumber: long, value: Any): void
 
     /**
      * Gets the `this` object of the current stack frame.
@@ -644,7 +637,7 @@ export final class DebuggerAPI {
      * @param name Variable name
      * @param value The value to assign
      */
-    static native set(thread: int, frame: int, name: string, value: Object): void
+    static native set(thread: int, frame: int, name: string, value: Any): void
 
     /**
      * Defines (or redefines) a session variable within the debug session, for use by
@@ -673,7 +666,7 @@ export final class DebuggerAPI {
      * Sets the value of a register in the specified stack frame, automatically
      * converting the type based on typeSignature.
      */
-    static native setLocalValue(thread: int, frame: int, regNumber: long, typeSignature: string, value: Object): void
+    static native setLocalValue(thread: int, frame: int, regNumber: long, typeSignature: string, value: Any): void
 
     /**
      * Sets an array element by variable name. Automatically performs numeric widening
@@ -685,7 +678,7 @@ export final class DebuggerAPI {
      * @param index Element index
      * @param value The value to write
      */
-    static native setElement(thread: int, frame: int, name: string, index: int, value: Object): void
+    static native setElement(thread: int, frame: int, name: string, index: int, value: Any): void
 
     /**
      * Runtime type cast (castAs), semantically aligned with checkcast: resolves the
@@ -698,7 +691,7 @@ export final class DebuggerAPI {
      * @param value The value to cast
      * @param className Target class name (source-level simple name, e.g. "MyObj")
      */
-    static native castAs(thread: int, frame: int, value: Object, className: string): Object
+    static native castAs(thread: int, frame: int, value: Any, className: string): Object
 
     /**
      * Resolves a Class object by name at runtime, for scenarios requiring runtime
@@ -723,7 +716,7 @@ export final class DebuggerAPI {
      * @param className Source-level simple class name (e.g. "MyObj")
      * @returns true if value is an instance of className
      */
-    static native instanceofOp(thread: int, frame: int, value: Object, className: string): boolean
+    static native instanceofOp(thread: int, frame: int, value: Any, className: string): boolean
 
     /**
      * Gets the value of a global variable.
@@ -733,8 +726,8 @@ export final class DebuggerAPI {
     /**
      * Sets the value of a global variable.
      */
-    static native setGlobalVariable(name: string, value: Object): void
-    static native typeofValue(value: Object): string
+    static native setGlobalVariable(name: string, value: Any): void
+    static native typeofValue(value: Any): string
 
     /**
      * Create a String instance from an arbitrary value, bypassing the
@@ -742,7 +735,7 @@ export final class DebuggerAPI {
      * constructors (String::<ctor> is implemented via initobj, not as a
      * regular method).  Returns null if the value cannot be converted.
      */
-    static native createStringInstance(value: Object): String
+    static native createStringInstance(value: Any): String
 
     /**
      * Resolves top-level functions matching name within the frame's module
@@ -764,7 +757,7 @@ export final class DebuggerAPI {
      * and returns a boxed primitive (Int, Long, Double, etc.) or String.
      * Returns null if the object is not an enum or the value field cannot be read.
      */
-    static native getEnumValue(enumObj: Object): Object
+    static native getEnumValue(enumObj: Any): Object
 
     /**
      * Classification of builtin subscriptable types, used by the miss-path dispatch of
@@ -773,20 +766,20 @@ export final class DebuggerAPI {
      * 2 = tuple (std.core.Tuple implementation, read via the interface method unsafeGet),
      * 0 = neither.
      */
-    static native isBuiltinIndexable(obj: Object): int
+    static native isBuiltinIndexable(obj: Any): int
 
     /**
      * Reads a native array element and boxes it (with bounds check; throws RangeError on
      * out-of-bounds) — the evaluate-side equivalent of CheckLoadArrayOp + Ldarr. Guarded by
      * isBuiltinIndexable == 1.
      */
-    static native getElementBuiltin(receiver: Object, index: Object): Object
+    static native getElementBuiltin(receiver: Any, index: Any): Object
 
     /**
      * Native array length — the evaluate-side equivalent of the Lenarr instruction (the
      * class has no length field/getter). Guarded by isBuiltinIndexable == 1.
      */
-    static native getBuiltinLength(receiver: Object): int
+    static native getBuiltinLength(receiver: Any): int
 
     /**
      * Subscript write on a value receiver (the '$_set' miss-path dispatch for the builtin
@@ -794,7 +787,7 @@ export final class DebuggerAPI {
      * invisible to method reflection, so they are dispatched via this native; the logic is
      * identical to setElement for an identifier receiver.
      */
-    static native setElementBuiltin(receiver: Object, index: Object, value: Object): void
+    static native setElementBuiltin(receiver: Any, index: Any, value: Any): void
 
     /**
      * Copies a builtin subscriptable value (native array/tuple) into a resizable
@@ -802,7 +795,16 @@ export final class DebuggerAPI {
      * the original object. Replaces the legacy `as Array<Object>` bridge (that cast would
      * always CCE on non-resizable receivers).
      */
-    static native toResizableArray(receiver: Object): Array<Object>
+    static native toResizableArray(receiver: Any): Array<Object>
+
+    /** Checks whether the object's class hierarchy has a $_get method (subscript-readable). */
+    static native hasSubscriptGet(obj: Any): boolean
+
+    /** Invokes $_get(key) on obj, returning the value (or null if not found). */
+    static native subscriptGet(obj: Any, key: Any): Any
+
+    /** Invokes $_set(key, value) on obj. */
+    static native subscriptSet(obj: Any, key: Any, value: Any): void
 
     /**
      * Wraps a literal value as a ValueProxy, bridging literals into the Proxy system.
@@ -822,18 +824,32 @@ export final class DebuggerAPI {
 static getFieldOnValue(obj: Object, displayName: string, field: string): DebugProxy {
         if (obj instanceof Class) {
             let cls = obj
-            let staticField = cls.getStaticField(field)
+            let staticField = DebuggerAPI.getStaticField(cls, field)
             if (staticField != undefined) {
-                return new StaticFieldProxy(cls, field)
+                return new StaticFieldProxy(field, staticField)
             }
-            for (let m of cls.getStaticMethods()) {
+            let staticGetter: reflect.StaticMethod | undefined = undefined
+            for (let m of DebuggerAPI.getStaticMethods(cls)) {
                 let mname = m.getName()
                 let propName = mname.startsWith("%%get-") ? mname.substring("%%get-".length) : ""
                 if (m.isGetter() && propName == field) {
-                    return new StaticGetterProxy(cls, field)
+                    staticGetter = m
+                    break
                 }
             }
-            for (let m of cls.getStaticMethods()) {
+            if (staticGetter != undefined) {
+                let staticSetter: reflect.StaticMethod | undefined = undefined
+                for (let m of DebuggerAPI.getStaticMethods(cls)) {
+                    let mname = m.getName()
+                    let propName = mname.startsWith("%%set-") ? mname.substring("%%set-".length) : ""
+                    if (m.isSetter() && propName == field) {
+                        staticSetter = m
+                        break
+                    }
+                }
+                return new StaticGetterProxy(field, staticGetter, staticSetter)
+            }
+            for (let m of DebuggerAPI.getStaticMethods(cls)) {
                 if (m.getName() == field) {
                     return new StaticMethodRefProxy(cls, field)
                 }
@@ -843,27 +859,47 @@ static getFieldOnValue(obj: Object, displayName: string, field: string): DebugPr
         let objClass = Class.of(obj)
         let fieldClass: Class | undefined = objClass
         while (fieldClass != undefined) {
-            let instField = fieldClass.getInstanceField(field)
+            let instField = DebuggerAPI.getInstanceField(fieldClass, field)
             if (instField != undefined) {
                 return new InstanceFieldProxy(obj, instField)
             }
             fieldClass = fieldClass.getSuper()
         }
+        let getter: reflect.InstanceMethod | undefined = undefined
         let getterClass: Class | undefined = objClass
         while (getterClass != undefined) {
-            for (let m of getterClass.getInstanceMethods()) {
+            for (let m of DebuggerAPI.getInstanceMethods(getterClass)) {
                 let mname = m.getName()
                 let propName = mname.startsWith("%%get-") ? mname.substring("%%get-".length) : ""
                 if (m.isGetter() && propName == field) {
-                    return new GetterProxy(obj, field)
+                    getter = m
+                    break
                 }
             }
+            if (getter != undefined) { break }
             getterClass = getterClass.getSuper()
+        }
+        if (getter != undefined) {
+            let setter: reflect.InstanceMethod | undefined = undefined
+            let setterClass: Class | undefined = objClass
+            while (setterClass != undefined) {
+                for (let m of DebuggerAPI.getInstanceMethods(setterClass)) {
+                    let mname = m.getName()
+                    let propName = mname.startsWith("%%set-") ? mname.substring("%%set-".length) : ""
+                    if (m.isSetter() && propName == field) {
+                        setter = m
+                        break
+                    }
+                }
+                if (setter != undefined) { break }
+                setterClass = setterClass.getSuper()
+            }
+            return new GetterProxy(obj, field, getter, setter)
         }
         let methodFound = false
         let methodSearchCls: Class | undefined = objClass
         while (methodSearchCls != undefined) {
-            let methods = methodSearchCls.getInstanceMethods()
+            let methods = DebuggerAPI.getInstanceMethods(methodSearchCls)
             for (let i = 0; i < methods.length; i++) {
                 if (methods[i].getName() == field) {
                     methodFound = true
@@ -878,6 +914,15 @@ static getFieldOnValue(obj: Object, displayName: string, field: string): DebugPr
         }
         if (field == "length" && DebuggerAPI.isBuiltinIndexable(obj) == 1) {
             return new ValueProxy(new Int(DebuggerAPI.getBuiltinLength(obj)))
+        }
+        // Subscript fallback: when the field lookup fails, the object may be a
+        // Record/Map/JsonElement etc. that supports $_get/$_set subscript access.
+        // The frontend transformer obj['a'] (string-literal key) into getField("a"),
+        // but for index-signature types this is a map lookup, not a field access.
+        // Return a SubscriptProxy so both reads (value() -> $_get) and writes
+        // (setValue() -> $_set) work through the proxy chain.
+        if (DebuggerAPI.hasSubscriptGet(obj)) {
+            return new SubscriptProxy(obj, field)
         }
         throw new Error("field '" + field + "' not found on '" + displayName + "'")
     }
@@ -936,7 +981,7 @@ static getFieldOnValue(obj: Object, displayName: string, field: string): DebugPr
         let m: reflect.Method | undefined
         let methodSearchCls: Class | undefined = cls
         while (methodSearchCls != undefined) {
-            m = DebuggerAPI.resolveMethod(methodSearchCls.getInstanceMethods(), method, args, displayName)
+            m = DebuggerAPI.resolveMethod(DebuggerAPI.getInstanceMethods(methodSearchCls), method, args, displayName)
             if (m != undefined) {
                 break
             }
@@ -963,7 +1008,7 @@ static getFieldOnValue(obj: Object, displayName: string, field: string): DebugPr
         let methodExists = false
         let errSearchCls: Class | undefined = cls
         while (errSearchCls != undefined) {
-            let errMethods = errSearchCls.getInstanceMethods()
+            let errMethods = DebuggerAPI.getInstanceMethods(errSearchCls)
             for (let i = 0; i < errMethods.length; i++) {
                 if (errMethods[i].getName() == method) {
                     methodExists = true
@@ -1008,7 +1053,7 @@ static getFieldOnValue(obj: Object, displayName: string, field: string): DebugPr
         // 2. Function-typed field fallback: if the field value is callable, invoke it.
         let fieldSearchCls: Class | undefined = cls
         while (fieldSearchCls != undefined) {
-            let instField = fieldSearchCls.getInstanceField(method)
+            let instField = DebuggerAPI.getInstanceField(fieldSearchCls, method)
             if (instField != undefined) {
                 let fval = instField.getValue(obj)
                 if (fval instanceof Function) {
@@ -1032,7 +1077,7 @@ static getFieldOnValue(obj: Object, displayName: string, field: string): DebugPr
     /** Invokes a static member, symmetric to callInstanceMember (static method / static function field / static getter). */
     static callStaticMember(cls: Class, method: string, displayName: string, args: FixedArray<Any>): DebugProxy {
         // 1. Resolution: same as callInstanceMember (scoring-based).
-        let m = DebuggerAPI.resolveMethod(cls.getStaticMethods(), method, args, displayName)
+        let m = DebuggerAPI.resolveMethod(DebuggerAPI.getStaticMethods(cls), method, args, displayName)
         if (m != undefined) {
             let sm = m as reflect.StaticMethod
             let shaped = DebuggerAPI.shapeArgs(args, sm, false)
@@ -1050,7 +1095,7 @@ static getFieldOnValue(obj: Object, displayName: string, field: string): DebugPr
         }
 
         // 2. Static function field fallback.
-        let staticField = cls.getStaticField(method)
+        let staticField = DebuggerAPI.getStaticField(cls, method)
         if (staticField != undefined) {
             let fval = staticField.getValue()
             if (fval instanceof Function) {
@@ -1098,6 +1143,20 @@ static getFieldOnValue(obj: Object, displayName: string, field: string): DebugPr
             fn = null
         }
         if (fn != null) {
+            // Recursive local lambdas are compiled as Box<FunctionType>: the
+            // compiler wraps the lambda in a std.core.Box so the closure can
+            // capture a mutable reference. Unwrap the Box's 'value' field to
+            // recover the actual callable object before instanceof checks.
+            let fnCls0 = Class.of(fn as object)
+            if (fnCls0.getName() == "std.core.Box") {
+                let boxField = DebuggerAPI.getInstanceField(fnCls0, "value")
+                if (boxField != undefined) {
+                    let inner = boxField.getValue(fn as Object)
+                    if (inner != null) {
+                        fn = inner
+                    }
+                }
+            }
             if (fn instanceof Function) {
                 DebuggerAPI.validateArgCount(name, args, fn)
                 try {
@@ -1568,7 +1627,7 @@ static getFieldOnValue(obj: Object, displayName: string, field: string): DebugPr
     static findPrimaryInvokeName(fn: Object): string {
         let searchCls: Class | undefined = Class.of(fn)
         while (searchCls != undefined) {
-            let methods = searchCls.getInstanceMethods()
+            let methods = DebuggerAPI.getInstanceMethods(searchCls)
             for (let i = 0; i < methods.length; i++) {
                 let m = methods[i]
                 let mname = m.getName()
@@ -1695,34 +1754,34 @@ static getFieldOnValue(obj: Object, displayName: string, field: string): DebugPr
      * transformer's `as double` expression. Implemented in native to keep the
      * stdlib abc small; enum values are unwrapped and retried.
      */
-    public static native toDouble(v: Object): Double
+    public static native toDouble(v: Any): Double
 
     /**
      * Converts an Object to Float (boxed) by boxed type, for the evaluate
      * transformer's `as float` expression. Implemented in native to keep the
      * stdlib abc small; enum values are unwrapped and retried.
      */
-    public static native toFloat(v: Object): Float
+    public static native toFloat(v: Any): Float
 
     /**
      * Converts an Object to Long (boxed) by boxed type, for the evaluate
      * transformer's `as long` expression. Integers widen, floating-point
      * values truncate, Boolean→0/1. Enum values are unwrapped and retried.
      */
-    public static native toLong(v: Object): Long
+    public static native toLong(v: Any): Long
 
     /**
      * Converts an Object to Byte (boxed) by boxed type, for the evaluate
      * transformer's `as byte` expression. Integers are converted by widening
      * semantics, floating-point by ETS truncation semantics.
      */
-    public static native toByte(v: Object): Byte
+    public static native toByte(v: Any): Byte
 
     /**
      * Converts an Object to Short (boxed) by boxed type, for the evaluate
      * transformer's `as short` expression.
      */
-    public static native toShort(v: Object): Short
+    public static native toShort(v: Any): Short
 
     /**
      * Converts an Object to Char (boxed) by boxed type, for the evaluate
@@ -1730,14 +1789,14 @@ static getFieldOnValue(obj: Object, displayName: string, field: string): DebugPr
      * toChar method, and Double→Char is not a legal ETS conversion, so it is
      * not provided.
      */
-    public static native toChar(v: Object): Char
+    public static native toChar(v: Any): Char
 
     /**
      * Converts an Object to Boolean (boxed) by boxed type, for the evaluate
      * transformer's `as boolean` expression. Numerics are converted by zero-value
      * semantics (0 → false, non-zero → true).
      */
-    public static native toBoolean(v: Object): Boolean
+    public static native toBoolean(v: Any): Boolean
 
     /**
      * Converts an Object to Int (boxed) by boxed type, for the evaluate
@@ -1745,7 +1804,7 @@ static getFieldOnValue(obj: Object, displayName: string, field: string): DebugPr
      * which is dispatched via instanceof to Int by this method, then implicitly
      * unboxed as the int index for Array.$_get/$_set.
      */
-    public static native toInt(v: Object): Int
+    public static native toInt(v: Any): Int
 
     /**
      * Unary negation -a. BigInt uses ETS operator overloading; all other
@@ -1935,8 +1994,22 @@ static getFieldOnValue(obj: Object, displayName: string, field: string): DebugPr
         return DebuggerAPI.numericUnaryOp(a, 18)  // BIT_NOT
     }
 
-    private static native numericBinaryOp(a: Object, b: Object, op: int): Object
-    private static native numericUnaryOp(a: Object, op: int): Object
+    // Debugger-private reflection lookup that includes non-public members:
+    // unlike the public Class.getInstanceField/getInstanceMethods (which filter
+    // out private/protected members), the debugger must inspect all members
+    // regardless of access modifier. Kept private: they expose private state
+    // and must not be visible or callable outside this class; the proxies
+    // receive pre-resolved reflect handles instead.
+    private static native getInstanceField(cls: Class, name: string): reflect.InstanceField | undefined
+
+    private static native getStaticField(cls: Class, name: string): reflect.StaticField | undefined
+
+    private static native getInstanceMethods(cls: Class): FixedArray<reflect.InstanceMethod>
+
+    private static native getStaticMethods(cls: Class): FixedArray<reflect.StaticMethod>
+
+    private static native numericBinaryOp(a: Any, b: Any, op: int): Object
+    private static native numericUnaryOp(a: Any, op: int): Object
     private static native getMandatoryArgsNum(m: reflect.Method): int
     private static native hasRestParam(m: reflect.Method): boolean
 }
