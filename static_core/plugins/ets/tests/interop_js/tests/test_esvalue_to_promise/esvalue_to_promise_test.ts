@@ -37,6 +37,18 @@ let checkThrowNullError = etsVm.getFunction('Lesvalue_to_promise_test_ets/ETSGLO
 let checkAwaitCatch = etsVm.getFunction('Lesvalue_to_promise_test_ets/ETSGLOBAL;', 'checkAwaitCatch');
 let checkTimeoutSuccess = etsVm.getFunction('Lesvalue_to_promise_test_ets/ETSGLOBAL;', 'checkTimeoutSuccess');
 let checkTimeoutFail = etsVm.getFunction('Lesvalue_to_promise_test_ets/ETSGLOBAL;', 'checkTimeoutFail');
+let runAdditionalPromiseTests = etsVm.getFunction(
+    'Lesvalue_to_promise_test_ets/ETSGLOBAL;', 'runAdditionalPromiseTests');
+
+function finishPromiseTests(error?: Error): void {
+    const trigger = globalThis.gtest.helper.createEventLoopCallbackTrigger((): void => {
+        if (error !== undefined) {
+            throw error;
+        }
+        print('Additional ESValue Promise resolve/reject/chain tests passed');
+    });
+    trigger();
+}
 
 export function sleep(ms: number): Promise<void> {
     return new Promise<void>((resolve) => {
@@ -161,6 +173,132 @@ export async function timeoutFailTest(): Promise<number> {
     return Promise.race([task, timeout]);
 }
 
+export function resolveText(value: string): Promise<string> {
+    return Promise.resolve(value);
+}
+
+export function rejectText(value: string): Promise<never> {
+    return Promise.reject(value);
+}
+
+export function resolveUndefined(): Promise<undefined> {
+    return Promise.resolve(undefined);
+}
+
+export function resolveNull(): Promise<null> {
+    return Promise.resolve(null);
+}
+
+export function resolveBoolean(value: boolean): Promise<boolean> {
+    return Promise.resolve(value);
+}
+
+export function resolveNumber(value: number): Promise<number> {
+    return Promise.resolve(value);
+}
+
+export function resolveObject(value: number): Promise<Object> {
+    return Promise.resolve({ value: value, label: 'resolved-object' });
+}
+
+export function resolveArray(first: number, second: number): Promise<Array<number>> {
+    return Promise.resolve([first, second]);
+}
+
+export function resolveThenable(value: number): Promise<number> {
+    return Promise.resolve({
+        then: (resolve: (result: number) => void): void => resolve(value),
+    } as PromiseLike<number>);
+}
+
+export function rejectThenRecover(value: number): Promise<number> {
+    return Promise.reject('recover-' + value).catch(() => value * 3);
+}
+
+export function chainWithFinally(value: number): Promise<number> {
+    return Promise.resolve(value)
+        .finally(() => undefined)
+        .then((result) => result + 5);
+}
+
+export function chainRecoverAndContinue(value: number): Promise<number> {
+    return Promise.reject('chain-failure')
+        .catch(() => value)
+        .then((result) => result * 2)
+        .then((result) => result - 1);
+}
+
+export function chainRejectAgain(): Promise<number> {
+    return Promise.reject('first-rejection')
+        .catch(() => Promise.reject('second-rejection'));
+}
+
+export function resolveNestedObject(value: number): Promise<Object> {
+    return Promise.resolve(Promise.resolve({ nested: value }));
+}
+
+export function parallelResolveSum(left: number, right: number): Promise<number> {
+    return Promise.all([Promise.resolve(left), Promise.resolve(right)])
+        .then((values) => values[0] + values[1]);
+}
+
+export function parallelRejectReason(): Promise<string> {
+    return Promise.all([Promise.resolve(1), Promise.reject('parallel-reason')])
+        .then(() => 'unexpected-fulfillment');
+}
+
+export function raceResolvedAndRejected(value: number): Promise<number> {
+    const rejected = new Promise<number>((_, reject) => setTimeout(() => reject('late'), 30));
+    return Promise.race([Promise.resolve(value), rejected]);
+}
+
+export function settledMixedValues(): Promise<Array<PromiseSettledResult<number>>> {
+    return Promise.allSettled([Promise.resolve(7), Promise.reject('settled-reason')]);
+}
+
+export function callbackOrder(value: number, callback: (step: number) => void): Promise<number> {
+    return Promise.resolve(value)
+        .then((result) => {
+            callback(1);
+            return result + 1;
+        })
+        .then((result) => {
+            callback(2);
+            return result + 1;
+        });
+}
+
+export function callbackThrows(value: number): Promise<number> {
+    return Promise.resolve(value).then(() => {
+        throw new Error('callback-threw');
+    });
+}
+
+export function finallyRejectPreservesReason(): Promise<number> {
+    return Promise.reject('preserved-reason')
+        .finally(() => undefined);
+}
+
+export function resolveWinsSettlementRace(): Promise<number> {
+    return new Promise<number>((resolve, reject) => {
+        resolve(31);
+        reject('ignored-after-resolve');
+    });
+}
+
+export function rejectWinsSettlementRace(): Promise<number> {
+    return new Promise<number>((resolve, reject) => {
+        reject('first-settlement-wins');
+        resolve(32);
+    });
+}
+
+export function passThroughChain(value: number): Promise<number> {
+    return Promise.resolve(value)
+        .then()
+        .then((result) => result);
+}
+
 async function main(): Promise<void> {
     await checkToPromise();
     await checkToNumber();
@@ -186,6 +324,7 @@ async function main(): Promise<void> {
     checkAwaitCatch();
     checkTimeoutSuccess();
     checkTimeoutFail();
+    await runAdditionalPromiseTests();
 }
 
-main();
+main().then((): void => finishPromiseTests(), (error: Error): void => finishPromiseTests(error));

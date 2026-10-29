@@ -18,6 +18,196 @@ function assertWithLog(condition: boolean, testName: string): void {
     arktest.assertTrue(condition);
 }
 
+function extraModule(): ESValue {
+    return ESValue.load(
+        '../../plugins/ets/tests/interop_js/tests/test_esvalue_to_promise/esvalue_to_promise_test');
+}
+
+async function expectNumberPromise(
+    name: string, functionName: string, expected: number, args: ESValue[] = []): Promise<void> {
+    const method = extraModule().getProperty(functionName);
+    const result = await method.invoke(...args).toPromise();
+    assertWithLog(result.toNumber() === expected, name);
+}
+
+async function expectStringRejection(name: string, functionName: string, expected: string): Promise<void> {
+    let caught = false;
+    try {
+        await extraModule().getProperty(functionName).invoke().toPromise();
+    } catch (error) {
+        caught = (error as ESError).getValue().toString() === expected;
+    }
+    assertWithLog(caught, name);
+}
+
+async function testResolvePrimitiveValues(): Promise<void> {
+    const module = extraModule();
+    const text = await module.getProperty('resolveText')
+        .invoke(ESValue.wrapString('interop-resolved'))
+        .toPromise();
+    assertWithLog(text.toString() === 'interop-resolved', 'resolve string preserves value');
+
+    const bool = await module.getProperty('resolveBoolean')
+        .invoke(ESValue.wrapBoolean(false)).toPromise();
+    assertWithLog(!bool.toBoolean(), 'resolve false preserves boolean');
+
+    const numericValue = await module.getProperty('resolveNumber')
+        .invoke(ESValue.wrapNumber(-17.25)).toPromise();
+    assertWithLog(numericValue.toNumber() === -17.25,
+        'resolve negative fraction preserves number');
+
+    const nullValue = await module.getProperty('resolveNull').invoke().toPromise();
+    assertWithLog(nullValue.isNull(), 'resolve null preserves null');
+
+    const undefinedValue = await module.getProperty('resolveUndefined').invoke().toPromise();
+    assertWithLog(undefinedValue.isUndefined(), 'resolve undefined preserves undefined');
+}
+
+async function testResolveObjectAndArray(): Promise<void> {
+    const module = extraModule();
+    const objectValue = await module.getProperty('resolveObject')
+        .invoke(ESValue.wrapNumber(39)).toPromise();
+    const fieldValue = objectValue.getProperty('value');
+    const labelValue = objectValue.getProperty('label');
+    assertWithLog(fieldValue.toNumber() === 39,
+        'resolve object number property');
+    assertWithLog(labelValue.toString() === 'resolved-object',
+        'resolve object string property');
+
+    const arrayValue = await module.getProperty('resolveArray')
+        .invoke(ESValue.wrapNumber(4), ESValue.wrapNumber(9)).toPromise();
+    const first = arrayValue.getProperty('0');
+    const second = arrayValue.getProperty('1');
+    assertWithLog(first.toNumber() === 4 && second.toNumber() === 9,
+        'resolve array indexed values');
+}
+
+async function testThenableAssimilation(): Promise<void> {
+    const result = await extraModule().getProperty('resolveThenable')
+        .invoke(ESValue.wrapNumber(81)).toPromise();
+    assertWithLog(result.toNumber() === 81,
+        'resolve assimilates thenable result');
+
+    const nested = await extraModule().getProperty('resolveNestedObject')
+        .invoke(ESValue.wrapNumber(63)).toPromise();
+    assertWithLog(nested.getProperty('nested').toNumber() === 63,
+        'resolve flattens nested promise');
+}
+
+async function testRejectAndRecover(): Promise<void> {
+    let caughtText = false;
+    try {
+        await extraModule().getProperty('rejectText')
+            .invoke(ESValue.wrapString('explicit-reason')).toPromise();
+    } catch (error) {
+        caughtText = (error as ESError).getValue().toString() === 'explicit-reason';
+    }
+    assertWithLog(caughtText,
+        'reject string transfers reason');
+
+    const recovered = await extraModule().getProperty('rejectThenRecover')
+        .invoke(ESValue.wrapNumber(14)).toPromise();
+    assertWithLog(recovered.toNumber() === 42,
+        'catch callback recovers rejected promise');
+}
+
+async function testFulfillmentChain(): Promise<void> {
+    const result = await extraModule().getProperty('chainWithFinally')
+        .invoke(ESValue.wrapNumber(12)).toPromise();
+    assertWithLog(result.toNumber() === 17,
+        'finally fulfillment continues to then');
+
+    const continued = await extraModule().getProperty('chainRecoverAndContinue')
+        .invoke(ESValue.wrapNumber(8)).toPromise();
+    assertWithLog(continued.toNumber() === 15,
+        'recovery value reaches later callbacks');
+
+    const sum = await extraModule().getProperty('parallelResolveSum')
+        .invoke(ESValue.wrapNumber(23), ESValue.wrapNumber(19)).toPromise();
+    assertWithLog(sum.toNumber() === 42,
+        'all fulfillment values reach chained callback');
+}
+
+async function testRejectChainPropagation(): Promise<void> {
+    await expectStringRejection(
+        'catch returning rejected promise propagates reason', 'chainRejectAgain',
+        'second-rejection');
+    await expectStringRejection(
+        'all rejection preserves first reason', 'parallelRejectReason', 'parallel-reason');
+    await expectStringRejection(
+        'finally preserves rejected promise reason', 'finallyRejectPreservesReason',
+        'preserved-reason');
+
+    let callbackError = false;
+    try {
+        await extraModule().getProperty('callbackThrows')
+            .invoke(ESValue.wrapNumber(1)).toPromise();
+    } catch (error) {
+        callbackError = (error as Error).message === 'callback-threw';
+    }
+    assertWithLog(callbackError,
+        'throw in fulfillment callback rejects next promise');
+}
+
+async function testRaceAndSettledResults(): Promise<void> {
+    const race = await extraModule().getProperty('raceResolvedAndRejected')
+        .invoke(ESValue.wrapNumber(57)).toPromise();
+    assertWithLog(race.toNumber() === 57,
+        'race returns immediate fulfillment');
+
+    const settled = await extraModule().getProperty('settledMixedValues').invoke().toPromise();
+    const fulfilled = settled.getProperty('0');
+    const rejected = settled.getProperty('1');
+    assertWithLog(fulfilled.getProperty('status').toString() === 'fulfilled',
+        'allSettled fulfillment status');
+    assertWithLog(fulfilled.getProperty('value').toNumber() === 7,
+        'allSettled fulfillment payload');
+    assertWithLog(rejected.getProperty('status').toString() === 'rejected',
+        'allSettled rejection status');
+    assertWithLog(rejected.getProperty('reason').toString() === 'settled-reason',
+        'allSettled rejection payload');
+}
+
+async function testCallbackOrdering(): Promise<void> {
+    const callback = (step: number): void => {
+        const expected = step === 1 ? 1 : 2;
+        assertWithLog(step === expected,
+            'chain callback order ' + step.toString());
+    };
+    const result = await extraModule().getProperty('callbackOrder')
+        .invoke(ESValue.wrapNumber(100), ESValue.wrap(callback)).toPromise();
+    assertWithLog(result.toNumber() === 102,
+        'ordered callbacks transform fulfillment');
+}
+
+async function testSingleSettlementAndPassThrough(): Promise<void> {
+    const module = extraModule();
+    const resolved = await module.getProperty('resolveWinsSettlementRace').invoke().toPromise();
+    assertWithLog(resolved.toNumber() === 31,
+        'first resolve wins settlement race');
+
+    await expectStringRejection(
+        'first reject wins settlement race', 'rejectWinsSettlementRace',
+        'first-settlement-wins');
+
+    const passed = await module.getProperty('passThroughChain')
+        .invoke(ESValue.wrapNumber(73)).toPromise();
+    assertWithLog(passed.toNumber() === 73,
+        'missing fulfillment handlers pass value through');
+}
+
+export async function runAdditionalPromiseTests(): Promise<void> {
+    await testResolvePrimitiveValues();
+    await testResolveObjectAndArray();
+    await testThenableAssimilation();
+    await testRejectAndRecover();
+    await testFulfillmentChain();
+    await testRejectChainPropagation();
+    await testRaceAndSettledResults();
+    await testCallbackOrdering();
+    await testSingleSettlementAndPassThrough();
+}
+
 async function checkToPromise(): Promise<void> {
     let module = ESValue.load(
         '../../plugins/ets/tests/interop_js/tests/test_esvalue_to_promise/esvalue_to_promise_test');
