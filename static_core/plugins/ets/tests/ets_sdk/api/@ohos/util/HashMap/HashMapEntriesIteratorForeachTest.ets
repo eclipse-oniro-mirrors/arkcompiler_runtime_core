@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2025-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -95,8 +95,8 @@ function testEntriesPopulatedMapReplaceIter() {
     while (!temp.done) {
         let key = temp.value![0];
         let value = temp.value![1];
-        arktest.assertTrue(hashMap.replace(key, value ? value + 1 : 0),
-            "Expected replace(key, value ? value + 1 : 0) to return true during entries iteration");
+        arktest.assertTrue(hashMap.replace(key, value ? value + 1 : 0.0),
+            "Expected replace(key, value ? value + 1 : 0.0) to return true during entries iteration");
         temp = entries.next();
     }
 }
@@ -209,8 +209,8 @@ function testForeachPopulatedMapReplaceCb() {
     hashMap.set(1, 1);
     hashMap.set(2, 2);
     hashMap.forEach((value: double, key: double) => {
-        arktest.assertTrue(hashMap.replace(key, value ? value + 1 : 0),
-            "Expected replace(key, value ? value + 1 : 0) to return true during forEach");
+        arktest.assertTrue(hashMap.replace(key, value ? value + 1 : 0.0),
+            "Expected replace(key, value ? value + 1 : 0.0) to return true during forEach");
     });
 }
 

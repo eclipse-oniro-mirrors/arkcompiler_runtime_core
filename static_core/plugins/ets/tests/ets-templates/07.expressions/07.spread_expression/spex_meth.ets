@@ -124,7 +124,7 @@ class AM15 implements IM15Str {}
 
 class M16NewExpr {
     foo(...p: number[]): number {
-        return p.length ? p[p.length - 1] : -1
+        return p.length ? p[p.length - 1] : -1.0
     }
 }
 

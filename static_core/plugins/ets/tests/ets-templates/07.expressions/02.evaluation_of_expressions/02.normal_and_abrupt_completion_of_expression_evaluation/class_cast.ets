@@ -29,7 +29,7 @@ function castObjectToLong(s: State, o: Object): void {
 }
 
 function nullSafeAccess(s: State, t: Long | null): long {
-  return (s.a = 2) + (t === null ? 0 : t) + (s.b = 2);
+  return (s.a = 2) + (t === null ? 0 as long : t) + (s.b = 2);
 }
 
 const suite = new arktest.ArkTestsuite("Abrupt completion: ClassCastError")

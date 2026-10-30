@@ -1340,7 +1340,7 @@ export class Decimal {
                 n += '0';
             }
             s = Math.sqrt(Utils.toNumber(n));
-            e = Math.floor((e + 1) / 2) - (e < 0 ? 1 : e % 2 );
+            e = Math.floor((e + 1) / 2) - (e < 0 ? 1.0 : e % 2 );
             if (s == Infinity) {
                 n = '5e' + e;
             } else {
@@ -1503,11 +1503,11 @@ export class Decimal {
         let ys = y.s;
 
         if (!xd || !yd) {
-            return (!xs || !ys) ? NaN : (xs !== ys) ? xs : (xd === yd) ? 0 : (!xd ^ xs < 0) ? 1 : -1;
+            return (!xs || !ys) ? NaN : (xs !== ys) ? xs : (xd === yd) ? 0.0 : (!xd ^ xs < 0) ? 1.0 : -1.0;
         }
 
         if (!xd![0] || !yd![0]) {
-            return xd![0] ? xs : yd![0] ? -ys : 0;
+            return xd![0] ? xs : yd![0] ? -ys : 0.0;
         }
 
         if (xs !== ys) {
@@ -1622,7 +1622,7 @@ export class Decimal {
             : new Decimal(k + '').e;
 
         if (e > Decimal.maxE + 1 || e < Decimal.minE - 1) {
-            return new Decimal(e > 0 ? s * Infinity : 0);
+            return new Decimal(e > 0 ? s * Infinity : 0.0);
         }
 
         external = false;
@@ -1689,7 +1689,7 @@ export class Decimal {
         d = this.d;
         // Is arg negative, non-finite, 0 or 1?
         if (this.s < 0 || !d || !d[0] || this.equals(1)) {
-            return new Decimal(d && !d[0] ? -Infinity : this.s != 1 ? NaN : d ? 0 : Infinity);
+            return new Decimal(d && !d[0] ? -Infinity : this.s != 1 ? NaN : d ? 0.0 : Infinity);
         }
 
         // The result will have a non-terminating decimal expansion if base is 10 and arg is not an
@@ -1923,7 +1923,7 @@ export class Decimal {
             // 4 multiplications and 2 additions
             // Estimate the optimum number of times to use the argument reduction.
             let k = 1.4 * Math.sqrt(len);
-            k = k > 16 ? 16 : k | 0;
+            k = k > 16 ? 16.0 : Math.floor(k);
             x = x.mul(1 / Utils.tinyPow(5, k));
             x = this.taylorSeries(2, x, x, true);
 
@@ -2158,7 +2158,7 @@ export class Decimal {
     public acosh(): Decimal {
         let x: Decimal = this;
         if (x.comparedTo(1) == -1) {
-            return new Decimal(x.equals(1) ? 0 : NaN);
+            return new Decimal(x.equals(1) ? 0.0 : NaN);
         }
         if (!x.isFinite()) {
             return new Decimal(x);
@@ -2377,7 +2377,7 @@ export class Decimal {
             } else if (xd[0]) {
                 y = new Decimal(x);
             } else {
-                return new Decimal(rm === 3 ? -0.0 : 0);
+                return new Decimal(rm === 3 ? -0.0 : 0.0);
             }
             return external ? Utils.finalise(y, pr, rm) : y;
         }
@@ -2460,7 +2460,7 @@ export class Decimal {
         }
 
         if (xd.length == 0 || (xd.length > 0 && !xd[0])) {
-            return new Decimal(rm === 3 ? -0.0 : 0);
+            return new Decimal(rm === 3 ? -0.0 : 0.0);
         }
         y.digits = xd;
         y.exponent = this.getBase10Exponent(xd, yExp);
@@ -3082,7 +3082,7 @@ export class Decimal {
         // and  sin(x) = sin(x/5)(5 + sin^2(x/5)(16sin^2(x/5) - 20))
         // Estimate the optimum number of times to use the argument reduction.
         let k = 1.4 * Math.sqrt(len);
-        k = k > 16 ? 16 : k | 0;
+        k = k > 16 ? 16.0 : Math.floor(k);
 
         x = x.mul(1 / Utils.tinyPow(5, k));
         x = this.taylorSeries(2, x, x);
@@ -3479,7 +3479,7 @@ class Utils {
         // E.g. if within the word 3487563 the first rounding digit is 5,
         // then i = 4, k = 1000, rd = 3487563 % 1000 = 563
         k = Math.pow(10, LOG_BASE - i);
-        let rd = di < d.length ? d[di] % k | 0 : 0;
+        let rd = di < d.length ? d[di] % k | 0 : 0 as long;
         let r: boolean = false;
         if (repeating == undefined) {
             if (i < 3) {
@@ -3665,7 +3665,7 @@ class Utils {
 
                     i %= LOG_BASE;
                     j = i - LOG_BASE + digits;
-                    rd = j < 0 ? 0 : w / Math.pow(10, digits - j - 1) % 10 | 0;
+                    rd = j < 0 ? 0.0 : Math.floor(w / Math.pow(10, digits - j - 1) % 10);
                 }
             }
 
@@ -3677,7 +3677,7 @@ class Utils {
             let roundUp = (rm != undefined && rm! < 4)
                 ? (rd || isTruncated) && (rm == 0 || rm == (x.s < 0 ? 3 : 2))
                 : rd > 5 || rd == 5 && (rm == 4 || isTruncated || rm == 6 &&
-                ((i > 0 ? j > 0 ? w / Math.pow(10, digits - j) : 0 : xdi - 1 >= 0 ? xd![xdi - 1] : NaN) % 10) & 1 ||
+                ((i > 0 ? j > 0 ? w / Math.pow(10, digits - j) : 0.0 : xdi - 1 >= 0 ? xd![xdi - 1] : NaN) % 10) & 1 ||
                 rm == (x.s < 0 ? 8 : 7));
 
             if (signDigits < 1 || !(xd![0])) {
@@ -3699,7 +3699,7 @@ class Utils {
             } else {
                xd!.length = xdi + 1;
                k = Math.pow(10, LOG_BASE - i);
-               xd![xdi] = j > 0 ? (w / Math.pow(10, digits - j) % Math.pow(10, j) | 0) * k : 0;
+               xd![xdi] = j > 0 ? (w / Math.pow(10, digits - j) % Math.pow(10, j) | 0) * k : 0.0;
             }
 
             if (roundUp) {
@@ -3789,9 +3789,9 @@ class Utils {
         let qd = new Array<double>();
         q.digits = qd;
         let i: int;
-        for (i = 0; i < yL && yd[i] == (i < xL ? xd[i] || 0 : 0); i++);
+        for (i = 0; i < yL && yd[i] == (i < xL ? xd[i] || 0.0 : 0.0); i++);
 
-        if (i < yL && yd[i] > (i < xL ? xd[i] || 0 : 0)) {
+        if (i < yL && yd[i] > (i < xL ? xd[i] || 0.0 : 0.0)) {
             e--;
         }
         let sd: double;
@@ -3817,7 +3817,7 @@ class Utils {
                 sd++;
                 let t: double;
                 for (; (i < xL || k) && sd--; i++) {
-                    t = k * base + (i < xd.length ? (xd[i] || 0) : 0);
+                    t = k * base + (i < xd.length ? (xd[i] || 0.0) : 0.0);
                     qd.push(t / ydv | 0);
                     k = t % ydv | 0;
                 }
@@ -3896,7 +3896,7 @@ class Utils {
                     qd.push(k);
                     i++;
                     if (cmp && rem![0]) {
-                        rem!.push(xi < xL ? (xd[xi] || 0) : 0);
+                        rem!.push(xi < xL ? (xd[xi] || 0.0) : 0.0);
                         remL++;
                     } else {
                         rem = xi < xd.length ? Utils.updateDigits(xd[xi]) : undefined;

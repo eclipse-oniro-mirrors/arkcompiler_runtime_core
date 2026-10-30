@@ -1348,7 +1348,7 @@ export class Date {
             ecmaMakeDay(
                 ecmaMakeFullYear(year),
                 month,
-                day != undefined ? day : 1.0
+                day != undefined ? Int.toDouble(day) : 1.0
             ),
             ecmaMakeTime(
                 hours != undefined ? hours : 0,

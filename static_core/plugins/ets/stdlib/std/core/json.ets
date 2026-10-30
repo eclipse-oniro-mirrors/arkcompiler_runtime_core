@@ -955,7 +955,7 @@ export class JSON {
 
         JSON.checkType(type, new Map<Class, TypeColor>())
 
-        let bigIntOpt: int = options ? options.bigIntMode : 0
+        let bigIntOpt: int = options ? options.bigIntMode.valueOf() : 0
         let jsonValue = UnifiedJsonParser.parseToJSONValue(json)
         const parsingResult = new JSONValueParser(reviver, bigIntOpt).parse(jsonValue, type) as T
 
@@ -1005,7 +1005,7 @@ export class JSON {
         instance: T,
         options?: jsonx.ParseOptions
     ): T {
-        let bigIntOpt: int = options ? options.bigIntMode : 0
+        let bigIntOpt: int = options ? options.bigIntMode.valueOf() : 0
         const jsonValue = UnifiedJsonParser.parseToJSONValue(json)
         const result = new JSONValueParser(reviver, bigIntOpt).parseInto(jsonValue, instance as object) as T
 
@@ -3181,7 +3181,7 @@ class UnifiedJsonParser {
         this.index = 0
         this.length = source.length
         this.ch = this.length > 0 ? source.charAt(0) : c'\0'
-        this.bigIntOpt = options != undefined ? options.bigIntMode : 0
+        this.bigIntOpt = options != undefined ? options.bigIntMode.valueOf() : 0
     }
 
     public constructor(source: string, reviver: (key: string, value: jsonx.JsonElement) => jsonx.JsonElement,
@@ -3192,7 +3192,7 @@ class UnifiedJsonParser {
         this.length = source.length
         this.ch = this.length > 0 ? source.charAt(0) : c'\0'
         this.reviver = reviver
-        this.bigIntOpt = options != undefined ? options.bigIntMode : 0
+        this.bigIntOpt = options != undefined ? options.bigIntMode.valueOf() : 0
     }
 
     private getPositionDesc(): string {

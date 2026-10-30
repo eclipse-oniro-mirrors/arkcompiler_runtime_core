@@ -144,7 +144,7 @@ class State {
      * @syscap SystemCapability.Utils.Lang
      */
     public static PrepareReadLock(state: long): long {
-        return State.IncReaders(state) | (State.HasWriteLock(state) ? 0 : State.READ_LOCKED);
+        return State.IncReaders(state) | (State.HasWriteLock(state) ? new Long(0) : State.READ_LOCKED);
     }
 
     /**
@@ -172,7 +172,7 @@ class State {
      * @syscap SystemCapability.Utils.Lang
      */
     public static PrepareWriteLock(state: long): long {
-        return State.IncWriters(state) | (State.HasReadLock(state) ? 0 : State.WRITE_LOCKED);
+        return State.IncWriters(state) | (State.HasReadLock(state) ? new Long(0) : State.WRITE_LOCKED);
     }
 
     /**

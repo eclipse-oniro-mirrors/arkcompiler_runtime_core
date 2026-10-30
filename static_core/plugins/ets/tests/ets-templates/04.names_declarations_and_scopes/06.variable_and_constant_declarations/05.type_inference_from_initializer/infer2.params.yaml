@@ -43,10 +43,11 @@ cases:
           let cond = true
           function foo(p: int): int { return 1 }
           function foo(p: number): int { return 2 }
+          function foo(p: Int|Double): int { return 3 }
       use: |-
-          let b = cond ? 3 : 3.14  // type of b is double
-          arktest.assertEQ(typeof b, "number")
-          arktest.assertEQ(foo(b), 2)
+          let b = cond ? 3 : 3.14  // type of b is Int|Double
+          arktest.assertTrue(b instanceof Int|Double)
+          arktest.assertEQ(foo(b), 3)
 
     - decl: |-
           let cond = true

@@ -93,7 +93,7 @@ function main(): int {
     })
 
     suite.addTest("ternary", () => {
-        let res: int, t3 = 3, t4 = 4, t257 = 257, t258 = 258
+        let res: int | byte, t3 = 3, t4 = 4, t257 = 257, t258 = 258
 
         res = t3 <= t4 ? t257 : t258.toByte()
         arktest.assertEQ(res, 257)
