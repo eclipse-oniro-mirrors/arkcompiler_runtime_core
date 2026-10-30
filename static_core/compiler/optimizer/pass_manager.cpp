@@ -82,7 +82,7 @@ std::string PassManager::GetFileName([[maybe_unused]] const char *passName, [[ma
     os::CreateDirectories(folderName);
     constexpr auto IMM_3 = 3;
     constexpr auto IMM_4 = 4;
-    ssFilename << std::setw(IMM_3) << std::setfill('0') << executionCounter_ << "_";
+    ssFilename << std::setw(IMM_3) << std::setfill('0') << executionCounter_.load(std::memory_order_relaxed) << "_";
     if (passName != nullptr) {
         ssFilename << "pass_" << std::setw(IMM_4) << std::setfill('0') << stats_->GetCurrentPassIndex() << "_";
     }

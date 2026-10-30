@@ -16,6 +16,7 @@
 #ifndef COMPILER_OPTIMIZER_PASS_MANAGER_H
 #define COMPILER_OPTIMIZER_PASS_MANAGER_H
 
+#include <atomic>
 #include <tuple>
 #include "compiler_options.h"
 #include "pass.h"
@@ -154,13 +155,16 @@ public:
     // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     size_t GetExecutionCounter() const
     {
-        return executionCounter_;
+        return executionCounter_.load(std::memory_order_relaxed);
     }
 
     // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void StartExecution()
     {
-        executionCounter_++;
+        // 20260807927972 Task 01-05: relaxed atomic — concurrent Graph processing (per-function
+        // Graph creation runs in parallel after the single-builder snapshot) increments this
+        // counter from multiple threads; a non-atomic size_t was a data race (TSAN exit 66).
+        executionCounter_.fetch_add(1, std::memory_order_relaxed);
     }
 
 private:
@@ -169,7 +173,9 @@ private:
     const ArenaVector<Analysis *> analyses_;
 
     PassManagerStatistics *stats_ {nullptr};
-    inline static size_t executionCounter_ {0};
+    // 20260807927972 Task 01-05: atomic so concurrent PassManager executions (parallel per-function
+    // Graph builds) don't race on the shared global execution id.
+    inline static std::atomic<size_t> executionCounter_ {0};
 
     // Whether passes are run by checker.
     bool checkMode_ {false};

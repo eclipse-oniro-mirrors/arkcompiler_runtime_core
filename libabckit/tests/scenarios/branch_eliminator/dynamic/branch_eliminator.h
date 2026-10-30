@@ -19,6 +19,7 @@
 #include <limits>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "helpers/visit_helper/visit_helper-inl.h"
@@ -43,6 +44,14 @@ public:
     BranchEliminator(enum AbckitApiVersion version, AbckitFile *file, std::vector<ConstantInfo> constants);
 
     void Run();
+
+    // 20260807927972 Task 02-06: per-function entry points for parallel scheduling. The main
+    // thread enumerates modules/functions + computes suspects (read-only) via CollectFunctionTasks;
+    // workers then call RunFunctionTask on distinct functions. createGraphFromFunction (D1 single-
+    // builder snapshot) and functionSetGraph (D4 prepare/commit) run on different functions, so the
+    // shared-file paths are thread-safe; per-function Graph transforms are isolated.
+    void CollectFunctionTasks(std::vector<std::pair<AbckitCoreFunction *, SuspectsType>> &tasks);
+    void RunFunctionTask(AbckitCoreFunction *func, const SuspectsType &suspects);
 
     constexpr static ConstantInfoIndexType INVALID_INDEX = std::numeric_limits<ConstantInfoIndexType>::max();
 

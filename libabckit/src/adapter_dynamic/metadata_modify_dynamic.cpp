@@ -78,7 +78,24 @@ void FunctionSetGraphDynamic(AbckitCoreFunction *function, AbckitGraph *graph)
 void FunctionSetGraphDynamicSync(AbckitCoreFunction *function, AbckitGraph *graph)
 {
     LIBABCKIT_LOG_FUNC;
+    auto *file = function->owningModule->file;
 
+    // 20260807927972 Task 01-03 (D4): internal prepare/commit. The early stale check rejects an
+    // obviously-stale Graph before codegen; the commit phase rechecks under the cache mutex and
+    // atomically swaps the prepared body, closing the same-function concurrent TOCTOU window. A
+    // Graph is stale if its per-function version OR its structural generation differs from the
+    // file's current value. The cache mutex is shared with the snapshot builder (EmitDynamicProgram),
+    // so a commit never races a concurrent emission.
+    {
+        std::lock_guard<std::mutex> verLk(file->graphCacheMtx);
+        if (graph->functionVersion != file->functionVersions[function] ||
+            graph->structuralGeneration != file->structuralGeneration) {
+            statuses::SetLastError(AbckitStatus::ABCKIT_STATUS_WRONG_STATE);
+            return;
+        }
+    }
+
+    // PREPARE (shared-access, caller-exclusive Graph): generate the candidate function body.
     auto func = GetDynFunction(function);
     auto oldLocalVariableDebug = func->local_variable_debug;
     LIBABCKIT_LOG(DEBUG) << "============================================ BEFORE CODEGEN: " << func->name << '\n';
@@ -107,41 +124,57 @@ void FunctionSetGraphDynamicSync(AbckitCoreFunction *function, AbckitGraph *grap
     LIBABCKIT_LOG_DUMP((reinterpret_cast<pandasm::Function *>(fw))->DebugDump(), DEBUG);
 
     auto *newFunc = reinterpret_cast<pandasm::Function *>(fw);
-    func->ins = std::move(newFunc->ins);
-    func->catch_blocks = newFunc->catch_blocks;
-    func->regs_num = newFunc->regs_num;
-    func->local_variable_debug.clear();
-    for (auto var : oldLocalVariableDebug) {
-        if (var.start >= func->ins.size()) {
-            continue;
-        }
-        auto end = static_cast<size_t>(var.start) + static_cast<size_t>(var.length);
-        if (end > func->ins.size()) {
-            end = func->ins.size();
-        }
-        if (end <= var.start) {
-            continue;
-        }
-        var.length = static_cast<uint32_t>(end - static_cast<size_t>(var.start));
-        func->local_variable_debug.emplace_back(std::move(var));
-    }
 
-    // update IC slot number info in annotation
-    func->slots_num = newFunc->slots_num;
-    static const std::string SLOT_NUMBER = "_ESSlotNumberAnnotation";
-    static const std::string ELEMENT_NAME = "SlotNumber";
-    size_t slotNumAnnoIndex = 0;
-    for (const auto &an : func->metadata->GetAnnotations()) {
-        if (an.GetName() == SLOT_NUMBER) {
-            pandasm::AnnotationElement ele(ELEMENT_NAME, std::make_unique<pandasm::ScalarValue>(
-                                                             pandasm::ScalarValue::Create<pandasm::Value::Type::U32>(
-                                                                 static_cast<uint32_t>(func->slots_num))));
-            func->metadata->SetOrAddAnnotationElementByIndex(slotNumAnnoIndex, 0, std::move(ele));
-            break;
+    // COMMIT (exclusive): recheck the versions, then atomically replace the live function body and
+    // advance the per-function version. If another commit invalidated this Graph during codegen,
+    // discard the prepared body and return WRONG_STATE without overwriting the newer result.
+    {
+        std::lock_guard<std::mutex> verLk(file->graphCacheMtx);
+        if (graph->functionVersion != file->functionVersions[function] ||
+            graph->structuralGeneration != file->structuralGeneration) {
+            statuses::SetLastError(AbckitStatus::ABCKIT_STATUS_WRONG_STATE);
+            delete newFunc;
+            return;
         }
-        slotNumAnnoIndex++;
-    }
+        func->ins = std::move(newFunc->ins);
+        func->catch_blocks = newFunc->catch_blocks;
+        func->regs_num = newFunc->regs_num;
+        func->local_variable_debug.clear();
+        for (auto var : oldLocalVariableDebug) {
+            if (var.start >= func->ins.size()) {
+                continue;
+            }
+            auto end = static_cast<size_t>(var.start) + static_cast<size_t>(var.length);
+            if (end > func->ins.size()) {
+                end = func->ins.size();
+            }
+            if (end <= var.start) {
+                continue;
+            }
+            var.length = static_cast<uint32_t>(end - static_cast<size_t>(var.start));
+            func->local_variable_debug.emplace_back(std::move(var));
+        }
 
+        // update IC slot number info in annotation
+        func->slots_num = newFunc->slots_num;
+        static const std::string SLOT_NUMBER = "_ESSlotNumberAnnotation";
+        static const std::string ELEMENT_NAME = "SlotNumber";
+        size_t slotNumAnnoIndex = 0;
+        for (const auto &an : func->metadata->GetAnnotations()) {
+            if (an.GetName() == SLOT_NUMBER) {
+                pandasm::AnnotationElement ele(ELEMENT_NAME, std::make_unique<pandasm::ScalarValue>(
+                                                                 pandasm::ScalarValue::Create<pandasm::Value::Type::U32>(
+                                                                     static_cast<uint32_t>(func->slots_num))));
+                func->metadata->SetOrAddAnnotationElementByIndex(slotNumAnnoIndex, 0, std::move(ele));
+                break;
+            }
+            slotNumAnnoIndex++;
+        }
+
+        // 20260807927972 Task 01-03: advance the per-function version on successful writeback so a
+        // subsequent setGraph of a Graph created before this writeback is rejected as stale.
+        file->functionVersions[function]++;
+    }
     delete newFunc;
 }
 
@@ -187,6 +220,17 @@ AbckitJsModule *FileAddExternalJsModule(AbckitFile *file, const struct AbckitJsE
         it->second->GetJsImpl()->core = it->second.get();
         it->second->GetJsImpl()->impl = modulePayloadDyn;
         it->second->target = ABCKIT_TARGET_JS;
+    }
+    // 20260807927972 Task 01-03: adding a module is a structural metadata change. Advance the
+    // file's structuralGeneration so all Graphs built before this change are rejected as stale
+    // (WRONG_STATE) by functionSetGraph's commit recheck, and mark the cached snapshot stale
+    // (generated=false) so the next createGraph re-emits. The old pf/irInterface is left in place
+    // for existing Graphs' destroyGraph and is cleaned by the next builder under graphCacheMtx.
+    {
+        std::lock_guard<std::mutex> lk(file->graphCacheMtx);
+        file->generateStatus.generated = false;
+        file->graphCacheFailed = false;
+        file->structuralGeneration++;
     }
     return it->second->GetJsImpl();
 }

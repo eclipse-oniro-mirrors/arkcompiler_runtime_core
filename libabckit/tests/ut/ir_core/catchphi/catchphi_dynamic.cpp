@@ -106,5 +106,32 @@ TEST_F(LibAbcKitDynamicCatchPhiTest, CatchPhiNoAccDynamicValid)
     EXPECT_TRUE(helpers::Match(output, "42\n"));
 }
 
+// 20260807927972 Task 01-05 (91-3.1): F64 (DOUBLE) CatchPhi input is accepted by the AbcKit graph
+// checker. Mirrors CatchPhiNoAccDynamicValid but with an F64 constant (3.14) as the CatchPhi input;
+// the IsAbcKit relaxation must accept the F64-typed CatchPhi feeding a non-Phi inst (print) under a
+// throw-applied graph.
+// Test: test-kind=api, api=GraphApiImpl::bbCreateCatchPhi, abc-kind=ArkTS1, category=positive, extension=c
+TEST_F(LibAbcKitDynamicCatchPhiTest, CatchPhiF64InputDynamicValid)
+{
+    auto output =
+        helpers::ExecuteDynamicAbc(ABCKIT_ABC_DIR "ut/ir_core/catchphi/catchphi_dynamic.abc", "catchphi_dynamic");
+    EXPECT_TRUE(helpers::Match(output, "CATCH\n"));
+
+    helpers::TransformMethod(
+        ABCKIT_ABC_DIR "ut/ir_core/catchphi/catchphi_dynamic.abc",
+        ABCKIT_ABC_DIR "ut/ir_core/catchphi/catchphi_dynamic_f64_modified.abc", "main",
+        [](AbckitFile * /*file*/, AbckitCoreFunction * /*method*/, AbckitGraph *graph) {
+            auto *print = helpers::FindFirstInst(graph, ABCKIT_ISA_API_DYNAMIC_OPCODE_CALLARG1);
+            auto *constantF64 = g_implG->gFindOrCreateConstantF64(graph, 3.14);
+            auto *catchPhi = g_implG->bbCreateCatchPhi(g_implG->iGetBasicBlock(print), 2, constantF64, print);
+            g_implG->iSetInput(print, catchPhi, 1);
+        },
+        [&]([[maybe_unused]] AbckitGraph *graph) {});
+
+    output = helpers::ExecuteDynamicAbc(ABCKIT_ABC_DIR "ut/ir_core/catchphi/catchphi_dynamic_f64_modified.abc",
+                                        "catchphi_dynamic");
+    EXPECT_TRUE(helpers::Match(output, "3\\.14.*\n"));
+}
+
 }  // namespace libabckit::test
 // NOLINTEND(readability-magic-numbers)

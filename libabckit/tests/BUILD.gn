@@ -101,6 +101,12 @@ abckit_gtests_sources = [
   "scenarios/add_log/add_log_dynamic_test.cpp",
   "ut/logger_test.cpp",
   "ut/modify_name_helper_test.cpp",
+  "ut/thread_safety/dynamic_graph_isa_thread_safety_test.cpp",
+  "ut/thread_safety/dynamic_add_log_serial_parallel_test.cpp",
+  "ut/thread_safety/dynamic_add_try_catch_serial_parallel_test.cpp",
+  "ut/thread_safety/dynamic_branch_eliminator_serial_parallel_test.cpp",
+  "ut/thread_safety/dynamic_parameter_check_serial_parallel_test.cpp",
+  "ut/thread_safety/dynamic_replace_call_site_serial_parallel_test.cpp",
   "ut/name_util_test.cpp",
 
   # 29942
@@ -440,6 +446,8 @@ test_js_from_ets_files = [
 
   "scenarios/add_try_catch/dynamic/add_try_catch",
   "scenarios/add_log/add_log_dynamic",
+  "ut/thread_safety/add_log_parallel/add_log_parallel_dynamic",
+  "ut/thread_safety/add_try_catch_parallel/add_try_catch_parallel_dynamic",
   "scenarios/api_scanner/dynamic/api_scanner",
   "scenarios/branch_eliminator/dynamic/branch_eliminator",
   "scenarios/scan_subclasses/dynamic/scan_subclasses",
@@ -460,6 +468,7 @@ test_ts_files = [
 
   "scenarios/router_table/dynamic/router_table",
   "scenarios/replace_call_site/dynamic/replace_call_site",
+  "ut/thread_safety/replace_call_site_parallel/replace_call_site_parallel",
 
   "ut/ir_core/catchphi/catchphi_dynamic",
 

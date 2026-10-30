@@ -140,6 +140,32 @@ void checkMemThresholdDynamic(AbckitFile *file)
     file->generateStatus.generated = false;
 }
 
+// 20260807927972 Task 01-01: RAII guard for the snapshot builder. Sets graphCacheBuilding=true on
+// construction and, on destruction, publishes the terminal state (graphCacheBuilding=false) and
+// notifies all waiters — on every builder exit path (success, failure, or exception) — so a waiter
+// never blocks forever on a builder that failed mid-emission.
+class GraphBuildStateGuard {
+public:
+    explicit GraphBuildStateGuard(AbckitFile *file) : file_(file)
+    {
+        if (file_ != nullptr) {
+            file_->graphCacheBuilding = true;
+        }
+    }
+    ~GraphBuildStateGuard()
+    {
+        if (file_ != nullptr) {
+            file_->graphCacheBuilding = false;
+            file_->graphCacheCv.notify_all();
+        }
+    }
+    GraphBuildStateGuard(const GraphBuildStateGuard &) = delete;
+    GraphBuildStateGuard &operator=(const GraphBuildStateGuard &) = delete;
+
+private:
+    AbckitFile *file_;
+};
+
 AbckitGraph *CreateGraphFromFunctionDynamic(AbckitCoreFunction *function)
 {
     LIBABCKIT_LOG_FUNC;
@@ -155,24 +181,49 @@ AbckitGraph *CreateGraphFromFunctionDynamic(AbckitCoreFunction *function)
 
     panda_file::File *pf = nullptr;
     AbckitIrInterface *irInterface = nullptr;
-    if (function->owningModule->file->needOptimize && file->generateStatus.generated) {
-        pf = file->generateStatus.getFile<panda_file::File>();
-        irInterface = file->generateStatus.getIrInterface<AbckitIrInterface>();
-    } else {
-        file->generateStatus.clear<panda_file::File, AbckitIrInterface>();
-
-        pandasm::AsmEmitter::PandaFileToPandaAsmMaps maps = pandasm::AsmEmitter::PandaFileToPandaAsmMaps();
-        pf = const_cast<panda_file::File *>(EmitDynamicProgram(file, program, &maps, true));
-        irInterface = new AbckitIrInterface(std::move(maps.methods), std::move(maps.fields), std::move(maps.classes),
-                                            std::move(maps.strings), std::move(maps.literalarrays));
-    }
+    uint64_t fnVer = 0;      // 20260807927972 Task 01-03: per-function version captured under graphCacheMtx
+    uint64_t structGen = 0;  // 20260807927972 Task 01-03: structural generation captured under graphCacheMtx
+    {
+        // 20260807927972 Task 01-01: thread-safe snapshot acquisition (single-builder).
+        // Wait while another thread is building. Reuse the READY snapshot (needOptimize cached) if
+        // present; if a prior needOptimize build FAILED, return null (don't retry); otherwise become
+        // the single builder. The builder holds graphCacheMtx during EmitDynamicProgram so the file's
+        // program is never emitted concurrently; GraphBuildStateGuard ensures waiters are always
+        // notified (no hang on builder failure).
+        std::unique_lock<std::mutex> graphLk(file->graphCacheMtx);
+        file->graphCacheCv.wait(graphLk, [&file] { return !file->graphCacheBuilding; });
+        if (file->needOptimize && file->generateStatus.generated) {
+            pf = file->generateStatus.getFile<panda_file::File>();
+            irInterface = file->generateStatus.getIrInterface<AbckitIrInterface>();
+        } else if (file->needOptimize && file->graphCacheFailed) {
+            // FAILED: a prior build failed; don't retry (invalidation/STALE reset is Task 01-03).
+            graphLk.unlock();
+            return nullptr;
+        } else {
+            GraphBuildStateGuard guard(file);  // building=true; ~guard -> building=false + notify_all
+            file->generateStatus.clear<panda_file::File, AbckitIrInterface>();
+            pandasm::AsmEmitter::PandaFileToPandaAsmMaps maps = pandasm::AsmEmitter::PandaFileToPandaAsmMaps();
+            pf = const_cast<panda_file::File *>(EmitDynamicProgram(file, program, &maps, true));
+            if (pf != nullptr) {
+                irInterface = new AbckitIrInterface(std::move(maps.methods), std::move(maps.fields),
+                                                    std::move(maps.classes), std::move(maps.strings),
+                                                    std::move(maps.literalarrays));
+            }
+            if (file->needOptimize) {
+                if (pf != nullptr) {
+                    file->generateStatus = {true, pf, irInterface};
+                    file->graphCacheFailed = false;  // READY
+                } else {
+                    file->graphCacheFailed = true;  // FAILED
+                }
+            }
+        }
+        fnVer = file->functionVersions[function];  // 20260807927972 Task 01-03: capture per-function version
+        structGen = file->structuralGeneration;     // 20260807927972 Task 01-03: capture structural generation
+    }  // graphCacheMtx released; per-function Graph creation below runs in parallel
 
     if (pf == nullptr) {
         return nullptr;
-    }
-
-    if (function->owningModule->file->needOptimize) {
-        file->generateStatus = {true, pf, irInterface};
     }
 
     uint32_t functionOffset = 0;
@@ -203,6 +254,8 @@ AbckitGraph *CreateGraphFromFunctionDynamic(AbckitCoreFunction *function)
 
     ASSERT(graph->file == file);
     graph->function = function;
+    graph->functionVersion = fnVer;        // 20260807927972 Task 01-03: Graph carries the per-function version at creation
+    graph->structuralGeneration = structGen;  // 20260807927972 Task 01-03: Graph carries the structural generation at creation
 
     return graph;
 }

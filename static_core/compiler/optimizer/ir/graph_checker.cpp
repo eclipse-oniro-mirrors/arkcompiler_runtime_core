@@ -272,6 +272,7 @@ void GraphChecker::CheckInputType(Inst *inst)
                  (inputType == DataType::REFERENCE || inputType == DataType::POINTER)) ||
                 (IsZeroConstant(input) && (inputType == DataType::REFERENCE || inputType == DataType::POINTER)) ||
                 (inputType == DataType::ANY && input->IsConst() && realInputType == DataType::INT64) ||
+                (inputType == DataType::ANY && input->IsConst() && realInputType == DataType::FLOAT64) ||  // 20260807927972 Task 01-05: relax F64 constant input to an ANY-typed inst (e.g. CatchPhi) in AbcKit
                 (GetGraph()->IsThrowApplied() &&
                  (input->GetBasicBlock()->IsEndWithThrow() ||
                   ((input->GetOpcode() == Opcode::CatchPhi || input->GetOpcode() == Opcode::Phi) &&

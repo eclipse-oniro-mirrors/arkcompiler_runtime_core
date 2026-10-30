@@ -66,6 +66,8 @@ struct CAPI_EXPORT AbckitApi {
      * @note Set `ABCKIT_STATUS_BAD_ARGUMENT` error if `file` is NULL.
      * @note Set `ABCKIT_STATUS_BAD_ARGUMENT` error if `path` is NULL.
      * @note Set `ABCKIT_STATUS_BAD_ARGUMENT` error if `path` is not valid.
+     * @note Set `ABCKIT_STATUS_WRONG_STATE` (10) error if an active Graph still references the file;
+     *       release all Graphs (`destroyGraph`) before writing.
      * @note Allocates
      */
     void (*writeAbc)(AbckitFile *file, const char *path, size_t len);
@@ -75,6 +77,8 @@ struct CAPI_EXPORT AbckitApi {
      * @return None.
      * @param [ in ] file - File to close.
      * @note Set `ABCKIT_STATUS_BAD_ARGUMENT` error if `file` is NULL.
+     * @note Lifecycle: close the file only after all Graphs are destroyed (`destroyGraph`) and any
+     *       writeback (`writeAbc`) is complete; do not access the file or its Graphs after close.
      */
     void (*closeFile)(AbckitFile *file);
 
@@ -83,6 +87,8 @@ struct CAPI_EXPORT AbckitApi {
      * @return None.
      * @param [ in ] graph - Graph to destroy.
      * @note Set `ABCKIT_STATUS_BAD_ARGUMENT` error if `graph` is NULL.
+     * @note The Graph must be caller-exclusive during destroy: no other thread may access the Graph,
+     *       its iterators or derived temporals at the same time; a destroyed Graph must not be used again.
      */
     void (*destroyGraph)(AbckitGraph *graph);
 

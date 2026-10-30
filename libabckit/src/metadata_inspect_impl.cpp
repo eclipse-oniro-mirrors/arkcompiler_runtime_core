@@ -1732,10 +1732,14 @@ AbckitGraph *getGraphFromCache(AbckitCoreFunction *function)
         }
 
         for (auto &[_, status] : functionsMap) {
-            if (IsDynamic(function->owningModule->target)) {
-                DestroyGraphDynamicSync(status->graph);
-            } else {
-                DestroyGraphStaticSync(status->graph);
+            // 20260807927972 Task 01-01: a cached entry's graph may be null (e.g. a prior FAILED
+            // build before the null-cache guard below); guard destroy against nullptr.
+            if (status->graph != nullptr) {
+                if (IsDynamic(function->owningModule->target)) {
+                    DestroyGraphDynamicSync(status->graph);
+                } else {
+                    DestroyGraphStaticSync(status->graph);
+                }
             }
             delete status;
         }
@@ -1749,6 +1753,12 @@ AbckitGraph *getGraphFromCache(AbckitCoreFunction *function)
         graph = CreateGraphFromFunctionDynamic(function);
     } else {
         graph = CreateGraphFromFunctionStatic(function);
+    }
+    // 20260807927972 Task 01-01: a FAILED build (graphCacheFailed) or an emission failure returns
+    // null; don't cache a null graph (a later cache rebuild would DestroyGraphDynamicSync(nullptr)
+    // and crash). Surface the failure to the caller without caching.
+    if (graph == nullptr) {
+        return nullptr;
     }
     functionsMap[function] = new FunctionStatus {graph, false};
 

@@ -26,6 +26,8 @@
 #include <string>
 #include <memory>
 #include <unordered_set>
+#include <mutex>
+#include <condition_variable>
 
 namespace panda::pandasm {
 struct Program;
@@ -1016,7 +1018,26 @@ struct AbckitFile {
 
     bool needOptimize = false;
     AbckitFileGenerateStatus generateStatus;
+    // 20260807927972 Task 01-01: single-builder snapshot protocol for thread-safe Dynamic Graph creation.
+    // Concurrent createGraphFromFunction callers either reuse the READY emitted snapshot (needOptimize
+    // cached path) or wait on graphCacheCv while a single builder runs EmitDynamicProgram; the builder
+    // holds graphCacheMtx during emission so the program is never emitted concurrently.
+    std::mutex graphCacheMtx;
+    std::condition_variable graphCacheCv;
+    bool graphCacheBuilding = false;
+    // 20260807927972 Task 01-01: set when a needOptimize build failed; subsequent callers see FAILED
+    // and return null without retrying (until invalidation/STALE resets it in Task 01-03).
+    bool graphCacheFailed = false;
     std::unordered_map<AbckitCoreFunction *, FunctionStatus *> functionsMap;
+    // 20260807927972 Task 01-03: per-function writeback version, advanced on functionSetGraph success.
+    // A Graph captures the value at creation; functionSetGraph rejects a Graph whose captured value
+    // differs (stale) with ABCKIT_STATUS_WRONG_STATE. Access is serialized under graphCacheMtx.
+    std::unordered_map<AbckitCoreFunction *, uint64_t> functionVersions;
+    // 20260807927972 Task 01-03: file-level structural generation, advanced when the overall metadata
+    // topology changes (module/class/function add). Constant-pool extension (createString/
+    // createLiteralArray) does NOT advance it. A Graph captures the value at creation; functionSetGraph
+    // rechecks it under graphCacheMtx and rejects a structurally-stale Graph (WRONG_STATE).
+    uint64_t structuralGeneration = 0;
 
     /**
      * Function point to delete data

@@ -86,6 +86,13 @@ struct AbckitGraph {
     std::unordered_map<uintptr_t, AbckitCoreClass *> ptrToClass;
     ark::compiler::Graph *impl = nullptr;
     void *internal = nullptr;
+    // 20260807927972 Task 01-03: per-function writeback version captured at Graph creation; a later
+    // functionSetGraph compares it to the current version and rejects a stale Graph (WRONG_STATE).
+    uint64_t functionVersion = 0;
+    // 20260807927972 Task 01-03: file-level structural generation captured at Graph creation; a
+    // structural metadata change advances the file's value and invalidates all cached Graphs
+    // (functionSetGraph rechecks and rejects a structurally-stale Graph with WRONG_STATE).
+    uint64_t structuralGeneration = 0;
 };
 // NOLINTEND(misc-non-private-member-variables-in-classes)
 

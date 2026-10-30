@@ -1673,6 +1673,12 @@ struct CAPI_EXPORT AbckitInspectApi {
      * @return Pointer to the `AbckitGraph`.
      * @param [ in ] function - Function to be inspected.
      * @note Set `ABCKIT_STATUS_BAD_ARGUMENT` error if `function` is NULL.
+     * @note The returned `AbckitGraph` is caller-exclusive: at any instant only one thread may
+     *       access a given Graph, its iterators and derived temporals; different Graphs of different
+     *       functions may be processed by different threads in parallel. The caller is responsible
+     *       for this exclusive access; the library does not check owner-thread identity per entry.
+     * @note Graph lifecycle: a Graph created here must be released by `destroyGraph` before the
+     *       owning file is written (`writeAbc`) and closed (`closeFile`).
      * @note Allocates
      */
     AbckitGraph *(*createGraphFromFunction)(AbckitCoreFunction *function);
@@ -2012,6 +2018,10 @@ struct CAPI_EXPORT AbckitModifyApi {
      * @note Set `ABCKIT_STATUS_BAD_ARGUMENT` error if `graph` is NULL.
      * @note Set `ABCKIT_STATUS_WRONG_CTX` error if corresponding `AbckitFile`s owning `function` and `graph` are
      * differ.
+     * @note This is the only public synchronous writeback entry; the Graph must be caller-exclusive
+     *       during modification. Stale results are rejected: set `ABCKIT_STATUS_WRONG_STATE` (10) error
+     *       if the Graph is based on a stale function version or file structure, or if an active Graph
+     *       still blocks the writeback; a stale result must not overwrite a newer effective result.
      * @note Allocates
      */
     void (*functionSetGraph)(AbckitCoreFunction *function, AbckitGraph *graph);
