@@ -743,7 +743,7 @@ export final class SparseArray<T> implements Iterable<T> {
      * @syscap SystemCapability.Utils.Lang
      * @FaAndStageModel
      */
-    public toLocaleString(locales: Intl.LocalesArgument, options: Object): string {
+    public toLocaleString(locales?: Intl.LocalesArgument, options?: object): string {
         const len = this.maxLength;
         if (len > 0) {
             const sb = new StringBuilder()

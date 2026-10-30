@@ -65,7 +65,7 @@ export final class InstanceField extends Field {
      * @syscap SystemCapability.Utils.Lang
      * @FaAndStageModel
      */
-    public getValue(thisObj: Object): Any {
+    public getValue(thisObj: Object | undefined): Any {
         return super.getValueInternal(thisObj)
     }
 
@@ -79,7 +79,7 @@ export final class InstanceField extends Field {
      * @syscap SystemCapability.Utils.Lang
      * @FaAndStageModel
      */
-    public setValue(thisObj: Object, value: Any): void {
+    public setValue(thisObj: Object | undefined, value: Any): void {
         if (this.isReadonly()) {
             throw new TypeError("setValue to a readonly field")
         }

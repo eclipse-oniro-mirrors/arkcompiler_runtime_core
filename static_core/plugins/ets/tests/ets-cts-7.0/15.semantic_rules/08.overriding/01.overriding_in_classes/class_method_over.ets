@@ -21,7 +21,8 @@ desc: >-
     subclass hides the previous static method. Otherwise, a compile-time error occurs.
 
     {{c.doc|indent}}
-tags: []
+tags: [{% if c.expected_out %}compile-only, negative{% endif %}]
+{% if c.expected_out %}expected_out: "{{c.expected_out}}"{% endif %}
 ---*/
 
 let res: number = 0;

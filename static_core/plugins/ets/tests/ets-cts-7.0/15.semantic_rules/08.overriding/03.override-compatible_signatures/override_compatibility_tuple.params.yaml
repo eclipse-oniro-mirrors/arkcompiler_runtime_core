@@ -55,6 +55,7 @@ cases:
               res = 2
           }
       params: override-compatible parameter
+      expected_out: "Semantic error ESE0131: Function foo with this assembly signature already declared."
       call: |-
         res = 0
         new Base().foo(ob)
@@ -75,6 +76,7 @@ cases:
               res = 2
           }
       params: override-compatible parameter
+      expected_out: "Semantic error ESE0131: Function foo with this assembly signature already declared."
       call: |-
         res = 0
         new Base().foo(do_)

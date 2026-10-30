@@ -25,6 +25,10 @@ desc: >-
     overrides the method of superinterface in the subinterface.
 
     {{c.doc|indent}}
+{% if c.expected_out %}
+tags: [compile-only, negative]
+expected_out: "{{c.expected_out}}"
+{% endif %}
 ---*/
 
 let res: number = 0;

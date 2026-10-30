@@ -30,6 +30,7 @@ cases:
       let i: Derived = new Derived()
       arktest.assertEQ( i.foo("some str"), 2 )
       arktest.assertEQ( i.foo(new String("some str")), 2 )
+    expected_out: "Semantic error ESE0131: Function foo with this assembly signature already declared."
 
   - doc: |-
       Functions are not override-equivalent, overload is happen and both functions are available.

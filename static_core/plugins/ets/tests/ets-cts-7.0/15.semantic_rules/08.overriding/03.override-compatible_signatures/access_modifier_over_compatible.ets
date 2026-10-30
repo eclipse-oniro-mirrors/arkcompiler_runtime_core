@@ -26,7 +26,8 @@ desc: >-
         • Override a private method of a superclass;
 
 
-tags: []
+tags: [{% if c.expected_out %}compile-only, negative{% endif %}]
+{% if c.expected_out %}expected_out: "{{c.expected_out}}"{% endif %}
 ---*/
 
 let res: number = 0;
