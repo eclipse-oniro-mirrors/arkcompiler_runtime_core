@@ -15,7 +15,34 @@
 
 #include "annotation.h"
 
+#include "assembly-debug.h"
+#include "assembly-file-location.h"
+
 namespace ark::pandasm {
+
+ScalarValue::~ScalarValue() = default;
+
+const std::string &EmptyLine()
+{
+#if defined(__clang__)
+    static const std::string EMPTY_LINE __attribute__((no_destroy));
+    return EMPTY_LINE;
+#else
+    static const auto *EMPTY_LINE = new std::string();
+    return *EMPTY_LINE;
+#endif
+}
+
+const std::string &debuginfo::EmptyLine()
+{
+#if defined(__clang__)
+    static const std::string EMPTY_LINE __attribute__((no_destroy));
+    return EMPTY_LINE;
+#else
+    static const auto *EMPTY_LINE = new std::string();
+    return *EMPTY_LINE;
+#endif
+}
 
 // CC-OFFNXT(huge_method[C++], G.FUN.01-CPP) big switch case
 std::unique_ptr<ScalarValue> InitScalarValue(const ScalarValue &scVal)
