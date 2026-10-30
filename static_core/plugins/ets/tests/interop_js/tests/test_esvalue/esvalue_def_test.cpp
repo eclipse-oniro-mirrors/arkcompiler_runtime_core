@@ -527,4 +527,79 @@ TEST_F(EtsESValueJsToEtsTest, testArrayOutOfBound)
 {
     ASSERT_EQ(true, CallEtsFunction<bool>(GetPackageName(), "testArrayOutOfBound"));
 }
+
+TEST_F(EtsESValueJsToEtsTest, EdgeSetterCount)
+{
+    ASSERT_EQ(true, CallEtsFunction<bool>(GetPackageName(), "edgeSetterCount"));
+}
+
+TEST_F(EtsESValueJsToEtsTest, EdgeGetterThrows)
+{
+    ASSERT_EQ(true, CallEtsFunction<bool>(GetPackageName(), "edgeGetterThrows"));
+}
+
+TEST_F(EtsESValueJsToEtsTest, EdgeSetterThrows)
+{
+    ASSERT_EQ(true, CallEtsFunction<bool>(GetPackageName(), "edgeSetterThrows"));
+}
+
+TEST_F(EtsESValueJsToEtsTest, EdgeInheritedSetter)
+{
+    ASSERT_EQ(true, CallEtsFunction<bool>(GetPackageName(), "edgeInheritedSetter"));
+}
+
+TEST_F(EtsESValueJsToEtsTest, EdgeNullField)
+{
+    ASSERT_EQ(true, CallEtsFunction<bool>(GetPackageName(), "edgeNullField"));
+}
+
+TEST_F(EtsESValueJsToEtsTest, EdgeFalseField)
+{
+    ASSERT_EQ(true, CallEtsFunction<bool>(GetPackageName(), "edgeFalseField"));
+}
+
+TEST_F(EtsESValueJsToEtsTest, EdgeArrayMutation)
+{
+    ASSERT_EQ(true, CallEtsFunction<bool>(GetPackageName(), "edgeArrayMutation"));
+}
+
+TEST_F(EtsESValueJsToEtsTest, EdgeArrayOwnKeys)
+{
+    ASSERT_EQ(true, CallEtsFunction<bool>(GetPackageName(), "edgeArrayOwnKeys"));
+}
+
+TEST_F(EtsESValueJsToEtsTest, EdgeMethodFailure)
+{
+    ASSERT_EQ(true, CallEtsFunction<bool>(GetPackageName(), "edgeMethodFailure"));
+}
+
+TEST_F(EtsESValueJsToEtsTest, EdgeCtorThrow)
+{
+    ASSERT_EQ(true, CallEtsFunction<bool>(GetPackageName(), "edgeCtorThrow"));
+}
+
+TEST_F(EtsESValueJsToEtsTest, EdgeCtorSuccess)
+{
+    ASSERT_EQ(true, CallEtsFunction<bool>(GetPackageName(), "edgeCtorSuccess"));
+}
+
+TEST_F(EtsESValueJsToEtsTest, EdgeIteratorFailure)
+{
+    ASSERT_EQ(true, CallEtsFunction<bool>(GetPackageName(), "edgeIteratorFailure"));
+}
+
+TEST_F(EtsESValueJsToEtsTest, EdgeIteratorRepeat)
+{
+    ASSERT_EQ(true, CallEtsFunction<bool>(GetPackageName(), "edgeIteratorRepeat"));
+}
+
+TEST_F(EtsESValueJsToEtsTest, EdgePunctuationKey)
+{
+    ASSERT_EQ(true, CallEtsFunction<bool>(GetPackageName(), "edgePunctuationKey"));
+}
+
+TEST_F(EtsESValueJsToEtsTest, EdgeEmptyKey)
+{
+    ASSERT_EQ(true, CallEtsFunction<bool>(GetPackageName(), "edgeEmptyKey"));
+}
 }  // namespace ark::ets::interop::js::testing

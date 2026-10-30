@@ -290,3 +290,86 @@ export let testDate = new Date('2025-03-15T10:30:00Z');
 export let invalidDate = new Date('invalid');
 export let epochDate = new Date(0);
 export let futureDate = new Date('2100-01-01');
+
+export let edgeAccessor = (() => {
+    const state = { stored: 5, reads: 0, writes: 0 };
+    return {
+        get reads() {
+            return state.reads;
+        },
+        get writes() {
+            return state.writes;
+        },
+        get stored() {
+            return state.stored;
+        },
+        get value() {
+            state.reads++;
+            return state.stored;
+        },
+        set value(v) {
+            state.writes++;
+            state.stored = v * 2;
+        },
+    };
+})();
+export let throwingGetter = {
+    healthy: 12,
+    get bad() {
+        throw new Error('getter edge');
+    },
+};
+export let throwingSetter = {
+    healthy: 4,
+    set bad(v) {
+        throw new Error('setter edge');
+    },
+};
+export let inheritedAccessor = Object.assign(
+    Object.create({
+        get double() {
+            return this.base * 2;
+        },
+        set double(v) {
+            this.base = v / 2;
+        },
+    }),
+    { base: 7 },
+);
+export let edgeNullish = { nil: null, missing: undefined, no: false, empty: '' };
+export let edgeArray = [1, 2, 3];
+export let edgeReceiver = {
+    count: 5,
+    add(v) {
+        this.count += v;
+        return this.count;
+    },
+    fail() {
+        this.count++;
+        throw new Error('method edge');
+    },
+};
+export class EdgeCtor {
+    constructor(value) {
+        if (value < 0) {
+            throw new RangeError('ctor edge');
+        }
+        this.value = value;
+    }
+}
+export let edgeCtor = EdgeCtor;
+export let edgeIterable = {
+    [Symbol.iterator]() {
+        let calls = 0;
+        return {
+            next() {
+                calls++;
+                if (calls === 2) {
+                    throw new Error('iterator edge');
+                }
+                return { value: 17, done: false };
+            },
+        };
+    },
+};
+export let edgeKeys = { '': 1, 'with.dot': 2, 'item[0]': 3 };

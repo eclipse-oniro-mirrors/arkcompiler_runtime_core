@@ -1395,3 +1395,153 @@ function testArrayOutOfBound(): boolean {
     let str = strArray.getProperty(-1);
     return str.isUndefined();
 }
+
+function getEdgeValue(name: string): ESValue {
+    return ESValue.load(
+        '../../plugins/ets/tests/interop_js/tests/test_esvalue/esvalue_def_test').getProperty(name);
+}
+
+function edgeSetterCount(): boolean {
+    let o = getEdgeValue('edgeAccessor');
+    o.setProperty('value', ESValue.wrapNumber(8));
+    arktest.assertEQ(o.getProperty('writes').toNumber(), 1);
+    arktest.assertEQ(o.getProperty('stored').toNumber(), 16);
+    return true;
+}
+
+function edgeGetterThrows(): boolean {
+    let o = getEdgeValue('throwingGetter');
+    let caught = false;
+    try {
+        o.getProperty('bad');
+    } catch (e) {
+        caught = true;
+        arktest.assertTrue(e.message.includes('getter edge'));
+    }
+    arktest.assertTrue(caught);
+    arktest.assertEQ(o.getProperty('healthy').toNumber(), 12);
+    return true;
+}
+
+function edgeSetterThrows(): boolean {
+    let o = getEdgeValue('throwingSetter');
+    let caught = false;
+    try {
+        o.setProperty('bad', ESValue.wrapNumber(2));
+    } catch (e) {
+        caught = true;
+    }
+    arktest.assertTrue(caught);
+    o.setProperty('healthy', ESValue.wrapNumber(15));
+    arktest.assertEQ(o.getProperty('healthy').toNumber(), 15);
+    return true;
+}
+
+function edgeInheritedSetter(): boolean {
+    let o = getEdgeValue('inheritedAccessor');
+    o.setProperty('double', ESValue.wrapNumber(30));
+    arktest.assertEQ(o.getProperty('base').toNumber(), 15);
+    arktest.assertEQ(o.getProperty('double').toNumber(), 30);
+    return true;
+}
+
+function edgeNullField(): boolean {
+    let o = getEdgeValue('edgeNullish');
+    arktest.assertTrue(o.getProperty('nil').isNull());
+    arktest.assertTrue(o.getProperty('missing').isUndefined());
+    return true;
+}
+
+function edgeFalseField(): boolean {
+    let o = getEdgeValue('edgeNullish');
+    arktest.assertTrue(!o.getProperty('no').toBoolean());
+    arktest.assertEQ(o.getProperty('empty').toString(), '');
+    return true;
+}
+
+function edgeArrayMutation(): boolean {
+    let o = getEdgeValue('edgeArray');
+    o.setProperty(1, ESValue.wrapNumber(23));
+    arktest.assertEQ(o.getProperty(1).toNumber(), 23);
+    arktest.assertEQ(o.getProperty('length').toNumber(), 3);
+    return true;
+}
+
+function edgeArrayOwnKeys(): boolean {
+    let o = getEdgeValue('edgeArray');
+    arktest.assertTrue(o.hasOwnProperty('0'));
+    arktest.assertTrue(o.hasOwnProperty('2'));
+    arktest.assertTrue(!o.hasOwnProperty('7'));
+    return true;
+}
+
+function edgeMethodFailure(): boolean {
+    let o = getEdgeValue('edgeReceiver');
+    let caught = false;
+    try {
+        o.invokeMethod('fail');
+    } catch (e) {
+        caught = true;
+    }
+    arktest.assertTrue(caught);
+    arktest.assertEQ(o.getProperty('count').toNumber(), 6);
+    return true;
+}
+
+function edgeCtorThrow(): boolean {
+    let o = getEdgeValue('edgeCtor');
+    let caught = false;
+    try {
+        o.instantiate(ESValue.wrapNumber(-1));
+    } catch (e) {
+        caught = true;
+    }
+    arktest.assertTrue(caught);
+    return true;
+}
+
+function edgeCtorSuccess(): boolean {
+    let o = getEdgeValue('edgeCtor').instantiate(ESValue.wrapNumber(33));
+    arktest.assertEQ(o.getProperty('value').toNumber(), 33);
+    return true;
+}
+
+function edgeIteratorFailure(): boolean {
+    let o = getEdgeValue('edgeIterable').iterator();
+    arktest.assertEQ(o.next().value!.toNumber(), 17);
+    let caught = false;
+    try {
+        o.next();
+    } catch (e) {
+        caught = true;
+    }
+    arktest.assertTrue(caught);
+    return true;
+}
+
+function edgeIteratorRepeat(): boolean {
+    let o = getEdgeValue('edgeIterable').iterator();
+    o.next();
+    try {
+        o.next();
+    } catch (e) {
+        arktest.assertTrue(e.message.includes('iterator edge'));
+    }
+    arktest.assertTrue(true);
+    return true;
+}
+
+function edgePunctuationKey(): boolean {
+    let o = getEdgeValue('edgeKeys');
+    arktest.assertEQ(o.getProperty('with.dot').toNumber(), 2);
+    arktest.assertEQ(o.getProperty('item[0]').toNumber(), 3);
+    return true;
+}
+
+function edgeEmptyKey(): boolean {
+    let o = getEdgeValue('edgeKeys');
+    arktest.assertEQ(o.getProperty('').toNumber(), 1);
+    o.setProperty('', ESValue.wrapNumber(9));
+    arktest.assertEQ(o.getProperty('').toNumber(), 9);
+    return true;
+}
