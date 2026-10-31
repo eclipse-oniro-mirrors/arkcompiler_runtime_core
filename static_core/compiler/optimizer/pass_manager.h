@@ -152,19 +152,16 @@ public:
         return checkMode_;
     }
 
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     size_t GetExecutionCounter() const
     {
-        return executionCounter_.load(std::memory_order_relaxed);
+        return executionId_;
     }
 
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void StartExecution()
     {
-        // 20260807927972 Task 01-05: relaxed atomic — concurrent Graph processing (per-function
-        // Graph creation runs in parallel after the single-builder snapshot) increments this
-        // counter from multiple threads; a non-atomic size_t was a data race (TSAN exit 66).
-        executionCounter_.fetch_add(1, std::memory_order_relaxed);
+        // Atomic with relaxed order reason: only unique ID allocation is needed; no other data is published.
+        executionId_ = executionCounter_.fetch_add(1, std::memory_order_relaxed) + 1;
+        firstExecution_ = false;
     }
 
 private:
@@ -173,9 +170,8 @@ private:
     const ArenaVector<Analysis *> analyses_;
 
     PassManagerStatistics *stats_ {nullptr};
-    // 20260807927972 Task 01-05: atomic so concurrent PassManager executions (parallel per-function
-    // Graph builds) don't race on the shared global execution id.
-    inline static std::atomic<size_t> executionCounter_ {0};
+    size_t executionId_ {0};
+    inline static std::atomic_size_t executionCounter_ {0};
 
     // Whether passes are run by checker.
     bool checkMode_ {false};

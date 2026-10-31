@@ -42,24 +42,52 @@
 
 #include <cstdint>
 #include <iostream>
+#include <mutex>
 
 namespace libabckit {
 // CC-OFFNXT(WordsTool.95) sensitive word conflict
 // NOLINTNEXTLINE(google-build-using-namespace)
 using namespace ark;
 
+namespace {
+void InitializeDynamicCompilerOptions()
+{
+    static std::mutex mutex;
+    std::lock_guard lock(mutex);
+    // A completed Static phase may reset the frame size. Restore it before Dynamic work starts,
+    // but never rewrite options while other Dynamic graphs may be reading them.
+    // Overlapping Static and Dynamic graph lifetimes remain unsupported.
+    if (ark::compiler::g_options.GetCompilerFrameSize() != "large") {
+        ark::compiler::g_options.SetCompilerUseSafepoint(false);
+        ark::compiler::g_options.SetCompilerFrameSize("large");
+    }
+}
+}  // namespace
+
 struct CtxGInternalDynamic {
     ArenaAllocator *allocator;
     ArenaAllocator *localAllocator;
     const AbckitIrInterface *irInterface;
     AbckitRuntimeAdapterDynamic *runtimeAdapter;
+    bool ownsIrInterface;
+    std::shared_ptr<AbckitDynamicGraphCacheEntry> cacheEntry;
 };
 
-AbckitGraph *GraphWrapper::BuildGraphDynamic(FileWrapper *pf, AbckitIrInterface *irInterface, AbckitFile *file,
-                                             uint32_t methodOffset)
+namespace {
+void DeleteDynamicGraphArgs(ArenaAllocator *allocator, ArenaAllocator *localAllocator,
+                            AbckitRuntimeAdapterDynamic *adapter)
 {
-    ark::compiler::g_options.SetCompilerUseSafepoint(false);
-    ark::compiler::g_options.SetCompilerFrameSize("large");
+    delete allocator;
+    delete localAllocator;
+    delete adapter;
+}
+}  // namespace
+
+AbckitGraph *GraphWrapper::BuildGraphDynamic(FileWrapper *pf, AbckitIrInterface *irInterface, AbckitFile *file,
+                                             uint32_t methodOffset, bool ownsIrInterface,
+                                             std::shared_ptr<AbckitDynamicGraphCacheEntry> cacheEntry)
+{
+    InitializeDynamicCompilerOptions();
 
     auto *allocator = new ArenaAllocator(SpaceType::SPACE_TYPE_COMPILER);
     auto *localAllocator = new ArenaAllocator(SpaceType::SPACE_TYPE_COMPILER, nullptr, true);
@@ -71,9 +99,7 @@ AbckitGraph *GraphWrapper::BuildGraphDynamic(FileWrapper *pf, AbckitIrInterface 
         true);
     if (graphImpl == nullptr) {
         LIBABCKIT_LOG(DEBUG) << "graph == nullptr\n";
-        delete allocator;
-        delete localAllocator;
-        delete adapter;
+        DeleteDynamicGraphArgs(allocator, localAllocator, adapter);
         statuses::SetLastError(AbckitStatus::ABCKIT_STATUS_MEMORY_ALLOCATION);
         return nullptr;
     }
@@ -82,11 +108,13 @@ AbckitGraph *GraphWrapper::BuildGraphDynamic(FileWrapper *pf, AbckitIrInterface 
     if (!graphImpl->RunPass<IrBuilderDynamic>()) {
         LIBABCKIT_LOG(DEBUG) << "IrBuilder failed!\n";
         // Input file with bad bytecode
+        DeleteDynamicGraphArgs(allocator, localAllocator, adapter);
         statuses::SetLastError(AbckitStatus::ABCKIT_STATUS_BAD_ARGUMENT);
         return nullptr;
     }
     if (GraphHasUnreachableBlocks(graphImpl)) {
         LIBABCKIT_LOG(DEBUG) << "Cannot build graph, there are unreachable blocks in graph\n";
+        DeleteDynamicGraphArgs(allocator, localAllocator, adapter);
         statuses::SetLastError(ABCKIT_STATUS_BAD_ARGUMENT);
         return nullptr;
     }
@@ -100,7 +128,8 @@ AbckitGraph *GraphWrapper::BuildGraphDynamic(FileWrapper *pf, AbckitIrInterface 
     graph->file = file;
     CreateGraphWrappers(graph);
 
-    auto *ctxGInternal = new CtxGInternalDynamic {allocator, localAllocator, irInterface, adapter};
+    auto *ctxGInternal =
+        new CtxGInternalDynamic {allocator, localAllocator, irInterface, adapter, ownsIrInterface, cacheEntry};
     graph->internal = ctxGInternal;
 
     return graph;
@@ -267,10 +296,9 @@ void GraphWrapper::DestroyGraphDynamic(AbckitGraph *graph)
     auto *ctxGInternal = reinterpret_cast<CtxGInternalDynamic *>(graph->internal);
     // dirty hack to obtain FileWrapper pointer
     // NOTE(mshimenkov): refactor it
-    if (!graph->file->needOptimize) {
-        auto *fileWrapper =
-            reinterpret_cast<FileWrapper *>(ctxGInternal->runtimeAdapter->GetBinaryFileForMethod(nullptr));
-        delete fileWrapper;
+    auto *fileWrapper = reinterpret_cast<FileWrapper *>(ctxGInternal->runtimeAdapter->GetBinaryFileForMethod(nullptr));
+    delete fileWrapper;
+    if (ctxGInternal->ownsIrInterface) {
         delete ctxGInternal->irInterface;
     }
     delete ctxGInternal->runtimeAdapter;

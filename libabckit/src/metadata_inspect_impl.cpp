@@ -14,12 +14,12 @@
  */
 
 #include <cassert>
+#include <optional>
 #include "libabckit/c/abckit.h"
 #include "libabckit/c/metadata_core.h"
 
 #include "libabckit/src/helpers_common.h"
-#include "libabckit/src/adapter_dynamic/metadata_modify_dynamic.h"
-#include "libabckit/src/adapter_static/metadata_modify_static.h"
+#include "libabckit/src/ir_impl.h"
 #include "libabckit/src/logger.h"
 #include "libabckit/src/macros.h"
 #include "scoped_timer.h"
@@ -27,12 +27,165 @@
 #include "libabckit/src/metadata_arkts_inspect_impl.h"
 #include "libabckit/src/metadata_js_inspect_impl.h"
 #include "libabckit/src/metadata_unknown_inspect_impl.h"
-#include "libabckit/src/adapter_dynamic/abckit_dynamic.h"
 #include "libabckit/src/adapter_dynamic/metadata_inspect_dynamic.h"
-#include "libabckit/src/adapter_static/abckit_static.h"
+#include "libabckit/src/adapter_dynamic/abckit_dynamic.h"
 #include "libabckit/src/adapter_static/metadata_inspect_static.h"
 
 namespace libabckit {
+
+namespace {
+
+// nullopt means a known Static path, which retains its existing single-threaded
+// behavior. An engaged nullptr means an unresolved shared/Dynamic owner and must
+// fail closed instead of silently bypassing the read lock.
+using MetadataReadFile = std::optional<AbckitFile *>;
+
+MetadataReadFile GetApiFile(AbckitFile *file)
+{
+    return file;
+}
+
+MetadataReadFile GetApiFile(AbckitCoreModule *m)
+{
+    if (m == nullptr) {
+        return nullptr;
+    }
+    // Published modules may change target under the file write lock. Resolve
+    // their stable file first; only file-less compatibility objects need target
+    // dispatch here. The file guard already skips Static files.
+    if (m->file != nullptr) {
+        return m->file;
+    }
+    if (m->target == ABCKIT_TARGET_ARK_TS_V2) {
+        return std::nullopt;
+    }
+    return nullptr;
+}
+
+MetadataReadFile GetApiFile(AbckitCoreNamespace *n)
+{
+    return GetApiFile(n->owningModule);
+}
+
+MetadataReadFile GetApiFile(AbckitCoreClass *klass)
+{
+    return GetApiFile(klass->owningModule);
+}
+
+MetadataReadFile GetApiFile(AbckitCoreFunction *function)
+{
+    return GetApiFile(function->owningModule);
+}
+
+MetadataReadFile GetApiFile(AbckitCoreAnnotationInterface *ai)
+{
+    return GetApiFile(ai == nullptr ? nullptr : ai->owningModule);
+}
+
+MetadataReadFile GetApiFile(AbckitCoreAnnotationInterfaceField *field)
+{
+    return GetApiFile(field->ai);
+}
+
+MetadataReadFile GetApiFile(AbckitCoreImportDescriptor *id)
+{
+    return GetApiFile(id->importingModule);
+}
+
+MetadataReadFile GetApiFile(AbckitCoreExportDescriptor *ed)
+{
+    return GetApiFile(ed->exportingModule);
+}
+
+// These handle kinds exist only in Static metadata. In particular, their owner
+// getters may legitimately return nullptr without following the owner chain.
+MetadataReadFile GetApiFile(AbckitCoreInterface *)
+{
+    return std::nullopt;
+}
+
+MetadataReadFile GetApiFile(AbckitCoreEnum *)
+{
+    return std::nullopt;
+}
+
+MetadataReadFile GetApiFile(AbckitCoreModuleField *)
+{
+    return std::nullopt;
+}
+
+MetadataReadFile GetApiFile(AbckitCoreNamespaceField *)
+{
+    return std::nullopt;
+}
+
+MetadataReadFile GetApiFile(AbckitCoreClassField *)
+{
+    return std::nullopt;
+}
+
+MetadataReadFile GetApiFile(AbckitCoreInterfaceField *)
+{
+    return std::nullopt;
+}
+
+MetadataReadFile GetApiFile(AbckitCoreEnumField *)
+{
+    return std::nullopt;
+}
+
+MetadataReadFile GetApiFile(AbckitCoreFunctionParam *)
+{
+    return std::nullopt;
+}
+
+MetadataReadFile GetApiFile(AbckitCoreAnnotation *anno)
+{
+    // External/compiler-generated annotations can have no annotation interface;
+    // GetAnnotationOwningModule resolves their file through the annotation owner.
+    auto *module = GetAnnotationOwningModule(anno);
+    return GetApiFile(module);
+}
+
+MetadataReadFile GetApiFile(AbckitCoreAnnotationElement *element)
+{
+    return element->ann == nullptr ? MetadataReadFile(nullptr) : GetApiFile(element->ann);
+}
+
+MetadataReadFile GetApiFile(AbckitType *type)
+{
+    return type->file;
+}
+
+MetadataReadFile GetApiFile(AbckitValue *value)
+{
+    return value->file;
+}
+
+MetadataReadFile GetApiFile(AbckitLiteralArray *litArr)
+{
+    return litArr->file;
+}
+
+MetadataReadFile GetApiFile(AbckitLiteral *lit)
+{
+    return lit->file;
+}
+
+MetadataReadFile GetApiFile(AbckitString *str)
+{
+    return str->file;
+}
+
+}  // namespace
+
+#define LIBABCKIT_METADATA_READ_GUARD(argument)                                                                    \
+    auto LIBABCKIT_UNIQUE_VAR(metadataFile) = GetApiFile(argument);                                                \
+    if (LIBABCKIT_UNIQUE_VAR(metadataFile).has_value() && LIBABCKIT_UNIQUE_VAR(metadataFile).value() == nullptr) { \
+        statuses::SetLastError(ABCKIT_STATUS_INTERNAL_ERROR);                                                      \
+        return {};                                                                                                 \
+    }                                                                                                              \
+    LIBABCKIT_FILE_READ_GUARD(LIBABCKIT_UNIQUE_VAR(metadataFile).value_or(nullptr))
 
 // ========================================
 // File
@@ -44,6 +197,7 @@ extern "C" AbckitFileVersion FileGetVersion(AbckitFile *file)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(file);
 
     return file->version;
 }
@@ -55,6 +209,7 @@ extern "C" bool FileEnumerateModules(AbckitFile *file, void *data, bool (*cb)(Ab
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(file, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(file);
 
     bool isNormalExit = true;
     for (auto &[moduleName, module] : file->localModules) {
@@ -74,6 +229,7 @@ extern "C" bool FileEnumerateExternalModules(AbckitFile *file, void *data,
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(file, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(file);
     bool isNormalExit = true;
     for (auto &[moduleName, module] : file->externalModules) {
         isNormalExit &= cb(module.get(), data);
@@ -91,6 +247,7 @@ extern "C" AbckitFile *ModuleGetFile(AbckitCoreModule *m)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(m, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(m);
     return m->file;
 }
 
@@ -99,6 +256,7 @@ extern "C" AbckitTarget ModuleGetTarget(AbckitCoreModule *m)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(m, ABCKIT_TARGET_UNKNOWN);
+    LIBABCKIT_METADATA_READ_GUARD(m);
 
     return m->target;
 }
@@ -109,6 +267,7 @@ extern "C" AbckitString *ModuleGetName(AbckitCoreModule *m)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(m, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(m);
     return m->moduleName;
 }
 
@@ -118,6 +277,7 @@ extern "C" bool ModuleIsExternal(AbckitCoreModule *m)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(m, false);
+    LIBABCKIT_METADATA_READ_GUARD(m);
     return m->isExternal;
 }
 
@@ -130,6 +290,7 @@ extern "C" bool ModuleEnumerateImports(AbckitCoreModule *m, void *data,
 
     LIBABCKIT_BAD_ARGUMENT(m, false);
     LIBABCKIT_BAD_ARGUMENT(cb, false);
+    LIBABCKIT_METADATA_READ_GUARD(m);
     switch (ModuleGetTarget(m)) {
         case ABCKIT_TARGET_ARK_TS_V1:
         case ABCKIT_TARGET_ARK_TS_V2:
@@ -152,6 +313,7 @@ extern "C" bool ModuleEnumerateExports(AbckitCoreModule *m, void *data,
 
     LIBABCKIT_BAD_ARGUMENT(m, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(m);
 
     switch (ModuleGetTarget(m)) {
         case ABCKIT_TARGET_ARK_TS_V1:
@@ -175,6 +337,7 @@ extern "C" bool ModuleEnumerateNamespaces(AbckitCoreModule *m, void *data,
 
     LIBABCKIT_BAD_ARGUMENT(m, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(m);
 
     switch (ModuleGetTarget(m)) {
         case ABCKIT_TARGET_ARK_TS_V1:
@@ -196,6 +359,7 @@ extern "C" bool ModuleEnumerateClasses(AbckitCoreModule *m, void *data, bool (*c
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(m, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(m);
     switch (ModuleGetTarget(m)) {
         case ABCKIT_TARGET_ARK_TS_V1:
         case ABCKIT_TARGET_ARK_TS_V2:
@@ -217,6 +381,7 @@ extern "C" bool ModuleEnumerateInterfaces(AbckitCoreModule *m, void *data,
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(m, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(m);
     switch (ModuleGetTarget(m)) {
         case ABCKIT_TARGET_ARK_TS_V2:
             return ArkTSModuleEnumerateInterfaces(m, data, cb);
@@ -236,6 +401,7 @@ extern "C" bool ModuleEnumerateEnums(AbckitCoreModule *m, void *data, bool (*cb)
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(m, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(m);
     switch (ModuleGetTarget(m)) {
         case ABCKIT_TARGET_ARK_TS_V2:
             return ArkTSModuleEnumerateEnums(m, data, cb);
@@ -256,6 +422,7 @@ extern "C" bool ModuleEnumerateFields(AbckitCoreModule *m, void *data,
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(m, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(m);
     switch (ModuleGetTarget(m)) {
         case ABCKIT_TARGET_ARK_TS_V2:
             return ArkTSModuleEnumerateFields(m, data, cb);
@@ -276,6 +443,7 @@ extern "C" bool ModuleEnumerateTopLevelFunctions(AbckitCoreModule *m, void *data
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(m, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(m);
     switch (ModuleGetTarget(m)) {
         case ABCKIT_TARGET_ARK_TS_V1:
         case ABCKIT_TARGET_ARK_TS_V2:
@@ -297,6 +465,7 @@ extern "C" bool ModuleEnumerateAnonymousFunctions(AbckitCoreModule *m, void *dat
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(m, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(m);
     switch (ModuleGetTarget(m)) {
         case ABCKIT_TARGET_ARK_TS_V1:
         case ABCKIT_TARGET_ARK_TS_V2:
@@ -318,6 +487,7 @@ extern "C" bool ModuleEnumerateAnnotationInterfaces(AbckitCoreModule *m, void *d
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(m, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(m);
     switch (ModuleGetTarget(m)) {
         case ABCKIT_TARGET_ARK_TS_V1:
         case ABCKIT_TARGET_ARK_TS_V2:
@@ -341,6 +511,7 @@ extern "C" AbckitCoreModule *NamespaceGetModule(AbckitCoreNamespace *n)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(n, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(n);
     return n->owningModule;
 }
 
@@ -350,6 +521,7 @@ extern "C" AbckitString *NamespaceGetName(AbckitCoreNamespace *n)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(n, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(n);
     switch (n->owningModule->target) {
         case ABCKIT_TARGET_ARK_TS_V1:
             return NamespaceGetNameDynamic(n);
@@ -369,6 +541,7 @@ extern "C" bool NamespaceIsExternal(AbckitCoreNamespace *ns)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(ns, false);
+    LIBABCKIT_METADATA_READ_GUARD(ns);
 
     if (IsDynamic(ns->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
@@ -384,6 +557,7 @@ extern "C" AbckitCoreNamespace *NamespaceGetParentNamespace(AbckitCoreNamespace 
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(n, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(n);
     return n->parentNamespace;
 }
 
@@ -396,6 +570,10 @@ extern "C" bool NamespaceEnumerateNamespaces(AbckitCoreNamespace *n, void *data,
 
     LIBABCKIT_BAD_ARGUMENT(n, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    if (n->owningModule != nullptr && n->owningModule->file == nullptr && n->owningModule->target == ABCKIT_TARGET_JS) {
+        return false;
+    }
+    LIBABCKIT_METADATA_READ_GUARD(n);
 
     switch (ModuleGetTarget(n->owningModule)) {
         case ABCKIT_TARGET_ARK_TS_V1:
@@ -417,6 +595,10 @@ extern "C" bool NamespaceEnumerateClasses(AbckitCoreNamespace *n, void *data,
 
     LIBABCKIT_BAD_ARGUMENT(n, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    if (n->owningModule != nullptr && n->owningModule->file == nullptr && n->owningModule->target == ABCKIT_TARGET_JS) {
+        return false;
+    }
+    LIBABCKIT_METADATA_READ_GUARD(n);
 
     switch (ModuleGetTarget(n->owningModule)) {
         case ABCKIT_TARGET_ARK_TS_V1:
@@ -438,6 +620,7 @@ extern "C" bool NamespaceEnumerateInterfaces(AbckitCoreNamespace *n, void *data,
 
     LIBABCKIT_BAD_ARGUMENT(n, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(n);
 
     switch (ModuleGetTarget(n->owningModule)) {
         case ABCKIT_TARGET_ARK_TS_V2:
@@ -456,6 +639,7 @@ extern "C" bool NamespaceEnumerateEnums(AbckitCoreNamespace *n, void *data, bool
 
     LIBABCKIT_BAD_ARGUMENT(n, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(n);
 
     switch (ModuleGetTarget(n->owningModule)) {
         case ABCKIT_TARGET_ARK_TS_V2:
@@ -475,6 +659,7 @@ extern "C" bool NamespaceEnumerateFields(AbckitCoreNamespace *n, void *data,
 
     LIBABCKIT_BAD_ARGUMENT(n, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(n);
 
     switch (ModuleGetTarget(n->owningModule)) {
         case ABCKIT_TARGET_ARK_TS_V2:
@@ -494,6 +679,10 @@ extern "C" bool NamespaceEnumerateTopLevelFunctions(AbckitCoreNamespace *n, void
 
     LIBABCKIT_BAD_ARGUMENT(n, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    if (n->owningModule != nullptr && n->owningModule->file == nullptr && n->owningModule->target == ABCKIT_TARGET_JS) {
+        return false;
+    }
+    LIBABCKIT_METADATA_READ_GUARD(n);
 
     switch (ModuleGetTarget(n->owningModule)) {
         case ABCKIT_TARGET_ARK_TS_V1:
@@ -514,6 +703,7 @@ extern "C" bool NamespaceEnumerateAnnotationInterfaces(AbckitCoreNamespace *n, v
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(n, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(n);
     switch (ModuleGetTarget(n->owningModule)) {
         case ABCKIT_TARGET_ARK_TS_V1:
         case ABCKIT_TARGET_ARK_TS_V2:
@@ -536,6 +726,7 @@ extern "C" AbckitFile *ImportDescriptorGetFile(AbckitCoreImportDescriptor *i)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(i, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(i);
     return i->importingModule->file;
 }
 
@@ -545,6 +736,7 @@ extern "C" AbckitCoreModule *ImportDescriptorGetImportedModule(AbckitCoreImportD
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(i, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(i);
     return i->importedModule;
 }
 
@@ -554,6 +746,7 @@ extern "C" AbckitCoreModule *ImportDescriptorGetImportingModule(AbckitCoreImport
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(i, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(i);
     return i->importingModule;
 }
 
@@ -563,6 +756,7 @@ extern "C" AbckitString *ImportDescriptorGetName(AbckitCoreImportDescriptor *i)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(i, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(i);
     if (IsDynamic(i->importingModule->target)) {
         return ImportDescriptorGetNameDynamic(i);
     }
@@ -576,6 +770,7 @@ extern "C" AbckitString *ImportDescriptorGetAlias(AbckitCoreImportDescriptor *i)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(i, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(i);
     if (IsDynamic(i->importingModule->target)) {
         return ImportDescriptorGetAliasDynamic(i);
     }
@@ -593,6 +788,7 @@ extern "C" AbckitFile *ExportDescriptorGetFile(AbckitCoreExportDescriptor *i)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(i, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(i);
     return i->exportingModule->file;
 }
 
@@ -602,6 +798,7 @@ extern "C" AbckitCoreModule *ExportDescriptorGetExportingModule(AbckitCoreExport
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(i, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(i);
     return i->exportingModule;
 }
 
@@ -611,6 +808,7 @@ extern "C" AbckitCoreModule *ExportDescriptorGetExportedModule(AbckitCoreExportD
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(i, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(i);
     return i->exportedModule;
 }
 
@@ -620,6 +818,7 @@ extern "C" AbckitString *ExportDescriptorGetName(AbckitCoreExportDescriptor *i)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(i, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(i);
     if (IsDynamic(i->exportingModule->target)) {
         return ExportDescriptorGetNameDynamic(i);
     }
@@ -633,6 +832,7 @@ extern "C" AbckitString *ExportDescriptorGetAlias(AbckitCoreExportDescriptor *i)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(i, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(i);
     if (IsDynamic(i->exportingModule->target)) {
         return ExportDescriptorGetAliasDynamic(i);
     }
@@ -650,6 +850,7 @@ extern "C" AbckitFile *ClassGetFile(AbckitCoreClass *klass)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(klass, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(klass);
     return klass->owningModule->file;
 }
 
@@ -660,6 +861,7 @@ extern "C" AbckitCoreModule *ClassGetModule(AbckitCoreClass *klass)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(klass, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(klass);
 
     return klass->owningModule;
 }
@@ -670,6 +872,7 @@ extern "C" AbckitString *ClassGetName(AbckitCoreClass *klass)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(klass, nullptr)
+    LIBABCKIT_METADATA_READ_GUARD(klass);
 
     if (IsDynamic(klass->owningModule->target)) {
         return ClassGetNameDynamic(klass);
@@ -683,6 +886,7 @@ extern "C" bool ClassIsExternal(AbckitCoreClass *klass)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(klass, false);
+    LIBABCKIT_METADATA_READ_GUARD(klass);
 
     if (IsDynamic(klass->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
@@ -698,6 +902,7 @@ extern "C" bool ClassIsFinal(AbckitCoreClass *klass)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(klass, false);
+    LIBABCKIT_METADATA_READ_GUARD(klass);
 
     if (IsDynamic(klass->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
@@ -713,6 +918,7 @@ extern "C" bool ClassIsAbstract(AbckitCoreClass *klass)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(klass, false);
+    LIBABCKIT_METADATA_READ_GUARD(klass);
 
     if (IsDynamic(klass->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
@@ -728,6 +934,7 @@ extern "C" AbckitCoreFunction *ClassGetParentFunction(AbckitCoreClass *klass)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(klass, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(klass);
     return klass->parentFunction;
 }
 
@@ -737,6 +944,7 @@ extern "C" AbckitCoreNamespace *ClassGetParentNamespace(AbckitCoreClass *klass)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(klass, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(klass);
     return klass->parentNamespace;
 }
 
@@ -746,6 +954,7 @@ extern "C" AbckitCoreClass *ClassGetSuperClass(AbckitCoreClass *klass)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(klass, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(klass);
     return klass->superClass;
 }
 
@@ -758,6 +967,7 @@ extern "C" bool ClassEnumerateMethods(AbckitCoreClass *klass, void *data,
 
     LIBABCKIT_BAD_ARGUMENT(klass, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(klass);
 
     switch (klass->owningModule->target) {
         case ABCKIT_TARGET_ARK_TS_V1:
@@ -779,6 +989,11 @@ extern "C" bool ClassEnumerateAnnotations(AbckitCoreClass *klass, void *data,
 
     LIBABCKIT_BAD_ARGUMENT(klass, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    if (klass->owningModule != nullptr && klass->owningModule->file == nullptr &&
+        klass->owningModule->target == ABCKIT_TARGET_JS) {
+        return false;
+    }
+    LIBABCKIT_METADATA_READ_GUARD(klass);
 
     switch (ModuleGetTarget(klass->owningModule)) {
         case ABCKIT_TARGET_ARK_TS_V1:
@@ -800,6 +1015,7 @@ extern "C" bool ClassEnumerateSubClasses(AbckitCoreClass *klass, void *data,
 
     LIBABCKIT_BAD_ARGUMENT(klass, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(klass);
 
     switch (ModuleGetTarget(klass->owningModule)) {
         case ABCKIT_TARGET_ARK_TS_V2:
@@ -819,6 +1035,7 @@ extern "C" bool ClassEnumerateInterfaces(AbckitCoreClass *klass, void *data,
 
     LIBABCKIT_BAD_ARGUMENT(klass, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(klass);
 
     switch (ModuleGetTarget(klass->owningModule)) {
         case ABCKIT_TARGET_ARK_TS_V2:
@@ -837,6 +1054,7 @@ extern "C" bool ClassEnumerateFields(AbckitCoreClass *klass, void *data,
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(klass, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(klass);
     switch (ModuleGetTarget(klass->owningModule)) {
         case ABCKIT_TARGET_ARK_TS_V2:
             return ArkTSClassEnumerateFields(klass, data, cb);
@@ -856,6 +1074,7 @@ extern "C" AbckitFile *InterfaceGetFile(AbckitCoreInterface *iface)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(iface, nullptr)
+    LIBABCKIT_METADATA_READ_GUARD(iface);
     return iface->owningModule->file;
 }
 
@@ -865,6 +1084,7 @@ extern "C" AbckitCoreModule *InterfaceGetModule(AbckitCoreInterface *iface)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(iface, nullptr)
+    LIBABCKIT_METADATA_READ_GUARD(iface);
     return iface->owningModule;
 }
 
@@ -874,6 +1094,7 @@ extern "C" AbckitString *InterfaceGetName(AbckitCoreInterface *iface)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(iface, nullptr)
+    LIBABCKIT_METADATA_READ_GUARD(iface);
 
     if (IsDynamic(iface->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
@@ -888,6 +1109,7 @@ extern "C" bool InterfaceIsExternal(AbckitCoreInterface *iface)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(iface, false);
+    LIBABCKIT_METADATA_READ_GUARD(iface);
 
     if (IsDynamic(iface->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
@@ -903,6 +1125,7 @@ extern "C" AbckitCoreNamespace *InterfaceGetParentNamespace(AbckitCoreInterface 
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(iface, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(iface);
     return iface->parentNamespace;
 }
 
@@ -914,8 +1137,9 @@ extern "C" bool InterfaceEnumerateSuperInterfaces(AbckitCoreInterface *iface, vo
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(iface, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(iface);
 
-    switch (ModuleGetTarget(iface->owningModule)) {
+    switch (iface->owningModule->target) {
         case ABCKIT_TARGET_ARK_TS_V2:
             return ArkTSInterfaceEnumerateSuperInterfaces(iface, data, cb);
         default:
@@ -932,8 +1156,9 @@ extern "C" bool InterfaceEnumerateSubInterfaces(AbckitCoreInterface *iface, void
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(iface, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(iface);
 
-    switch (ModuleGetTarget(iface->owningModule)) {
+    switch (iface->owningModule->target) {
         case ABCKIT_TARGET_ARK_TS_V2:
             return ArkTSInterfaceEnumerateSubInterfaces(iface, data, cb);
         default:
@@ -950,8 +1175,9 @@ extern "C" bool InterfaceEnumerateClasses(AbckitCoreInterface *iface, void *data
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(iface, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(iface);
 
-    switch (ModuleGetTarget(iface->owningModule)) {
+    switch (iface->owningModule->target) {
         case ABCKIT_TARGET_ARK_TS_V2:
             return ArkTSInterfaceEnumerateClasses(iface, data, cb);
         default:
@@ -968,7 +1194,8 @@ extern "C" bool InterfaceEnumerateMethods(AbckitCoreInterface *iface, void *data
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(iface, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
-    switch (ModuleGetTarget(iface->owningModule)) {
+    LIBABCKIT_METADATA_READ_GUARD(iface);
+    switch (iface->owningModule->target) {
         case ABCKIT_TARGET_ARK_TS_V2:
             return ArkTSInterfaceEnumerateMethods(iface, data, cb);
         default:
@@ -985,7 +1212,8 @@ extern "C" bool InterfaceEnumerateAnnotations(AbckitCoreInterface *iface, void *
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(iface, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
-    switch (ModuleGetTarget(iface->owningModule)) {
+    LIBABCKIT_METADATA_READ_GUARD(iface);
+    switch (iface->owningModule->target) {
         case ABCKIT_TARGET_ARK_TS_V2:
             return ArkTSInterfaceEnumerateAnnotations(iface, data, cb);
         default:
@@ -1002,7 +1230,8 @@ extern "C" bool InterfaceEnumerateFields(AbckitCoreInterface *iface, void *data,
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(iface, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
-    switch (ModuleGetTarget(iface->owningModule)) {
+    LIBABCKIT_METADATA_READ_GUARD(iface);
+    switch (iface->owningModule->target) {
         case ABCKIT_TARGET_ARK_TS_V2:
             return ArkTSInterfaceEnumerateFields(iface, data, cb);
         default:
@@ -1021,6 +1250,7 @@ extern "C" AbckitFile *EnumGetFile(AbckitCoreEnum *enm)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(enm, nullptr)
+    LIBABCKIT_METADATA_READ_GUARD(enm);
     return enm->owningModule->file;
 }
 
@@ -1030,6 +1260,7 @@ extern "C" AbckitCoreModule *EnumGetModule(AbckitCoreEnum *enm)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(enm, nullptr)
+    LIBABCKIT_METADATA_READ_GUARD(enm);
     return enm->owningModule;
 }
 
@@ -1039,6 +1270,7 @@ extern "C" AbckitString *EnumGetName(AbckitCoreEnum *enm)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(enm, nullptr)
+    LIBABCKIT_METADATA_READ_GUARD(enm);
 
     if (IsDynamic(enm->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
@@ -1053,6 +1285,7 @@ extern "C" bool EnumIsExternal(AbckitCoreEnum *enm)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(enm, false);
+    LIBABCKIT_METADATA_READ_GUARD(enm);
 
     if (IsDynamic(enm->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
@@ -1068,6 +1301,7 @@ extern "C" AbckitCoreNamespace *EnumGetParentNamespace(AbckitCoreEnum *enm)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(enm, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(enm);
     return enm->parentNamespace;
 }
 
@@ -1078,7 +1312,8 @@ extern "C" bool EnumEnumerateMethods(AbckitCoreEnum *enm, void *data, bool (*cb)
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(enm, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
-    switch (ModuleGetTarget(enm->owningModule)) {
+    LIBABCKIT_METADATA_READ_GUARD(enm);
+    switch (enm->owningModule->target) {
         case ABCKIT_TARGET_ARK_TS_V2:
             return ArkTSEnumEnumerateMethods(enm, data, cb);
         default:
@@ -1094,7 +1329,8 @@ extern "C" bool EnumEnumerateFields(AbckitCoreEnum *enm, void *data, bool (*cb)(
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(enm, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
-    switch (ModuleGetTarget(enm->owningModule)) {
+    LIBABCKIT_METADATA_READ_GUARD(enm);
+    switch (enm->owningModule->target) {
         case ABCKIT_TARGET_ARK_TS_V2:
             return ArkTSEnumEnumerateFields(enm, data, cb);
         default:
@@ -1113,6 +1349,7 @@ extern "C" AbckitCoreModule *ModuleFieldGetModule(AbckitCoreModuleField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     return field->owner;
 }
 
@@ -1122,6 +1359,7 @@ extern "C" AbckitString *ModuleFieldGetName(AbckitCoreModuleField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     if (IsDynamic(field->owner->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
         return nullptr;
@@ -1135,6 +1373,7 @@ extern "C" AbckitType *ModuleFieldGetType(AbckitCoreModuleField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     return field->type;
 }
 
@@ -1144,6 +1383,7 @@ extern "C" AbckitValue *ModuleFieldGetValue(AbckitCoreModuleField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     return field->value;
 }
 
@@ -1157,6 +1397,7 @@ extern "C" AbckitCoreNamespace *NamespaceFieldGetNamespace(AbckitCoreNamespaceFi
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     return field->owner;
 }
 
@@ -1166,6 +1407,7 @@ extern "C" AbckitString *NamespaceFieldGetName(AbckitCoreNamespaceField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     if (IsDynamic(field->owner->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
         return nullptr;
@@ -1179,6 +1421,7 @@ extern "C" AbckitType *NamespaceFieldGetType(AbckitCoreNamespaceField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     return field->type;
 }
 
@@ -1192,6 +1435,7 @@ extern "C" AbckitCoreClass *ClassFieldGetClass(AbckitCoreClassField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     return field->owner;
 }
 
@@ -1201,6 +1445,7 @@ extern "C" AbckitString *ClassFieldGetName(AbckitCoreClassField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     if (IsDynamic(field->owner->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
         return nullptr;
@@ -1214,6 +1459,7 @@ extern "C" AbckitType *ClassFieldGetType(AbckitCoreClassField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     return field->type;
 }
 
@@ -1222,6 +1468,7 @@ extern "C" AbckitValue *ClassFieldGetValue(AbckitCoreClassField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     if (IsDynamic(field->owner->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
         return nullptr;
@@ -1235,6 +1482,7 @@ extern "C" bool ClassFieldIsPublic(AbckitCoreClassField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, false);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     if (IsDynamic(field->owner->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
         return false;
@@ -1248,6 +1496,7 @@ extern "C" bool ClassFieldIsProtected(AbckitCoreClassField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, false);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     if (IsDynamic(field->owner->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
         return false;
@@ -1261,6 +1510,7 @@ extern "C" bool ClassFieldIsPrivate(AbckitCoreClassField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, false);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     if (IsDynamic(field->owner->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
         return false;
@@ -1274,6 +1524,7 @@ extern "C" bool ClassFieldIsInternal(AbckitCoreClassField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, false);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     if (IsDynamic(field->owner->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
         return false;
@@ -1287,6 +1538,7 @@ extern "C" bool ClassFieldIsStatic(AbckitCoreClassField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, false);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     if (IsDynamic(field->owner->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
         return false;
@@ -1300,6 +1552,7 @@ extern "C" bool ClassFieldIsFinal(AbckitCoreClassField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, false);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     if (IsDynamic(field->owner->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
         return false;
@@ -1315,7 +1568,8 @@ extern "C" bool ClassFieldEnumerateAnnotations(AbckitCoreClassField *field, void
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
-    switch (ModuleGetTarget(field->owner->owningModule)) {
+    LIBABCKIT_METADATA_READ_GUARD(field);
+    switch (field->owner->owningModule->target) {
         case ABCKIT_TARGET_ARK_TS_V2:
             return ArkTSClassFieldEnumerateAnnotations(field, data, cb);
         default:
@@ -1334,6 +1588,7 @@ extern "C" AbckitCoreInterface *InterfaceFieldGetInterface(AbckitCoreInterfaceFi
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     return field->owner;
 }
 
@@ -1343,6 +1598,7 @@ extern "C" AbckitString *InterfaceFieldGetName(AbckitCoreInterfaceField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     return field->name;
 }
 
@@ -1352,6 +1608,7 @@ extern "C" AbckitType *InterfaceFieldGetType(AbckitCoreInterfaceField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     return field->type;
 }
 
@@ -1361,6 +1618,7 @@ extern "C" bool InterfaceFieldIsReadonly(AbckitCoreInterfaceField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, false);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     if (IsDynamic(field->owner->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
         return false;
@@ -1376,7 +1634,8 @@ extern "C" bool InterfaceFieldEnumerateAnnotations(AbckitCoreInterfaceField *fie
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
-    switch (ModuleGetTarget(field->owner->owningModule)) {
+    LIBABCKIT_METADATA_READ_GUARD(field);
+    switch (field->owner->owningModule->target) {
         case ABCKIT_TARGET_ARK_TS_V2:
             return ArkTSInterfaceFieldEnumerateAnnotations(field, data, cb);
         default:
@@ -1395,6 +1654,7 @@ extern "C" AbckitCoreEnum *EnumFieldGetEnum(AbckitCoreEnumField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     return field->owner;
 }
 
@@ -1404,6 +1664,7 @@ extern "C" AbckitString *EnumFieldGetName(AbckitCoreEnumField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     if (IsDynamic(field->owner->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
         return nullptr;
@@ -1417,6 +1678,7 @@ extern "C" AbckitType *EnumFieldGetType(AbckitCoreEnumField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     return field->type;
 }
 
@@ -1426,6 +1688,7 @@ extern "C" AbckitValue *EnumFieldGetValue(AbckitCoreEnumField *field)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(field, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(field);
     return field->value;
 }
 
@@ -1440,6 +1703,7 @@ extern "C" AbckitFile *AnnotationInterfaceGetFile(AbckitCoreAnnotationInterface 
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(anno, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(anno);
     return anno->owningModule->file;
 }
 
@@ -1450,6 +1714,7 @@ extern "C" AbckitCoreModule *AnnotationInterfaceGetModule(AbckitCoreAnnotationIn
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(anno, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(anno);
     return anno->owningModule;
 }
 
@@ -1460,6 +1725,7 @@ extern "C" AbckitCoreNamespace *AnnotationInterfaceGetParentNamespace(AbckitCore
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(anno, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(anno);
 
     return anno->parentNamespace;
 }
@@ -1471,6 +1737,7 @@ extern "C" AbckitString *AnnotationInterfaceGetName(AbckitCoreAnnotationInterfac
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(ai, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(ai);
     if (IsDynamic(ai->owningModule->target)) {
         return AnnotationInterfaceGetNameDynamic(ai);
     }
@@ -1486,6 +1753,11 @@ extern "C" bool AnnotationInterfaceEnumerateFields(AbckitCoreAnnotationInterface
 
     LIBABCKIT_BAD_ARGUMENT(ai, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    if (ai->owningModule != nullptr && ai->owningModule->file == nullptr &&
+        ai->owningModule->target == ABCKIT_TARGET_JS) {
+        return false;
+    }
+    LIBABCKIT_METADATA_READ_GUARD(ai);
 
     switch (ModuleGetTarget(ai->owningModule)) {
         case ABCKIT_TARGET_ARK_TS_V1:
@@ -1509,6 +1781,7 @@ extern "C" AbckitFile *AnnotationInterfaceFieldGetFile(AbckitCoreAnnotationInter
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(fld, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(fld);
 
     return fld->ai->owningModule->file;
 }
@@ -1520,6 +1793,7 @@ extern "C" AbckitCoreAnnotationInterface *AnnotationInterfaceFieldGetInterface(A
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(fld, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(fld);
 
     return fld->ai;
 }
@@ -1531,6 +1805,7 @@ extern "C" AbckitString *AnnotationInterfaceFieldGetName(AbckitCoreAnnotationInt
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(fld, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(fld);
 
     return fld->name;
 }
@@ -1542,6 +1817,7 @@ extern "C" AbckitType *AnnotationInterfaceFieldGetType(AbckitCoreAnnotationInter
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(fld, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(fld);
 
     return fld->type;
 }
@@ -1553,6 +1829,7 @@ extern "C" AbckitValue *AnnotationInterfaceFieldGetDefaultValue(AbckitCoreAnnota
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(fld, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(fld);
 
     return fld->value;
 }
@@ -1567,6 +1844,7 @@ extern "C" AbckitFile *FunctionGetFile(AbckitCoreFunction *function)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(function, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(function);
     return function->owningModule->file;
 }
 
@@ -1577,6 +1855,7 @@ extern "C" AbckitCoreModule *FunctionGetModule(AbckitCoreFunction *function)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(function, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(function);
 
     return function->owningModule;
 }
@@ -1588,6 +1867,7 @@ extern "C" AbckitString *FunctionGetName(AbckitCoreFunction *function)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(function, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(function);
 
     if (IsDynamic(function->owningModule->target)) {
         return FunctionGetNameDynamic(function);
@@ -1602,6 +1882,7 @@ extern "C" AbckitCoreFunction *FunctionGetParentFunction(AbckitCoreFunction *fun
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(function, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(function);
 
     return function->parentFunction;
 }
@@ -1613,6 +1894,7 @@ extern "C" AbckitCoreClass *FunctionGetParentClass(AbckitCoreFunction *function)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(function, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(function);
 
     if (IsDynamic(function->owningModule->target)) {
         return function->parentClass;
@@ -1630,6 +1912,7 @@ extern "C" AbckitCoreNamespace *FunctionGetParentNamespace(AbckitCoreFunction *f
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(function, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(function);
     if (IsDynamic(function->owningModule->target)) {
         return function->parentNamespace;
     }
@@ -1649,6 +1932,7 @@ extern "C" bool FunctionEnumerateNestedFunctions(AbckitCoreFunction *function, v
 
     LIBABCKIT_BAD_ARGUMENT(function, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(function);
 
     switch (ModuleGetTarget(function->owningModule)) {
         case ABCKIT_TARGET_ARK_TS_V1:
@@ -1670,6 +1954,7 @@ extern "C" bool FunctionEnumerateNestedClasses(AbckitCoreFunction *function, voi
 
     LIBABCKIT_BAD_ARGUMENT(function, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(function);
 
     switch (ModuleGetTarget(function->owningModule)) {
         case ABCKIT_TARGET_ARK_TS_V1:
@@ -1691,6 +1976,11 @@ extern "C" bool FunctionEnumerateAnnotations(AbckitCoreFunction *function, void 
 
     LIBABCKIT_BAD_ARGUMENT(function, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    if (function->owningModule != nullptr && function->owningModule->file == nullptr &&
+        function->owningModule->target == ABCKIT_TARGET_JS) {
+        return false;
+    }
+    LIBABCKIT_METADATA_READ_GUARD(function);
 
     switch (ModuleGetTarget(function->owningModule)) {
         case ABCKIT_TARGET_ARK_TS_V1:
@@ -1703,68 +1993,6 @@ extern "C" bool FunctionEnumerateAnnotations(AbckitCoreFunction *function, void 
     }
 }
 
-AbckitGraph *getGraphFromCache(AbckitCoreFunction *function)
-{
-    std::unordered_map<AbckitCoreFunction *, FunctionStatus *> &functionsMap =
-        function->owningModule->file->functionsMap;
-
-    if (functionsMap.find(function) != functionsMap.end()) {
-        bool reuse = true;
-        for (auto &[_, status] : functionsMap) {
-            if (!status->writeBack) {
-                reuse = false;
-            }
-        }
-
-        if (reuse) {
-            return functionsMap[function]->graph;
-        }
-
-        for (auto &[func, status] : functionsMap) {
-            if (!status->writeBack) {
-                continue;
-            }
-            if (IsDynamic(function->owningModule->target)) {
-                FunctionSetGraphDynamicSync(func, status->graph);
-            } else {
-                FunctionSetGraphStaticSync(func, status->graph);
-            }
-        }
-
-        for (auto &[_, status] : functionsMap) {
-            // 20260807927972 Task 01-01: a cached entry's graph may be null (e.g. a prior FAILED
-            // build before the null-cache guard below); guard destroy against nullptr.
-            if (status->graph != nullptr) {
-                if (IsDynamic(function->owningModule->target)) {
-                    DestroyGraphDynamicSync(status->graph);
-                } else {
-                    DestroyGraphStaticSync(status->graph);
-                }
-            }
-            delete status;
-        }
-
-        functionsMap.clear();
-        function->owningModule->file->generateStatus.generated = false;
-    }
-
-    AbckitGraph *graph = nullptr;
-    if (IsDynamic(function->owningModule->target)) {
-        graph = CreateGraphFromFunctionDynamic(function);
-    } else {
-        graph = CreateGraphFromFunctionStatic(function);
-    }
-    // 20260807927972 Task 01-01: a FAILED build (graphCacheFailed) or an emission failure returns
-    // null; don't cache a null graph (a later cache rebuild would DestroyGraphDynamicSync(nullptr)
-    // and crash). Surface the failure to the caller without caching.
-    if (graph == nullptr) {
-        return nullptr;
-    }
-    functionsMap[function] = new FunctionStatus {graph, false};
-
-    return graph;
-}
-
 extern "C" AbckitGraph *CreateGraphFromFunction(AbckitCoreFunction *function)
 {
     LIBABCKIT_CLEAR_LAST_ERROR;
@@ -1772,14 +2000,36 @@ extern "C" AbckitGraph *CreateGraphFromFunction(AbckitCoreFunction *function)
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(function, nullptr);
 
-    if (function->owningModule->file->needOptimize) {
-        return getGraphFromCache(function);
+    const bool isDynamic = IsDynamic(function->owningModule->target);
+    auto *file = function->owningModule->file;
+    auto threadState = file->threadState;
+    if (isDynamic) {
+        {
+            AbckitFileApiReadLock readLock(file);
+            if (readLock.HasConflict() || !threadState->TryBeginOperation()) {
+                statuses::SetLastError(ABCKIT_STATUS_WRONG_STATE);
+                return nullptr;
+            }
+        }
     }
 
-    if (IsDynamic(function->owningModule->target)) {
-        return CreateGraphFromFunctionDynamic(function);
+    auto *graph = isDynamic ? CreateGraphFromFunctionDynamic(function) : CreateGraphFromFunctionStatic(function);
+    if (!isDynamic) {
+        return graph;
     }
-    return CreateGraphFromFunctionStatic(function);
+    if (graph == nullptr) {
+        threadState->FinishOperation();
+        return nullptr;
+    }
+    if (!threadState->PromoteOperationToGraph()) {
+        threadState->FinishOperation();
+        statuses::SetLastError(ABCKIT_STATUS_INTERNAL_ERROR);
+        DestroyGraphDynamic(graph);
+        return nullptr;
+    }
+    graph->fileThreadState = threadState;
+    graph->lifecycleTracked = true;
+    return graph;
 }
 
 extern "C" bool FunctionIsStatic(AbckitCoreFunction *function)
@@ -1788,6 +2038,7 @@ extern "C" bool FunctionIsStatic(AbckitCoreFunction *function)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(function, false);
+    LIBABCKIT_METADATA_READ_GUARD(function);
 
     if (IsDynamic(function->owningModule->target)) {
         return FunctionIsStaticDynamic(function);
@@ -1801,6 +2052,7 @@ extern "C" bool FunctionIsCtor(AbckitCoreFunction *function)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(function, false);
+    LIBABCKIT_METADATA_READ_GUARD(function);
 
     if (IsDynamic(function->owningModule->target)) {
         return FunctionIsCtorDynamic(function);
@@ -1814,6 +2066,7 @@ extern "C" bool FunctionIsCctor(AbckitCoreFunction *function)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(function, false);
+    LIBABCKIT_METADATA_READ_GUARD(function);
 
     if (IsDynamic(function->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
@@ -1828,6 +2081,7 @@ extern "C" bool FunctionIsAnonymous(AbckitCoreFunction *function)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(function, false);
+    LIBABCKIT_METADATA_READ_GUARD(function);
 
     if (IsDynamic(function->owningModule->target)) {
         return FunctionIsAnonymousDynamic(function);
@@ -1841,6 +2095,7 @@ extern "C" bool FunctionIsPublic(AbckitCoreFunction *function)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(function, false);
+    LIBABCKIT_METADATA_READ_GUARD(function);
     if (IsDynamic(function->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
         return false;
@@ -1854,6 +2109,7 @@ extern "C" bool FunctionIsProtected(AbckitCoreFunction *function)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(function, false);
+    LIBABCKIT_METADATA_READ_GUARD(function);
     if (IsDynamic(function->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
         return false;
@@ -1867,6 +2123,7 @@ extern "C" bool FunctionIsPrivate(AbckitCoreFunction *function)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(function, false);
+    LIBABCKIT_METADATA_READ_GUARD(function);
     if (IsDynamic(function->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
         return false;
@@ -1880,6 +2137,7 @@ extern "C" bool FunctionIsInternal(AbckitCoreFunction *function)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(function, false);
+    LIBABCKIT_METADATA_READ_GUARD(function);
     if (IsDynamic(function->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
         return false;
@@ -1893,6 +2151,7 @@ extern "C" bool FunctionIsExternal(AbckitCoreFunction *function)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(function, false);
+    LIBABCKIT_METADATA_READ_GUARD(function);
 
     if (IsDynamic(function->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
@@ -1911,6 +2170,12 @@ extern "C" bool FunctionEnumerateParameters(AbckitCoreFunction *function, void *
 
     LIBABCKIT_BAD_ARGUMENT(function, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    if (function->owningModule != nullptr && function->owningModule->file == nullptr &&
+        function->owningModule->target != ABCKIT_TARGET_ARK_TS_V2) {
+        statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
+        return false;
+    }
+    LIBABCKIT_METADATA_READ_GUARD(function);
 
     switch (ModuleGetTarget(function->owningModule)) {
         case ABCKIT_TARGET_ARK_TS_V2:
@@ -1928,7 +2193,12 @@ extern "C" AbckitType *FunctionGetReturnType(AbckitCoreFunction *function)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(function, nullptr)
-
+    if (function->owningModule != nullptr && function->owningModule->file == nullptr &&
+        IsDynamic(function->owningModule->target)) {
+        statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
+        return nullptr;
+    }
+    LIBABCKIT_METADATA_READ_GUARD(function);
     if (IsDynamic(function->owningModule->target)) {
         statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
         return nullptr;
@@ -1947,6 +2217,7 @@ extern "C" AbckitType *FunctionParamGetType(AbckitCoreFunctionParam *param)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(param, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(param);
     return param->type;
 }
 
@@ -1961,6 +2232,7 @@ extern "C" AbckitFile *AnnotationGetFile(AbckitCoreAnnotation *anno)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(anno, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(anno);
 
     return anno->ai->owningModule->file;
 }
@@ -1972,6 +2244,7 @@ extern "C" AbckitString *AnnotationGetName(AbckitCoreAnnotation *anno)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(anno, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(anno);
     if (!anno->ai) {
         return anno->name;
     }
@@ -1985,6 +2258,7 @@ extern "C" AbckitCoreAnnotationInterface *AnnotationGetInterface(AbckitCoreAnnot
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(anno, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(anno);
 
     return anno->ai;
 }
@@ -1995,6 +2269,7 @@ extern "C" bool AnnotationIsExternal(AbckitCoreAnnotation *anno)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(anno, false);
+    LIBABCKIT_METADATA_READ_GUARD(anno);
     return anno->ai == nullptr;
 }
 
@@ -2007,6 +2282,7 @@ extern "C" bool AnnotationEnumerateElements(AbckitCoreAnnotation *anno, void *da
 
     LIBABCKIT_BAD_ARGUMENT(anno, false)
     LIBABCKIT_BAD_ARGUMENT(cb, false)
+    LIBABCKIT_METADATA_READ_GUARD(anno);
 
     AbckitCoreModule *m = GetAnnotationOwningModule(anno);
 
@@ -2032,6 +2308,7 @@ extern "C" AbckitFile *AnnotationElementGetFile(AbckitCoreAnnotationElement *ae)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(ae, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(ae);
 
     return ae->ann->ai->owningModule->file;
 }
@@ -2043,6 +2320,7 @@ extern "C" AbckitCoreAnnotation *AnnotationElementGetAnnotation(AbckitCoreAnnota
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(ae, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(ae);
 
     return ae->ann;
 }
@@ -2054,6 +2332,7 @@ extern "C" AbckitString *AnnotationElementGetName(AbckitCoreAnnotationElement *a
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(ae, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(ae);
 
     return ae->name;
 }
@@ -2065,6 +2344,7 @@ extern "C" AbckitValue *AnnotationElementGetValue(AbckitCoreAnnotationElement *a
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(ae, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(ae);
 
     return ae->value;
 }
@@ -2079,6 +2359,7 @@ extern "C" AbckitTypeId TypeGetTypeId(AbckitType *type)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(type, AbckitTypeId::ABCKIT_TYPE_ID_INVALID);
+    LIBABCKIT_METADATA_READ_GUARD(type);
 
     return type->id;
 }
@@ -2089,6 +2370,7 @@ extern "C" AbckitCoreClass *TypeGetReferenceClass(AbckitType *type)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(type, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(type);
     if (type->id != AbckitTypeId::ABCKIT_TYPE_ID_REFERENCE) {
         return nullptr;
     }
@@ -2102,6 +2384,7 @@ extern "C" AbckitString *TypeGetName(AbckitType *type)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(type, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(type);
 
     return type->name;
 }
@@ -2112,6 +2395,7 @@ extern "C" size_t TypeGetRank(AbckitType *type)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(type, 0);
+    LIBABCKIT_METADATA_READ_GUARD(type);
 
     return type->rank;
 }
@@ -2122,6 +2406,7 @@ extern "C" bool TypeIsUnion(AbckitType *type)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(type, false);
+    LIBABCKIT_METADATA_READ_GUARD(type);
 
     switch (type->file->frontend) {
         case Mode::DYNAMIC:
@@ -2141,6 +2426,7 @@ extern "C" bool TypeEnumerateUnionTypes(AbckitType *type, void *data, bool (*cb)
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(type, false);
     LIBABCKIT_BAD_ARGUMENT(cb, false);
+    LIBABCKIT_METADATA_READ_GUARD(type);
 
     switch (type->file->frontend) {
         case Mode::STATIC:
@@ -2162,6 +2448,7 @@ extern "C" AbckitFile *ValueGetFile(AbckitValue *value)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(value, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(value);
 
     return value->file;
 }
@@ -2173,6 +2460,7 @@ extern "C" AbckitType *ValueGetType(AbckitValue *value)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(value, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(value);
 
     switch (value->file->frontend) {
         case Mode::DYNAMIC:
@@ -2191,6 +2479,7 @@ extern "C" bool ValueGetU1(AbckitValue *value)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(value, false);
+    LIBABCKIT_METADATA_READ_GUARD(value);
 
     switch (value->file->frontend) {
         case Mode::DYNAMIC:
@@ -2209,6 +2498,7 @@ extern "C" int ValueGetInt(AbckitValue *value)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(value, 0);
+    LIBABCKIT_METADATA_READ_GUARD(value);
 
     switch (value->file->frontend) {
         case Mode::STATIC:
@@ -2225,6 +2515,7 @@ extern "C" double ValueGetDouble(AbckitValue *value)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(value, 0);
+    LIBABCKIT_METADATA_READ_GUARD(value);
 
     switch (value->file->frontend) {
         case Mode::DYNAMIC:
@@ -2243,6 +2534,7 @@ extern "C" AbckitString *ValueGetString(AbckitValue *value)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(value, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(value);
 
     switch (value->file->frontend) {
         case Mode::DYNAMIC:
@@ -2261,6 +2553,7 @@ extern "C" AbckitLiteralArray *ArrayValueGetLiteralArray(AbckitValue *value)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(value, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(value);
 
     switch (value->file->frontend) {
         case Mode::DYNAMIC:
@@ -2283,6 +2576,7 @@ extern "C" const char *AbckitStringToString(AbckitString *value)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(value, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(value);
 
     return value->impl.data();
 }
@@ -2300,6 +2594,7 @@ extern "C" bool LiteralArrayEnumerateElements(AbckitLiteralArray *litArr, void *
 
     LIBABCKIT_BAD_ARGUMENT(litArr, false);
     LIBABCKIT_BAD_ARGUMENT(cb, false);
+    LIBABCKIT_METADATA_READ_GUARD(litArr);
 
     switch (litArr->file->frontend) {
         case Mode::DYNAMIC:
@@ -2323,6 +2618,7 @@ extern "C" AbckitFile *LiteralGetFile(AbckitLiteral *lit)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(lit, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(lit);
 
     return lit->file;
 }
@@ -2334,6 +2630,7 @@ extern "C" AbckitLiteralTag LiteralGetTag(AbckitLiteral *lit)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(lit, ABCKIT_LITERAL_TAG_INVALID);
+    LIBABCKIT_METADATA_READ_GUARD(lit);
 
     switch (lit->file->frontend) {
         case Mode::DYNAMIC:
@@ -2352,6 +2649,7 @@ extern "C" bool LiteralGetBool(AbckitLiteral *lit)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(lit, false);
+    LIBABCKIT_METADATA_READ_GUARD(lit);
 
     switch (lit->file->frontend) {
         case Mode::DYNAMIC:
@@ -2370,6 +2668,7 @@ extern "C" uint8_t LiteralGetU8(AbckitLiteral *lit)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(lit, 0);
+    LIBABCKIT_METADATA_READ_GUARD(lit);
 
     switch (lit->file->frontend) {
         case Mode::DYNAMIC:
@@ -2388,6 +2687,7 @@ extern "C" uint16_t LiteralGetU16(AbckitLiteral *lit)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(lit, 0);
+    LIBABCKIT_METADATA_READ_GUARD(lit);
 
     switch (lit->file->frontend) {
         case Mode::DYNAMIC:
@@ -2406,6 +2706,7 @@ extern "C" uint16_t LiteralGetMethodAffiliate(AbckitLiteral *lit)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(lit, 0);
+    LIBABCKIT_METADATA_READ_GUARD(lit);
 
     switch (lit->file->frontend) {
         case Mode::DYNAMIC:
@@ -2424,6 +2725,7 @@ extern "C" uint32_t LiteralGetU32(AbckitLiteral *lit)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(lit, 0);
+    LIBABCKIT_METADATA_READ_GUARD(lit);
 
     switch (lit->file->frontend) {
         case Mode::DYNAMIC:
@@ -2442,6 +2744,7 @@ extern "C" uint64_t LiteralGetU64(AbckitLiteral *lit)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(lit, 0);
+    LIBABCKIT_METADATA_READ_GUARD(lit);
 
     switch (lit->file->frontend) {
         case Mode::DYNAMIC:
@@ -2460,6 +2763,7 @@ extern "C" float LiteralGetFloat(AbckitLiteral *lit)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(lit, 0);
+    LIBABCKIT_METADATA_READ_GUARD(lit);
 
     switch (lit->file->frontend) {
         case Mode::DYNAMIC:
@@ -2478,6 +2782,7 @@ extern "C" double LiteralGetDouble(AbckitLiteral *lit)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(lit, 0);
+    LIBABCKIT_METADATA_READ_GUARD(lit);
 
     switch (lit->file->frontend) {
         case Mode::DYNAMIC:
@@ -2496,6 +2801,7 @@ extern "C" AbckitLiteralArray *LiteralGetLiteralArray(AbckitLiteral *lit)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(lit, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(lit);
 
     switch (lit->file->frontend) {
         case Mode::DYNAMIC:
@@ -2515,6 +2821,7 @@ extern "C" AbckitString *LiteralGetString(AbckitLiteral *lit)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(lit, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(lit);
 
     switch (lit->file->frontend) {
         case Mode::DYNAMIC:
@@ -2533,6 +2840,7 @@ extern "C" AbckitString *LiteralGetMethod(AbckitLiteral *lit)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(lit, nullptr);
+    LIBABCKIT_METADATA_READ_GUARD(lit);
 
     switch (lit->file->frontend) {
         case Mode::DYNAMIC:

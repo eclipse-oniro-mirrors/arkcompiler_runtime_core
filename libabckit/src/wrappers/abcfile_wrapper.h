@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -28,8 +28,8 @@ namespace libabckit {
 // NOLINTNEXTLINE(cppcoreguidelines-special-member-functions)
 class FileWrapper {
 public:
-    explicit FileWrapper(void *abcFile) : abcFile_(abcFile) {}
-    explicit FileWrapper(const void *abcFile) : abcFile_(abcFile) {}
+    explicit FileWrapper(void *abcFile, bool ownsFile = true) : abcFile_(abcFile), ownsFile_(ownsFile) {}
+    explicit FileWrapper(const void *abcFile, bool ownsFile = true) : abcFile_(abcFile), ownsFile_(ownsFile) {}
     ~FileWrapper();
 
     size_t GetMethodTotalArgumentsCount(void *method) const;
@@ -49,6 +49,7 @@ public:
 
 private:
     const void *abcFile_;
+    bool ownsFile_ = true;
 };
 
 }  // namespace libabckit

@@ -268,6 +268,9 @@ enum AbckitIsaApiDynamicConditionCode {
 
 /**
  * @brief Struct that holds the pointers to the API used to work with dynamic ISA.
+ * @note Instructions and other Graph-derived handles follow their Graph's exclusive-access rule: only one thread
+ * may access a Graph at a time. Different Dynamic Graphs may be processed concurrently. Callers must keep the
+ * owning file and referenced metadata valid and coordinate metadata changes and Graph destruction.
  * @note Valid targets: `ABCKIT_TARGET_TS`, `ABCKIT_TARGET_JS`, `ABCKIT_TARGET_ARK_TS_V1`.
  */
 struct CAPI_EXPORT AbckitIsaApiDynamic {

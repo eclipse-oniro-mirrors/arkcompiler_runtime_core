@@ -32,16 +32,176 @@
 #include "assembler/annotation.h"
 #include "assembler/assembly-literals.h"
 #include "assembler/assembly-program.h"
+#include "libpandafile/file.h"
 
 #include <cstddef>
 #include <cstring>
+#include <memory>
 #include <string>
+#include <unordered_map>
+
+//供构图使用的共享快照
+struct AbckitDynamicGraphCacheEntry {
+    const panda::panda_file::File *pandaFile = nullptr;
+    AbckitIrInterface *irInterface = nullptr;
+    std::unordered_map<std::string, uint32_t> methodOffsets;
+    uint64_t structuralGeneration = 0;
+    std::unordered_map<AbckitCoreFunction *, uint64_t> functionVersions;
+};
 
 namespace libabckit {
 
 // CC-OFFNXT(WordsTool.95) sensitive word conflict
 // NOLINTNEXTLINE(google-build-using-namespace)
 using namespace panda;
+
+namespace {
+std::shared_ptr<AbckitDynamicGraphCacheEntry> MakeDynamicGraphCacheEntry(const panda_file::File *pf,
+                                                                         AbckitIrInterface *irInterface,
+                                                                         const AbckitFile *file)
+{
+    auto deleter = [](AbckitDynamicGraphCacheEntry *entry) {
+        if (entry == nullptr) {
+            return;
+        }
+        delete entry->irInterface;
+        delete entry->pandaFile;
+        delete entry;
+    };
+    // 按顺序释放
+    auto entry = std::shared_ptr<AbckitDynamicGraphCacheEntry>(new AbckitDynamicGraphCacheEntry(), deleter);
+    entry->pandaFile = pf;
+    entry->irInterface = irInterface;
+    entry->methodOffsets.reserve(irInterface->GetMethods().size());
+    for (const auto &[offset, name] : irInterface->GetMethods()) {
+        entry->methodOffsets[name] = offset;
+    }
+    entry->structuralGeneration = file->dynamicStructuralGeneration.load(std::memory_order_acquire);
+    entry->functionVersions = file->dynamicFunctionVersions;
+    return entry;
+}
+
+uint64_t GetSnapshotFunctionVersion(const AbckitDynamicGraphCacheEntry &entry, AbckitCoreFunction *function)
+{
+    auto found = entry.functionVersions.find(function);
+    return found == entry.functionVersions.end() ? 0 : found->second;
+}
+
+bool CanUseSnapshot(const AbckitDynamicGraphCacheEntry &entry, const AbckitFile *file, AbckitCoreFunction *function)
+{
+    return entry.structuralGeneration == file->dynamicStructuralGeneration.load(std::memory_order_acquire) &&
+           GetSnapshotFunctionVersion(entry, function) == GetDynamicGraphFunctionVersion(file, function);
+}
+
+void PublishDynamicGraphSnapshotFailure(AbckitFile::DynamicGraphCache &cache, uint64_t buildEpoch)
+{
+    {
+        std::lock_guard<std::mutex> lock(cache.mutex);
+        cache.entry.reset();
+        cache.state = cache.invalidationEpoch == buildEpoch ? AbckitDynamicGraphSnapshotState::FAILED
+                                                            : AbckitDynamicGraphSnapshotState::STALE;
+    }
+    cache.cv.notify_all();
+}
+
+struct AcquiredDynamicGraphSnapshot {
+    std::shared_ptr<AbckitDynamicGraphCacheEntry> entry;
+    uint64_t structuralGeneration = 0;
+    uint64_t ownerStructuralGeneration = 0;
+    uint64_t functionVersion = 0;
+};
+
+AcquiredDynamicGraphSnapshot AcquireDynamicGraphSnapshot(AbckitFile *file, pandasm::Program *program,
+                                                         AbckitCoreFunction *function)
+{
+    // The caller must hold a lifecycle operation token for file until this function returns.
+    auto &cache = file->dynamicGraphCache;
+    bool waitedForBuilder = false;
+    while (true) {
+        bool shouldWait = false;
+        {
+            AbckitFileApiReadLock apiLock(file);
+            std::lock_guard<std::mutex> lock(cache.mutex);
+            if (cache.state == AbckitDynamicGraphSnapshotState::BUILDING) {
+                shouldWait = true;
+            } else if (cache.state == AbckitDynamicGraphSnapshotState::READY && cache.entry != nullptr) {
+                if (CanUseSnapshot(*cache.entry, file, function)) {
+                    return {cache.entry, file->dynamicStructuralGeneration.load(std::memory_order_acquire),
+                            GetDynamicStructuralGenerationForThread(file, std::this_thread::get_id()),
+                            GetDynamicGraphFunctionVersion(file, function)};
+                }
+                cache.state = AbckitDynamicGraphSnapshotState::BUILDING;
+                break;
+            } else if (waitedForBuilder && cache.state == AbckitDynamicGraphSnapshotState::FAILED) {
+                statuses::SetLastError(AbckitStatus::ABCKIT_STATUS_INTERNAL_ERROR);
+                return {};
+            } else {
+                cache.state = AbckitDynamicGraphSnapshotState::BUILDING;
+                break;
+            }
+        }
+
+        if (shouldWait) {
+            AbckitFileApiReadLockSuspension readLockSuspension(file);
+            std::unique_lock<std::mutex> lock(cache.mutex);
+            cache.cv.wait(lock, [&cache]() { return cache.state != AbckitDynamicGraphSnapshotState::BUILDING; });
+            waitedForBuilder = true;
+        }
+    }
+
+    AbckitFileApiReadLockSuspension readLockSuspension(file);
+    AbckitFileApiWriteLock apiLock(file);
+    if (apiLock.HasConflict()) {
+        uint64_t buildEpoch;
+        {
+            std::lock_guard<std::mutex> lock(cache.mutex);
+            buildEpoch = cache.invalidationEpoch;
+        }
+        statuses::SetLastError(AbckitStatus::ABCKIT_STATUS_WRONG_STATE);
+        PublishDynamicGraphSnapshotFailure(cache, buildEpoch);
+        return {};
+    }
+
+    uint64_t buildEpoch;
+    {
+        std::lock_guard<std::mutex> lock(cache.mutex);
+        buildEpoch = cache.invalidationEpoch;
+    }
+    AbckitFile::DynamicGraphCache::BuildStateGuard buildStateGuard(cache, buildEpoch);
+
+    pandasm::AsmEmitter::PandaFileToPandaAsmMaps maps;
+    auto *pf = EmitDynamicProgram(file, program, &maps, true);
+    if (pf == nullptr) {
+        return {};
+    }
+
+    auto *irInterface = new AbckitIrInterface(std::move(maps.methods), std::move(maps.fields), std::move(maps.classes),
+                                              std::move(maps.strings), std::move(maps.literalarrays));
+    auto entry = MakeDynamicGraphCacheEntry(pf, irInterface, file);
+    bool published = false;
+    {
+        std::lock_guard<std::mutex> lock(cache.mutex);
+        if (cache.invalidationEpoch == buildEpoch) {
+            cache.entry = entry;
+            cache.state = AbckitDynamicGraphSnapshotState::READY;
+            ++cache.successfulBuildCount;
+            published = true;
+        } else {
+            cache.entry.reset();
+            cache.state = AbckitDynamicGraphSnapshotState::STALE;
+        }
+    }
+    cache.cv.notify_all();
+    buildStateGuard.Release();
+    if (!published) {
+        statuses::SetLastError(AbckitStatus::ABCKIT_STATUS_WRONG_STATE);
+        return {};
+    }
+    return {entry, file->dynamicStructuralGeneration.load(std::memory_order_acquire),
+            GetDynamicStructuralGenerationForThread(file, std::this_thread::get_id()),
+            GetDynamicGraphFunctionVersion(file, function)};
+}
+}  // namespace
 
 // ========================================
 // Module
@@ -88,6 +248,10 @@ AbckitString *NamespaceGetNameDynamic(AbckitCoreNamespace *n)
 AbckitString *ClassGetNameDynamic(AbckitCoreClass *klass)
 {
     LIBABCKIT_LOG_FUNC;
+    auto *cachedName = klass->cachedDisplayName.load(std::memory_order_acquire);
+    if (cachedName != nullptr) {
+        return cachedName;
+    }
 
     auto func = GetDynFunction(klass);
     auto mPayload = GetDynModulePayload(klass->owningModule);
@@ -95,7 +259,9 @@ AbckitString *ClassGetNameDynamic(AbckitCoreClass *klass)
     auto *scopesLitArr = mPayload->scopeNamesLiteralArray;
     auto name = GetClassNameFromCtor(func->name, scopesLitArr);
 
-    return CreateStringDynamic(klass->owningModule->file, name.data(), name.size());
+    auto *result = CreateStringDynamic(klass->owningModule->file, name.data(), name.size());
+    klass->cachedDisplayName.store(result, std::memory_order_release);
+    return result;
 }
 
 // ========================================
@@ -105,6 +271,11 @@ AbckitString *ClassGetNameDynamic(AbckitCoreClass *klass)
 AbckitString *FunctionGetNameDynamic(AbckitCoreFunction *function)
 {
     LIBABCKIT_LOG_FUNC;
+    auto *cachedName = function->cachedDisplayName.load(std::memory_order_acquire);
+    if (cachedName != nullptr) {
+        return cachedName;
+    }
+
     auto *functionImpl = GetDynFunction(function);
     auto name = functionImpl->name;
 
@@ -118,144 +289,64 @@ AbckitString *FunctionGetNameDynamic(AbckitCoreFunction *function)
         }
     }
 
-    return CreateStringDynamic(function->owningModule->file, name.data(), name.size());
+    auto *result = CreateStringDynamic(function->owningModule->file, name.data(), name.size());
+    function->cachedDisplayName.store(result, std::memory_order_release);
+    return result;
 }
-
-void checkMemThresholdDynamic(AbckitFile *file)
-{
-    if (MemManager::IsBelowThreshold(GRAPH_CACHE_MAX_SIZE, GRAPH_CACHE_MAX_PERCENT)) {
-        return;
-    }
-    std::unordered_map<AbckitCoreFunction *, FunctionStatus *> &functionsMap = file->functionsMap;
-    for (auto &[func, status] : functionsMap) {
-        if (status->graph) {
-            if (status->writeBack) {
-                FunctionSetGraphDynamicSync(func, status->graph);
-            }
-            DestroyGraphDynamicSync(status->graph);
-        }
-        delete status;
-    }
-    functionsMap.clear();
-    file->generateStatus.generated = false;
-}
-
-// 20260807927972 Task 01-01: RAII guard for the snapshot builder. Sets graphCacheBuilding=true on
-// construction and, on destruction, publishes the terminal state (graphCacheBuilding=false) and
-// notifies all waiters — on every builder exit path (success, failure, or exception) — so a waiter
-// never blocks forever on a builder that failed mid-emission.
-class GraphBuildStateGuard {
-public:
-    explicit GraphBuildStateGuard(AbckitFile *file) : file_(file)
-    {
-        if (file_ != nullptr) {
-            file_->graphCacheBuilding = true;
-        }
-    }
-    ~GraphBuildStateGuard()
-    {
-        if (file_ != nullptr) {
-            file_->graphCacheBuilding = false;
-            file_->graphCacheCv.notify_all();
-        }
-    }
-    GraphBuildStateGuard(const GraphBuildStateGuard &) = delete;
-    GraphBuildStateGuard &operator=(const GraphBuildStateGuard &) = delete;
-
-private:
-    AbckitFile *file_;
-};
 
 AbckitGraph *CreateGraphFromFunctionDynamic(AbckitCoreFunction *function)
 {
     LIBABCKIT_LOG_FUNC;
-
-    auto *func = GetDynFunction(function);
-    LIBABCKIT_LOG(DEBUG) << func->name << '\n';
-    LIBABCKIT_LOG_DUMP(func->DebugDump(), DEBUG);
-
     auto *file = function->owningModule->file;
-    checkMemThresholdDynamic(file);
-
-    auto program = function->owningModule->file->GetDynamicProgram();
-
-    panda_file::File *pf = nullptr;
-    AbckitIrInterface *irInterface = nullptr;
-    uint64_t fnVer = 0;      // 20260807927972 Task 01-03: per-function version captured under graphCacheMtx
-    uint64_t structGen = 0;  // 20260807927972 Task 01-03: structural generation captured under graphCacheMtx
+    std::string functionName;
+    pandasm::Program *program = nullptr;
     {
-        // 20260807927972 Task 01-01: thread-safe snapshot acquisition (single-builder).
-        // Wait while another thread is building. Reuse the READY snapshot (needOptimize cached) if
-        // present; if a prior needOptimize build FAILED, return null (don't retry); otherwise become
-        // the single builder. The builder holds graphCacheMtx during EmitDynamicProgram so the file's
-        // program is never emitted concurrently; GraphBuildStateGuard ensures waiters are always
-        // notified (no hang on builder failure).
-        std::unique_lock<std::mutex> graphLk(file->graphCacheMtx);
-        file->graphCacheCv.wait(graphLk, [&file] { return !file->graphCacheBuilding; });
-        if (file->needOptimize && file->generateStatus.generated) {
-            pf = file->generateStatus.getFile<panda_file::File>();
-            irInterface = file->generateStatus.getIrInterface<AbckitIrInterface>();
-        } else if (file->needOptimize && file->graphCacheFailed) {
-            // FAILED: a prior build failed; don't retry (invalidation/STALE reset is Task 01-03).
-            graphLk.unlock();
-            return nullptr;
-        } else {
-            GraphBuildStateGuard guard(file);  // building=true; ~guard -> building=false + notify_all
-            file->generateStatus.clear<panda_file::File, AbckitIrInterface>();
-            pandasm::AsmEmitter::PandaFileToPandaAsmMaps maps = pandasm::AsmEmitter::PandaFileToPandaAsmMaps();
-            pf = const_cast<panda_file::File *>(EmitDynamicProgram(file, program, &maps, true));
-            if (pf != nullptr) {
-                irInterface = new AbckitIrInterface(std::move(maps.methods), std::move(maps.fields),
-                                                    std::move(maps.classes), std::move(maps.strings),
-                                                    std::move(maps.literalarrays));
-            }
-            if (file->needOptimize) {
-                if (pf != nullptr) {
-                    file->generateStatus = {true, pf, irInterface};
-                    file->graphCacheFailed = false;  // READY
-                } else {
-                    file->graphCacheFailed = true;  // FAILED
-                }
-            }
-        }
-        fnVer = file->functionVersions[function];  // 20260807927972 Task 01-03: capture per-function version
-        structGen = file->structuralGeneration;     // 20260807927972 Task 01-03: capture structural generation
-    }  // graphCacheMtx released; per-function Graph creation below runs in parallel
-
-    if (pf == nullptr) {
+        AbckitFileApiReadLock apiLock(file);
+        auto *func = GetDynFunction(function);
+        functionName = func->name;
+        LIBABCKIT_LOG(DEBUG) << functionName << '\n';
+        LIBABCKIT_LOG_DUMP(func->DebugDump(), DEBUG);
+        program = file->GetDynamicProgram();
+    }
+    auto acquiredSnapshot = AcquireDynamicGraphSnapshot(file, program, function);
+    if (acquiredSnapshot.entry == nullptr) {
         return nullptr;
     }
+    auto cacheEntry = acquiredSnapshot.entry;
+    auto graphIrInterface = std::make_unique<AbckitIrInterface>(cacheEntry->irInterface);
 
     uint32_t functionOffset = 0;
-    for (auto &[id, s] : irInterface->methods) {
-        if (s == func->name) {
-            functionOffset = id;
-        }
+    auto methodOffsetIt = cacheEntry->methodOffsets.find(functionName);
+    if (methodOffsetIt != cacheEntry->methodOffsets.end()) {
+        functionOffset = methodOffsetIt->second;
     }
-
     if (functionOffset == 0) {
         LIBABCKIT_LOG(DEBUG) << "functionOffset == 0\n";
         statuses::SetLastError(AbckitStatus::ABCKIT_STATUS_INTERNAL_ERROR);
-        if (!function->owningModule->file->needOptimize) {
-            delete irInterface;
-        }
         return nullptr;
     }
 
-    auto *wpf = new FileWrapper(reinterpret_cast<const void *>(pf));
-    auto graph = GraphWrapper::BuildGraphDynamic(wpf, irInterface, file, functionOffset);
+    auto wpf = std::make_unique<FileWrapper>(reinterpret_cast<const void *>(cacheEntry->pandaFile), false);
+    auto graph =
+        GraphWrapper::BuildGraphDynamic(wpf.get(), graphIrInterface.get(), file, functionOffset, true, cacheEntry);
+    if (graph == nullptr) {
+        return nullptr;
+    }
+    static_cast<void>(wpf.release());
+    static_cast<void>(graphIrInterface.release());
     if (statuses::GetLastError() != AbckitStatus::ABCKIT_STATUS_NO_ERROR) {
-        if (!function->owningModule->file->needOptimize) {
-            delete irInterface;
-        }
+        GraphWrapper::DestroyGraphDynamic(graph);
         return nullptr;
     }
     LIBABCKIT_LOG_DUMP(GdumpStatic(graph, STDERR_FILENO), DEBUG);
 
     ASSERT(graph->file == file);
     graph->function = function;
-    graph->functionVersion = fnVer;        // 20260807927972 Task 01-03: Graph carries the per-function version at creation
-    graph->structuralGeneration = structGen;  // 20260807927972 Task 01-03: Graph carries the structural generation at creation
+    graph->versionedFunction = function;
+    graph->ownerThreadId = std::this_thread::get_id();
+    graph->baseStructuralGeneration = acquiredSnapshot.structuralGeneration;
+    graph->baseOwnerStructuralGeneration = acquiredSnapshot.ownerStructuralGeneration;
+    graph->baseFunctionVersion = acquiredSnapshot.functionVersion;
 
     return graph;
 }
@@ -496,16 +587,23 @@ AbckitLiteralArray *LiteralGetLiteralArrayDynamic(AbckitLiteral *lit)
 
     auto &litarrs = lit->file->GetDynamicProgram()->literalarray_table;
     auto &arrName = std::get<std::string>(literal->value_);
+    auto found = litarrs.find(arrName);
+    if (found == litarrs.end()) {
+        statuses::SetLastError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return nullptr;
+    }
+    auto *literalArrayImpl = &found->second;
 
+    AbckitFileLitArrsCacheLock cacheLock(lit->file);
     // Search through already created abckit litarrs
     for (auto &item : lit->file->litarrs) {
-        if (item->GetDynamicImpl() == &litarrs[arrName]) {
+        if (item->GetDynamicImpl() == literalArrayImpl) {
             return item.get();
         }
     }
 
     // Create new abckit litarrs
-    auto litarr = std::make_unique<AbckitLiteralArray>(lit->file, &litarrs[arrName]);
+    auto litarr = std::make_unique<AbckitLiteralArray>(lit->file, literalArrayImpl);
     lit->file->litarrs.emplace_back(std::move(litarr));
     return lit->file->litarrs[lit->file->litarrs.size() - 1].get();
 }
@@ -513,23 +611,34 @@ AbckitLiteralArray *LiteralGetLiteralArrayDynamic(AbckitLiteral *lit)
 AbckitString *LiteralGetStringDynamic(AbckitLiteral *lit)
 {
     LIBABCKIT_LOG_FUNC;
-    auto s = std::make_unique<AbckitString>();
     auto *literal = reinterpret_cast<pandasm::LiteralArray::Literal *>(lit->val.get());
     if (!literal->IsStringValue()) {
         statuses::SetLastError(ABCKIT_STATUS_WRONG_LITERAL_TYPE);
         return nullptr;
     }
 
-    auto &strings = lit->file->strings;
-
     auto &val = std::get<std::string>(literal->value_);
-    if (strings.find(val) != strings.end()) {
-        return strings[val].get();
+    {
+        AbckitFileStringsCacheReadLock cacheLock(lit->file);
+        auto &strings = lit->file->strings;
+        auto found = strings.find(val);
+        if (found != strings.end()) {
+            return found->second.get();
+        }
     }
-    s->impl = val;
-    strings.insert({val, std::move(s)});
 
-    return strings[val].get();
+    AbckitFileStringsCacheWriteLock cacheLock(lit->file);
+    auto &strings = lit->file->strings;
+    auto found = strings.find(val);
+    if (found != strings.end()) {
+        return found->second.get();
+    }
+
+    auto s = std::make_unique<AbckitString>();
+    s->file = lit->file;
+    s->impl = val;
+    auto result = strings.emplace(val, std::move(s));
+    return result.first->second.get();
 }
 
 AbckitLiteralTag LiteralGetTagDynamic(AbckitLiteral *lit)
@@ -691,16 +800,23 @@ AbckitLiteralArray *ArrayValueGetLiteralArrayDynamic(AbckitValue *value)
     auto *pVal = reinterpret_cast<pandasm::ScalarValue *>(value->val.get());
     auto arrName = pVal->GetValue<std::string>();
     auto &litarrs = value->file->GetDynamicProgram()->literalarray_table;
+    auto found = litarrs.find(arrName);
+    if (found == litarrs.end()) {
+        statuses::SetLastError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return nullptr;
+    }
+    auto *literalArrayImpl = &found->second;
 
+    AbckitFileLitArrsCacheLock cacheLock(value->file);
     // Search through already created abckit litarrs
     for (auto &item : value->file->litarrs) {
-        if (item->GetDynamicImpl() == &litarrs[arrName]) {
+        if (item->GetDynamicImpl() == literalArrayImpl) {
             return item.get();
         }
     }
 
     // Create new abckit litarr
-    auto litarr = std::make_unique<AbckitLiteralArray>(value->file, &(litarrs[arrName]));
+    auto litarr = std::make_unique<AbckitLiteralArray>(value->file, literalArrayImpl);
     return value->file->litarrs.emplace_back(std::move(litarr)).get();
 }
 

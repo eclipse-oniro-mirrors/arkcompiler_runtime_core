@@ -13,22 +13,8 @@
  * limitations under the License.
  */
 
-// 20260807927972 Task 02-07: parameter_check scenario — serial vs 4-worker-parallel equivalence.
-//
-// The serial ApiModifier::Run() discovers each subclass's `handle` method (read-only enumeration:
-// module import descriptor -> function insts -> DefineClassWithBuffer -> class method) and, per
-// target, calls AddParamChecker (createGraphFromFunction D1 single-builder snapshot + per-graph
-// bounds-check CFG surgery + functionSetGraph D4 prepare/commit + destroyGraph). Task 02-07 exposes
-// that per-method work as two public entry points so a 4-worker pool can run it concurrently on
-// distinct methods of the SAME shared file:
-//   - CollectCheckerTasks: main-thread discovery (read-only; the inspect/enumerate API is not
-//     hardened for concurrency).
-//   - RunCheckerTask: the per-method bounds-check surgery run by workers (different methods ->
-//     the D1/D4 shared-file paths are thread-safe; per-method Graph transforms are isolated).
-//
-// Run() is unchanged (still sequential, behavior-preserving); the existing serial parameter_check
-// test stays green. Equivalence: serial Run() and the 4-worker pool produce the same deterministic
-// modified output (out-of-bounds idx -> -1 instead of undefined).
+// 20260807927972 Task 02-07: parameter_check, serial versus four workers on distinct functions.
+// Each worker owns its graph; committed graphs are destroyed before file persistence.
 
 #include "libabckit/c/abckit.h"
 #include "libabckit/c/ir_core.h"

@@ -13,24 +13,8 @@
  * limitations under the License.
  */
 
-// 20260807927972 Task 02-04: add_log scenario — serial vs 4-worker-parallel equivalence.
-//
-// Four workers each transform a DIFFERENT function (handle1..handle4) on the SAME shared file,
-// exercising the thread-safety design validated by the 01-xx UTs:
-//   - createGraphFromFunction (needOptimize=false default) -> CreateGraphFromFunctionDynamic,
-//     which uses the single-builder snapshot protocol (D1): one worker emits the shared program
-//     snapshot under the cache mutex, the others wait on the CV and reuse the READY snapshot; the
-//     per-function Graph is then built in parallel.
-//   - functionSetGraph (needOptimize=false) -> FunctionSetGraphDynamicSync, the D4 prepare/commit
-//     two-phase writeback (unlocked codegen, then locked recheck + atomic ins swap + version++).
-//
-// Equivalence is established two ways:
-//   1. Both serial and parallel outputs match the same expected 4-block regex.
-//   2. After normalizing the nondeterministic elapsed-time number line, the two outputs are equal.
-//
-// Note: getLastError() is a process-global last-error (not thread-local), so the concurrent phase
-// asserts only on returned Graph/inst pointers (nullptr => failure), never on the global
-// last-error — the post-join output comparison is the reliable correctness check.
+// 20260807927972 Task 02-04: add_log, serial versus four workers on distinct functions.
+// Each worker owns its graph; committed graphs are destroyed before file persistence.
 
 #include "libabckit/c/abckit.h"
 #include "libabckit/c/ir_core.h"
@@ -62,10 +46,8 @@ auto g_implM = AbckitGetModifyApiImpl(ABCKIT_VERSION_RELEASE_1_0_0);
 auto g_implG = AbckitGetGraphApiImpl(ABCKIT_VERSION_RELEASE_1_0_0);
 auto g_dynG = AbckitGetIsaApiDynamicImpl(ABCKIT_VERSION_RELEASE_1_0_0);
 
-constexpr auto INPUT_PATH =
-    ABCKIT_ABC_DIR "ut/thread_safety/add_log_parallel/add_log_parallel_dynamic.abc";
-constexpr auto SERIAL_OUT_PATH =
-    ABCKIT_ABC_DIR "ut/thread_safety/add_log_parallel/add_log_parallel_dynamic_serial.abc";
+constexpr auto INPUT_PATH = ABCKIT_ABC_DIR "ut/thread_safety/add_log_parallel/add_log_parallel_dynamic.abc";
+constexpr auto SERIAL_OUT_PATH = ABCKIT_ABC_DIR "ut/thread_safety/add_log_parallel/add_log_parallel_dynamic_serial.abc";
 constexpr auto PARALLEL_OUT_PATH =
     ABCKIT_ABC_DIR "ut/thread_safety/add_log_parallel/add_log_parallel_dynamic_parallel.abc";
 constexpr auto ENTRY = "add_log_parallel_dynamic";
@@ -84,9 +66,7 @@ struct VisitData {
     bool ok = true;
 };
 
-// Thread-safe variant of the add_log epilog (mirrors scenarios/add_log CreateEpilog, but checks
-// returned pointers instead of the process-global getLastError, which is unsafe to read from
-// concurrent workers).
+// Return failures to the worker while constructing the logging epilog.
 static bool CreateEpilogChecked(AbckitInst *inst, AbckitBasicBlock *bb, UserData *ud, AbckitInst *time)
 {
     auto *graph = g_implG->bbGetGraph(bb);
@@ -237,7 +217,8 @@ static std::string BuildExpectedOutput()
 {
     std::string e;
     for (int i = 1; i <= 4; ++i) {
-        e += "file: src/MyClass, function: MyClass\\.handle" + std::to_string(i) + "\n"
+        e += "file: src/MyClass, function: MyClass\\.handle" + std::to_string(i) +
+             "\n"
              "abckit\n"
              "Ellapsed time:\n"
              "-?\\d+\n";
@@ -290,11 +271,13 @@ TEST_F(LibAbcKitDynamicScenarioParallelTest, LibAbcKitTestDynamicAddLogSerialPar
             ASSERT_NE(graphs[i], nullptr);
             ASSERT_TRUE(TransformIrChecked(graphs[i], &uds[i]));
             g_implM->functionSetGraph(fns[i], graphs[i]);
+            EXPECT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
         }
-        g_impl->writeAbc(file, SERIAL_OUT_PATH, std::strlen(SERIAL_OUT_PATH));
         for (int i = 0; i < 4; ++i) {
             g_impl->destroyGraph(graphs[i]);
         }
+        g_impl->writeAbc(file, SERIAL_OUT_PATH, std::strlen(SERIAL_OUT_PATH));
+        EXPECT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
         g_impl->closeFile(file);
     }
     auto serialOut = helpers::ExecuteDynamicAbc(SERIAL_OUT_PATH, ENTRY);
@@ -333,6 +316,9 @@ TEST_F(LibAbcKitDynamicScenarioParallelTest, LibAbcKitTestDynamicAddLogSerialPar
                 // recheck + atomic ins swap + version++) on a different function than the other
                 // workers, so commits serialize but never contend on the same per-function state.
                 g_implM->functionSetGraph(fns[i], g);
+                if (g_impl->getLastError() != ABCKIT_STATUS_NO_ERROR) {
+                    failed.store(true);
+                }
                 graphs[i] = g;
             });
         }
@@ -340,12 +326,13 @@ TEST_F(LibAbcKitDynamicScenarioParallelTest, LibAbcKitTestDynamicAddLogSerialPar
             t.join();
         }
         ASSERT_FALSE(failed.load()) << "parallel add_log transform reported a failure";
-        g_impl->writeAbc(file, PARALLEL_OUT_PATH, std::strlen(PARALLEL_OUT_PATH));
         for (int i = 0; i < 4; ++i) {
             if (graphs[i] != nullptr) {
                 g_impl->destroyGraph(graphs[i]);
             }
         }
+        g_impl->writeAbc(file, PARALLEL_OUT_PATH, std::strlen(PARALLEL_OUT_PATH));
+        EXPECT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
         g_impl->closeFile(file);
     }
     auto parallelOut = helpers::ExecuteDynamicAbc(PARALLEL_OUT_PATH, ENTRY);

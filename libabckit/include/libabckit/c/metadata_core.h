@@ -133,6 +133,9 @@ enum { ABCKIT_VERSION_SIZE = 4 };
 
 /**
  * @brief Struct that holds the pointers to the non-modifying API for core Abckit types.
+ * @note An enumeration callback may use non-modifying APIs and may collect handles for later processing. It must
+ * not add, remove, or reparent elements in the collection currently being enumerated; doing so may invalidate the
+ * enumerator. Perform such structural changes only after the enumeration call returns.
  */
 struct CAPI_EXPORT AbckitInspectApi {
     /* ========================================
@@ -1673,12 +1676,9 @@ struct CAPI_EXPORT AbckitInspectApi {
      * @return Pointer to the `AbckitGraph`.
      * @param [ in ] function - Function to be inspected.
      * @note Set `ABCKIT_STATUS_BAD_ARGUMENT` error if `function` is NULL.
-     * @note The returned `AbckitGraph` is caller-exclusive: at any instant only one thread may
-     *       access a given Graph, its iterators and derived temporals; different Graphs of different
-     *       functions may be processed by different threads in parallel. The caller is responsible
-     *       for this exclusive access; the library does not check owner-thread identity per entry.
-     * @note Graph lifecycle: a Graph created here must be released by `destroyGraph` before the
-     *       owning file is written (`writeAbc`) and closed (`closeFile`).
+     * @note A Graph and its derived handles may be accessed by only one thread at a time. Different Dynamic
+     * Graphs may be processed concurrently. This does not provide a concurrency guarantee for Static Graphs.
+     * @note The caller must keep the owning file open and coordinate metadata changes and Graph destruction.
      * @note Allocates
      */
     AbckitGraph *(*createGraphFromFunction)(AbckitCoreFunction *function);
@@ -2018,10 +2018,12 @@ struct CAPI_EXPORT AbckitModifyApi {
      * @note Set `ABCKIT_STATUS_BAD_ARGUMENT` error if `graph` is NULL.
      * @note Set `ABCKIT_STATUS_WRONG_CTX` error if corresponding `AbckitFile`s owning `function` and `graph` are
      * differ.
-     * @note This is the only public synchronous writeback entry; the Graph must be caller-exclusive
-     *       during modification. Stale results are rejected: set `ABCKIT_STATUS_WRONG_STATE` (10) error
-     *       if the Graph is based on a stale function version or file structure, or if an active Graph
-     *       still blocks the writeback; a stale result must not overwrite a newer effective result.
+     * @note The caller must ensure exclusive access to `graph` and coordinate metadata changes on its owning file
+     * while this function is running. Calls for different Dynamic functions may run concurrently; this guarantee
+     * does not apply to Static functions.
+     * @note For Dynamic files, set `ABCKIT_STATUS_WRONG_STATE` if the Graph's function or required metadata state
+     * is stale, or the file lifecycle does not permit submission. A rejected submission does not replace the
+     * current function body. Recreate the Graph from current state before retrying a stale transformation.
      * @note Allocates
      */
     void (*functionSetGraph)(AbckitCoreFunction *function, AbckitGraph *graph);

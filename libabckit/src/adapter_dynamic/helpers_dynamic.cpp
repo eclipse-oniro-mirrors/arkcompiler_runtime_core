@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <optional>
 
 // CC-OFFNXT(WordsTool.95) sensitive word conflict
@@ -39,6 +40,12 @@ using namespace panda;
 using namespace libabckit;
 
 namespace {
+
+std::mutex &GetDynamicAsmEmitterMutex()
+{
+    static std::mutex mutex;
+    return mutex;
+}
 
 // CC-OFFNXT(G.NAM.03) project code style
 bool UpdateLitArrSectionPostAction(ModuleIterateData *data, std::pair<size_t, size_t> res)
@@ -254,6 +261,54 @@ bool UpdateModuleLiteralArray(AbckitFile *file, const std::string &recName)
 
 namespace libabckit {
 
+void InvalidateDynamicGraphCache(AbckitFile *file)
+{
+    if (file == nullptr) {
+        return;
+    }
+
+    auto &cache = file->dynamicGraphCache;
+    {
+        std::lock_guard<std::mutex> lock(cache.mutex);
+        ++cache.invalidationEpoch;
+        cache.entry.reset();
+        if (cache.state != AbckitDynamicGraphSnapshotState::BUILDING) {
+            cache.state = AbckitDynamicGraphSnapshotState::STALE;
+        }
+    }
+    cache.cv.notify_all();
+}
+
+void InvalidateDynamicGraphCacheForStructuralChange(AbckitFile *file)
+{
+    if (file == nullptr) {
+        return;
+    }
+    ++file->dynamicStructuralGenerationsByThread[std::this_thread::get_id()];
+    file->dynamicStructuralGeneration.fetch_add(1, std::memory_order_acq_rel);
+    InvalidateDynamicGraphCache(file);
+}
+
+uint64_t GetDynamicStructuralGenerationForThread(const AbckitFile *file, const std::thread::id &threadId)
+{
+    auto found = file->dynamicStructuralGenerationsByThread.find(threadId);
+    return found == file->dynamicStructuralGenerationsByThread.end() ? 0 : found->second;
+}
+
+void MarkDynamicGraphCacheFunctionDirty(AbckitFile *file, AbckitCoreFunction *function)
+{
+    if (file == nullptr || function == nullptr) {
+        return;
+    }
+    ++file->dynamicFunctionVersions[function];
+}
+
+uint64_t GetDynamicGraphFunctionVersion(const AbckitFile *file, AbckitCoreFunction *function)
+{
+    auto found = file->dynamicFunctionVersions.find(function);
+    return found == file->dynamicFunctionVersions.end() ? 0 : found->second;
+}
+
 // CC-OFFNXT(G.FUN.01-CPP) helper function
 const panda_file::File *EmitDynamicProgram(AbckitFile *file, pandasm::Program *program,
                                            pandasm::AsmEmitter::PandaFileToPandaAsmMaps *mapsp, bool getFile,
@@ -268,6 +323,7 @@ const panda_file::File *EmitDynamicProgram(AbckitFile *file, pandasm::Program *p
         }
     }
 
+    std::lock_guard<std::mutex> emitterLock(GetDynamicAsmEmitterMutex());
     const panda_file::File *pf = [&]() {
         const panda_file::File *res {nullptr};
         if (!getFile) {
@@ -751,6 +807,7 @@ static AbckitLiteral *FindOrCreateLiteral(AbckitFile *file,
                                           std::unordered_map<T, std::unique_ptr<AbckitLiteral>> &cache, T value,
                                           panda_file::LiteralTag tagImpl)
 {
+    AbckitFileMetadataCacheLock cacheLock(file);
     if (cache.count(value) == 1) {
         return cache[value].get();
     }
@@ -825,6 +882,7 @@ AbckitLiteral *FindOrCreateLiteralMethodDynamicImpl(AbckitFile *file, const std:
 
 AbckitLiteral *FindOrCreateLiteralNullValueDynamicImpl(AbckitFile *file)
 {
+    AbckitFileMetadataCacheLock cacheLock(file);
     if (file->literals.nullValueLit != nullptr) {
         return file->literals.nullValueLit.get();
     }
@@ -846,6 +904,7 @@ AbckitLiteral *FindOrCreateLiteralNullValueDynamicImpl(AbckitFile *file)
 
 AbckitLiteral *FindOrCreateLiteralDynamic(AbckitFile *file, const pandasm::LiteralArray::Literal &value)
 {
+    AbckitFileMetadataCacheLock cacheLock(file);
     switch (value.tag_) {
         case panda_file::LiteralTag::ARRAY_U1:
         case panda_file::LiteralTag::BOOL:
@@ -893,6 +952,7 @@ template <class T, pandasm::Value::Type PANDASM_VALUE_TYPE>
 static AbckitValue *FindOrCreateScalarValue(AbckitFile *file,
                                             std::unordered_map<T, std::unique_ptr<AbckitValue>> &cache, T value)
 {
+    AbckitFileMetadataCacheLock cacheLock(file);
     if (cache.count(value) == 1) {
         return cache[value].get();
     }
@@ -935,6 +995,7 @@ AbckitValue *FindOrCreateLiteralArrayValueDynamicImpl(AbckitFile *file, const st
 
 AbckitValue *FindOrCreateValueDynamic(AbckitFile *file, const pandasm::Value &value)
 {
+    AbckitFileMetadataCacheLock cacheLock(file);
     switch (value.GetType()) {
         case pandasm::Value::Type::U1:
             return FindOrCreateValueU1DynamicImpl(file, value.GetAsScalar()->GetValue<bool>());

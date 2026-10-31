@@ -1062,6 +1062,7 @@ uint32_t IgetIdStatic(AbckitInst *inst)
 AbckitLiteralArray *IgetLiteralArrayStatic(AbckitInst *inst)
 {
     LIBABCKIT_LOG_FUNC;
+    LIBABCKIT_FILE_READ_GUARD(inst->graph->file);
     size_t idx = 0;
     if (IsDynamic(inst->graph->function->owningModule->target)) {
         auto instOpcode = GetDynamicOpcode(inst->impl);
@@ -1080,17 +1081,32 @@ AbckitLiteralArray *IgetLiteralArrayStatic(AbckitInst *inst)
     }
     auto &imms = inst->impl->CastToIntrinsic()->GetImms();
     ASSERT(!imms.empty());
-    auto arrName = inst->graph->irInterface->literalarrays.at(imms[idx]);
+    auto arrName = inst->graph->irInterface->GetLiteralArrayIdByOffset(imms[idx]);
+    if (arrName.empty()) {
+        return nullptr;
+    }
     std::variant<ark::pandasm::LiteralArray *, panda::pandasm::LiteralArray *> arrImpl {
         (panda::pandasm::LiteralArray *)nullptr};
     if (IsDynamic(inst->graph->function->owningModule->target)) {
-        arrImpl = reinterpret_cast<panda::pandasm::LiteralArray *>(
-            PandasmWrapper::GetUnwrappedLiteralArrayTable(inst->graph->file->GetDynamicProgram()).at(arrName));
+        auto table = PandasmWrapper::GetUnwrappedLiteralArrayTable(inst->graph->file->GetDynamicProgram());
+        auto iter = table.find(arrName);
+        if (iter == table.end()) {
+            statuses::SetLastError(ABCKIT_STATUS_INTERNAL_ERROR);
+            return nullptr;
+        }
+        arrImpl = reinterpret_cast<panda::pandasm::LiteralArray *>(iter->second);
     } else {
-        arrImpl = &inst->graph->file->GetStaticProgram()->literalarrayTable.at(arrName);
+        auto &table = inst->graph->file->GetStaticProgram()->literalarrayTable;
+        auto iter = table.find(arrName);
+        if (iter == table.end()) {
+            statuses::SetLastError(ABCKIT_STATUS_INTERNAL_ERROR);
+            return nullptr;
+        }
+        arrImpl = &iter->second;
     }
 
     // Search through already created litarrs
+    AbckitFileLitArrsCacheLock cacheLock(inst->graph->file);
     auto &abckitLitArrs = inst->graph->file->litarrs;
     for (auto &item : abckitLitArrs) {
         if (item->impl == arrImpl) {
@@ -1108,6 +1124,7 @@ AbckitLiteralArray *IgetLiteralArrayStatic(AbckitInst *inst)
 void IsetLiteralArrayStatic(AbckitInst *inst, AbckitLiteralArray *la)
 {
     LIBABCKIT_LOG_FUNC;
+    LIBABCKIT_FILE_READ_GUARD_VOID(inst->graph->file);
     size_t idx = 0;
     if (IsDynamic(inst->graph->function->owningModule->target)) {
         auto instOpcode = GetDynamicOpcode(inst->impl);
@@ -1133,6 +1150,7 @@ void IsetLiteralArrayStatic(AbckitInst *inst, AbckitLiteralArray *la)
 AbckitString *IgetStringStatic(AbckitInst *inst)
 {
     LIBABCKIT_LOG_FUNC;
+    LIBABCKIT_FILE_READ_GUARD(inst->graph->file);
     size_t idx = 0;
     if (IsDynamic(inst->graph->function->owningModule->target)) {
         auto instOpcode = GetDynamicOpcode(inst->impl);
@@ -1151,9 +1169,17 @@ AbckitString *IgetStringStatic(AbckitInst *inst)
     }
 
     auto &imms = inst->impl->CastToIntrinsic()->GetImms();
-    auto strName = inst->graph->irInterface->strings.at(imms[idx]);
-    auto strImpl = inst->graph->file->strings.at(strName).get();
-    return strImpl;
+    auto strName = inst->graph->irInterface->GetStringIdByOffset(imms[idx]);
+    if (statuses::GetLastError() != ABCKIT_STATUS_NO_ERROR) {
+        return nullptr;
+    }
+    AbckitFileStringsCacheReadLock cacheLock(inst->graph->file);
+    auto iter = inst->graph->file->strings.find(strName);
+    if (iter == inst->graph->file->strings.end()) {
+        statuses::SetLastError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return nullptr;
+    }
+    return iter->second.get();
 }
 
 void IsetStringStatic(AbckitInst *inst, AbckitString *str)
@@ -1504,23 +1530,27 @@ AbckitCoreFunction *IgetFunctionStatic(AbckitInst *inst)
         return nullptr;
     }
 
-    auto it = graph->irInterface->methods.find(reinterpret_cast<uintptr_t>(methodPtr));
-    if (it == graph->irInterface->methods.end()) {
+    auto methodOffset = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(methodPtr));
+    auto it = graph->irInterface->methods.find(methodOffset);
+    const auto &sharedMethods = graph->irInterface->GetMethods();
+    auto sharedIt = sharedMethods.find(methodOffset);
+    if (it == graph->irInterface->methods.end() && sharedIt == sharedMethods.end()) {
         LIBABCKIT_LOG(DEBUG) << "No requested call exists in current graph context\n";
         SetLastError(ABCKIT_STATUS_UNSUPPORTED);
         return nullptr;
     }
+    const auto &methodName = it != graph->irInterface->methods.end() ? it->second : sharedIt->second;
 
     auto &nameToFunction = reinterpret_cast<CtxGInternal *>(graph->internal)->runtimeAdapter->IsMethodStatic(methodPtr)
                                ? graph->file->nameToFunctionStatic
                                : graph->file->nameToFunctionInstance;
 
-    if (nameToFunction.count(it->second) != 0) {
-        return nameToFunction[it->second];
+    if (nameToFunction.count(methodName) != 0) {
+        return nameToFunction[methodName];
     }
 
-    if (graph->file->nameToExternalFunction.count(it->second) != 0) {
-        return graph->file->nameToExternalFunction[it->second];
+    if (graph->file->nameToExternalFunction.count(methodName) != 0) {
+        return graph->file->nameToExternalFunction[methodName];
     }
 
     statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
@@ -1530,6 +1560,7 @@ AbckitCoreFunction *IgetFunctionStatic(AbckitInst *inst)
 void IsetFunctionStatic(AbckitInst *inst, AbckitCoreFunction *function)
 {
     LIBABCKIT_LOG_FUNC;
+    LIBABCKIT_FILE_READ_GUARD_VOID(inst->graph->file);
     auto *graph = inst->graph;
 
     auto methodOffset = GetMethodOffset(graph, function);

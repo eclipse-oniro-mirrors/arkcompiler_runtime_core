@@ -593,6 +593,7 @@ extern "C" AbckitInst *IcreateDYNAMICDefinefunc(AbckitGraph *graph, AbckitCoreFu
     LIBABCKIT_BAD_ARGUMENT(function, nullptr);
     LIBABCKIT_INTERNAL_ERROR(function->owningModule, nullptr);
     LIBABCKIT_WRONG_CTX(graph->file, function->owningModule->file, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(graph->file);
     LIBABCKIT_WRONG_MODE(graph, Mode::DYNAMIC, nullptr);
     return IcreateDynDefinefuncStatic(graph, function, imm0);
 }
@@ -611,6 +612,7 @@ extern "C" AbckitInst *IcreateDYNAMICDefinemethod(AbckitGraph *graph, AbckitInst
     LIBABCKIT_WRONG_CTX(graph, acc->graph, nullptr);
     LIBABCKIT_INTERNAL_ERROR(function->owningModule, nullptr);
     LIBABCKIT_WRONG_CTX(graph->file, function->owningModule->file, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(graph->file);
     LIBABCKIT_WRONG_MODE(graph, Mode::DYNAMIC, nullptr);
     return IcreateDynDefinemethodStatic(graph, acc, function, imm0);
 }
@@ -631,6 +633,7 @@ extern "C" AbckitInst *IcreateDYNAMICDefineclasswithbuffer(AbckitGraph *graph, A
     LIBABCKIT_WRONG_CTX(graph, input0->graph, nullptr);
     LIBABCKIT_INTERNAL_ERROR(function->owningModule, nullptr);
     LIBABCKIT_WRONG_CTX(graph->file, function->owningModule->file, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(graph->file);
     LIBABCKIT_WRONG_MODE(graph, Mode::DYNAMIC, nullptr);
     return IcreateDynDefineclasswithbufferStatic(graph, function, literalArray, imm0, input0);
 }
@@ -1092,6 +1095,7 @@ extern "C" AbckitInst *IcreateDYNAMICGetmodulenamespace(AbckitGraph *graph, Abck
     LIBABCKIT_BAD_ARGUMENT(md, nullptr);
 
     LIBABCKIT_WRONG_CTX(graph->file, md->file, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(graph->file);
     LIBABCKIT_WRONG_MODE(graph, Mode::DYNAMIC, nullptr);
     return IcreateDynGetmodulenamespaceStatic(graph, md);
 }
@@ -1106,6 +1110,7 @@ extern "C" AbckitInst *IcreateDYNAMICWideGetmodulenamespace(AbckitGraph *graph, 
     LIBABCKIT_BAD_ARGUMENT(md, nullptr);
 
     LIBABCKIT_WRONG_CTX(graph->file, md->file, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(graph->file);
     LIBABCKIT_WRONG_MODE(graph, Mode::DYNAMIC, nullptr);
     return IcreateDynWideGetmodulenamespaceStatic(graph, md);
 }
@@ -1121,6 +1126,7 @@ extern "C" AbckitInst *IcreateDYNAMICStmodulevar(AbckitGraph *graph, AbckitInst 
     LIBABCKIT_BAD_ARGUMENT(ed, nullptr);
 
     LIBABCKIT_WRONG_CTX(graph, acc->graph, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(graph->file);
     LIBABCKIT_WRONG_MODE(graph, Mode::DYNAMIC, nullptr);
     return IcreateDynStmodulevarStatic(graph, acc, ed);
 }
@@ -1137,6 +1143,7 @@ extern "C" AbckitInst *IcreateDYNAMICWideStmodulevar(AbckitGraph *graph, AbckitI
     LIBABCKIT_BAD_ARGUMENT(ed, nullptr);
 
     LIBABCKIT_WRONG_CTX(graph, acc->graph, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(graph->file);
     LIBABCKIT_WRONG_MODE(graph, Mode::DYNAMIC, nullptr);
     return IcreateDynWideStmodulevarStatic(graph, acc, ed);
 }
@@ -1290,6 +1297,7 @@ extern "C" AbckitInst *IcreateDYNAMICLdlocalmodulevar(AbckitGraph *graph, Abckit
     LIBABCKIT_BAD_ARGUMENT(graph, nullptr);
     LIBABCKIT_BAD_ARGUMENT(ed, nullptr);
     LIBABCKIT_WRONG_MODE(graph, Mode::DYNAMIC, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(graph->file);
 
     return IcreateDynLdlocalmodulevarStatic(graph, ed);
 }
@@ -1303,6 +1311,7 @@ extern "C" AbckitInst *IcreateDYNAMICWideLdlocalmodulevar(AbckitGraph *graph, Ab
     LIBABCKIT_BAD_ARGUMENT(graph, nullptr);
     LIBABCKIT_BAD_ARGUMENT(ed, nullptr);
     LIBABCKIT_WRONG_MODE(graph, Mode::DYNAMIC, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(graph->file);
 
     return IcreateDynWideLdlocalmodulevarStatic(graph, ed);
 }
@@ -1316,6 +1325,7 @@ extern "C" AbckitInst *IcreateDYNAMICLdexternalmodulevar(AbckitGraph *graph, Abc
     LIBABCKIT_BAD_ARGUMENT(graph, nullptr);
     LIBABCKIT_BAD_ARGUMENT(id, nullptr);
     LIBABCKIT_WRONG_MODE(graph, Mode::DYNAMIC, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(graph->file);
 
     return IcreateDynLdexternalmodulevarStatic(graph, id);
 }
@@ -1329,6 +1339,7 @@ extern "C" AbckitInst *IcreateDYNAMICWideLdexternalmodulevar(AbckitGraph *graph,
     LIBABCKIT_BAD_ARGUMENT(graph, nullptr);
     LIBABCKIT_BAD_ARGUMENT(id, nullptr);
     LIBABCKIT_WRONG_MODE(graph, Mode::DYNAMIC, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(graph->file);
 
     return IcreateDynWideLdexternalmodulevarStatic(graph, id);
 }
@@ -1609,6 +1620,7 @@ extern "C" AbckitCoreImportDescriptor *IgetImportDescriptor(AbckitInst *inst)
 
     LIBABCKIT_BAD_ARGUMENT(inst, nullptr);
 
+    LIBABCKIT_FILE_READ_GUARD(inst->graph->file);
     return IgetImportDescriptorStatic(inst);
 }
 
@@ -1621,6 +1633,7 @@ extern "C" void IsetImportDescriptor(AbckitInst *inst, AbckitCoreImportDescripto
     LIBABCKIT_BAD_ARGUMENT_VOID(inst);
     LIBABCKIT_BAD_ARGUMENT_VOID(id);
 
+    LIBABCKIT_FILE_READ_GUARD_VOID(inst->graph->file);
     IsetImportDescriptorStatic(inst, id);
 }
 
@@ -1632,6 +1645,7 @@ extern "C" AbckitCoreExportDescriptor *IgetExportDescriptor(AbckitInst *inst)
 
     LIBABCKIT_BAD_ARGUMENT(inst, nullptr);
 
+    LIBABCKIT_FILE_READ_GUARD(inst->graph->file);
     return IgetExportDescriptorStatic(inst);
 }
 
@@ -1644,6 +1658,7 @@ extern "C" void IsetExportDescriptor(AbckitInst *inst, AbckitCoreExportDescripto
     LIBABCKIT_BAD_ARGUMENT_VOID(inst);
     LIBABCKIT_BAD_ARGUMENT_VOID(ed);
 
+    LIBABCKIT_FILE_READ_GUARD_VOID(inst->graph->file);
     IsetExportDescriptorStatic(inst, ed);
 }
 
@@ -1655,6 +1670,7 @@ extern "C" AbckitCoreModule *IgetModule(AbckitInst *inst)
 
     LIBABCKIT_BAD_ARGUMENT(inst, nullptr);
 
+    LIBABCKIT_FILE_READ_GUARD(inst->graph->file);
     return IgetModuleStatic(inst);
 }
 
@@ -1668,6 +1684,7 @@ extern "C" void IsetModule(AbckitInst *inst, AbckitCoreModule *md)
     LIBABCKIT_BAD_ARGUMENT_VOID(md);
 
     LIBABCKIT_WRONG_CTX_VOID(inst->graph->file, md->file);
+    LIBABCKIT_FILE_READ_GUARD_VOID(inst->graph->file);
     IsetModuleStatic(inst, md);
 }
 

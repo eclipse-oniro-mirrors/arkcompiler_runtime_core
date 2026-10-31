@@ -30,6 +30,8 @@ class Graph;
 
 // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
 struct AbckitIrInterface final {
+    using IdMap = std::unordered_map<uint32_t, std::string>;
+
     AbckitIrInterface(std::unordered_map<uint32_t, std::string> methodsArg,
                       std::unordered_map<uint32_t, std::string> fieldsArg,
                       std::unordered_map<uint32_t, std::string> classesArg,
@@ -43,6 +45,8 @@ struct AbckitIrInterface final {
     {
     }
 
+    explicit AbckitIrInterface(const AbckitIrInterface *lookupSource);
+
     std::string GetMethodIdByOffset(uint32_t offset) const;
     std::string GetStringIdByOffset(uint32_t offset) const;
     std::string GetLiteralArrayIdByOffset(uint32_t offset) const;
@@ -52,13 +56,21 @@ struct AbckitIrInterface final {
     size_t GetLineNumberByPc(size_t pc) const;
     uint32_t GetColumnNumberByPc(size_t pc) const;
     bool TryGetLineColumnByPc(size_t pc, size_t *line, uint32_t *column) const;
+    const IdMap &GetMethods() const;
+    const IdMap &GetFields() const;
+    const IdMap &GetClasses() const;
+    const IdMap &GetStrings() const;
+    const IdMap &GetLiteralArrays() const;
 
-    std::unordered_map<uint32_t, std::string> methods;
-    std::unordered_map<uint32_t, std::string> fields;
-    std::unordered_map<uint32_t, std::string> classes;
-    std::unordered_map<uint32_t, std::string> strings;
-    std::unordered_map<uint32_t, std::string> literalarrays;
+    IdMap methods;
+    IdMap fields;
+    IdMap classes;
+    IdMap strings;
+    IdMap literalarrays;
     std::unordered_map<size_t, std::pair<size_t, uint32_t>> pcToLineColumn_;
+
+private:
+    const AbckitIrInterface *lookupSource_ = nullptr;
 };
 
 struct AbckitInst {
@@ -86,13 +98,13 @@ struct AbckitGraph {
     std::unordered_map<uintptr_t, AbckitCoreClass *> ptrToClass;
     ark::compiler::Graph *impl = nullptr;
     void *internal = nullptr;
-    // 20260807927972 Task 01-03: per-function writeback version captured at Graph creation; a later
-    // functionSetGraph compares it to the current version and rejects a stale Graph (WRONG_STATE).
-    uint64_t functionVersion = 0;
-    // 20260807927972 Task 01-03: file-level structural generation captured at Graph creation; a
-    // structural metadata change advances the file's value and invalidates all cached Graphs
-    // (functionSetGraph rechecks and rejects a structurally-stale Graph with WRONG_STATE).
-    uint64_t structuralGeneration = 0;
+    std::shared_ptr<AbckitFileThreadState> fileThreadState;
+    bool lifecycleTracked = false;
+    AbckitCoreFunction *versionedFunction = nullptr;
+    std::thread::id ownerThreadId;
+    uint64_t baseStructuralGeneration = 0;
+    uint64_t baseOwnerStructuralGeneration = 0;
+    uint64_t baseFunctionVersion = 0;
 };
 // NOLINTEND(misc-non-private-member-variables-in-classes)
 

@@ -13,19 +13,8 @@
  * limitations under the License.
  */
 
-// 20260807927972 Task 02-05: add_try_catch scenario — serial vs 4-worker-parallel equivalence.
-//
-// Four workers each wrap a DIFFERENT function's (run1..run4) body in a try-catch on the SAME
-// shared file. The transform mirrors scenarios/add_try_catch: split the entry block into a
-// try-begin, split before the return into a try-end, add a catch block that prints the caught
-// error, rewrite the epilogue phi so the caught path returns false, and insert the try-catch edges.
-//
-// As with 02-04, the concurrent phase exercises the D1 single-builder snapshot protocol
-// (createGraphFromFunction) and the D4 prepare/commit two-phase writeback (functionSetGraph)
-// under the default needOptimize=false. getLastError() is process-global (not thread-local), so
-// workers assert only on returned pointers (nullptr => failure); the post-join output comparison
-// is the reliable correctness check. Output is fully deterministic (no timestamps), so the
-// normalized serial/parallel equality is in fact an exact-byte equality.
+// 20260807927972 Task 02-05: add_try_catch, serial versus four workers on distinct functions.
+// Each worker owns its graph; committed graphs are destroyed before file persistence.
 
 #include "libabckit/c/abckit.h"
 #include "libabckit/c/ir_core.h"
@@ -57,8 +46,7 @@ auto g_implM = AbckitGetModifyApiImpl(ABCKIT_VERSION_RELEASE_1_0_0);
 auto g_implG = AbckitGetGraphApiImpl(ABCKIT_VERSION_RELEASE_1_0_0);
 auto g_dynG = AbckitGetIsaApiDynamicImpl(ABCKIT_VERSION_RELEASE_1_0_0);
 
-constexpr auto INPUT_PATH =
-    ABCKIT_ABC_DIR "ut/thread_safety/add_try_catch_parallel/add_try_catch_parallel_dynamic.abc";
+constexpr auto INPUT_PATH = ABCKIT_ABC_DIR "ut/thread_safety/add_try_catch_parallel/add_try_catch_parallel_dynamic.abc";
 constexpr auto SERIAL_OUT_PATH =
     ABCKIT_ABC_DIR "ut/thread_safety/add_try_catch_parallel/add_try_catch_parallel_dynamic_serial.abc";
 constexpr auto PARALLEL_OUT_PATH =
@@ -69,8 +57,7 @@ struct UserData {
     AbckitString *print = nullptr;
 };
 
-// Thread-safe variant of the add_try_catch TransformIr (mirrors scenarios/add_try_catch, but
-// checks returned pointers instead of the process-global getLastError).
+// Return failures to the worker while constructing the try/catch graph.
 static bool TransformIrChecked(AbckitGraph *graph, UserData *ud)
 {
     AbckitBasicBlock *startBB = g_implG->gGetStartBasicBlock(graph);
@@ -218,11 +205,13 @@ TEST_F(LibAbcKitDynamicScenarioParallelTest, LibAbcKitTestDynamicAddTryCatchSeri
             ASSERT_NE(graphs[i], nullptr);
             ASSERT_TRUE(TransformIrChecked(graphs[i], &uds[i]));
             g_implM->functionSetGraph(fns[i], graphs[i]);
+            EXPECT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
         }
-        g_impl->writeAbc(file, SERIAL_OUT_PATH, std::strlen(SERIAL_OUT_PATH));
         for (int i = 0; i < 4; ++i) {
             g_impl->destroyGraph(graphs[i]);
         }
+        g_impl->writeAbc(file, SERIAL_OUT_PATH, std::strlen(SERIAL_OUT_PATH));
+        EXPECT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
         g_impl->closeFile(file);
     }
     auto serialOut = helpers::ExecuteDynamicAbc(SERIAL_OUT_PATH, ENTRY);
@@ -256,6 +245,9 @@ TEST_F(LibAbcKitDynamicScenarioParallelTest, LibAbcKitTestDynamicAddTryCatchSeri
                     return;
                 }
                 g_implM->functionSetGraph(fns[i], g);
+                if (g_impl->getLastError() != ABCKIT_STATUS_NO_ERROR) {
+                    failed.store(true);
+                }
                 graphs[i] = g;
             });
         }
@@ -263,12 +255,13 @@ TEST_F(LibAbcKitDynamicScenarioParallelTest, LibAbcKitTestDynamicAddTryCatchSeri
             t.join();
         }
         ASSERT_FALSE(failed.load()) << "parallel add_try_catch transform reported a failure";
-        g_impl->writeAbc(file, PARALLEL_OUT_PATH, std::strlen(PARALLEL_OUT_PATH));
         for (int i = 0; i < 4; ++i) {
             if (graphs[i] != nullptr) {
                 g_impl->destroyGraph(graphs[i]);
             }
         }
+        g_impl->writeAbc(file, PARALLEL_OUT_PATH, std::strlen(PARALLEL_OUT_PATH));
+        EXPECT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
         g_impl->closeFile(file);
     }
     auto parallelOut = helpers::ExecuteDynamicAbc(PARALLEL_OUT_PATH, ENTRY);

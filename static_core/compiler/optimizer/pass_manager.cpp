@@ -55,7 +55,8 @@ PassManager::PassManager(Graph *graph, PassManager *parentPm)
       optimizations_(graph->GetAllocator()->Adapter()),
       analyses_(details::PredefinedAnalyses::Instantiate<Analysis *>(graph_->GetAllocator(), graph_)),
       stats_((parentPm == nullptr) ? graph->GetAllocator()->New<PassManagerStatistics>(graph)
-                                   : parentPm->GetStatistics())
+                                   : parentPm->GetStatistics()),
+      executionId_(parentPm == nullptr ? 0 : parentPm->GetExecutionCounter())
 {
 }
 
@@ -82,7 +83,7 @@ std::string PassManager::GetFileName([[maybe_unused]] const char *passName, [[ma
     os::CreateDirectories(folderName);
     constexpr auto IMM_3 = 3;
     constexpr auto IMM_4 = 4;
-    ssFilename << std::setw(IMM_3) << std::setfill('0') << executionCounter_.load(std::memory_order_relaxed) << "_";
+    ssFilename << std::setw(IMM_3) << std::setfill('0') << GetExecutionCounter() << "_";
     if (passName != nullptr) {
         ssFilename << "pass_" << std::setw(IMM_4) << std::setfill('0') << stats_->GetCurrentPassIndex() << "_";
     }
@@ -157,6 +158,9 @@ void PassManager::DumpLifeIntervals([[maybe_unused]] const char *passName)
 void PassManager::InitialDumpVisualizerGraph()
 {
 #ifdef ENABLE_IR_DUMP
+    if (firstExecution_ && GetGraph()->GetParentGraph() == nullptr) {
+        StartExecution();
+    }
     std::ofstream strm(GetFileName());
     strm << "begin_compilation\n";
     strm << "  name \"" << GetGraph()->GetRuntime()->GetClassNameFromMethod(GetGraph()->GetMethod()) << "_"
@@ -192,7 +196,6 @@ bool PassManager::RunPass(Pass *pass, size_t localMemSizeBeforePass)
         stats_->ProcessBeforeRun(*pass);
         if (firstExecution_ && GetGraph()->GetParentGraph() == nullptr) {
             StartExecution();
-            firstExecution_ = false;
         }
     }
 

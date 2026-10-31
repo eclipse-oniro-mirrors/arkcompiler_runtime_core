@@ -88,8 +88,7 @@ static constexpr auto EXPECTED =
 
 class LibAbcKitIrGraphTest : public ::testing::Test {};
 
-// Test: test-kind=api, api=GraphApiImpl::gDump, abc-kind=ArkTS1, category=positive, extension=c
-TEST_F(LibAbcKitIrGraphTest, Gdump_1)
+static void CheckDynamicGraphDump()
 {
     auto cb = [](AbckitFile * /*file*/, AbckitCoreFunction * /*method*/, AbckitGraph *graph) {
         auto fileName = ABCKIT_ABC_DIR "ut/ir_core/graph/tmpGD.txt";
@@ -110,9 +109,25 @@ TEST_F(LibAbcKitIrGraphTest, Gdump_1)
         tmpFile.close();
         std::remove(fileName);
 
-        EXPECT_TRUE(helpers::Match(ss.str(), EXPECTED));
+        EXPECT_TRUE(helpers::Match(ss.str(), EXPECTED)) << ss.str();
     };
     helpers::InspectMethod(ABCKIT_ABC_DIR "ut/ir_core/graph/graph_dynamic.abc", "func_main_0", cb);
+}
+
+// Test: test-kind=api, api=GraphApiImpl::gDump, abc-kind=ArkTS1, category=positive, extension=c
+TEST_F(LibAbcKitIrGraphTest, Gdump_1)
+{
+    CheckDynamicGraphDump();
+}
+
+// Test: test-kind=internal, abc-kind=ArkTS1, category=positive, extension=c
+TEST_F(LibAbcKitIrGraphTest, DynamicGraphDumpAfterCompletedStaticGraph)
+{
+    CheckDynamicGraphDump();
+    // InspectMethod destroys each graph before the next frontend starts using compiler options.
+    helpers::InspectMethod(ABCKIT_ABC_DIR "ut/ir_core/graph/graph_static.abc", "main",
+                           [](AbckitFile *, AbckitCoreFunction *, AbckitGraph *graph) { ASSERT_NE(graph, nullptr); });
+    CheckDynamicGraphDump();
 }
 
 // Test: test-kind=api, api=GraphApiImpl::gDump, abc-kind=ArkTS2, category=positive, extension=c

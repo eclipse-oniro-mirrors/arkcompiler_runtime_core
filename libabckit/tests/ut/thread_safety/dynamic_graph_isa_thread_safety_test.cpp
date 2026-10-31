@@ -47,8 +47,7 @@ auto g_implM = AbckitGetModifyApiImpl(ABCKIT_VERSION_RELEASE_1_0_0);
 auto g_dynG = AbckitGetIsaApiDynamicImpl(ABCKIT_VERSION_RELEASE_1_0_0);
 auto g_implJsM = AbckitGetJsModifyApiImpl(ABCKIT_VERSION_RELEASE_1_0_0);
 
-static constexpr auto CONCURRENT_INPUT_PATH =
-    ABCKIT_ABC_DIR "ut/ir_core/basic_blocks/js_src/create_empty_dynamic.abc";
+static constexpr auto CONCURRENT_INPUT_PATH = ABCKIT_ABC_DIR "ut/ir_core/basic_blocks/js_src/create_empty_dynamic.abc";
 
 // Returns true iff `graph` contains a LOADSTRING instruction (used to verify an added LoadString
 // survived writeback + destroy + writeAbc + reload).
@@ -72,19 +71,14 @@ static bool GraphHasLoadString(AbckitGraph *graph)
 }
 }  // namespace
 
-class LibAbcKitDynamicThreadSafetyTest : public ::testing::Test {};
+class LibAbcKitGraphIsaIntegrationTest : public ::testing::Test {};
 
-// 20260807927972-91-1.1: concurrent first-snapshot. Multiple threads creating Graphs on the same
-// file exercise the single-builder snapshot protocol: one builder runs EmitDynamicProgram under the
-// cache mutex, the others wait on the condition variable and reuse the immutable READY snapshot.
-// getLastError() is a process-global last-error (not thread-local), so concurrent threads assert
-// only on the returned Graph pointer and structural validity, not on the global last-error.
-TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicCreateGraphConcurrentFirstSnapshot)
+// 20260807927972-91-1.1: concurrent first-snapshot construction returns independent working graphs.
+TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicCreateGraphConcurrentFirstSnapshot)
 {
     AbckitFile *file = g_impl->openAbc(CONCURRENT_INPUT_PATH, std::strlen(CONCURRENT_INPUT_PATH));
     ASSERT_NE(file, nullptr);
-    // needOptimize=true enables the cached emitted snapshot, so the single-builder shared path is
-    // exercised (rather than each call re-emitting).
+    // The deprecated compatibility switch must not bypass snapshot synchronization.
     g_impl->setNeedOptimize(file, true);
 
     AbckitCoreFunction *func = helpers::FindMethodByName(file, "test");
@@ -109,7 +103,7 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicCreateGraphConcurrentFirstSnapsh
                 g_impl->destroyGraph(graph);
                 return;
             }
-            successes.fetch_add(1, std::memory_order_relaxed);
+            successes.fetch_add(1);
             g_impl->destroyGraph(graph);
         });
     }
@@ -123,11 +117,8 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicCreateGraphConcurrentFirstSnapsh
     g_impl->closeFile(file);
 }
 
-// 20260807927972-91-2.2: stale Graph rejection. A Graph based on an old per-function version
-// (created before a successful functionSetGraph advanced the version) must be rejected with
-// ABCKIT_STATUS_WRONG_STATE and must not overwrite the newer result. needOptimize=false so
-// functionSetGraph goes through FunctionSetGraphDynamicSync (immediate writeback + version bump).
-TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicRejectsStaleGraphForSameFunction)
+// 20260807927972-91-2.2: a committed graph cannot overwrite a newer function version.
+TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicRejectsStaleGraphForSameFunction)
 {
     AbckitFile *file = g_impl->openAbc(CONCURRENT_INPUT_PATH, std::strlen(CONCURRENT_INPUT_PATH));
     ASSERT_NE(file, nullptr);
@@ -146,14 +137,8 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicRejectsStaleGraphForSameFunction
     g_impl->closeFile(file);
 }
 
-// 20260807927972-91-2.1: different functions' concurrent writeback both take effect. Two threads
-// each setGraph a distinct function's Graph. Because the prepare/commit commit recheck is per-
-// function, neither write loses: both advance their own per-function version. Correctness is then
-// verified sequentially: re-setting each (now-stale) Graph must return WRONG_STATE, proving each
-// writeback committed. needOptimize=false so functionSetGraph goes through the sync prepare/commit.
-// getLastError() is process-global, so the concurrent phase asserts only on absence of failure
-// flags (not on the global last-error); the post-join stale checks are sequential and reliable.
-TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicFunctionSetGraphConcurrentDifferentFunctions)
+// 20260807927972-91-2.1: distinct functions commit independently on the same file.
+TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicFunctionSetGraphConcurrentDifferentFunctions)
 {
     AbckitFile *file = g_impl->openAbc(CONCURRENT_INPUT_PATH, std::strlen(CONCURRENT_INPUT_PATH));
     ASSERT_NE(file, nullptr);
@@ -172,7 +157,7 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicFunctionSetGraphConcurrentDiffer
     std::atomic<bool> failed {false};
     std::thread tA([&]() {
         g_implM->functionSetGraph(funcA, graphA);
-        // Cannot assert on the process-global last-error concurrently; flag only on structural fail.
+        // Last-error is thread-local; capture the commit result in the worker.
         if (g_impl->getLastError() != ABCKIT_STATUS_NO_ERROR) {
             failed.store(true);
         }
@@ -200,14 +185,8 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicFunctionSetGraphConcurrentDiffer
     g_impl->closeFile(file);
 }
 
-// 20260807927972-91-2.5: writeback->destroy->writeAbc->reload observes the modification. A
-// LoadString added to the Graph must survive functionSetGraph (sync prepare/commit writeback into
-// the live program), destroyGraph (the modification lives in the program, not the Graph object),
-// writeAbc (emission to a new abc), and reopening that abc + recreating the Graph. needOptimize=
-// false so functionSetGraph runs the sync prepare/commit; createString is constant-pool and is
-// called before createGraphFromFunction (matching the established add_log scenario order) so the
-// marker string is present in the program at emission time.
-TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicGraphModificationPersistsAfterDestroyAndReload)
+// 20260807927972-91-2.5: modifications survive graph destruction and ABC persistence.
+TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicGraphModificationPersistsAfterDestroyAndReload)
 {
     AbckitFile *file = g_impl->openAbc(CONCURRENT_INPUT_PATH, std::strlen(CONCURRENT_INPUT_PATH));
     ASSERT_NE(file, nullptr);
@@ -265,7 +244,7 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicGraphModificationPersistsAfterDe
     }
     g_impl->destroyGraph(graph);
 
-    constexpr auto OUTPUT_PATH = "/tmp/20260807927972_persist_dynamic.abc";
+    constexpr auto OUTPUT_PATH = ABCKIT_ABC_DIR "ut/ir_core/basic_blocks/js_src/pr14961_persist_dynamic.abc";
     g_impl->writeAbc(file, OUTPUT_PATH, std::strlen(OUTPUT_PATH));
     ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
     g_impl->closeFile(file);
@@ -284,13 +263,8 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicGraphModificationPersistsAfterDe
     std::remove(OUTPUT_PATH);
 }
 
-// 20260807927972.09: a structural metadata change rejects a pre-change Graph. Adding an external
-// module via the public Metadata API (fileAddExternalModule) is a real file-structure change; it
-// advances the file's structuralGeneration. A Graph created before the change carries the old
-// structuralGeneration, so functionSetGraph's commit recheck must reject it with WRONG_STATE and
-// must not overwrite the current function. needOptimize=false so functionSetGraph runs the sync
-// prepare/commit.
-TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicMetadataChangeRejectsStaleGraph)
+// 20260807927972.09: structural changes from another thread invalidate an existing graph.
+TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicMetadataChangeRejectsStaleGraph)
 {
     AbckitFile *file = g_impl->openAbc(CONCURRENT_INPUT_PATH, std::strlen(CONCURRENT_INPUT_PATH));
     ASSERT_NE(file, nullptr);
@@ -303,8 +277,15 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicMetadataChangeRejectsStaleGraph)
 
     // Structural change via the public Metadata API: add an external module.
     AbckitJsExternalModuleCreateParams params {"ts_structural_module"};
-    AbckitJsModule *mod = g_implJsM->fileAddExternalModule(file, &params);
-    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    AbckitJsModule *mod = nullptr;
+    AbckitStatus mutationStatus = ABCKIT_STATUS_INTERNAL_ERROR;
+    // An independent writer invalidates the owner's graph; owner-local edits remain supported.
+    std::thread modifier([&]() {
+        mod = g_implJsM->fileAddExternalModule(file, &params);
+        mutationStatus = g_impl->getLastError();
+    });
+    modifier.join();
+    ASSERT_EQ(mutationStatus, ABCKIT_STATUS_NO_ERROR);
     ASSERT_NE(mod, nullptr);
 
     // The pre-change Graph is now structurally stale; setGraph must reject it (WRONG_STATE),
@@ -324,82 +305,43 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicMetadataChangeRejectsStaleGraph)
     g_impl->closeFile(file);
 }
 
-// 20260807927972-91-1.2/1.3: a failed snapshot build publishes FAILED and wakes a waiter; a
-// subsequent caller sees FAILED and returns null without retrying. A real emission failure
-// (EmitDynamicProgram returns null) is what sets graphCacheFailed=true in production; here the
-// FAILED state is injected to deterministically exercise the snapshot-cache state machine: the CV
-// wake (a waiter never blocks forever on a failed builder) + the FAILED-return branch (no retry, no
-// builder re-emission). needOptimize=true enables the cached snapshot + the FAILED state.
-// NOTE: GraphBuildStateGuard is file-local to metadata_inspect_dynamic.cpp, so the builder's RAII
-// publish is exercised through the real createGraphFromFunction path elsewhere; this test injects
-// the post-failure state to cover the `else if (needOptimize && graphCacheFailed)` return branch.
-TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicSnapshotBuildGuardPublishesFailureAndWakesWaiter)
+// 20260807927972-91-1.2/1.3: failure publication wakes waiters and permits a later retry.
+TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicSnapshotBuildGuardPublishesFailureAndWakesWaiter)
 {
     AbckitFile *file = g_impl->openAbc(CONCURRENT_INPUT_PATH, std::strlen(CONCURRENT_INPUT_PATH));
     ASSERT_NE(file, nullptr);
-    g_impl->setNeedOptimize(file, true);  // enables the cached snapshot + FAILED state
-    AbckitCoreFunction *func = helpers::FindMethodByName(file, "test");
-    ASSERT_NE(func, nullptr);
-
-    // Inject a prior failed build: a subsequent caller must see FAILED + return null (no retry, no
-    // builder re-emission). Exercises the `else if (needOptimize && graphCacheFailed)` branch.
-    {
-        std::lock_guard<std::mutex> lk(file->graphCacheMtx);
-        file->graphCacheBuilding = false;
-        file->graphCacheFailed = true;
-    }
-    AbckitGraph *g0 = g_implI->createGraphFromFunction(func);
-    EXPECT_EQ(g0, nullptr);  // FAILED -> null, no retry
-
-    // Reset for the wake test: a builder is "mid-emission".
-    {
-        std::lock_guard<std::mutex> lk(file->graphCacheMtx);
-        file->graphCacheFailed = false;
-        file->graphCacheBuilding = true;
-    }
-
-    // Waiter: createGraphFromFunction blocks on the CV while building=true.
-    std::atomic<bool> waiter_done {false};
+    auto *function = helpers::FindMethodByName(file, "test");
+    ASSERT_NE(function, nullptr);
+    auto &cache = file->dynamicGraphCache;
+    cache.state = AbckitDynamicGraphSnapshotState::BUILDING;
+    std::atomic<bool> waiterDone {false};
     std::thread waiter([&]() {
-        AbckitGraph *g = g_implI->createGraphFromFunction(func);
-        EXPECT_EQ(g, nullptr);  // woken -> sees FAILED -> null
-        waiter_done.store(true);
+        std::unique_lock<std::mutex> lock(cache.mutex);
+        cache.cv.wait(lock, [&]() { return cache.state != AbckitDynamicGraphSnapshotState::BUILDING; });
+        waiterDone.store(true);
     });
-
-    // Let the waiter reach CV.wait (blocked while building=true).
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-
-    // The builder fails: publish building=false + graphCacheFailed=true + notify_all (what the
-    // builder's emission-failure path + BuildStateGuard dtor do). This MUST wake the waiter.
     {
-        std::lock_guard<std::mutex> lk(file->graphCacheMtx);
-        file->graphCacheBuilding = false;
-        file->graphCacheFailed = true;
-        file->graphCacheCv.notify_all();
+        AbckitFile::DynamicGraphCache::BuildStateGuard guard(cache, cache.invalidationEpoch);
     }
-
-    // The waiter must have been woken + returned (not blocked forever).
     waiter.join();
-    EXPECT_TRUE(waiter_done.load());
+    EXPECT_TRUE(waiterDone.load());
+    EXPECT_EQ(cache.state, AbckitDynamicGraphSnapshotState::FAILED);
 
+    // A later independent request retries the failed snapshot instead of poisoning the file forever.
+    auto *graph = g_implI->createGraphFromFunction(function);
+    EXPECT_NE(graph, nullptr);
+    EXPECT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    if (graph != nullptr) {
+        g_impl->destroyGraph(graph);
+    }
     g_impl->closeFile(file);
 }
 
-// 20260807927972-91-3.2: concurrent same-function functionSetGraph — D4 one-wins-one-rejects.
-// Two threads setGraph the SAME function with two Graphs that captured the same version. D4's
-// prepare/commit guarantees exactly one commit advances the per-function version (the winner);
-// the other's commit-recheck rejects with WRONG_STATE (or, if the winner fully completed first,
-// the loser's early check rejects — either way, exactly one version advance). The concurrent phase
-// exercises the commit-recheck stale-reject branch when both threads pass the early check before
-// either commits (the likely path, since codegen outlasts the early check); coverage of that branch
-// is best-effort because the race may instead take the early-reject path. The assertion is only the
-// guaranteed safety property — exactly one version advance + both threads complete — so the test is
-// never flaky. getLastError() is process-global (not thread-local), so the concurrent phase asserts
-// nothing on it; the post-join version check is sequential and reliable.
-TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicConcurrentSameFunctionSetGraphOneWinsOneRejects)
+// 20260807927972-91-3.2: concurrent commits based on the same version have exactly one winner.
+TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicConcurrentSameFunctionSetGraphOneWinsOneRejects)
 {
     AbckitFile *file = g_impl->openAbc(CONCURRENT_INPUT_PATH, std::strlen(CONCURRENT_INPUT_PATH));
-    ASSERT_NE(file, nullptr);  // needOptimize=false default -> D4 prepare/commit
+    ASSERT_NE(file, nullptr);
     AbckitCoreFunction *func = helpers::FindMethodByName(file, "test");
     ASSERT_NE(func, nullptr);
 
@@ -412,8 +354,8 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicConcurrentSameFunctionSetGraphOn
 
         uint64_t v0;
         {
-            std::lock_guard<std::mutex> lk(file->graphCacheMtx);
-            v0 = file->functionVersions[func];
+            AbckitFileApiReadLock lk(file);
+            v0 = (file->dynamicFunctionVersions.count(func) == 0 ? 0 : file->dynamicFunctionVersions.at(func));
         }
 
         // Barrier so both threads enter functionSetGraph together (maximizes the chance both pass
@@ -421,16 +363,16 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicConcurrentSameFunctionSetGraphOn
         std::atomic<int> arrived {0};
         std::atomic<bool> go {false};
         auto task = [&](AbckitGraph *g) {
-            arrived.fetch_add(1, std::memory_order_relaxed);
-            while (!go.load(std::memory_order_relaxed)) {
+            arrived.fetch_add(1);
+            while (!go.load()) {
             }
-            g_implM->functionSetGraph(func, g);  // getLastError() is racy here -> not checked
+            g_implM->functionSetGraph(func, g);  // The final version check also rejects a double commit.
         };
         std::thread tA(task, gA);
         std::thread tB(task, gB);
-        while (arrived.load(std::memory_order_relaxed) < 2) {
+        while (arrived.load() < 2) {
         }
-        go.store(true, std::memory_order_relaxed);
+        go.store(true);
         tA.join();
         tB.join();
 
@@ -438,8 +380,8 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicConcurrentSameFunctionSetGraphOn
         // both-reject (v1==v0) and both-win (v1==v0+2) D4 failures).
         uint64_t v1;
         {
-            std::lock_guard<std::mutex> lk(file->graphCacheMtx);
-            v1 = file->functionVersions[func];
+            AbckitFileApiReadLock lk(file);
+            v1 = (file->dynamicFunctionVersions.count(func) == 0 ? 0 : file->dynamicFunctionVersions.at(func));
         }
         EXPECT_EQ(v1, v0 + 1);
 
@@ -449,14 +391,11 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicConcurrentSameFunctionSetGraphOn
     g_impl->closeFile(file);
 }
 
-// 20260807927972 Task 01-04 (91-2.7): constant-pool extension must NOT invalidate a Graph.
-// createString extends the file's constant pool but must NOT advance structuralGeneration (only
-// metadata-topology changes — module/class/function add — do). So a Graph captured before
-// createString stays structurally current + functionSetGraph succeeds (no WRONG_STATE).
-TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicCreateStringKeepsExistingGraphCurrent)
+// 20260807927972-91-2.7: adding a string does not invalidate a working graph structurally.
+TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicCreateStringKeepsExistingGraphCurrent)
 {
     AbckitFile *file = g_impl->openAbc(CONCURRENT_INPUT_PATH, std::strlen(CONCURRENT_INPUT_PATH));
-    ASSERT_NE(file, nullptr);  // needOptimize=false default -> D4 prepare/commit
+    ASSERT_NE(file, nullptr);
     AbckitCoreFunction *func = helpers::FindMethodByName(file, "test");
     ASSERT_NE(func, nullptr);
 
@@ -465,8 +404,8 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicCreateStringKeepsExistingGraphCu
 
     uint64_t structGenBefore;
     {
-        std::lock_guard<std::mutex> lk(file->graphCacheMtx);
-        structGenBefore = file->structuralGeneration;
+        std::lock_guard<std::mutex> lk(file->dynamicGraphCache.mutex);
+        structGenBefore = file->dynamicStructuralGeneration.load();
     }
 
     // Constant-pool extension.
@@ -475,8 +414,8 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicCreateStringKeepsExistingGraphCu
 
     uint64_t structGenAfter;
     {
-        std::lock_guard<std::mutex> lk(file->graphCacheMtx);
-        structGenAfter = file->structuralGeneration;
+        std::lock_guard<std::mutex> lk(file->dynamicGraphCache.mutex);
+        structGenAfter = file->dynamicStructuralGeneration.load();
     }
     EXPECT_EQ(structGenAfter, structGenBefore);  // unchanged -> Graph still structurally current
 
@@ -488,9 +427,8 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicCreateStringKeepsExistingGraphCu
     g_impl->closeFile(file);
 }
 
-// 20260807927972 Task 01-04 (91-2.7): createLiteralArray likewise must NOT advance
-// structuralGeneration, so a Graph captured after a prior prepare (functionSetGraph) stays current.
-TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicCreateLiteralArrayKeepsPreparedFunctionCurrent)
+// 20260807927972-91-2.7: adding a literal array does not advance the structural generation.
+TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicCreateLiteralArrayKeepsPreparedFunctionCurrent)
 {
     AbckitFile *file = g_impl->openAbc(CONCURRENT_INPUT_PATH, std::strlen(CONCURRENT_INPUT_PATH));
     ASSERT_NE(file, nullptr);
@@ -510,8 +448,8 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicCreateLiteralArrayKeepsPreparedF
 
     uint64_t structGenBefore;
     {
-        std::lock_guard<std::mutex> lk(file->graphCacheMtx);
-        structGenBefore = file->structuralGeneration;
+        std::lock_guard<std::mutex> lk(file->dynamicGraphCache.mutex);
+        structGenBefore = file->dynamicStructuralGeneration.load();
     }
 
     // Constant-pool extension via a literal array.
@@ -523,8 +461,8 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicCreateLiteralArrayKeepsPreparedF
 
     uint64_t structGenAfter;
     {
-        std::lock_guard<std::mutex> lk(file->graphCacheMtx);
-        structGenAfter = file->structuralGeneration;
+        std::lock_guard<std::mutex> lk(file->dynamicGraphCache.mutex);
+        structGenAfter = file->dynamicStructuralGeneration.load();
     }
     EXPECT_EQ(structGenAfter, structGenBefore);  // unchanged -> prepared function still current
 
@@ -536,11 +474,8 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicCreateLiteralArrayKeepsPreparedF
     g_impl->closeFile(file);
 }
 
-// 20260807927972 Task 01-06 (91-3.3): single-thread regression. The D1/D4 thread-safety changes must
-// not alter single-thread Graph/ISA results. Round-trip an UNMODIFIED Graph (createGraphFromFunction
-// -> functionSetGraph -> writeAbc -> execute) on the add_log_dynamic abc; the output must equal the
-// origin (no transform applied -> codegen reproduces the original body).
-TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicGraphIsaSingleThreadRegression)
+// 20260807927972-91-3.3: single-thread graph roundtrip preserves execution output.
+TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicGraphIsaSingleThreadRegression)
 {
     constexpr auto INPUT = ABCKIT_ABC_DIR "scenarios/add_log/add_log_dynamic.abc";
     constexpr auto OUT = ABCKIT_ABC_DIR "scenarios/add_log/add_log_dynamic_regression.abc";
@@ -557,20 +492,17 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicGraphIsaSingleThreadRegression)
     ASSERT_NE(graph, nullptr);
     g_implM->functionSetGraph(func, graph);  // unmodified graph set back
     EXPECT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
-    g_impl->writeAbc(file, OUT, std::strlen(OUT));
     g_impl->destroyGraph(graph);
+    g_impl->writeAbc(file, OUT, std::strlen(OUT));
+    EXPECT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
     g_impl->closeFile(file);
 
     auto out = helpers::ExecuteDynamicAbc(OUT, ENTRY);
     EXPECT_EQ(out, origin);  // single-thread round-trip preserves output
 }
 
-// 20260807927972 Task 01-06 (91-3.4): Static isolation. The Static inspect/modify path must NOT use
-// the Dynamic graphCacheMtx (the D1/D4 lock is Dynamic-only). Hold the lock in the test, then run
-// static createGraphFromFunction + functionSetGraph in a worker; if the Static path touched the lock
-// it would block (deadlock) + the deadline fires. The lock is released before join so a failure is
-// reported, not a hang.
-TEST_F(LibAbcKitDynamicThreadSafetyTest, StaticDoesNotUseDynamicFileLock)
+// 20260807927972-91-3.4: Static graph operations do not use the Dynamic snapshot lock.
+TEST_F(LibAbcKitGraphIsaIntegrationTest, StaticDoesNotUseDynamicFileLock)
 {
     constexpr auto STATIC_INPUT = ABCKIT_ABC_DIR "clean_scenarios/c_api/static/add_log/add_log_static.abc";
     AbckitFile *file = g_impl->openAbc(STATIC_INPUT, std::strlen(STATIC_INPUT));
@@ -578,7 +510,7 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, StaticDoesNotUseDynamicFileLock)
     AbckitCoreFunction *func = helpers::FindMethodByName(file, "handle");
     ASSERT_NE(func, nullptr);
 
-    std::unique_lock<std::mutex> lk(file->graphCacheMtx);  // hold the Dynamic lock
+    std::unique_lock<std::mutex> lk(file->dynamicGraphCache.mutex);  // hold the Dynamic lock
     std::atomic<bool> done {false};
     std::thread t([&]() {
         AbckitGraph *g = g_implI->createGraphFromFunction(func);
@@ -588,26 +520,19 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, StaticDoesNotUseDynamicFileLock)
         }
         done.store(true);
     });
-    // Static path must NOT block on graphCacheMtx -> completes well within 5s.
+    // Static path must NOT block on snapshot mutex -> completes well within 5s.
     auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
-    while (!done.load(std::memory_order_relaxed) && std::chrono::steady_clock::now() < deadline) {
+    while (!done.load() && std::chrono::steady_clock::now() < deadline) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-    EXPECT_TRUE(done.load()) << "Static path blocked on the Dynamic graphCacheMtx (would deadlock)";
+    EXPECT_TRUE(done.load()) << "Static path blocked on the Dynamic snapshot mutex (would deadlock)";
     lk.unlock();  // release before join so a blocked worker can proceed + the test never hangs
     t.join();
     g_impl->closeFile(file);
 }
 
-// 20260807927972 Task 01-02 (91-1.3): exclusive-owner scheduling. Each Graph has a single owner
-// thread for its full lifecycle (createGraphFromFunction -> functionSetGraph -> destroyGraph); no
-// Graph is shared across threads. Two owners each run the full lifecycle on a DIFFERENT function
-// concurrently — exercises single-owner scheduling under concurrency (distinct from 01-03, which
-// creates graphs sequentially then setGraphs concurrently; this owns the whole lifecycle per
-// thread). The library deliberately does NOT enforce owner-thread at runtime — it is a caller
-// contract documented by the @note headers (01-00); this test + the scenario tests (02-04..08)
-// orchestrate it.
-TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicGraphExclusiveOwnerScheduling)
+// 20260807927972-91-1.3: independent workers own their graphs through construction, commit and destruction.
+TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicGraphExclusiveOwnerScheduling)
 {
     AbckitFile *file = g_impl->openAbc(CONCURRENT_INPUT_PATH, std::strlen(CONCURRENT_INPUT_PATH));
     ASSERT_NE(file, nullptr);
@@ -634,14 +559,8 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, DynamicGraphExclusiveOwnerScheduling)
     g_impl->closeFile(file);
 }
 
-// 20260807927972 Task 01-05 (91-3.1): PassManager execution-id concurrency. N threads each
-// createGraphFromFunction concurrently -> each runs the PassManager (StartExecution increments the
-// global executionCounter_). A non-atomic counter would data-race (TSan exit 66); the std::atomic
-// fix (Task 01-05) is race-free (TSan exit 0). On a regular build this asserts no crash; the TSan
-// build (global -fsanitize=thread, instrumenting libarkruntime.so where pass_manager.cpp lives)
-// verifies no data race. needOptimize=true exercises the cached snapshot path that runs the checker
-// (via PassManager) per Graph.
-TEST_F(LibAbcKitDynamicThreadSafetyTest, PassManagerExecutionIdConcurrent)
+// 20260807927972-91-3.1: graph construction stresses concurrent compiler pass execution.
+TEST_F(LibAbcKitGraphIsaIntegrationTest, PassManagerExecutionIdConcurrent)
 {
     AbckitFile *file = g_impl->openAbc(CONCURRENT_INPUT_PATH, std::strlen(CONCURRENT_INPUT_PATH));
     ASSERT_NE(file, nullptr);
@@ -661,7 +580,7 @@ TEST_F(LibAbcKitDynamicThreadSafetyTest, PassManagerExecutionIdConcurrent)
                 failed.store(true);
                 return;
             }
-            successes.fetch_add(1, std::memory_order_relaxed);
+            successes.fetch_add(1);
             g_impl->destroyGraph(g);
         });
     }

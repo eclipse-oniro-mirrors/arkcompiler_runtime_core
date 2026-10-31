@@ -311,25 +311,6 @@ static AbckitGraph *CreateGraph(AbckitCoreFunction *function, AbckitIrInterface 
     return graph;
 }
 
-void checkMemThresholdStatic(AbckitFile *file)
-{
-    if (MemManager::IsBelowThreshold(GRAPH_CACHE_MAX_SIZE, GRAPH_CACHE_MAX_PERCENT)) {
-        return;
-    }
-    std::unordered_map<AbckitCoreFunction *, FunctionStatus *> &functionsMap = file->functionsMap;
-    for (auto &[func, status] : functionsMap) {
-        if (status->graph) {
-            if (status->writeBack) {
-                FunctionSetGraphStaticSync(func, status->graph);
-            }
-            DestroyGraphStaticSync(status->graph);
-        }
-        delete status;
-    }
-    functionsMap.clear();
-    file->generateStatus.generated = false;
-}
-
 AbckitGraph *CreateGraphFromFunctionStatic(AbckitCoreFunction *function)
 {
     LIBABCKIT_LOG_FUNC;
@@ -341,43 +322,23 @@ AbckitGraph *CreateGraphFromFunctionStatic(AbckitCoreFunction *function)
     LIBABCKIT_LOG_DUMP(func->DebugDump(), DEBUG);
     LIBABCKIT_LOG(DEBUG) << func->name << '\n';
 
-    auto *file = function->owningModule->file;
-    checkMemThresholdStatic(file);
-
     auto program = function->owningModule->file->GetStaticProgram();
 
-    panda_file::File *pf = nullptr;
-    AbckitIrInterface *irInterface = nullptr;
-    if (function->owningModule->file->needOptimize && file->generateStatus.generated) {
-        pf = file->generateStatus.getFile<panda_file::File>();
-        irInterface = file->generateStatus.getIrInterface<AbckitIrInterface>();
-    } else {
-        file->generateStatus.clear<panda_file::File, AbckitIrInterface>();
-
-        pandasm::AsmEmitter::PandaFileToPandaAsmMaps maps = pandasm::AsmEmitter::PandaFileToPandaAsmMaps();
-        pf = const_cast<panda_file::File *>(pandasm::AsmEmitter::Emit(*program, &maps).release());
-        irInterface = new AbckitIrInterface(std::move(maps.methods), std::move(maps.fields), std::move(maps.classes),
-                                            std::move(maps.strings), std::move(maps.literalarrays));
-    }
+    pandasm::AsmEmitter::PandaFileToPandaAsmMaps maps = pandasm::AsmEmitter::PandaFileToPandaAsmMaps();
+    auto *pf = const_cast<panda_file::File *>(pandasm::AsmEmitter::Emit(*program, &maps).release());
+    auto *irInterface = new AbckitIrInterface(std::move(maps.methods), std::move(maps.fields), std::move(maps.classes),
+                                              std::move(maps.strings), std::move(maps.literalarrays));
 
     if (pf == nullptr) {
         LIBABCKIT_LOG(DEBUG) << "FAILURE: " << pandasm::AsmEmitter::GetLastError() << '\n';
         statuses::SetLastError(AbckitStatus::ABCKIT_STATUS_INTERNAL_ERROR);
-        if (!function->owningModule->file->needOptimize) {
-            delete irInterface;
-        }
+        delete irInterface;
         return nullptr;
-    }
-
-    if (function->owningModule->file->needOptimize) {
-        file->generateStatus = {true, pf, irInterface};
     }
 
     uint32_t methodOffset = 0;
     if (!GetMethodOffset(func, irInterface, &methodOffset)) {
-        if (!function->owningModule->file->needOptimize) {
-            delete irInterface;
-        }
+        delete irInterface;
         return nullptr;
     }
 
@@ -391,9 +352,7 @@ AbckitGraph *CreateGraphFromFunctionStatic(AbckitCoreFunction *function)
         true);
     if (graphImpl == nullptr) {
         DeleteGraphArgs(allocator, localAllocator, adapter);
-        if (!function->owningModule->file->needOptimize) {
-            delete irInterface;
-        }
+        delete irInterface;
         statuses::SetLastError(AbckitStatus::ABCKIT_STATUS_MEMORY_ALLOCATION);
         return nullptr;
     }
@@ -407,9 +366,7 @@ AbckitGraph *CreateGraphFromFunctionStatic(AbckitCoreFunction *function)
     if (!irBuilderRes) {
         DeleteGraphArgs(allocator, localAllocator, adapter);
         statuses::SetLastError(AbckitStatus::ABCKIT_STATUS_INTERNAL_ERROR);
-        if (!function->owningModule->file->needOptimize) {
-            delete irInterface;
-        }
+        delete irInterface;
         return nullptr;
     }
 
@@ -665,6 +622,8 @@ AbckitString *LiteralGetStringStatic(AbckitLiteral *lit)
     if (strings.find(val) != strings.end()) {
         return strings[val].get();
     }
+
+    s->file = lit->file;
     s->impl = val;
     strings.insert({val, std::move(s)});
 

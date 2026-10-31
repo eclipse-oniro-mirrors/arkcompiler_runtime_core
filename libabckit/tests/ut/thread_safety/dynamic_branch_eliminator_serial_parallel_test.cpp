@@ -13,21 +13,8 @@
  * limitations under the License.
  */
 
-// 20260807927972 Task 02-06: branch_eliminator scenario — serial vs 4-worker-parallel equivalence.
-//
-// The serial BranchEliminator::Run() enumerates modules/functions and, per function, calls
-// EliminateBranchWithSuspect (createGraphFromFunction -> D1 single-builder snapshot, per-graph
-// constant lowering + branch deletion, functionSetGraph -> D4 prepare/commit, destroyGraph).
-// Task 02-06 exposes that per-function work as two public entry points so a 4-worker pool can
-// run it concurrently on distinct functions of the SAME shared file:
-//   - CollectFunctionTasks: main-thread module/function enumeration + suspects resolution
-//     (read-only; the inspect/enumerate API is not hardened for concurrency, so it stays serial).
-//   - RunFunctionTask: the per-function eliminate, run by workers (different functions -> the D1/D4
-//     shared-file paths are thread-safe; per-function Graph transforms are isolated).
-//
-// Equivalence: serial Run() and the 4-worker pool both produce the same deterministic modified
-// output (Config.isDebug propagated as the constant). configIsDebugFinal=true is used so the
-// modified output differs from the origin (false), proving the transform actually ran.
+// 20260807927972 Task 02-06: branch_eliminator, serial versus four workers on distinct functions.
+// Each worker owns its graph; committed graphs are destroyed before file persistence.
 
 #include "libabckit/c/abckit.h"
 #include "libabckit/c/ir_core.h"

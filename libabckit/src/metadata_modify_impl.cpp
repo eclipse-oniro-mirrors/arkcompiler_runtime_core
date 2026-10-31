@@ -82,9 +82,12 @@ extern "C" void FunctionSetGraph(AbckitCoreFunction *function, AbckitGraph *grap
 
     LIBABCKIT_WRONG_CTX_VOID(function->owningModule->file, graph->file);
 
+    auto *file = function->owningModule->file;
     if (IsDynamic(function->owningModule->target)) {
         FunctionSetGraphDynamic(function, graph);
     } else {
+        AbckitFileApiReadLockSuspension readLockSuspension(file);
+        LIBABCKIT_FILE_WRITE_GUARD_VOID(file)
         FunctionSetGraphStatic(function, graph);
     }
 }
@@ -108,6 +111,7 @@ extern "C" AbckitType *CreateType(AbckitFile *file, AbckitTypeId id)
         statuses::SetLastError(ABCKIT_STATUS_BAD_ARGUMENT);
         return nullptr;
     }
+    LIBABCKIT_FILE_READ_GUARD(file);
     return GetOrCreateType(file, id, 0, nullptr, nullptr);
 }
 
@@ -119,6 +123,7 @@ extern "C" AbckitType *CreateReferenceType(AbckitFile *file, AbckitCoreClass *kl
 
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
     LIBABCKIT_BAD_ARGUMENT(klass, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(file);
     return GetOrCreateType(file, AbckitTypeId::ABCKIT_TYPE_ID_REFERENCE, 0, klass, nullptr);
 }
 
@@ -193,6 +198,7 @@ extern "C" AbckitValue *CreateValueU1(AbckitFile *file, bool value)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(file);
     switch (file->frontend) {
         case Mode::DYNAMIC:
             return FindOrCreateValueU1Dynamic(file, value);
@@ -210,6 +216,7 @@ extern "C" AbckitValue *CreateValueInt(AbckitFile *file, int value)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(file);
     switch (file->frontend) {
         case Mode::DYNAMIC:
             return FindOrCreateValueIntDynamic(file, value);
@@ -227,6 +234,7 @@ extern "C" AbckitValue *CreateValueDouble(AbckitFile *file, double value)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(file);
     switch (file->frontend) {
         case Mode::DYNAMIC:
             return FindOrCreateValueDoubleDynamic(file, value);
@@ -246,6 +254,7 @@ extern "C" AbckitValue *CreateValueString(AbckitFile *file, const char *value, s
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
     LIBABCKIT_BAD_ARGUMENT(value, nullptr);
     LIBABCKIT_ZERO_ARGUMENT(len, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(file);
     switch (file->frontend) {
         case Mode::DYNAMIC:
             return FindOrCreateValueStringDynamic(file, value, len);
@@ -264,6 +273,7 @@ extern "C" AbckitValue *CreateValueMethod(AbckitFile *file, AbckitCoreFunction *
 
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
     LIBABCKIT_BAD_ARGUMENT(method, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(file);
 
     switch (file->frontend) {
         case Mode::DYNAMIC:
@@ -283,6 +293,7 @@ extern "C" AbckitValue *CreateValueRecord(AbckitFile *file, AbckitCoreClass *kla
 
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
     LIBABCKIT_BAD_ARGUMENT(klass, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(file);
     switch (file->frontend) {
         case Mode::DYNAMIC:
             LIBABCKIT_UNIMPLEMENTED;
@@ -301,6 +312,7 @@ extern "C" AbckitValue *CreateLiteralArrayValue(AbckitFile *file, AbckitValue **
 
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
     LIBABCKIT_BAD_ARGUMENT(value, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(file);
     switch (file->frontend) {
         case Mode::DYNAMIC:
             return FindOrCreateLiteralArrayValueDynamic(file, value, size);
@@ -325,6 +337,8 @@ extern "C" AbckitString *CreateString(AbckitFile *file, const char *value, size_
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
     LIBABCKIT_BAD_ARGUMENT(value, nullptr);
     LIBABCKIT_ZERO_ARGUMENT(len, nullptr);
+    AbckitFileApiReadLockSuspension readLockSuspension(file);
+    LIBABCKIT_FILE_WRITE_GUARD(file, nullptr)
     switch (file->frontend) {
         case Mode::DYNAMIC:
             return CreateStringDynamic(file, value, len);
@@ -364,6 +378,7 @@ extern "C" AbckitLiteral *CreateLiteralBool(AbckitFile *file, bool value)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(file);
     switch (file->frontend) {
         case Mode::DYNAMIC:
             return FindOrCreateLiteralBoolDynamic(file, value);
@@ -381,6 +396,7 @@ extern "C" AbckitLiteral *CreateLiteralU8(AbckitFile *file, uint8_t value)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(file);
     switch (file->frontend) {
         case Mode::DYNAMIC:
             return FindOrCreateLiteralU8Dynamic(file, value);
@@ -398,6 +414,7 @@ extern "C" AbckitLiteral *CreateLiteralU16(AbckitFile *file, uint16_t value)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(file);
     switch (file->frontend) {
         case Mode::DYNAMIC:
             return FindOrCreateLiteralU16Dynamic(file, value);
@@ -415,6 +432,7 @@ extern "C" AbckitLiteral *CreateLiteralMethodAffiliate(AbckitFile *file, uint16_
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(file);
     switch (file->frontend) {
         case Mode::DYNAMIC:
             return FindOrCreateLiteralMethodAffiliateDynamic(file, value);
@@ -431,6 +449,7 @@ extern "C" AbckitLiteral *CreateLiteralU32(AbckitFile *file, uint32_t value)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(file);
     switch (file->frontend) {
         case Mode::DYNAMIC:
             return FindOrCreateLiteralU32Dynamic(file, value);
@@ -448,6 +467,7 @@ extern "C" AbckitLiteral *CreateLiteralU64(AbckitFile *file, uint64_t value)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(file);
     switch (file->frontend) {
         case Mode::DYNAMIC:
             return FindOrCreateLiteralU64Dynamic(file, value);
@@ -465,6 +485,7 @@ extern "C" AbckitLiteral *CreateLiteralFloat(AbckitFile *file, float value)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(file);
     switch (file->frontend) {
         case Mode::DYNAMIC:
             return FindOrCreateLiteralFloatDynamic(file, value);
@@ -482,6 +503,7 @@ extern "C" AbckitLiteral *CreateLiteralDouble(AbckitFile *file, double value)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(file);
     switch (file->frontend) {
         case Mode::DYNAMIC:
             return FindOrCreateLiteralDoubleDynamic(file, value);
@@ -500,6 +522,7 @@ extern "C" AbckitLiteral *CreateLiteralLiteralArray(AbckitFile *file, AbckitLite
 
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
     LIBABCKIT_BAD_ARGUMENT(litarr, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(file);
     switch (file->frontend) {
         case Mode::DYNAMIC:
             return FindOrCreateLiteralLiteralArrayDynamic(file, litarr);
@@ -520,6 +543,7 @@ extern "C" AbckitLiteral *CreateLiteralString(AbckitFile *file, const char *valu
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
     LIBABCKIT_BAD_ARGUMENT(value, nullptr);
     LIBABCKIT_ZERO_ARGUMENT(len, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(file);
     switch (file->frontend) {
         case Mode::DYNAMIC:
             return FindOrCreateLiteralStringDynamic(file, value, len);
@@ -538,6 +562,7 @@ extern "C" AbckitLiteral *CreateLiteralMethod(AbckitFile *file, AbckitCoreFuncti
 
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
     LIBABCKIT_BAD_ARGUMENT(function, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(file);
     switch (file->frontend) {
         case Mode::DYNAMIC:
             return FindOrCreateLiteralMethodDynamic(file, function);
@@ -555,6 +580,7 @@ extern "C" AbckitLiteral *CreateLiteralNullValue(AbckitFile *file)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT(file, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(file);
     switch (file->frontend) {
         case Mode::DYNAMIC:
             return FindOrCreateLiteralNullValueDynamic(file);

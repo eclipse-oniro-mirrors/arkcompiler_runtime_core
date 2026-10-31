@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -112,4 +112,40 @@
 // CC-OFFNXT(G.PRE.02) necessary macro
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define LIBABCKIT_UNIQUE_VAR(name) LIBABCKIT_CONCAT(_##name##_, LIBABCKIT_LINE)
+
+// CC-OFFNXT(G.PRE.02) necessary macro
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+#define LIBABCKIT_FILE_READ_GUARD(file)                                  \
+    ::AbckitFileApiReadLock LIBABCKIT_UNIQUE_VAR(fileApiReadLock)(file); \
+    if (LIBABCKIT_UNIQUE_VAR(fileApiReadLock).HasConflict()) {           \
+        statuses::SetLastError(ABCKIT_STATUS_WRONG_STATE);               \
+        return {};                                                       \
+    }
+
+// CC-OFFNXT(G.PRE.02) necessary macro
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+#define LIBABCKIT_FILE_READ_GUARD_VOID(file)                             \
+    ::AbckitFileApiReadLock LIBABCKIT_UNIQUE_VAR(fileApiReadLock)(file); \
+    if (LIBABCKIT_UNIQUE_VAR(fileApiReadLock).HasConflict()) {           \
+        statuses::SetLastError(ABCKIT_STATUS_WRONG_STATE);               \
+        return;                                                          \
+    }
+
+// CC-OFFNXT(G.PRE.02) necessary macro
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+#define LIBABCKIT_FILE_WRITE_GUARD(file, returnvalue)                      \
+    ::AbckitFileApiWriteLock LIBABCKIT_UNIQUE_VAR(fileApiWriteLock)(file); \
+    if (LIBABCKIT_UNIQUE_VAR(fileApiWriteLock).HasConflict()) {            \
+        statuses::SetLastError(ABCKIT_STATUS_WRONG_STATE);                 \
+        return returnvalue;                                                \
+    }
+
+// CC-OFFNXT(G.PRE.02) necessary macro
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+#define LIBABCKIT_FILE_WRITE_GUARD_VOID(file)                              \
+    ::AbckitFileApiWriteLock LIBABCKIT_UNIQUE_VAR(fileApiWriteLock)(file); \
+    if (LIBABCKIT_UNIQUE_VAR(fileApiWriteLock).HasConflict()) {            \
+        statuses::SetLastError(ABCKIT_STATUS_WRONG_STATE);                 \
+        return;                                                            \
+    }
 #endif

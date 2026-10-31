@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -17,7 +17,9 @@
 #include "logger.h"
 #include "ecmascript/napi/include/jsnapi.h"
 
+#include <cstdint>
 #include <iostream>
+#include <limits>
 #include <sstream>
 
 namespace libabckit::test::helpers {
@@ -29,8 +31,9 @@ std::string ExecuteDynamicAbc(const std::string &abcPath, const std::string &ent
     panda::RuntimeOption option;
     option.SetLogLevel(panda::RuntimeOption::LOG_LEVEL::ERROR);
     option.SetGcType(panda::RuntimeOption::GC_TYPE::STW);
-    const size_t pause = 1000U;
-    option.SetLongPauseTime(pause);
+    // The test VM emits INFO-level slow-GC diagnostics even at ERROR log level.
+    // Use the VM's uint32_t threshold limit to keep pauses during tests out of captured program output.
+    option.SetLongPauseTime(std::numeric_limits<uint32_t>::max());
     panda::ecmascript::EcmaVM *vm = panda::JSNApi::CreateJSVM(option);
 
     std::stringstream ss;

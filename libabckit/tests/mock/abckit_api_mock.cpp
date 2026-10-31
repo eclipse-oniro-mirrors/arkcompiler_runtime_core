@@ -58,11 +58,10 @@ void DestroyGraph(AbckitGraph *graph)
     EXPECT_TRUE(graph == DEFAULT_GRAPH);
 }
 
-void SetNeedOptimize(AbckitFile *file, bool needOptimize)
+void SetNeedOptimize(AbckitFile *file, [[maybe_unused]] bool needOptimize)
 {
     g_calledFuncs.push(__func__);
     EXPECT_TRUE(file == DEFAULT_FILE);
-    EXPECT_TRUE(needOptimize);
 }
 
 // NOLINTEND(readability-identifier-naming)
@@ -90,7 +89,7 @@ static AbckitApi g_impl = {
     DestroyGraph,
 
     // ========================================
-    // Switch API entrypoints
+    // Compatibility API entrypoints
     // ========================================
 
     SetNeedOptimize,

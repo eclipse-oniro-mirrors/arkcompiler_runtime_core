@@ -21,6 +21,7 @@
 #include "libabckit/src/adapter_dynamic/metadata_inspect_dynamic.h"
 #include "libabckit/src/wrappers/graph_wrapper/graph_wrapper.h"
 #include "libabckit/src/logger.h"
+#include "libabckit/src/macros.h"
 #include "libabckit/src/metadata_inspect_impl.h"
 #include "assembler/annotation.h"
 #include "assembler/assembly-literals.h"
@@ -39,65 +40,114 @@
 #include <vector>
 #include <tuple>
 
+// CC-OFFNXT(G.PRE.02) code readability
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+#define LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(file, returnvalue)                                                      \
+    AbckitFileApiReadLockSuspension LIBABCKIT_UNIQUE_VAR(fileApiReadLockSuspension)(file);                         \
+    AbckitFileApiWriteLock LIBABCKIT_UNIQUE_VAR(fileApiWriteLock)(file, true, AbckitFileApiWriteMode::STRUCTURAL); \
+    if (LIBABCKIT_UNIQUE_VAR(fileApiWriteLock).HasConflict()) {                                                    \
+        statuses::SetLastError(ABCKIT_STATUS_WRONG_STATE);                                                         \
+        return returnvalue;                                                                                        \
+    }
+
+// CC-OFFNXT(G.PRE.02) code readability
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+#define LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD_VOID(file) LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(file, )
+
 namespace libabckit {
+
+struct AbckitPreparedDynamicFunction {
+    ~AbckitPreparedDynamicFunction()
+    {
+        if (threadState != nullptr) {
+            threadState->FinishOperation();
+        }
+    }
+
+    AbckitCoreFunction *function = nullptr;
+    std::unique_ptr<panda::pandasm::Function> implementation;
+    std::shared_ptr<AbckitFileThreadState> threadState;
+    uint64_t baseStructuralGeneration = 0;
+    uint64_t baseFunctionVersion = 0;
+};
 
 // CC-OFFNXT(WordsTool.95) sensitive word conflict
 // NOLINTNEXTLINE(google-build-using-namespace)
 using namespace panda;
 
+namespace {
+AbckitFile *GetDynamicAnnotationOwnerFile(AbckitCoreAnnotation *anno)
+{
+    if (std::holds_alternative<AbckitCoreFunction *>(anno->owner)) {
+        return std::get<AbckitCoreFunction *>(anno->owner)->owningModule->file;
+    }
+    if (std::holds_alternative<AbckitCoreClass *>(anno->owner)) {
+        return std::get<AbckitCoreClass *>(anno->owner)->owningModule->file;
+    }
+    return nullptr;
+}
+}  // namespace
+
 AbckitString *CreateStringDynamic(AbckitFile *file, const char *value, size_t len)
 {
     LIBABCKIT_LOG_FUNC;
     LIBABCKIT_LOG(DEBUG) << "\"" << value << "\"" << '\n';
-    auto *prog = file->GetDynamicProgram();
-    const auto &[progValueIter, _] = prog->strings.insert(std::string(value, len));
-    const auto &progValue = *progValueIter;
-    auto &strings = file->strings;
-
-    if (strings.find(progValue) != strings.end()) {
-        return strings.at(progValue).get();
-    }
-
-    auto s = std::make_unique<AbckitString>();
-    s->impl = progValue;
-    strings.insert({progValue, std::move(s)});
-    return strings[progValue].get();
-}
-
-void FunctionSetGraphDynamic(AbckitCoreFunction *function, AbckitGraph *graph)
-{
-    if (function->owningModule->file->needOptimize) {
-        std::unordered_map<AbckitCoreFunction *, FunctionStatus *> &functionsMap =
-            function->owningModule->file->functionsMap;
-        functionsMap[function]->writeBack = true;
-    } else {
-        FunctionSetGraphDynamicSync(function, graph);
-    }
-}
-
-void FunctionSetGraphDynamicSync(AbckitCoreFunction *function, AbckitGraph *graph)
-{
-    LIBABCKIT_LOG_FUNC;
-    auto *file = function->owningModule->file;
-
-    // 20260807927972 Task 01-03 (D4): internal prepare/commit. The early stale check rejects an
-    // obviously-stale Graph before codegen; the commit phase rechecks under the cache mutex and
-    // atomically swaps the prepared body, closing the same-function concurrent TOCTOU window. A
-    // Graph is stale if its per-function version OR its structural generation differs from the
-    // file's current value. The cache mutex is shared with the snapshot builder (EmitDynamicProgram),
-    // so a commit never races a concurrent emission.
+    std::string lookupValue(value, len);
     {
-        std::lock_guard<std::mutex> verLk(file->graphCacheMtx);
-        if (graph->functionVersion != file->functionVersions[function] ||
-            graph->structuralGeneration != file->structuralGeneration) {
-            statuses::SetLastError(AbckitStatus::ABCKIT_STATUS_WRONG_STATE);
-            return;
+        AbckitFileStringsCacheReadLock cacheLock(file);
+        auto &strings = file->strings;
+        auto found = strings.find(lookupValue);
+        auto *prog = file->GetDynamicProgram();
+        if (found != strings.end() && prog->strings.find(lookupValue) != prog->strings.end()) {
+            return found->second.get();
         }
     }
 
-    // PREPARE (shared-access, caller-exclusive Graph): generate the candidate function body.
+    AbckitFileStringsCacheWriteLock cacheLock(file);
+    auto &strings = file->strings;
+    auto found = strings.find(lookupValue);
+    auto *prog = file->GetDynamicProgram();
+    const auto &[progValueIter, inserted] = prog->strings.insert(lookupValue);
+    if (inserted) {
+        InvalidateDynamicGraphCache(file);
+    }
+    const auto &progValue = *progValueIter;
+    if (found != strings.end()) {
+        return found->second.get();
+    }
+
+    auto s = std::make_unique<AbckitString>();
+    s->file = file;
+    s->impl = progValue;
+    auto result = strings.emplace(progValue, std::move(s));
+    return result.first->second.get();
+}
+
+AbckitPreparedDynamicFunction *PrepareFunctionSetGraphDynamic(AbckitCoreFunction *function, AbckitGraph *graph)
+{
+    LIBABCKIT_LOG_FUNC;
+    statuses::SetLastError(ABCKIT_STATUS_NO_ERROR);
+
+    auto *file = function->owningModule->file;
+    AbckitFileApiReadLock apiLock(file);
+    if (apiLock.HasConflict()) {
+        statuses::SetLastError(ABCKIT_STATUS_WRONG_STATE);
+        return nullptr;
+    }
+    auto structuralGeneration = file->dynamicStructuralGeneration.load(std::memory_order_acquire);
+    auto ownerStructuralGeneration = GetDynamicStructuralGenerationForThread(file, graph->ownerThreadId);
+    bool ownerStructuralChangesOnly = structuralGeneration >= graph->baseStructuralGeneration &&
+                                      ownerStructuralGeneration >= graph->baseOwnerStructuralGeneration &&
+                                      structuralGeneration - graph->baseStructuralGeneration ==
+                                          ownerStructuralGeneration - graph->baseOwnerStructuralGeneration;
+    if (graph->versionedFunction != function || !ownerStructuralChangesOnly ||
+        graph->baseFunctionVersion != GetDynamicGraphFunctionVersion(file, function)) {
+        LIBABCKIT_LOG(DEBUG) << "Rejecting stale dynamic graph\n";
+        statuses::SetLastError(ABCKIT_STATUS_WRONG_STATE);
+        return nullptr;
+    }
+
     auto func = GetDynFunction(function);
-    auto oldLocalVariableDebug = func->local_variable_debug;
     LIBABCKIT_LOG(DEBUG) << "============================================ BEFORE CODEGEN: " << func->name << '\n';
     LIBABCKIT_LOG_DUMP(func->DebugDump(), DEBUG);
 
@@ -111,75 +161,121 @@ void FunctionSetGraphDynamicSync(AbckitCoreFunction *function, AbckitGraph *grap
         }
         GraphWrapper::BuildPcToLineColumnMap(graph, lineColumnPerIns, pcToLineColumn);
     }
-
     auto res = GraphWrapper::BuildCodeDynamic(graph, func->name, &pcToLineColumn);
     auto status = statuses::GetLastError();
-    if (status != AbckitStatus::ABCKIT_STATUS_NO_ERROR) {
+    if (status != AbckitStatus::ABCKIT_STATUS_NO_ERROR || res == nullptr) {
+        if (status == AbckitStatus::ABCKIT_STATUS_NO_ERROR) {
+            statuses::SetLastError(ABCKIT_STATUS_INTERNAL_ERROR);
+        }
+        return nullptr;
+    }
+
+    LIBABCKIT_LOG(DEBUG) << "============================================ AFTER CODEGEN: " << func->name << '\n';
+    LIBABCKIT_LOG_DUMP((reinterpret_cast<pandasm::Function *>(res))->DebugDump(), DEBUG);
+
+    auto prepared = std::make_unique<AbckitPreparedDynamicFunction>();
+    prepared->function = function;
+    prepared->implementation.reset(reinterpret_cast<pandasm::Function *>(res));
+    if (!file->threadState->TryBeginOperation()) {
+        statuses::SetLastError(ABCKIT_STATUS_WRONG_STATE);
+        return nullptr;
+    }
+    prepared->threadState = file->threadState;
+    prepared->baseStructuralGeneration = structuralGeneration;
+    prepared->baseFunctionVersion = graph->baseFunctionVersion;
+    return prepared.release();
+}
+
+void CommitPreparedFunctionDynamic(AbckitPreparedDynamicFunction *prepared)
+{
+    LIBABCKIT_LOG_FUNC;
+    statuses::SetLastError(ABCKIT_STATUS_NO_ERROR);
+    if (prepared == nullptr || prepared->function == nullptr || prepared->implementation == nullptr) {
+        statuses::SetLastError(ABCKIT_STATUS_BAD_ARGUMENT);
+        delete prepared;
         return;
     }
-    void *fw = res;
 
-    LIBABCKIT_LOG_FUNC;
-    LIBABCKIT_LOG(DEBUG) << "============================================ AFTER CODEGEN: " << func->name << '\n';
-    LIBABCKIT_LOG_DUMP((reinterpret_cast<pandasm::Function *>(fw))->DebugDump(), DEBUG);
-
-    auto *newFunc = reinterpret_cast<pandasm::Function *>(fw);
-
-    // COMMIT (exclusive): recheck the versions, then atomically replace the live function body and
-    // advance the per-function version. If another commit invalidated this Graph during codegen,
-    // discard the prepared body and return WRONG_STATE without overwriting the newer result.
-    {
-        std::lock_guard<std::mutex> verLk(file->graphCacheMtx);
-        if (graph->functionVersion != file->functionVersions[function] ||
-            graph->structuralGeneration != file->structuralGeneration) {
-            statuses::SetLastError(AbckitStatus::ABCKIT_STATUS_WRONG_STATE);
-            delete newFunc;
-            return;
-        }
-        func->ins = std::move(newFunc->ins);
-        func->catch_blocks = newFunc->catch_blocks;
-        func->regs_num = newFunc->regs_num;
-        func->local_variable_debug.clear();
-        for (auto var : oldLocalVariableDebug) {
-            if (var.start >= func->ins.size()) {
-                continue;
-            }
-            auto end = static_cast<size_t>(var.start) + static_cast<size_t>(var.length);
-            if (end > func->ins.size()) {
-                end = func->ins.size();
-            }
-            if (end <= var.start) {
-                continue;
-            }
-            var.length = static_cast<uint32_t>(end - static_cast<size_t>(var.start));
-            func->local_variable_debug.emplace_back(std::move(var));
-        }
-
-        // update IC slot number info in annotation
-        func->slots_num = newFunc->slots_num;
-        static const std::string SLOT_NUMBER = "_ESSlotNumberAnnotation";
-        static const std::string ELEMENT_NAME = "SlotNumber";
-        size_t slotNumAnnoIndex = 0;
-        for (const auto &an : func->metadata->GetAnnotations()) {
-            if (an.GetName() == SLOT_NUMBER) {
-                pandasm::AnnotationElement ele(ELEMENT_NAME, std::make_unique<pandasm::ScalarValue>(
-                                                                 pandasm::ScalarValue::Create<pandasm::Value::Type::U32>(
-                                                                     static_cast<uint32_t>(func->slots_num))));
-                func->metadata->SetOrAddAnnotationElementByIndex(slotNumAnnoIndex, 0, std::move(ele));
-                break;
-            }
-            slotNumAnnoIndex++;
-        }
-
-        // 20260807927972 Task 01-03: advance the per-function version on successful writeback so a
-        // subsequent setGraph of a Graph created before this writeback is rejected as stale.
-        file->functionVersions[function]++;
+    std::unique_ptr<AbckitPreparedDynamicFunction> ownedPrepared(prepared);
+    auto *function = prepared->function;
+    auto *file = function->owningModule->file;
+    AbckitFileApiReadLockSuspension readLockSuspension(file);
+    AbckitFileApiWriteLock apiLock(file);
+    if (apiLock.HasConflict()) {
+        statuses::SetLastError(ABCKIT_STATUS_WRONG_STATE);
+        ownedPrepared.reset();
+        return;
     }
-    delete newFunc;
+    if (prepared->baseStructuralGeneration != file->dynamicStructuralGeneration.load(std::memory_order_acquire) ||
+        prepared->baseFunctionVersion != GetDynamicGraphFunctionVersion(file, function)) {
+        LIBABCKIT_LOG(DEBUG) << "Rejecting stale prepared dynamic function\n";
+        statuses::SetLastError(ABCKIT_STATUS_WRONG_STATE);
+        ownedPrepared.reset();
+        return;
+    }
+
+    auto *func = GetDynFunction(function);
+    auto *newFunc = prepared->implementation.get();
+    auto oldLocalVariableDebug = func->local_variable_debug;
+    func->ins = std::move(newFunc->ins);
+    func->catch_blocks = newFunc->catch_blocks;
+    func->regs_num = newFunc->regs_num;
+    func->local_variable_debug.clear();
+    for (auto var : oldLocalVariableDebug) {
+        if (var.start >= func->ins.size()) {
+            continue;
+        }
+        auto end = static_cast<size_t>(var.start) + static_cast<size_t>(var.length);
+        if (end > func->ins.size()) {
+            end = func->ins.size();
+        }
+        if (end <= var.start) {
+            continue;
+        }
+        var.length = static_cast<uint32_t>(end - static_cast<size_t>(var.start));
+        func->local_variable_debug.emplace_back(std::move(var));
+    }
+    // update IC slot number info in annotation
+    func->slots_num = newFunc->slots_num;
+    static const std::string SLOT_NUMBER = "_ESSlotNumberAnnotation";
+    static const std::string ELEMENT_NAME = "SlotNumber";
+    size_t slotNumAnnoIndex = 0;
+    for (const auto &an : func->metadata->GetAnnotations()) {
+        if (an.GetName() == SLOT_NUMBER) {
+            pandasm::AnnotationElement ele(ELEMENT_NAME, std::make_unique<pandasm::ScalarValue>(
+                                                             pandasm::ScalarValue::Create<pandasm::Value::Type::U32>(
+                                                                 static_cast<uint32_t>(func->slots_num))));
+            func->metadata->SetOrAddAnnotationElementByIndex(slotNumAnnoIndex, 0, std::move(ele));
+            break;
+        }
+        slotNumAnnoIndex++;
+    }
+    MarkDynamicGraphCacheFunctionDirty(file, function);
+    // Release the prepared-operation token while the API write lock is still held.
+    // Otherwise closeFile/writeAbc can observe the lock as free while the file still
+    // has a live prepared operation and reject an otherwise valid request.
+    ownedPrepared.reset();
+}
+
+void DestroyPreparedFunctionDynamic(AbckitPreparedDynamicFunction *prepared)
+{
+    delete prepared;
+}
+
+void FunctionSetGraphDynamic(AbckitCoreFunction *function, AbckitGraph *graph)
+{
+    auto *prepared = PrepareFunctionSetGraphDynamic(function, graph);
+    if (prepared == nullptr) {
+        return;
+    }
+    CommitPreparedFunctionDynamic(prepared);
 }
 
 AbckitJsModule *FileAddExternalJsModule(AbckitFile *file, const struct AbckitJsExternalModuleCreateParams *params)
 {
+    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(file, nullptr)
+    InvalidateDynamicGraphCacheForStructuralChange(file);
+
     auto m = std::make_unique<AbckitCoreModule>();
     m->impl = std::make_unique<AbckitJsModule>();
     m->file = file;
@@ -194,6 +290,7 @@ AbckitJsModule *FileAddExternalJsModule(AbckitFile *file, const struct AbckitJsE
         m->moduleName = strings.at(params->name).get();
     } else {
         auto s = std::make_unique<AbckitString>();
+        s->file = file;
         s->impl = params->name;
         strings.insert({params->name, std::move(s)});
         m->moduleName = strings[params->name].get();
@@ -221,23 +318,15 @@ AbckitJsModule *FileAddExternalJsModule(AbckitFile *file, const struct AbckitJsE
         it->second->GetJsImpl()->impl = modulePayloadDyn;
         it->second->target = ABCKIT_TARGET_JS;
     }
-    // 20260807927972 Task 01-03: adding a module is a structural metadata change. Advance the
-    // file's structuralGeneration so all Graphs built before this change are rejected as stale
-    // (WRONG_STATE) by functionSetGraph's commit recheck, and mark the cached snapshot stale
-    // (generated=false) so the next createGraph re-emits. The old pf/irInterface is left in place
-    // for existing Graphs' destroyGraph and is cleaned by the next builder under graphCacheMtx.
-    {
-        std::lock_guard<std::mutex> lk(file->graphCacheMtx);
-        file->generateStatus.generated = false;
-        file->graphCacheFailed = false;
-        file->structuralGeneration++;
-    }
     return it->second->GetJsImpl();
 }
 
 AbckitArktsModule *FileAddExternalArkTsV1Module(AbckitFile *file,
                                                 const struct AbckitArktsV1ExternalModuleCreateParams *params)
 {
+    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(file, nullptr)
+    InvalidateDynamicGraphCacheForStructuralChange(file);
+
     auto m = std::make_unique<AbckitCoreModule>();
     m->impl = std::make_unique<AbckitArktsModule>();
     m->file = file;
@@ -252,6 +341,7 @@ AbckitArktsModule *FileAddExternalArkTsV1Module(AbckitFile *file,
         m->moduleName = strings.at(params->name).get();
     } else {
         auto s = std::make_unique<AbckitString>();
+        s->file = file;
         s->impl = params->name;
         strings.insert({params->name, std::move(s)});
         m->moduleName = strings[params->name].get();
@@ -280,6 +370,8 @@ AbckitArktsModule *FileAddExternalArkTsV1Module(AbckitFile *file,
 void ModuleRemoveImportDynamic(AbckitCoreModule *m, AbckitArktsImportDescriptor *i)
 {
     LIBABCKIT_LOG_FUNC;
+    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD_VOID(m->file)
+    InvalidateDynamicGraphCacheForStructuralChange(m->file);
     auto found = std::find_if(m->id.begin(), m->id.end(),
                               [&](std::unique_ptr<AbckitCoreImportDescriptor> const &d) { return d.get() == i->core; });
     if (found == m->id.end()) {
@@ -302,6 +394,8 @@ void ModuleRemoveImportDynamic(AbckitCoreModule *m, AbckitArktsImportDescriptor 
 void ModuleRemoveImportDynamic(AbckitCoreModule *m, AbckitJsImportDescriptor *i)
 {
     LIBABCKIT_LOG_FUNC;
+    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD_VOID(m->file)
+    InvalidateDynamicGraphCacheForStructuralChange(m->file);
     auto found = std::find_if(m->id.begin(), m->id.end(),
                               [&](std::unique_ptr<AbckitCoreImportDescriptor> const &d) { return d.get() == i->core; });
     if (found == m->id.end()) {
@@ -466,6 +560,9 @@ AbckitArktsImportDescriptor *ModuleAddImportFromDynamicModuleDynamic(
     AbckitCoreModule *importing, AbckitCoreModule *imported,
     const AbckitArktsImportFromDynamicModuleCreateParams *params)
 {
+    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(importing->file, nullptr)
+    InvalidateDynamicGraphCacheForStructuralChange(importing->file);
+
     auto id = std::make_unique<AbckitCoreImportDescriptor>();
     id->importingModule = importing;
     // The target may differ from `imported`: a "@normalized:" carrier resolves
@@ -488,6 +585,9 @@ AbckitArktsImportDescriptor *ModuleAddImportFromDynamicModuleDynamic(
 AbckitJsImportDescriptor *ModuleAddImportFromDynamicModuleDynamic(
     AbckitCoreModule *importing, AbckitCoreModule *imported, const AbckitJsImportFromDynamicModuleCreateParams *params)
 {
+    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(importing->file, nullptr)
+    InvalidateDynamicGraphCacheForStructuralChange(importing->file);
+
     auto id = std::make_unique<AbckitCoreImportDescriptor>();
     id->importingModule = importing;
     // The target may differ from `imported`: a "@normalized:" carrier resolves
@@ -652,6 +752,9 @@ size_t AddExportToModuleLiteralArray(AbckitCoreModule *exporting, AbckitCoreModu
 AbckitArktsExportDescriptor *DynamicModuleAddExportDynamic(AbckitCoreModule *exporting, AbckitCoreModule *exported,
                                                            const AbckitArktsDynamicModuleExportCreateParams *params)
 {
+    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(exporting->file, nullptr)
+    InvalidateDynamicGraphCacheForStructuralChange(exporting->file);
+
     auto ed = std::make_unique<AbckitCoreExportDescriptor>();
     ed->exportingModule = exporting;
     ed->exportedModule = exported;
@@ -682,6 +785,9 @@ AbckitArktsExportDescriptor *DynamicModuleAddExportDynamic(AbckitCoreModule *exp
 AbckitJsExportDescriptor *DynamicModuleAddExportDynamic(AbckitCoreModule *exporting, AbckitCoreModule *exported,
                                                         const AbckitJsDynamicModuleExportCreateParams *params)
 {
+    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(exporting->file, nullptr)
+    InvalidateDynamicGraphCacheForStructuralChange(exporting->file);
+
     auto ed = std::make_unique<AbckitCoreExportDescriptor>();
     ed->exportingModule = exporting;
     ed->exportedModule = exported;
@@ -711,6 +817,8 @@ AbckitJsExportDescriptor *DynamicModuleAddExportDynamic(AbckitCoreModule *export
 void ModuleRemoveExportDynamic(AbckitCoreModule *m, AbckitArktsExportDescriptor *i)
 {
     LIBABCKIT_LOG_FUNC;
+    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD_VOID(m->file)
+    InvalidateDynamicGraphCacheForStructuralChange(m->file);
     auto found = std::find_if(m->ed.begin(), m->ed.end(),
                               [&](std::unique_ptr<AbckitCoreExportDescriptor> const &d) { return d.get() == i->core; });
     if (found == m->ed.end()) {
@@ -748,6 +856,8 @@ void ModuleRemoveExportDynamic(AbckitCoreModule *m, AbckitArktsExportDescriptor 
 void ModuleRemoveExportDynamic(AbckitCoreModule *m, AbckitJsExportDescriptor *i)
 {
     LIBABCKIT_LOG_FUNC;
+    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD_VOID(m->file)
+    InvalidateDynamicGraphCacheForStructuralChange(m->file);
     auto found = std::find_if(m->ed.begin(), m->ed.end(),
                               [&](std::unique_ptr<AbckitCoreExportDescriptor> const &d) { return d.get() == i->core; });
     if (found == m->ed.end()) {
@@ -845,6 +955,7 @@ AbckitLiteral *FindOrCreateLiteralMethodDynamic(AbckitFile *file, AbckitCoreFunc
 AbckitLiteral *FindOrCreateLiteralLiteralArrayDynamic(AbckitFile *file, AbckitLiteralArray *litarr)
 {
     LIBABCKIT_LOG_FUNC;
+    LIBABCKIT_FILE_READ_GUARD(file);
     std::string arrName;
     for (auto &item : file->GetDynamicProgram()->literalarray_table) {
         if (&item.second == litarr->GetDynamicImpl()) {
@@ -864,6 +975,9 @@ AbckitLiteral *FindOrCreateLiteralNullValueDynamic(AbckitFile *file)
 AbckitLiteralArray *CreateLiteralArrayDynamic(AbckitFile *file, AbckitLiteral **value, size_t size)
 {
     LIBABCKIT_LOG_FUNC;
+    AbckitFileApiReadLockSuspension readLockSuspension(file);
+    LIBABCKIT_FILE_WRITE_GUARD(file, nullptr)
+    InvalidateDynamicGraphCache(file);
     auto *prog = file->GetDynamicProgram();
 
     std::vector<pandasm::LiteralArray::Literal> stdLitArr;
@@ -919,6 +1033,8 @@ AbckitValue *FindOrCreateValueStringDynamic(AbckitFile *file, const char *value,
 AbckitValue *FindOrCreateLiteralArrayValueDynamic(AbckitFile *file, AbckitValue **value, size_t size)
 {
     LIBABCKIT_LOG_FUNC;
+    AbckitFileApiReadLockSuspension readLockSuspension(file);
+    LIBABCKIT_FILE_WRITE_GUARD(file, nullptr)
     std::vector<AbckitLiteral *> litArr;
     for (size_t i = 0; i < size; i++) {
         // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
@@ -953,6 +1069,9 @@ AbckitValue *FindOrCreateLiteralArrayValueDynamic(AbckitFile *file, AbckitValue 
 AbckitArktsAnnotationInterface *ModuleAddAnnotationInterfaceDynamic(
     AbckitCoreModule *m, const AbckitArktsAnnotationInterfaceCreateParams *params)
 {
+    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(m->file, nullptr)
+    InvalidateDynamicGraphCacheForStructuralChange(m->file);
+
     std::string name = params->name;
     auto prog = m->file->GetDynamicProgram();
     auto progRecord = pandasm::Record {name, prog->lang};
@@ -970,6 +1089,9 @@ AbckitArktsAnnotationInterface *ModuleAddAnnotationInterfaceDynamic(
 AbckitArktsAnnotation *ClassAddAnnotationDynamic(AbckitCoreClass *klass,
                                                  const AbckitArktsAnnotationCreateParams *params)
 {
+    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(klass->owningModule->file, nullptr)
+    InvalidateDynamicGraphCacheForStructuralChange(klass->owningModule->file);
+
     auto ai = params->ai;
 
     auto progFunc = klass->GetArkTSImpl()->impl.GetDynamicClass();
@@ -991,26 +1113,36 @@ AbckitArktsAnnotation *ClassAddAnnotationDynamic(AbckitCoreClass *klass,
 
 void ClassRemoveAnnotationDynamic(AbckitCoreClass *klass, AbckitCoreAnnotation *anno)
 {
+    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD_VOID(klass->owningModule->file)
+
     auto progFunc = klass->GetArkTSImpl()->impl.GetDynamicClass();
-
-    auto name = anno->name->impl;
-
-    progFunc->metadata->DeleteAnnotationByName(name);
     auto &annotations = klass->annotations;
     auto iter = std::find_if(annotations.begin(), annotations.end(),
-                             [&name](auto &annoIt) { return name == annoIt.get()->name->impl; });
+                             [anno](const auto &annoIt) { return anno == annoIt.get(); });
     if (iter == annotations.end()) {
         LIBABCKIT_LOG(DEBUG) << "Can not find the annotation to delete\n";
         statuses::SetLastError(AbckitStatus::ABCKIT_STATUS_BAD_ARGUMENT);
         return;
     }
 
+    // Unresolved interfaces are valid for loaded annotations, but their display name is not
+    // sufficient to identify the Program annotation. Reject without changing either representation.
+    if (anno->ai == nullptr) {
+        statuses::SetLastError(ABCKIT_STATUS_UNSUPPORTED);
+        return;
+    }
+    auto programName = anno->ai->GetArkTSImpl()->GetDynamicImpl()->name;
+    InvalidateDynamicGraphCacheForStructuralChange(klass->owningModule->file);
+    progFunc->metadata->DeleteAnnotationByName(programName);
     annotations.erase(iter);
 }
 
 AbckitArktsAnnotation *FunctionAddAnnotationDynamic(AbckitCoreFunction *function,
                                                     const AbckitArktsAnnotationCreateParams *params)
 {
+    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(function->owningModule->file, nullptr)
+    InvalidateDynamicGraphCacheForStructuralChange(function->owningModule->file);
+
     auto ai = params->ai;
 
     auto progFunc = function->GetArkTSImpl()->GetDynamicImpl();
@@ -1032,6 +1164,9 @@ AbckitArktsAnnotation *FunctionAddAnnotationDynamic(AbckitCoreFunction *function
 
 void FunctionRemoveAnnotationDynamic(AbckitCoreFunction *function, AbckitCoreAnnotation *anno)
 {
+    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD_VOID(function->owningModule->file)
+    InvalidateDynamicGraphCacheForStructuralChange(function->owningModule->file);
+
     auto progFunc = function->GetArkTSImpl()->GetDynamicImpl();
 
     auto name = anno->name->impl;
@@ -1052,6 +1187,11 @@ void FunctionRemoveAnnotationDynamic(AbckitCoreFunction *function, AbckitCoreAnn
 AbckitArktsAnnotationElement *AnnotationAddAnnotationElementDynamic(AbckitCoreAnnotation *anno,
                                                                     AbckitArktsAnnotationElementCreateParams *params)
 {
+    auto *file = GetDynamicAnnotationOwnerFile(anno);
+    LIBABCKIT_WRONG_CTX(file, params->value->file, nullptr)
+    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(file, nullptr)
+    InvalidateDynamicGraphCacheForStructuralChange(file);
+
     auto valuePtr = params->value;
     auto name = params->name;
 
@@ -1062,18 +1202,17 @@ AbckitArktsAnnotationElement *AnnotationAddAnnotationElementDynamic(AbckitCoreAn
     annoElem->ann = anno;
     auto annoElemName = progAnnoElem.GetName();
     annoElem->name = CreateStringDynamic(anno->ai->owningModule->file, annoElemName.data(), annoElemName.size());
+    // The file-owned value may already be shared with readers. Its owner must stay immutable.
     annoElem->value = valuePtr;
 
     if (std::holds_alternative<AbckitCoreFunction *>(anno->owner)) {
         auto *func = std::get<AbckitCoreFunction *>(anno->owner);
         auto progOwner = func->GetArkTSImpl()->GetDynamicImpl();
         progOwner->metadata->AddAnnotationElementByName(name, std::move(progAnnoElem));
-        annoElem->value->file = func->owningModule->file;
     } else if (std::holds_alternative<AbckitCoreClass *>(anno->owner)) {
         auto *klass = std::get<AbckitCoreClass *>(anno->owner);
         auto progOwner = klass->GetArkTSImpl()->impl.GetDynamicClass();
         progOwner->metadata->AddAnnotationElementByName(name, std::move(progAnnoElem));
-        annoElem->value->file = klass->owningModule->file;
     }
 
     annoElem->impl = std::make_unique<AbckitArktsAnnotationElement>();
@@ -1084,6 +1223,10 @@ AbckitArktsAnnotationElement *AnnotationAddAnnotationElementDynamic(AbckitCoreAn
 
 void AnnotationRemoveAnnotationElementDynamic(AbckitCoreAnnotation *anno, AbckitCoreAnnotationElement *elem)
 {
+    auto *file = GetDynamicAnnotationOwnerFile(anno);
+    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD_VOID(file)
+    InvalidateDynamicGraphCacheForStructuralChange(file);
+
     if (elem->ann != anno) {
         statuses::SetLastError(ABCKIT_STATUS_BAD_ARGUMENT);
         return;
@@ -1156,6 +1299,9 @@ static std::string TypeToName(AbckitType *type)
 AbckitArktsAnnotationInterfaceField *AnnotationInterfaceAddFieldDynamic(
     AbckitCoreAnnotationInterface *ai, const AbckitArktsAnnotationInterfaceFieldCreateParams *params)
 {
+    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(ai->owningModule->file, nullptr)
+    InvalidateDynamicGraphCacheForStructuralChange(ai->owningModule->file);
+
     auto name = params->name;
     auto type = params->type;
     auto value = params->defaultValue;
@@ -1186,6 +1332,9 @@ AbckitArktsAnnotationInterfaceField *AnnotationInterfaceAddFieldDynamic(
 
 void AnnotationInterfaceRemoveFieldDynamic(AbckitCoreAnnotationInterface *ai, AbckitCoreAnnotationInterfaceField *field)
 {
+    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD_VOID(ai->owningModule->file)
+    InvalidateDynamicGraphCacheForStructuralChange(ai->owningModule->file);
+
     if (field->ai != ai) {
         statuses::SetLastError(ABCKIT_STATUS_BAD_ARGUMENT);
         return;
@@ -1222,3 +1371,6 @@ void AnnotationInterfaceRemoveFieldDynamic(AbckitCoreAnnotationInterface *ai, Ab
 }
 
 }  // namespace libabckit
+
+#undef LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD
+#undef LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD_VOID

@@ -13,20 +13,8 @@
  * limitations under the License.
  */
 
-// 20260807927972 Task 02-08: replace_call_site scenario — serial vs 4-worker-parallel equivalence.
-//
-// The serial replace_call_site transform (an inline free function, not a class) parses the
-// @CallSiteReplacement annotation on ApiControl.fixOrientationLinearLayout, then per target method:
-// adds a module import, creates a Graph, visits blocks replacing the setOrientation call site with
-// fixOrientationLinearLayout, functionSetGraph, destroyGraph. The module-import addition is a
-// MODULE-LEVEL mutation NOT covered by the D1/D4 Graph/function thread-safety hardening, so the
-// 4-worker version refactors it: AddImportOnce runs on the main thread (one import on the shared
-// module), workers share the read-only import descriptor + run only the per-function D1/D4 paths.
-//
-// IMPORTANT: UserData (ud) holds pointers (AbckitString*, AbckitCoreClass/Function*) into the file
-// it was parsed on — so ud is parsed PER SECTION on each section's own open file (never reused
-// across a close/reopen, which would be use-after-free). getLastError() is process-global, so
-// workers assert only on pointers; the post-join output comparison is the reliable correctness check.
+// 20260807927972 Task 02-08: replace_call_site, serial versus four workers on distinct functions.
+// Each worker owns its graph; committed graphs are destroyed before file persistence.
 
 #include "libabckit/c/abckit.h"
 #include "libabckit/c/ir_core.h"
@@ -212,9 +200,9 @@ static AbckitCoreImportDescriptor *AddImportOnce(AbckitFile *file, UserData &ud)
     if (mainFinder.module == nullptr) {
         return nullptr;
     }
-    auto *newImport = g_implArkM->moduleAddImportFromArktsV1ToArktsV1(
-        g_implArkI->coreModuleToArktsModule(mainFinder.module),
-        g_implArkI->coreModuleToArktsModule(apiFinder.module), &params);
+    auto *newImport =
+        g_implArkM->moduleAddImportFromArktsV1ToArktsV1(g_implArkI->coreModuleToArktsModule(mainFinder.module),
+                                                        g_implArkI->coreModuleToArktsModule(apiFinder.module), &params);
     if (newImport == nullptr) {
         return nullptr;
     }
@@ -224,8 +212,7 @@ static AbckitCoreImportDescriptor *AddImportOnce(AbckitFile *file, UserData &ud)
 // Worker task: per-function call-site replacement using the shared import descriptor. Runs the D1
 // (createGraphFromFunction) + D4 (functionSetGraph) paths on a distinct function; the import
 // descriptor is read-only (used only to create ldExternalModulevar insts in this Graph).
-static bool ReplaceCallSiteInFunction(AbckitCoreFunction *method, UserData &ud,
-                                      AbckitCoreImportDescriptor *coreImport)
+static bool ReplaceCallSiteInFunction(AbckitCoreFunction *method, UserData &ud, AbckitCoreImportDescriptor *coreImport)
 {
     auto ctxG = g_implI->createGraphFromFunction(method);
     if (ctxG == nullptr) {
@@ -263,8 +250,7 @@ static AbckitCoreImportDescriptor *SetupFile(AbckitFile *file, UserData &ud)
     return AddImportOnce(file, ud);
 }
 
-static void EnumerateTargetMethods(AbckitFile *file, UserData &ud,
-                                   const std::function<void(AbckitCoreFunction *)> &cb)
+static void EnumerateTargetMethods(AbckitFile *file, UserData &ud, const std::function<void(AbckitCoreFunction *)> &cb)
 {
     auto visitor = VisitHelper(file, g_impl, g_implI, g_implG, g_dynG);
     visitor.EnumerateModules([&](AbckitCoreModule *mod) {

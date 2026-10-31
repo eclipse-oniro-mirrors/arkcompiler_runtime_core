@@ -1016,6 +1016,8 @@ struct CAPI_EXPORT AbckitArktsModifyApi {
      * @note Set `ABCKIT_STATUS_UNSUPPORTED` error if class `klass` doesn't have `ABCKIT_TARGET_ARK_TS_V1` or
      * `ABCKIT_TARGET_ARK_TS_V2` target.
      * @note Set `ABCKIT_STATUS_BAD_ARGUMENT` error if class `klass` doesn't have the annotation `anno`.
+     * @note Set `ABCKIT_STATUS_UNSUPPORTED` error if a Dynamic annotation has no resolved annotation interface.
+     * In this case the annotation is not removed.
      */
     void (*classRemoveAnnotation)(AbckitArktsClass *klass, AbckitArktsAnnotation *anno);
 
@@ -1608,6 +1610,8 @@ struct CAPI_EXPORT AbckitArktsModifyApi {
      * @param [ in ] params -  Data that is used to create the annotation element.
      * @note Set `ABCKIT_STATUS_BAD_ARGUMENT` error if `anno` is NULL.
      * @note Set `ABCKIT_STATUS_BAD_ARGUMENT` error if `params` is NULL.
+     * @note Set `ABCKIT_STATUS_WRONG_CTX` error for `ABCKIT_TARGET_ARK_TS_V1` if `params->value` belongs to a different
+     * file than `anno`. The value remains owned by its original file.
      * @note Set `ABCKIT_STATUS_UNSUPPORTED` error if annotation `anno` doesn't have `ABCKIT_TARGET_ARK_TS_V1` or
      * `ABCKIT_TARGET_ARK_TS_V2` target.
      * @note Allocates

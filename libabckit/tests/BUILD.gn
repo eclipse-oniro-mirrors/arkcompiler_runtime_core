@@ -107,6 +107,7 @@ abckit_gtests_sources = [
   "ut/thread_safety/dynamic_branch_eliminator_serial_parallel_test.cpp",
   "ut/thread_safety/dynamic_parameter_check_serial_parallel_test.cpp",
   "ut/thread_safety/dynamic_replace_call_site_serial_parallel_test.cpp",
+  "ut/ir_core/ir_interface/ir_interface_test.cpp",
   "ut/name_util_test.cpp",
 
   # 29942

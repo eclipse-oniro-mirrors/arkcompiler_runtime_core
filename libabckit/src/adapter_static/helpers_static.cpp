@@ -555,6 +555,14 @@ uint32_t GetMethodOffset(AbckitGraph *graph, AbckitCoreFunction *function)
         }
     }
     if (methodOffset == 0) {
+        for (const auto &[id, s] : graph->irInterface->GetMethods()) {
+            if (s == funcName) {
+                methodOffset = id;
+                break;
+            }
+        }
+    }
+    if (methodOffset == 0) {
         LIBABCKIT_LOG(DEBUG) << "methodOffset == 0\n";
         LIBABCKIT_UNREACHABLE;
     }
@@ -568,6 +576,15 @@ uint32_t GetStringOffset(AbckitGraph *graph, AbckitString *string)
     for (auto &[id, s] : graph->irInterface->strings) {
         if (s == string->impl) {
             stringOffset = id;
+            break;
+        }
+    }
+    if (stringOffset == 0) {
+        for (const auto &[id, s] : graph->irInterface->GetStrings()) {
+            if (s == string->impl) {
+                stringOffset = id;
+                break;
+            }
         }
     }
 
@@ -578,7 +595,8 @@ uint32_t GetStringOffset(AbckitGraph *graph, AbckitString *string)
             LIBABCKIT_LOG(DEBUG) << "generating new stringOffset\n";
             // NOLINTNEXTLINE(cert-msc50-cpp)
             stringOffset++;
-        } while (graph->irInterface->strings.find(stringOffset) != graph->irInterface->strings.end());
+        } while (graph->irInterface->strings.find(stringOffset) != graph->irInterface->strings.end() ||
+                 graph->irInterface->GetStrings().find(stringOffset) != graph->irInterface->GetStrings().end());
         // insert new string id
         graph->irInterface->strings.insert({stringOffset, string->impl.data()});
     }
@@ -593,6 +611,15 @@ uint32_t GetFieldOffset(AbckitGraph *graph, AbckitString *string)
     for (auto &[id, s] : graph->irInterface->fields) {
         if (s == string->impl) {
             fieldOffset = id;
+            break;
+        }
+    }
+    if (fieldOffset == 0) {
+        for (const auto &[id, s] : graph->irInterface->GetFields()) {
+            if (s == string->impl) {
+                fieldOffset = id;
+                break;
+            }
         }
     }
 
@@ -603,7 +630,8 @@ uint32_t GetFieldOffset(AbckitGraph *graph, AbckitString *string)
             LIBABCKIT_LOG(DEBUG) << "generating new fieldOffset\n";
             // NOLINTNEXTLINE(cert-msc50-cpp)
             fieldOffset++;
-        } while (graph->irInterface->fields.find(fieldOffset) != graph->irInterface->fields.end());
+        } while (graph->irInterface->fields.find(fieldOffset) != graph->irInterface->fields.end() ||
+                 graph->irInterface->GetFields().find(fieldOffset) != graph->irInterface->GetFields().end());
         // insert new string id
         graph->irInterface->fields.insert({fieldOffset, string->impl.data()});
     }
@@ -636,6 +664,15 @@ uint32_t GetLiteralArrayOffset(AbckitGraph *graph, AbckitLiteralArray *arr)
     for (auto &[id, s] : graph->irInterface->literalarrays) {
         if (s == arrName) {
             arrayOffset = id;
+            break;
+        }
+    }
+    if (arrayOffset == 0) {
+        for (const auto &[id, s] : graph->irInterface->GetLiteralArrays()) {
+            if (s == arrName) {
+                arrayOffset = id;
+                break;
+            }
         }
     }
 
@@ -646,7 +683,9 @@ uint32_t GetLiteralArrayOffset(AbckitGraph *graph, AbckitLiteralArray *arr)
             LIBABCKIT_LOG(DEBUG) << "generating new arrayOffset\n";
             // NOLINTNEXTLINE(cert-msc50-cpp)
             arrayOffset++;
-        } while (graph->irInterface->literalarrays.find(arrayOffset) != graph->irInterface->literalarrays.end());
+        } while (graph->irInterface->literalarrays.find(arrayOffset) != graph->irInterface->literalarrays.end() ||
+                 graph->irInterface->GetLiteralArrays().find(arrayOffset) !=
+                     graph->irInterface->GetLiteralArrays().end());
         // insert new literal array
         graph->irInterface->literalarrays.insert({arrayOffset, arrName});
     }

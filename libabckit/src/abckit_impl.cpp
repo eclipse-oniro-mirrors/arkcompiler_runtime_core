@@ -91,9 +91,14 @@ extern "C" void WriteAbc(AbckitFile *file, const char *path, size_t len)
     LIBABCKIT_BAD_ARGUMENT_VOID(file)
     LIBABCKIT_BAD_ARGUMENT_VOID(path)
     LIBABCKIT_ZERO_ARGUMENT_VOID(len)
+    LIBABCKIT_FILE_WRITE_GUARD_VOID(file)
 
     switch (file->frontend) {
         case Mode::DYNAMIC:
+            if (!file->threadState->CanWriteFromRegisteredOperation()) {
+                statuses::SetLastError(ABCKIT_STATUS_WRONG_STATE);
+                return;
+            }
             return WriteAbcDynamic(file, path, len);
         case Mode::STATIC:
             return WriteAbcStatic(file, path, len);
@@ -109,15 +114,25 @@ extern "C" void CloseFile(AbckitFile *file)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT_VOID(file);
-
-    switch (file->frontend) {
-        case Mode::DYNAMIC:
-            return CloseFileDynamic(file);
-        case Mode::STATIC:
-            return CloseFileStatic(file);
-        default:
-            LIBABCKIT_UNREACHABLE;
+    if (file->frontend == Mode::STATIC) {
+        CloseFileStatic(file);
+        return;
     }
+
+    AbckitFileApiWriteLock apiLock(file, false);
+    if (apiLock.HasConflict()) {
+        statuses::SetLastError(ABCKIT_STATUS_WRONG_STATE);
+        return;
+    }
+
+    auto threadState = file->threadState;
+    if (!threadState->TryBeginClose()) {
+        statuses::SetLastError(ABCKIT_STATUS_WRONG_STATE);
+        return;
+    }
+
+    CloseFileDynamic(file);
+    threadState->FinishClose();
 }
 
 extern "C" void DestroyGraph(AbckitGraph *graph)
@@ -127,22 +142,27 @@ extern "C" void DestroyGraph(AbckitGraph *graph)
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT_VOID(graph);
+    LIBABCKIT_FILE_READ_GUARD_VOID(graph->file);
 
+    auto threadState = graph->fileThreadState;
+    const bool lifecycleTracked = graph->lifecycleTracked;
     if (IsDynamic(graph->function->owningModule->target)) {
-        return DestroyGraphDynamic(graph);
+        DestroyGraphDynamic(graph);
+    } else {
+        DestroyGraphStatic(graph);
     }
-    DestroyGraphStatic(graph);
+    if (lifecycleTracked) {
+        threadState->FinishGraph();
+    }
 }
 
-extern "C" void SetNeedOptimize(AbckitFile *file, bool needOptimize)
+extern "C" void SetNeedOptimize(AbckitFile *file, [[maybe_unused]] bool needOptimize)
 {
     LIBABCKIT_CLEAR_LAST_ERROR;
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
 
     LIBABCKIT_BAD_ARGUMENT_VOID(file);
-
-    file->needOptimize = needOptimize;
 }
 
 AbckitApi g_impl = {
@@ -168,7 +188,7 @@ AbckitApi g_impl = {
     DestroyGraph,
 
     // ========================================
-    // Switch API entrypoints
+    // Compatibility API entrypoints
     // ========================================
 
     SetNeedOptimize,
