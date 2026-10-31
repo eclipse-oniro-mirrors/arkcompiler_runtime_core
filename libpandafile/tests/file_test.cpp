@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2021-2022 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -28,6 +28,7 @@
 #include <unistd.h>
 #endif
 
+#include <thread>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -93,6 +94,20 @@ bool CheckAnonMemoryName([[maybe_unused]] const char *zip_archive_name)
 #else
     return true;
 #endif
+}
+
+static constexpr size_t CONCURRENT_OPEN_ITERATIONS = 50;
+
+static void OpenPandaFileRepeatedly(const char *zip_filename)
+{
+    for (size_t i = 0; i < CONCURRENT_OPEN_ITERATIONS; i++) {
+        auto pf = OpenPandaFile(zip_filename);
+        if (pf == nullptr) {
+            ADD_FAILURE() << "OpenPandaFile failed, iteration: " << i;
+            return;
+        }
+        EXPECT_STREQ(pf->GetFilename().c_str(), zip_filename);
+    }
 }
 
 HWTEST(File, GetClassByName, testing::ext::TestSize.Level0)
@@ -200,6 +215,41 @@ HWTEST(File, OpenPandaFileFromZipNameAnonMem, testing::ext::TestSize.Level0)
     ASSERT_TRUE(CheckAnonMemoryName(zip_filename));
 
     remove(zip_filename);
+}
+
+HWTEST(File, OpenPandaFileFromZipConcurrently, testing::ext::TestSize.Level0)
+{
+    // Create ZIPs with compressed entries, so that opening them goes through
+    // OpenPandaFileFromZipFile (AnonMemSet::Insert) and destroying the File
+    // goes through ~File (AnonMemSet::Remove).
+    auto data = GetEmptyPandaFileBytes();
+    const char *zip_filenames[] = {"__OpenPandaFileFromZipConcurrently0__.zip",
+                                   "__OpenPandaFileFromZipConcurrently1__.zip"};
+    for (auto zip_filename : zip_filenames) {
+        int ret =
+            CreateOrAddZipPandaFile(&data, zip_filename, ARCHIVE_FILENAME, APPEND_STATUS_CREATE, Z_BEST_COMPRESSION);
+        ASSERT_EQ(ret, 0);
+    }
+
+    // Threads with the same index parity share the same ZIP (same AnonMemSet key),
+    // which also exercises concurrent modifications of different keys.
+    constexpr size_t THREAD_COUNT = 4;
+    std::vector<std::thread> threads;
+    for (size_t i = 0; i < THREAD_COUNT; i++) {
+        threads.emplace_back(OpenPandaFileRepeatedly, zip_filenames[i % 2U]);  // 2 - zip files count
+    }
+    for (auto &thread : threads) {
+        thread.join();
+    }
+
+    // Open once more after all concurrent open/close cycles to make sure the state is consistent.
+    auto pf = OpenPandaFile(zip_filenames[0]);
+    EXPECT_NE(pf, nullptr);
+    ASSERT_TRUE(CheckAnonMemoryName(zip_filenames[0]));
+
+    for (auto zip_filename : zip_filenames) {
+        remove(zip_filename);
+    }
 }
 
 HWTEST(File, OpenPandaFileOrZip, testing::ext::TestSize.Level0)
