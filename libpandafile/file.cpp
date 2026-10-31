@@ -134,8 +134,15 @@ std::unique_ptr<const panda_file::File> OpenPandaFileFromZipFile(ZipArchiveHandl
     auto it = AnonMemSet::GetInstance().Insert(std::string(location), ss.str());
     auto ret = os::mem::TagAnonymousMemory(reinterpret_cast<void *>(ptr.Get()), size_to_mmap, it->second.c_str());
     if (ret.has_value()) {
+#if defined(PANDA_TARGET_OHOS) && defined(PANDA_TARGET_AMD64)
+        // The kernel of the x86_64_virt emulator is built without CONFIG_ANON_VMA_NAME, so
+        // prctl(PR_SET_VMA_ANON_NAME) fails with EINVAL. Tagging is for observability only,
+        // keep going without the tag on the emulator.
+        LOG(DEBUG, PANDAFILE) << "Can't tag mmap anonymous, errno: " << errno;
+#else
         LOG(ERROR, PANDAFILE) << "Can't tag mmap anonymous!";
         return nullptr;
+#endif
     }
 
     auto extract_error = ExtractToMemory(handle, reinterpret_cast<uint8_t *>(ptr.Get()), size_to_mmap);
