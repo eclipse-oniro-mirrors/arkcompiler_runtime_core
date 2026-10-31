@@ -47,6 +47,7 @@ const std::string PARALLEL_OUT = DIR + "branch_eliminator_parallel.abc";
 // Final constant value true differs from the origin (false), so a successful transform changes
 // the observable output.
 constexpr bool CONFIG_FINAL = true;
+constexpr int K_WORKER_COUNT = 4;  // parallel worker pool size
 
 // Mirrors scenarios/add_try_catch.../branch_eliminator_test.cpp GetExpectOutput.
 static std::string GetExpectedOutput(bool value)
@@ -58,6 +59,19 @@ static std::string GetExpectedOutput(bool value)
     oss << "Mybar.test1: Config.isDebug is " << value << "\n";
     oss << "Mybar.test2: Config.isDebug is " << value << "\n";
     return oss.str();
+}
+
+// Per-worker body: claim and run the next function task from the shared pool. Extracted to keep the
+// TEST_F nesting depth within the checker limit.
+static void RunNextBranchTask(BranchEliminator &b, std::vector<std::pair<AbckitCoreFunction *, SuspectsType>> &tasks,
+                              std::atomic<size_t> &next)
+{
+    size_t idx = next.fetch_add(1, std::memory_order_relaxed);
+    while (idx < tasks.size()) {
+        // D1 (createGraphFromFunction) + D4 (functionSetGraph) on a distinct function.
+        b.RunFunctionTask(tasks[idx].first, tasks[idx].second);
+        idx = next.fetch_add(1, std::memory_order_relaxed);
+    }
 }
 }  // namespace
 
@@ -95,18 +109,9 @@ TEST_F(LibAbcKitDynamicScenarioParallelTest, LibAbcKitTestDynamicBranchEliminato
 
         std::atomic<size_t> next {0};
         std::vector<std::thread> threads;
-        threads.reserve(4);
-        for (int i = 0; i < 4; ++i) {
-            threads.emplace_back([&b, &tasks, &next]() {
-                for (;;) {
-                    size_t idx = next.fetch_add(1, std::memory_order_relaxed);
-                    if (idx >= tasks.size()) {
-                        break;
-                    }
-                    // D1 (createGraphFromFunction) + D4 (functionSetGraph) on a distinct function.
-                    b.RunFunctionTask(tasks[idx].first, tasks[idx].second);
-                }
-            });
+        threads.reserve(K_WORKER_COUNT);
+        for (int i = 0; i < K_WORKER_COUNT; ++i) {
+            threads.emplace_back([&b, &tasks, &next]() { RunNextBranchTask(b, tasks, next); });
         }
         for (auto &t : threads) {
             t.join();

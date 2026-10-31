@@ -69,6 +69,33 @@ static bool GraphHasLoadString(AbckitGraph *graph)
     g_implG->gVisitBlocksRpo(graph, &found, cb);
     return found;
 }
+
+// Append a used LoadString chain (load global `print`; call print(marker)) to the first real block.
+// An unused LoadString is dropped by codegen (dead-code elimination), so its result is consumed by
+// Callarg1 to make the modification survive writeback + writeAbc + reload.
+static void AddLoadStringCallChain(AbckitGraph *graph, AbckitString *marker, AbckitString *printName)
+{
+    auto *start = g_implG->gGetStartBasicBlock(graph);
+    ASSERT_NE(start, nullptr);
+    ASSERT_GT(g_implG->bbGetSuccBlockCount(start), 0u);
+    auto *bb = g_implG->bbGetSuccBlock(start, 0);
+    ASSERT_NE(bb, nullptr);
+    auto *ldstr = g_dynG->iCreateLoadString(graph, marker);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    ASSERT_NE(ldstr, nullptr);
+    g_implG->bbAddInstFront(bb, ldstr);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    auto *print = g_dynG->iCreateTryldglobalbyname(graph, printName);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    ASSERT_NE(print, nullptr);
+    g_implG->iInsertAfter(print, ldstr);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    auto *callArg = g_dynG->iCreateCallarg1(graph, print, ldstr);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    ASSERT_NE(callArg, nullptr);
+    g_implG->iInsertAfter(callArg, print);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+}
 }  // namespace
 
 class LibAbcKitGraphIsaIntegrationTest : public ::testing::Test {};
@@ -155,14 +182,14 @@ TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicFunctionSetGraphConcurrentDiffer
     ASSERT_NE(graphB, nullptr);
 
     std::atomic<bool> failed {false};
-    std::thread tA([&]() {
+    std::thread tA([&failed, funcA, graphA]() {
         g_implM->functionSetGraph(funcA, graphA);
         // Last-error is thread-local; capture the commit result in the worker.
         if (g_impl->getLastError() != ABCKIT_STATUS_NO_ERROR) {
             failed.store(true);
         }
     });
-    std::thread tB([&]() {
+    std::thread tB([&failed, funcB, graphB]() {
         g_implM->functionSetGraph(funcB, graphB);
         if (g_impl->getLastError() != ABCKIT_STATUS_NO_ERROR) {
             failed.store(true);
@@ -208,26 +235,7 @@ TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicGraphModificationPersistsAfterDe
     // Add a USED LoadString chain (load global `print`; call print(marker)) to the first real
     // block. An unused LoadString is dropped by codegen (dead-code elimination), so its result is
     // consumed by Callarg1 to make the modification survive writeback + writeAbc + reload.
-    auto *start = g_implG->gGetStartBasicBlock(graph);
-    ASSERT_NE(start, nullptr);
-    ASSERT_GT(g_implG->bbGetSuccBlockCount(start), 0u);
-    auto *bb = g_implG->bbGetSuccBlock(start, 0);
-    ASSERT_NE(bb, nullptr);
-    auto *ldstr = g_dynG->iCreateLoadString(graph, marker);
-    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
-    ASSERT_NE(ldstr, nullptr);
-    g_implG->bbAddInstFront(bb, ldstr);
-    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
-    auto *print = g_dynG->iCreateTryldglobalbyname(graph, printName);
-    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
-    ASSERT_NE(print, nullptr);
-    g_implG->iInsertAfter(print, ldstr);
-    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
-    auto *callArg = g_dynG->iCreateCallarg1(graph, print, ldstr);
-    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
-    ASSERT_NE(callArg, nullptr);
-    g_implG->iInsertAfter(callArg, print);
-    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    ASSERT_NO_FATAL_FAILURE(AddLoadStringCallChain(graph, marker, printName));
     ASSERT_TRUE(GraphHasLoadString(graph)) << "LoadString must be present in graph right after add";
 
     // Writeback (sync prepare/commit), then destroy the Graph, then persist + reload.
@@ -280,7 +288,7 @@ TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicMetadataChangeRejectsStaleGraph)
     AbckitJsModule *mod = nullptr;
     AbckitStatus mutationStatus = ABCKIT_STATUS_INTERNAL_ERROR;
     // An independent writer invalidates the owner's graph; owner-local edits remain supported.
-    std::thread modifier([&]() {
+    std::thread modifier([&mod, &mutationStatus, file, &params]() {
         mod = g_implJsM->fileAddExternalModule(file, &params);
         mutationStatus = g_impl->getLastError();
     });
@@ -315,9 +323,9 @@ TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicSnapshotBuildGuardPublishesFailu
     auto &cache = file->dynamicGraphCache;
     cache.state = AbckitDynamicGraphSnapshotState::BUILDING;
     std::atomic<bool> waiterDone {false};
-    std::thread waiter([&]() {
+    std::thread waiter([&cache, &waiterDone]() {
         std::unique_lock<std::mutex> lock(cache.mutex);
-        cache.cv.wait(lock, [&]() { return cache.state != AbckitDynamicGraphSnapshotState::BUILDING; });
+        cache.cv.wait(lock, [&cache]() { return cache.state != AbckitDynamicGraphSnapshotState::BUILDING; });
         waiterDone.store(true);
     });
     {
@@ -346,6 +354,7 @@ TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicConcurrentSameFunctionSetGraphOn
     ASSERT_NE(func, nullptr);
 
     constexpr int ITERS = 50;
+    constexpr int kConcurrentThreads = 2;  // tA + tB enter functionSetGraph together
     for (int i = 0; i < ITERS; ++i) {
         AbckitGraph *gA = g_implI->createGraphFromFunction(func);
         AbckitGraph *gB = g_implI->createGraphFromFunction(func);
@@ -362,7 +371,7 @@ TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicConcurrentSameFunctionSetGraphOn
         // the early check before either commits, exercising the commit-recheck path).
         std::atomic<int> arrived {0};
         std::atomic<bool> go {false};
-        auto task = [&](AbckitGraph *g) {
+        auto task = [&arrived, &go, func](AbckitGraph *g) {
             arrived.fetch_add(1);
             while (!go.load()) {
             }
@@ -370,7 +379,7 @@ TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicConcurrentSameFunctionSetGraphOn
         };
         std::thread tA(task, gA);
         std::thread tB(task, gB);
-        while (arrived.load() < 2) {
+        while (arrived.load() < kConcurrentThreads) {
         }
         go.store(true);
         tA.join();
@@ -512,7 +521,7 @@ TEST_F(LibAbcKitGraphIsaIntegrationTest, StaticDoesNotUseDynamicFileLock)
 
     std::unique_lock<std::mutex> lk(file->dynamicGraphCache.mutex);  // hold the Dynamic lock
     std::atomic<bool> done {false};
-    std::thread t([&]() {
+    std::thread t([&done, func]() {
         AbckitGraph *g = g_implI->createGraphFromFunction(func);
         if (g != nullptr) {
             g_implM->functionSetGraph(func, g);
@@ -521,9 +530,10 @@ TEST_F(LibAbcKitGraphIsaIntegrationTest, StaticDoesNotUseDynamicFileLock)
         done.store(true);
     });
     // Static path must NOT block on snapshot mutex -> completes well within 5s.
+    constexpr int kPollIntervalMs = 10;
     auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
     while (!done.load() && std::chrono::steady_clock::now() < deadline) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(kPollIntervalMs));
     }
     EXPECT_TRUE(done.load()) << "Static path blocked on the Dynamic snapshot mutex (would deadlock)";
     lk.unlock();  // release before join so a blocked worker can proceed + the test never hangs
@@ -542,7 +552,7 @@ TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicGraphExclusiveOwnerScheduling)
     ASSERT_NE(funcB, nullptr);
 
     std::atomic<bool> ok {true};
-    auto owner = [&](AbckitCoreFunction *func) {
+    auto owner = [&ok](AbckitCoreFunction *func) {
         AbckitGraph *g = g_implI->createGraphFromFunction(func);
         if (g == nullptr) {
             ok.store(false);

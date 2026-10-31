@@ -154,62 +154,69 @@ TEST_F(LibAbcKitInspectApiFilesTest, DeprecatedSetNeedOptimizeRejectsNull)
     }
 }
 
-static void CheckDeprecatedSetNeedOptimize(bool isDynamic)
+// Per-hint body of CheckDeprecatedSetNeedOptimize: setNeedOptimize must not re-enable delayed
+// writeback or a cached mutable Graph; the round-trip output must reflect the rewritten string.
+static void CheckSetNeedOptimizeForHint(bool isDynamic, bool hint, AbckitFile *&file, const char *input,
+                                        const char *output)
 {
     auto *modify = AbckitGetModifyApiImpl(ABCKIT_VERSION_RELEASE_1_0_0);
     auto *graphApi = AbckitGetGraphApiImpl(ABCKIT_VERSION_RELEASE_1_0_0);
-    const char *input = isDynamic ? ABCKIT_ABC_DIR "ut/ir_core/string/string_dynamic.abc"
-                                  : ABCKIT_ABC_DIR "ut/ir_core/string/string_static.abc";
-    const char *output = isDynamic ? ABCKIT_ABC_DIR "ut/ir_core/string/string_dynamic_legacy_hint.abc"
-                                   : ABCKIT_ABC_DIR "ut/ir_core/string/string_static_legacy_hint.abc";
     auto findString = [isDynamic](AbckitGraph *graph) {
         return isDynamic ? helpers::FindFirstInst(graph, ABCKIT_ISA_API_DYNAMIC_OPCODE_LOADSTRING)
                          : helpers::FindFirstInst(graph, ABCKIT_ISA_API_STATIC_OPCODE_LOADSTRING);
     };
+    SCOPED_TRACE(hint);
+    g_impl->setNeedOptimize(nullptr, hint);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_BAD_ARGUMENT);
+    g_impl->setNeedOptimize(file, hint);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
 
+    auto *function = helpers::FindMethodByName(file, "foo");
+    ASSERT_NE(function, nullptr);
+    auto *graph = g_implI->createGraphFromFunction(function);
+    ASSERT_NE(graph, nullptr);
+    auto *loadString = findString(graph);
+    ASSERT_NE(loadString, nullptr);
+    const char *expected = hint ? "hint_true" : "hint_false";
+    auto *value = modify->createString(file, expected, strlen(expected));
+    ASSERT_NE(value, nullptr);
+    graphApi->iSetString(loadString, value);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    modify->functionSetGraph(function, graph);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    g_impl->destroyGraph(graph);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+
+    // The hint must not re-enable delayed writeback or a cached mutable Graph.
+    helpers::InspectMethod(file, "foo", [&](AbckitFile *, AbckitCoreFunction *, AbckitGraph *freshGraph) {
+        auto *freshString = findString(freshGraph);
+        ASSERT_NE(freshString, nullptr);
+        EXPECT_EQ(helpers::AbckitStringToString(graphApi->iGetString(freshString)), expected);
+    });
+    ASSERT_FALSE(::testing::Test::HasFatalFailure());
+    g_impl->writeAbc(file, output, strlen(output));
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    g_impl->closeFile(file);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    auto result = isDynamic ? helpers::ExecuteDynamicAbc(output, "string_dynamic")
+                            : helpers::ExecuteStaticAbc(output, "string_static", "main");
+    EXPECT_EQ(result, std::string(expected) + "\n");
+    helpers::AssertOpenAbc(output, &file);
+    ASSERT_NE(file, nullptr);
+}
+
+static void CheckDeprecatedSetNeedOptimize(bool isDynamic)
+{
+    const char *input = isDynamic ? ABCKIT_ABC_DIR "ut/ir_core/string/string_dynamic.abc"
+                                  : ABCKIT_ABC_DIR "ut/ir_core/string/string_static.abc";
+    const char *output = isDynamic ? ABCKIT_ABC_DIR "ut/ir_core/string/string_dynamic_legacy_hint.abc"
+                                   : ABCKIT_ABC_DIR "ut/ir_core/string/string_static_legacy_hint.abc";
     AbckitFile *file = nullptr;
     helpers::AssertOpenAbc(input, &file);
     ASSERT_NE(file, nullptr);
     ASSERT_NE(g_impl->setNeedOptimize, nullptr);
     for (bool hint : {true, false}) {
-        SCOPED_TRACE(hint);
-        g_impl->setNeedOptimize(nullptr, hint);
-        ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_BAD_ARGUMENT);
-        g_impl->setNeedOptimize(file, hint);
-        ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
-
-        auto *function = helpers::FindMethodByName(file, "foo");
-        ASSERT_NE(function, nullptr);
-        auto *graph = g_implI->createGraphFromFunction(function);
-        ASSERT_NE(graph, nullptr);
-        auto *loadString = findString(graph);
-        ASSERT_NE(loadString, nullptr);
-        const char *expected = hint ? "hint_true" : "hint_false";
-        auto *value = modify->createString(file, expected, strlen(expected));
-        ASSERT_NE(value, nullptr);
-        graphApi->iSetString(loadString, value);
-        ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
-        modify->functionSetGraph(function, graph);
-        ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
-        g_impl->destroyGraph(graph);
-        ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
-
-        // The hint must not re-enable delayed writeback or a cached mutable Graph.
-        helpers::InspectMethod(file, "foo", [&](AbckitFile *, AbckitCoreFunction *, AbckitGraph *freshGraph) {
-            auto *freshString = findString(freshGraph);
-            ASSERT_NE(freshString, nullptr);
-            EXPECT_EQ(helpers::AbckitStringToString(graphApi->iGetString(freshString)), expected);
-        });
-        ASSERT_FALSE(::testing::Test::HasFatalFailure());
-        g_impl->writeAbc(file, output, strlen(output));
-        ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
-        g_impl->closeFile(file);
-        ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
-        auto result = isDynamic ? helpers::ExecuteDynamicAbc(output, "string_dynamic")
-                                : helpers::ExecuteStaticAbc(output, "string_static", "main");
-        EXPECT_EQ(result, std::string(expected) + "\n");
-        helpers::AssertOpenAbc(output, &file);
-        ASSERT_NE(file, nullptr);
+        ASSERT_NO_FATAL_FAILURE(CheckSetNeedOptimizeForHint(isDynamic, hint, file, input, output));
     }
     g_impl->closeFile(file);
     ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);

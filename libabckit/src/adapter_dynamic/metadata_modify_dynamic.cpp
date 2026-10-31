@@ -40,20 +40,6 @@
 #include <vector>
 #include <tuple>
 
-// CC-OFFNXT(G.PRE.02) code readability
-// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
-#define LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(file, returnvalue)                                                      \
-    AbckitFileApiReadLockSuspension LIBABCKIT_UNIQUE_VAR(fileApiReadLockSuspension)(file);                         \
-    AbckitFileApiWriteLock LIBABCKIT_UNIQUE_VAR(fileApiWriteLock)(file, true, AbckitFileApiWriteMode::STRUCTURAL); \
-    if (LIBABCKIT_UNIQUE_VAR(fileApiWriteLock).HasConflict()) {                                                    \
-        statuses::SetLastError(ABCKIT_STATUS_WRONG_STATE);                                                         \
-        return returnvalue;                                                                                        \
-    }
-
-// CC-OFFNXT(G.PRE.02) code readability
-// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
-#define LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD_VOID(file) LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(file, )
-
 namespace libabckit {
 
 struct AbckitPreparedDynamicFunction {
@@ -76,6 +62,34 @@ struct AbckitPreparedDynamicFunction {
 using namespace panda;
 
 namespace {
+// RAII guard for a dynamic file structural-write critical section. Acquires the read-lock
+// suspension and the structural write lock; on a write-lock conflict it sets
+// ABCKIT_STATUS_WRONG_STATE. The caller checks Conflict() and returns early. The locks are held
+// for the caller's scope (this replaces the former LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD macro, and
+// avoids both the G.PRE.02 function-like-macro rule and the G.PRE.05 return-in-macro rule).
+class DynamicFileWriteGuard {
+public:
+    explicit DynamicFileWriteGuard(AbckitFile *file)
+        : readLockSuspension_(file),
+          writeLock_(file, true, AbckitFileApiWriteMode::STRUCTURAL),
+          conflict_(writeLock_.HasConflict())
+    {
+        if (conflict_) {
+            statuses::SetLastError(ABCKIT_STATUS_WRONG_STATE);
+        }
+    }
+
+    bool Conflict() const
+    {
+        return conflict_;
+    }
+
+private:
+    AbckitFileApiReadLockSuspension readLockSuspension_;
+    AbckitFileApiWriteLock writeLock_;
+    bool conflict_;
+};
+
 AbckitFile *GetDynamicAnnotationOwnerFile(AbckitCoreAnnotation *anno)
 {
     if (std::holds_alternative<AbckitCoreFunction *>(anno->owner)) {
@@ -273,7 +287,10 @@ void FunctionSetGraphDynamic(AbckitCoreFunction *function, AbckitGraph *graph)
 
 AbckitJsModule *FileAddExternalJsModule(AbckitFile *file, const struct AbckitJsExternalModuleCreateParams *params)
 {
-    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(file, nullptr)
+    DynamicFileWriteGuard writeGuard(file);
+    if (writeGuard.Conflict()) {
+        return nullptr;
+    }
     InvalidateDynamicGraphCacheForStructuralChange(file);
 
     auto m = std::make_unique<AbckitCoreModule>();
@@ -324,7 +341,10 @@ AbckitJsModule *FileAddExternalJsModule(AbckitFile *file, const struct AbckitJsE
 AbckitArktsModule *FileAddExternalArkTsV1Module(AbckitFile *file,
                                                 const struct AbckitArktsV1ExternalModuleCreateParams *params)
 {
-    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(file, nullptr)
+    DynamicFileWriteGuard writeGuard(file);
+    if (writeGuard.Conflict()) {
+        return nullptr;
+    }
     InvalidateDynamicGraphCacheForStructuralChange(file);
 
     auto m = std::make_unique<AbckitCoreModule>();
@@ -370,7 +390,10 @@ AbckitArktsModule *FileAddExternalArkTsV1Module(AbckitFile *file,
 void ModuleRemoveImportDynamic(AbckitCoreModule *m, AbckitArktsImportDescriptor *i)
 {
     LIBABCKIT_LOG_FUNC;
-    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD_VOID(m->file)
+    DynamicFileWriteGuard writeGuard(m->file);
+    if (writeGuard.Conflict()) {
+        return;
+    }
     InvalidateDynamicGraphCacheForStructuralChange(m->file);
     auto found = std::find_if(m->id.begin(), m->id.end(),
                               [&](std::unique_ptr<AbckitCoreImportDescriptor> const &d) { return d.get() == i->core; });
@@ -394,7 +417,10 @@ void ModuleRemoveImportDynamic(AbckitCoreModule *m, AbckitArktsImportDescriptor 
 void ModuleRemoveImportDynamic(AbckitCoreModule *m, AbckitJsImportDescriptor *i)
 {
     LIBABCKIT_LOG_FUNC;
-    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD_VOID(m->file)
+    DynamicFileWriteGuard writeGuard(m->file);
+    if (writeGuard.Conflict()) {
+        return;
+    }
     InvalidateDynamicGraphCacheForStructuralChange(m->file);
     auto found = std::find_if(m->id.begin(), m->id.end(),
                               [&](std::unique_ptr<AbckitCoreImportDescriptor> const &d) { return d.get() == i->core; });
@@ -560,7 +586,10 @@ AbckitArktsImportDescriptor *ModuleAddImportFromDynamicModuleDynamic(
     AbckitCoreModule *importing, AbckitCoreModule *imported,
     const AbckitArktsImportFromDynamicModuleCreateParams *params)
 {
-    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(importing->file, nullptr)
+    DynamicFileWriteGuard writeGuard(importing->file);
+    if (writeGuard.Conflict()) {
+        return nullptr;
+    }
     InvalidateDynamicGraphCacheForStructuralChange(importing->file);
 
     auto id = std::make_unique<AbckitCoreImportDescriptor>();
@@ -585,7 +614,10 @@ AbckitArktsImportDescriptor *ModuleAddImportFromDynamicModuleDynamic(
 AbckitJsImportDescriptor *ModuleAddImportFromDynamicModuleDynamic(
     AbckitCoreModule *importing, AbckitCoreModule *imported, const AbckitJsImportFromDynamicModuleCreateParams *params)
 {
-    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(importing->file, nullptr)
+    DynamicFileWriteGuard writeGuard(importing->file);
+    if (writeGuard.Conflict()) {
+        return nullptr;
+    }
     InvalidateDynamicGraphCacheForStructuralChange(importing->file);
 
     auto id = std::make_unique<AbckitCoreImportDescriptor>();
@@ -752,7 +784,10 @@ size_t AddExportToModuleLiteralArray(AbckitCoreModule *exporting, AbckitCoreModu
 AbckitArktsExportDescriptor *DynamicModuleAddExportDynamic(AbckitCoreModule *exporting, AbckitCoreModule *exported,
                                                            const AbckitArktsDynamicModuleExportCreateParams *params)
 {
-    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(exporting->file, nullptr)
+    DynamicFileWriteGuard writeGuard(exporting->file);
+    if (writeGuard.Conflict()) {
+        return nullptr;
+    }
     InvalidateDynamicGraphCacheForStructuralChange(exporting->file);
 
     auto ed = std::make_unique<AbckitCoreExportDescriptor>();
@@ -785,7 +820,10 @@ AbckitArktsExportDescriptor *DynamicModuleAddExportDynamic(AbckitCoreModule *exp
 AbckitJsExportDescriptor *DynamicModuleAddExportDynamic(AbckitCoreModule *exporting, AbckitCoreModule *exported,
                                                         const AbckitJsDynamicModuleExportCreateParams *params)
 {
-    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(exporting->file, nullptr)
+    DynamicFileWriteGuard writeGuard(exporting->file);
+    if (writeGuard.Conflict()) {
+        return nullptr;
+    }
     InvalidateDynamicGraphCacheForStructuralChange(exporting->file);
 
     auto ed = std::make_unique<AbckitCoreExportDescriptor>();
@@ -817,7 +855,10 @@ AbckitJsExportDescriptor *DynamicModuleAddExportDynamic(AbckitCoreModule *export
 void ModuleRemoveExportDynamic(AbckitCoreModule *m, AbckitArktsExportDescriptor *i)
 {
     LIBABCKIT_LOG_FUNC;
-    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD_VOID(m->file)
+    DynamicFileWriteGuard writeGuard(m->file);
+    if (writeGuard.Conflict()) {
+        return;
+    }
     InvalidateDynamicGraphCacheForStructuralChange(m->file);
     auto found = std::find_if(m->ed.begin(), m->ed.end(),
                               [&](std::unique_ptr<AbckitCoreExportDescriptor> const &d) { return d.get() == i->core; });
@@ -856,7 +897,10 @@ void ModuleRemoveExportDynamic(AbckitCoreModule *m, AbckitArktsExportDescriptor 
 void ModuleRemoveExportDynamic(AbckitCoreModule *m, AbckitJsExportDescriptor *i)
 {
     LIBABCKIT_LOG_FUNC;
-    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD_VOID(m->file)
+    DynamicFileWriteGuard writeGuard(m->file);
+    if (writeGuard.Conflict()) {
+        return;
+    }
     InvalidateDynamicGraphCacheForStructuralChange(m->file);
     auto found = std::find_if(m->ed.begin(), m->ed.end(),
                               [&](std::unique_ptr<AbckitCoreExportDescriptor> const &d) { return d.get() == i->core; });
@@ -1069,7 +1113,10 @@ AbckitValue *FindOrCreateLiteralArrayValueDynamic(AbckitFile *file, AbckitValue 
 AbckitArktsAnnotationInterface *ModuleAddAnnotationInterfaceDynamic(
     AbckitCoreModule *m, const AbckitArktsAnnotationInterfaceCreateParams *params)
 {
-    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(m->file, nullptr)
+    DynamicFileWriteGuard writeGuard(m->file);
+    if (writeGuard.Conflict()) {
+        return nullptr;
+    }
     InvalidateDynamicGraphCacheForStructuralChange(m->file);
 
     std::string name = params->name;
@@ -1089,7 +1136,10 @@ AbckitArktsAnnotationInterface *ModuleAddAnnotationInterfaceDynamic(
 AbckitArktsAnnotation *ClassAddAnnotationDynamic(AbckitCoreClass *klass,
                                                  const AbckitArktsAnnotationCreateParams *params)
 {
-    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(klass->owningModule->file, nullptr)
+    DynamicFileWriteGuard writeGuard(klass->owningModule->file);
+    if (writeGuard.Conflict()) {
+        return nullptr;
+    }
     InvalidateDynamicGraphCacheForStructuralChange(klass->owningModule->file);
 
     auto ai = params->ai;
@@ -1113,7 +1163,10 @@ AbckitArktsAnnotation *ClassAddAnnotationDynamic(AbckitCoreClass *klass,
 
 void ClassRemoveAnnotationDynamic(AbckitCoreClass *klass, AbckitCoreAnnotation *anno)
 {
-    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD_VOID(klass->owningModule->file)
+    DynamicFileWriteGuard writeGuard(klass->owningModule->file);
+    if (writeGuard.Conflict()) {
+        return;
+    }
 
     auto progFunc = klass->GetArkTSImpl()->impl.GetDynamicClass();
     auto &annotations = klass->annotations;
@@ -1140,7 +1193,10 @@ void ClassRemoveAnnotationDynamic(AbckitCoreClass *klass, AbckitCoreAnnotation *
 AbckitArktsAnnotation *FunctionAddAnnotationDynamic(AbckitCoreFunction *function,
                                                     const AbckitArktsAnnotationCreateParams *params)
 {
-    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(function->owningModule->file, nullptr)
+    DynamicFileWriteGuard writeGuard(function->owningModule->file);
+    if (writeGuard.Conflict()) {
+        return nullptr;
+    }
     InvalidateDynamicGraphCacheForStructuralChange(function->owningModule->file);
 
     auto ai = params->ai;
@@ -1164,7 +1220,10 @@ AbckitArktsAnnotation *FunctionAddAnnotationDynamic(AbckitCoreFunction *function
 
 void FunctionRemoveAnnotationDynamic(AbckitCoreFunction *function, AbckitCoreAnnotation *anno)
 {
-    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD_VOID(function->owningModule->file)
+    DynamicFileWriteGuard writeGuard(function->owningModule->file);
+    if (writeGuard.Conflict()) {
+        return;
+    }
     InvalidateDynamicGraphCacheForStructuralChange(function->owningModule->file);
 
     auto progFunc = function->GetArkTSImpl()->GetDynamicImpl();
@@ -1189,7 +1248,10 @@ AbckitArktsAnnotationElement *AnnotationAddAnnotationElementDynamic(AbckitCoreAn
 {
     auto *file = GetDynamicAnnotationOwnerFile(anno);
     LIBABCKIT_WRONG_CTX(file, params->value->file, nullptr)
-    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(file, nullptr)
+    DynamicFileWriteGuard writeGuard(file);
+    if (writeGuard.Conflict()) {
+        return nullptr;
+    }
     InvalidateDynamicGraphCacheForStructuralChange(file);
 
     auto valuePtr = params->value;
@@ -1224,7 +1286,10 @@ AbckitArktsAnnotationElement *AnnotationAddAnnotationElementDynamic(AbckitCoreAn
 void AnnotationRemoveAnnotationElementDynamic(AbckitCoreAnnotation *anno, AbckitCoreAnnotationElement *elem)
 {
     auto *file = GetDynamicAnnotationOwnerFile(anno);
-    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD_VOID(file)
+    DynamicFileWriteGuard writeGuard(file);
+    if (writeGuard.Conflict()) {
+        return;
+    }
     InvalidateDynamicGraphCacheForStructuralChange(file);
 
     if (elem->ann != anno) {
@@ -1299,7 +1364,10 @@ static std::string TypeToName(AbckitType *type)
 AbckitArktsAnnotationInterfaceField *AnnotationInterfaceAddFieldDynamic(
     AbckitCoreAnnotationInterface *ai, const AbckitArktsAnnotationInterfaceFieldCreateParams *params)
 {
-    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD(ai->owningModule->file, nullptr)
+    DynamicFileWriteGuard writeGuard(ai->owningModule->file);
+    if (writeGuard.Conflict()) {
+        return nullptr;
+    }
     InvalidateDynamicGraphCacheForStructuralChange(ai->owningModule->file);
 
     auto name = params->name;
@@ -1332,7 +1400,10 @@ AbckitArktsAnnotationInterfaceField *AnnotationInterfaceAddFieldDynamic(
 
 void AnnotationInterfaceRemoveFieldDynamic(AbckitCoreAnnotationInterface *ai, AbckitCoreAnnotationInterfaceField *field)
 {
-    LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD_VOID(ai->owningModule->file)
+    DynamicFileWriteGuard writeGuard(ai->owningModule->file);
+    if (writeGuard.Conflict()) {
+        return;
+    }
     InvalidateDynamicGraphCacheForStructuralChange(ai->owningModule->file);
 
     if (field->ai != ai) {
@@ -1371,6 +1442,3 @@ void AnnotationInterfaceRemoveFieldDynamic(AbckitCoreAnnotationInterface *ai, Ab
 }
 
 }  // namespace libabckit
-
-#undef LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD
-#undef LIBABCKIT_DYNAMIC_FILE_WRITE_GUARD_VOID

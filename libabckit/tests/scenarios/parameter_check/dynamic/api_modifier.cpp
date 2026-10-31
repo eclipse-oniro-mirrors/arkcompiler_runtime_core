@@ -47,17 +47,24 @@ void ApiModifier::CollectCheckerTasks(std::vector<AbckitCoreFunction *> &tasks)
             return;
         }
         visitor_.EnumerateModuleFunctions(mod, [&](AbckitCoreFunction *method) {
-            visitor_.EnumerateFunctionInsts(method, [&](AbckitInst *inst) {
-                AbckitCoreFunction *sub = GetSubclassMethod(impDescriptor, inst);
-                if (sub != nullptr) {
-                    // Dedup by pointer: a subclass handle may be referenced from more than one site.
-                    if (std::find(tasks.begin(), tasks.end(), sub) == tasks.end()) {
-                        tasks.push_back(sub);
-                    }
-                }
-            });
+            CollectCheckerTasksForMethod(impDescriptor, method, tasks);
             return true;
         });
+    });
+}
+
+void ApiModifier::CollectCheckerTasksForMethod(AbckitCoreImportDescriptor *impDescriptor, AbckitCoreFunction *method,
+                                               std::vector<AbckitCoreFunction *> &tasks)
+{
+    visitor_.EnumerateFunctionInsts(method, [&](AbckitInst *inst) {
+        AbckitCoreFunction *sub = GetSubclassMethod(impDescriptor, inst);
+        if (sub == nullptr) {
+            return;
+        }
+        // Dedup by pointer: a subclass handle may be referenced from more than one site.
+        if (std::find(tasks.begin(), tasks.end(), sub) == tasks.end()) {
+            tasks.push_back(sub);
+        }
     });
 }
 

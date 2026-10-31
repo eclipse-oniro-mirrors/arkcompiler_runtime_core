@@ -62,6 +62,7 @@ constexpr auto API_CLASS_NAME = "ApiControl";
 constexpr auto API_MODULE_NAME = "modules/ApiControl";
 constexpr auto MAIN_MODULE_NAME = "replace_call_site_parallel";
 constexpr auto ANNOTATION_INTERFACE_NAME = "CallSiteReplacement";
+constexpr int K_WORKER_COUNT = 4;  // serial + parallel handle exactly four call sites
 
 struct UserData {
     AbckitString *targetClass = nullptr;
@@ -266,11 +267,20 @@ static void EnumerateTargetMethods(AbckitFile *file, UserData &ud, const std::fu
         });
     });
 }
+
+// Expected stdout after replacement: each of the K_WORKER_COUNT call sites prints the fixed line.
+static std::string BuildExpectedOutput()
+{
+    std::string out;
+    for (int i = 0; i < K_WORKER_COUNT; ++i) {
+        out += "fixOrientationLinearLayout was called\n5\n";
+    }
+    return out;
+}
 }  // namespace
 
 class LibAbcKitDynamicScenarioParallelTest : public ::testing::Test {};
 
-// CC-OFFNXT(huge_method, C_RULE_ID_FUNCTION_SIZE) test, solid logic
 // Test: test-kind=scenario, abc-kind=ArkTS1, category=positive, extension=c
 TEST_F(LibAbcKitDynamicScenarioParallelTest, LibAbcKitTestDynamicReplaceCallSiteSerialParallel)
 {
@@ -278,13 +288,7 @@ TEST_F(LibAbcKitDynamicScenarioParallelTest, LibAbcKitTestDynamicReplaceCallSite
     auto origin = helpers::ExecuteDynamicAbc(INPUT_PATH, ENTRY);
     EXPECT_EQ(origin, "3\n3\n3\n3\n");
 
-    const std::string expected = [] {
-        std::string out;
-        for (int i = 0; i < 4; ++i) {
-            out += "fixOrientationLinearLayout was called\n5\n";
-        }
-        return out;
-    }();
+    const std::string expected = BuildExpectedOutput();
 
     // ---- SERIAL baseline: parse ud + add import + replace all four functions on one file ----
     {
@@ -315,7 +319,7 @@ TEST_F(LibAbcKitDynamicScenarioParallelTest, LibAbcKitTestDynamicReplaceCallSite
 
         std::atomic<bool> failed {false};
         std::vector<std::thread> threads;
-        threads.reserve(4);
+        threads.reserve(K_WORKER_COUNT);
         for (size_t i = 0; i < targets.size(); ++i) {
             threads.emplace_back([&ud, &coreImport, &targets, i, &failed]() {
                 // D1 (createGraphFromFunction) + D4 (functionSetGraph) on a distinct function; the

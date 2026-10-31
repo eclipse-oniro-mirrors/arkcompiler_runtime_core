@@ -47,6 +47,14 @@ struct AbckitDynamicGraphCacheEntry {
     std::unordered_map<std::string, uint32_t> methodOffsets;
     uint64_t structuralGeneration = 0;
     std::unordered_map<AbckitCoreFunction *, uint64_t> functionVersions;
+
+    // Release the owned raw handles in construction order when the last shared_ptr reference drops.
+    // A custom shared_ptr deleter is avoided so std::make_shared can be used (see MakeDynamicGraphCacheEntry).
+    ~AbckitDynamicGraphCacheEntry()
+    {
+        delete irInterface;
+        delete pandaFile;
+    }
 };
 
 namespace libabckit {
@@ -60,16 +68,8 @@ std::shared_ptr<AbckitDynamicGraphCacheEntry> MakeDynamicGraphCacheEntry(const p
                                                                          AbckitIrInterface *irInterface,
                                                                          const AbckitFile *file)
 {
-    auto deleter = [](AbckitDynamicGraphCacheEntry *entry) {
-        if (entry == nullptr) {
-            return;
-        }
-        delete entry->irInterface;
-        delete entry->pandaFile;
-        delete entry;
-    };
-    // 按顺序释放
-    auto entry = std::shared_ptr<AbckitDynamicGraphCacheEntry>(new AbckitDynamicGraphCacheEntry(), deleter);
+    // irInterface/pandaFile are released by ~AbckitDynamicGraphCacheEntry when the last reference drops.
+    auto entry = std::make_shared<AbckitDynamicGraphCacheEntry>();
     entry->pandaFile = pf;
     entry->irInterface = irInterface;
     entry->methodOffsets.reserve(irInterface->GetMethods().size());

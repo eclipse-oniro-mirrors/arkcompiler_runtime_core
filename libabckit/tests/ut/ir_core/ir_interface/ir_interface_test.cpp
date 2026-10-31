@@ -29,6 +29,9 @@
 
 namespace libabckit::test {
 
+// Static-path lock acquisition must complete within this timeout; guarded by the dynamic mutex.
+static constexpr int K_LOCK_WAIT_TIMEOUT_SEC = 5;
+
 class LibAbcKitIrInterfaceTest : public ::testing::Test {};
 
 // Test: test-kind=api, api=IsaApiDynamicImpl::iSetModule, abc-kind=NoABC, category=negative-wrongctx, extension=c
@@ -133,7 +136,7 @@ TEST_F(LibAbcKitIrInterfaceTest, StaticGraphGettersAndSettersDoNotAcquireDynamic
                 EXPECT_EQ(api->getLastError(), ABCKIT_STATUS_NO_ERROR);
                 complete.set_value();
             });
-            EXPECT_EQ(future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+            EXPECT_EQ(future.wait_for(std::chrono::seconds(K_LOCK_WAIT_TIMEOUT_SEC)), std::future_status::ready);
         }
         reader.join();
     });

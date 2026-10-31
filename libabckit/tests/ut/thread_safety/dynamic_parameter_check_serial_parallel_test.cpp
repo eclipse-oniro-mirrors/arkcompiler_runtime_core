@@ -64,6 +64,19 @@ const std::string MODIFIED_EXPECTED =
     "str2\n"
     "str4\n"
     "-1\n";
+constexpr int K_WORKER_COUNT = 4;  // parallel worker pool size
+
+// Per-worker body: claim and run the next checker task from the shared pool. Extracted to keep the
+// TEST_F nesting depth within the checker limit.
+static void RunNextCheckerTask(ApiModifier &mod, std::vector<AbckitCoreFunction *> &tasks, std::atomic<size_t> &next)
+{
+    size_t idx = next.fetch_add(1, std::memory_order_relaxed);
+    while (idx < tasks.size()) {
+        // D1 (createGraphFromFunction) + D4 (functionSetGraph) on a distinct method.
+        mod.RunCheckerTask(tasks[idx]);
+        idx = next.fetch_add(1, std::memory_order_relaxed);
+    }
+}
 }  // namespace
 
 class LibAbcKitDynamicScenarioParallelTest : public ::testing::Test {};
@@ -98,18 +111,9 @@ TEST_F(LibAbcKitDynamicScenarioParallelTest, LibAbcKitTestDynamicParameterCheckS
 
         std::atomic<size_t> next {0};
         std::vector<std::thread> threads;
-        threads.reserve(4);
-        for (int i = 0; i < 4; ++i) {
-            threads.emplace_back([&mod, &tasks, &next]() {
-                for (;;) {
-                    size_t idx = next.fetch_add(1, std::memory_order_relaxed);
-                    if (idx >= tasks.size()) {
-                        break;
-                    }
-                    // D1 (createGraphFromFunction) + D4 (functionSetGraph) on a distinct method.
-                    mod.RunCheckerTask(tasks[idx]);
-                }
-            });
+        threads.reserve(K_WORKER_COUNT);
+        for (int i = 0; i < K_WORKER_COUNT; ++i) {
+            threads.emplace_back([&mod, &tasks, &next]() { RunNextCheckerTask(mod, tasks, next); });
         }
         for (auto &t : threads) {
             t.join();

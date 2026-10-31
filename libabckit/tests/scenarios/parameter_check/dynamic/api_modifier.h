@@ -55,6 +55,8 @@ public:
 private:
     AbckitCoreImportDescriptor *GetImportDescriptor(AbckitCoreModule *module);
     void ModifyFunction(AbckitCoreFunction *method, AbckitCoreImportDescriptor *id);
+    void CollectCheckerTasksForMethod(AbckitCoreImportDescriptor *impDescriptor, AbckitCoreFunction *method,
+                                      std::vector<AbckitCoreFunction *> &tasks);
     void AddParamChecker(AbckitCoreFunction *method);
     AbckitCoreFunction *GetSubclassMethod(AbckitCoreImportDescriptor *id, AbckitInst *inst);
     AbckitCoreFunction *GetMethodToModify(AbckitCoreClass *klass);

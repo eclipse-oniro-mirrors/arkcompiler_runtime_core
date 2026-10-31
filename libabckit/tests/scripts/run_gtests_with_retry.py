@@ -63,6 +63,29 @@ def parse_failed_tests(json_path):
     return failed
 
 
+def retry_one_test(binary, gtest_args, name, max_retries):
+    """Re-run a single test up to max_retries times; return True if any attempt passes."""
+    for attempt in range(1, max_retries + 1):
+        r = run_gtests(binary, list(gtest_args) + [f"--gtest_filter={name}"])
+        if r.returncode == 0:
+            print(f"[retry-wrapper] FLAKY-PASS: {name} (passed on retry {attempt})")
+            return True
+    print(f"[retry-wrapper] FAILED: {name} (failed all {max_retries} retries)")
+    return False
+
+
+def retry_failed_tests(binary, gtest_args, failed, max_retries):
+    """Retry each failed test; return (flaky_pass, real_fail) name lists."""
+    flaky_pass = []
+    real_fail = []
+    for name in failed:
+        if retry_one_test(binary, gtest_args, name, max_retries):
+            flaky_pass.append(name)
+        else:
+            real_fail.append(name)
+    return flaky_pass, real_fail
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                       formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -99,24 +122,7 @@ def main():
 
         print(f"[retry-wrapper] first run had {len(failed)} failure(s); retrying each up to "
               f"{max_retries} time(s)...")
-        flaky_pass = []
-        real_fail = []
-        for name in failed:
-            # Re-run just this test up to max_retries times.
-            passed = False
-            for attempt in range(1, max_retries + 1):
-                r = run_gtests(args.binary,
-                               list(gtest_args) + [f"--gtest_filter={name}"])
-                if r.returncode == 0:
-                    passed = True
-                    print(f"[retry-wrapper] FLAKY-PASS: {name} (passed on retry {attempt})")
-                    break
-            if passed:
-                flaky_pass.append(name)
-            else:
-                print(f"[retry-wrapper] FAILED: {name} (failed all {max_retries} retries)")
-                real_fail.append(name)
-
+        flaky_pass, real_fail = retry_failed_tests(args.binary, gtest_args, failed, max_retries)
         print(f"[retry-wrapper] summary: {len(flaky_pass)} flaky-pass, "
               f"{len(real_fail)} real-fail")
         return 0 if not real_fail else 1
