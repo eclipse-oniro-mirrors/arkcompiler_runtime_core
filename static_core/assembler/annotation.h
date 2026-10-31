@@ -464,7 +464,7 @@ struct ValueTypeHelper {
 template <Value::Type TYPE>
 using ValueTypeHelperT = typename ValueTypeHelper<TYPE>::Type;
 
-class ScalarValue : public Value {
+class PANDA_PUBLIC_API ScalarValue : public Value {
 public:
     template <Value::Type TYPE>
     // Disable checks due to clang-tidy bug https://bugs.llvm.org/show_bug.cgi?id=40640
@@ -519,7 +519,7 @@ public:
     DEFAULT_MOVE_SEMANTIC(ScalarValue);
     DEFAULT_COPY_SEMANTIC(ScalarValue);
 
-    ~ScalarValue() override = default;
+    PANDA_PUBLIC_API ~ScalarValue() override;
 
 private:
     ScalarValue(Type type, uint64_t value) : Value(type), value_(value) {}
