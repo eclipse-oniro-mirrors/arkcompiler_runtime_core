@@ -402,3 +402,165 @@ function testClearTimerCrossWorker(isExternalTimer: boolean)
     }
     globalTest!.setPassed();
 }
+
+function testConcurrentTimerCreation(isExternalTimer: boolean): void {
+    globalTest = new Test(0);
+    if (isExternalTimer) {
+        globalTest!.setPassed();
+        return;
+    }
+
+    CoroutineExtras.setSchedulingPolicy(CoroutineExtras.POLICY_NON_MAIN);
+
+    const workerCount = 8;
+    const timersPerWorker = 64;
+    const expectedCallbackCount = workerCount * timersPerWorker;
+    const startWorkers = new AtomicFlag(false);
+    const callbackCount = new AtomicInt(0);
+    const registeredTimerCount = new AtomicInt(0);
+    const invalidTimerIds = new AtomicInt(0);
+    const completionState = new AtomicInt(0);
+    const timerIdBits = new Array<AtomicInt>();
+    for (let i = 0; i < expectedCallbackCount / 32; ++i) {
+        timerIdBits.push(new AtomicInt(0));
+    }
+    const tryFinish = (): void => {
+        if (callbackCount.load() != expectedCallbackCount || registeredTimerCount.load() != expectedCallbackCount) {
+            return;
+        }
+        if (completionState.compareAndSwap(0, 1) != 0) {
+            return;
+        }
+        if (invalidTimerIds.load() == 0) {
+            globalTest!.setPassed();
+        } else {
+            globalTest!.fail("Concurrent timer creation produced duplicate timer IDs.");
+        }
+    };
+    const createTimers = (): void => {
+        while (!startWorkers.get()) {
+            // Release all worker jobs together to exercise concurrent timer creation.
+        }
+        for (let i = 0; i < timersPerWorker; ++i) {
+            const timerId = setTimeout((): void => {
+                callbackCount.fetchAdd(1);
+                tryFinish();
+            }, 0);
+            if (timerId < 0) {
+                invalidTimerIds.fetchAdd(1);
+            } else {
+                // IDs may not start at zero if another runtime component already allocated a timer.
+                // A full consecutive range still occupies each slot exactly once modulo the batch size.
+                const slot = timerId % expectedCallbackCount;
+                const bit = 1 << (slot % 32);
+                const previousBits = timerIdBits[slot / 32].fetchOr(bit);
+                if ((previousBits & bit) != 0) {
+                    invalidTimerIds.fetchAdd(1);
+                }
+            }
+            registeredTimerCount.fetchAdd(1);
+            tryFinish();
+        }
+    };
+
+    launch(createTimers);
+    launch(createTimers);
+    launch(createTimers);
+    launch(createTimers);
+    launch(createTimers);
+    launch(createTimers);
+    launch(createTimers);
+    launch(createTimers);
+
+    startWorkers.set(true);
+}
+
+function scheduleTimerWithArgs(workerId: int, timerIndex: int, callbackCount: AtomicInt, expectedCount: int): void {
+    setTimeout((actualWorkerId: int, actualTimerIndex: int): void => {
+        if (actualWorkerId != workerId || actualTimerIndex != timerIndex) {
+            globalTest!.fail("Timer callback received unexpected arguments.");
+            return;
+        }
+        const previousCount = callbackCount.fetchAdd(1);
+        if (previousCount == expectedCount - 1) {
+            globalTest!.setPassed();
+        }
+    }, 0, workerId, timerIndex);
+}
+
+function testConcurrentTimerCreationWithArgs(isExternalTimer: boolean): void {
+    globalTest = new Test(0);
+    if (isExternalTimer) {
+        globalTest!.setPassed();
+        return;
+    }
+
+    CoroutineExtras.setSchedulingPolicy(CoroutineExtras.POLICY_NON_MAIN);
+
+    const workerCount = 8;
+    const timersPerWorker = 32;
+    const expectedCallbackCount = workerCount * timersPerWorker;
+    const startWorkers = new AtomicFlag(false);
+    const callbackCount = new AtomicInt(0);
+    const createTimers = (workerId: int): void => {
+        while (!startWorkers.get()) {
+            // Let every worker reach the start line before creating timers.
+        }
+        for (let timerIndex = 0; timerIndex < timersPerWorker; ++timerIndex) {
+            scheduleTimerWithArgs(workerId, timerIndex, callbackCount, expectedCallbackCount);
+        }
+    };
+
+    launch((): void => createTimers(0));
+    launch((): void => createTimers(1));
+    launch((): void => createTimers(2));
+    launch((): void => createTimers(3));
+    launch((): void => createTimers(4));
+    launch((): void => createTimers(5));
+    launch((): void => createTimers(6));
+    launch((): void => createTimers(7));
+
+    startWorkers.set(true);
+}
+
+function testConcurrentIntervalCreationAndClear(isExternalTimer: boolean): void {
+    globalTest = new Test(0);
+    if (isExternalTimer) {
+        globalTest!.setPassed();
+        return;
+    }
+
+    CoroutineExtras.setSchedulingPolicy(CoroutineExtras.POLICY_NON_MAIN);
+
+    const workerCount = 8;
+    const intervalsPerWorker = 8;
+    const expectedCallbackCount = workerCount * intervalsPerWorker;
+    const startWorkers = new AtomicFlag(false);
+    const callbackCount = new AtomicInt(0);
+    const createIntervals = (): void => {
+        while (!startWorkers.get()) {
+            // Release the interval creators together to contend on the timer registry.
+        }
+        for (let i = 0; i < intervalsPerWorker; ++i) {
+            let intervalId = 0;
+            intervalId = setInterval((): void => {
+                clearInterval(intervalId);
+                const previousCount = callbackCount.fetchAdd(1);
+                if (previousCount == expectedCallbackCount - 1) {
+                    globalTest!.setPassed();
+                }
+            }, 1);
+        }
+    };
+
+    launch(createIntervals);
+    launch(createIntervals);
+    launch(createIntervals);
+    launch(createIntervals);
+    launch(createIntervals);
+    launch(createIntervals);
+    launch(createIntervals);
+    launch(createIntervals);
+
+    startWorkers.set(true);
+}
