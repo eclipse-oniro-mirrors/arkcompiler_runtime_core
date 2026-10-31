@@ -54,6 +54,9 @@ set(test_asm_files
     data/multi/dedup_field/2.pa
     data/multi/ffield_static_instance/1.pa
     data/multi/ffield_static_instance/2.pa
+    data/multi/fmethod_static_instance/1.pa
+    data/multi/fmethod_static_instance/2.pa
+    data/multi/fmethod_static_instance/3.pa
     data/multi/dedup_method/1.pa
     data/multi/dedup_method/2.pa
     data/multi/bad_fmethod_overloaded/1.pa
@@ -76,6 +79,7 @@ set(test_asm_files
     data/multi/fmethod/out.gold
     data/multi/dedup_field/out.gold
     data/multi/ffield_static_instance/out.gold
+    data/multi/fmethod_static_instance/out.gold
     data/multi/dedup_method/out.gold
     data/multi/fmethod_overloaded_2/out.gold
 )

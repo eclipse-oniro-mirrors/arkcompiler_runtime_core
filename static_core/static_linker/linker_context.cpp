@@ -360,7 +360,8 @@ bool Context::IsSameType(ark::panda_file::TypeItem *nevv, ark::panda_file::TypeI
 }
 
 Context::MethodSearchResult Context::TryFindMethod(panda_file::BaseClassItem *klass, panda_file::StringItem *name,
-                                                   panda_file::ProtoItem *proto, std::vector<ErrorDetail> *relatedItems)
+                                                   panda_file::ProtoItem *proto, std::vector<ErrorDetail> *relatedItems,
+                                                   bool isStatic)
 {
     if (klass == nullptr) {
         return false;
@@ -378,7 +379,7 @@ Context::MethodSearchResult Context::TryFindMethod(panda_file::BaseClassItem *kl
 
         relatedItems->emplace_back("candidate", nm);
 
-        if (nm->GetProto() == proto) {
+        if (nm->GetProto() == proto && nm->IsStatic() == isStatic) {
             return nm;
         }
     }
@@ -394,12 +395,12 @@ Context::MethodSearchResult Context::TryFindMethod(panda_file::BaseClassItem *kl
         return std::holds_alternative<panda_file::MethodItem *>(res);
     };
 
-    auto res = TryFindMethod(searchIn, name, proto, relatedItems);
+    auto res = TryFindMethod(searchIn, name, proto, relatedItems, isStatic);
     if (hasSearchResult(res)) {
         return res;
     }
     for (auto *iface : kls->GetInterfaces()) {
-        res = TryFindMethod(iface, name, proto, relatedItems);
+        res = TryFindMethod(iface, name, proto, relatedItems, isStatic);
         if (hasSearchResult(res)) {
             return res;
         }
@@ -434,14 +435,14 @@ void Context::MergeForeignMethod(const panda_file::FileReader *reader, panda_fil
     auto *clz = static_cast<panda_file::BaseClassItem *>(clzIt->second);
     auto *name = StringFromOld(fm->GetNameItem());
     auto *proto = GetProto(fm->GetProto()).proto;
-    auto resolutionKey = MethodResolutionKey {clz, name, proto};
+    auto resolutionKey = MethodResolutionKey {clz, name, proto, fm->IsStatic()};
     if (auto cached = resolvedMethods_.find(resolutionKey); cached != resolvedMethods_.end()) {
         knownItems_[fm] = cached->second;
         return;
     }
 
     std::vector<ark::static_linker::Context::ErrorDetail> details = {{"method", fm}};
-    auto res = TryFindMethod(clz, name, proto, &details);
+    auto res = TryFindMethod(clz, name, proto, &details, fm->IsStatic());
     if (std::holds_alternative<panda_file::MethodItem *>(res)) {
         ASSERT(std::holds_alternative<panda_file::MethodItem *>(res));
         auto *meth = std::get<panda_file::MethodItem *>(res);

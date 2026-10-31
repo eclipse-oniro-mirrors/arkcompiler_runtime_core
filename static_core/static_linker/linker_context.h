@@ -344,14 +344,15 @@ private:
     class MethodResolutionKey {
     public:
         MethodResolutionKey(panda_file::BaseClassItem *klass, panda_file::StringItem *name,
-                            panda_file::ProtoItem *proto)
-            : klass_(klass), name_(name), proto_(proto)
+                            panda_file::ProtoItem *proto, bool isStatic)
+            : klass_(klass), name_(name), proto_(proto), isStatic_(isStatic)
         {
         }
 
         bool operator==(const MethodResolutionKey &other) const
         {
-            return klass_ == other.klass_ && name_ == other.name_ && proto_ == other.proto_;
+            return klass_ == other.klass_ && name_ == other.name_ && proto_ == other.proto_ &&
+                   isStatic_ == other.isStatic_;
         }
 
         panda_file::BaseClassItem *GetClass() const
@@ -369,17 +370,25 @@ private:
             return proto_;
         }
 
+        bool IsStatic() const
+        {
+            return isStatic_;
+        }
+
     private:
         panda_file::BaseClassItem *klass_;
         panda_file::StringItem *name_;
         panda_file::ProtoItem *proto_;
+        bool isStatic_;
     };
 
     class MethodResolutionKeyHash {
     public:
         size_t operator()(const MethodResolutionKey &key) const
         {
-            return CombineHash(CombineHash(CombineHash(0, key.GetClass()), key.GetName()), key.GetProto());
+            auto hash = CombineHash(CombineHash(CombineHash(0, key.GetClass()), key.GetName()), key.GetProto());
+            return hash ^ (std::hash<bool> {}(key.IsStatic()) + HASH_MAGIC + (hash << HASH_LEFT_SHIFT) +
+                           (hash >> HASH_RIGHT_SHIFT));
         }
     };
 
@@ -610,7 +619,8 @@ private:
                                    std::vector<panda_file::FieldItem *> *badCandidates);
 
     MethodSearchResult TryFindMethod(panda_file::BaseClassItem *klass, panda_file::StringItem *name,
-                                     panda_file::ProtoItem *proto, std::vector<ErrorDetail> *relatedItems);
+                                     panda_file::ProtoItem *proto, std::vector<ErrorDetail> *relatedItems,
+                                     bool isStatic);
 
     std::variant<panda_file::AnnotationItem *, ErrorDetail> AnnotFromOld(panda_file::AnnotationItem *oa);
 
