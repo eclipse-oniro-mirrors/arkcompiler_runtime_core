@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -20,6 +20,9 @@
 #include <string>
 #include <sstream>
 #include <iomanip>
+#include <iterator>
+#include <map>
+#include <optional>
 #include <set>
 
 #include "file.h"
@@ -54,15 +57,28 @@ inline void PrintBytecodeVersion()
     std::cout << ss.str() << std::endl;
 }
 
-const std::map<uint8_t, std::array<uint8_t, File::VERSION_SIZE>> api_version_map {
-% current_version_raw = Panda::version.split('.')
-% current_api = current_version_raw[0]
-% current_version = current_version_raw.join(', ')
-    {0, {<%= current_version %>}},
+// A dotted api version (major.minor.patch); an integer key N in isa.yaml means N.0.0.
+using ApiVersion = std::array<uint8_t, 3>;
+
+inline std::string GetApiVersionString(const ApiVersion &api)
+{
+    std::stringstream ss;
+    ss << static_cast<uint32_t>(api[0]) << "." << static_cast<uint32_t>(api[1]) << "."
+       << static_cast<uint32_t>(api[2]);
+    return ss.str();
+}
+
+// Keys must be kept in sync with isa.yaml. Do not add derived entries here:
+// the map is generated from the explicit api_version_map list only, so that
+// e.g. 26 / 26.0.0 can stay on an older bytecode version than 'version'.
+const std::map<ApiVersion, std::array<uint8_t, File::VERSION_SIZE>> api_version_map {
 % Panda::api_version_map.each do |api_version|
-    {<%= api_version[0] %>, {<%= api_version[1].split('.').join(', ') %>}},
+%   api_parts = api_version[0].to_s.split('.')
+%   while api_parts.size < 3
+%     api_parts.push('0')
+%   end
+    {ApiVersion {<%= api_parts.join(', ') %>}, {<%= api_version[1].split('.').join(', ') %>}},
 % end
-    {<%= current_api %>, {<%= current_version %>}}
 };
 
 inline void PrintSupportedApi() {
@@ -70,27 +86,58 @@ inline void PrintSupportedApi() {
     std::cout << "Supported apis and corresponding file versions:" << std::endl;
     std::cout << std::setw(WIDTH) << "api" << std::setw(WIDTH) << "file version" << std::endl;
     for (const auto &[legal_api, file_version] : api_version_map) {
-        if (legal_api == 0) {
+        if (legal_api == ApiVersion {0, 0, 0}) {
             continue;
-        } else {
-            std::cout << std::setw(WIDTH) << static_cast<uint32_t>(legal_api);
         }
+        std::cout << std::setw(WIDTH) << GetApiVersionString(legal_api);
         std::cout << std::setw(WIDTH) << GetVersion(file_version) << std::endl;
     }
 }
 
-inline std::optional<const std::array<uint8_t, File::VERSION_SIZE>> GetVersionByApi(uint8_t api, std::string subApi)
+// Resolution result for a target api version.
+struct ApiVersionResolution {
+    std::array<uint8_t, File::VERSION_SIZE> version;
+    // true when the requested api version is an exact key of api_version_map
+    // (the historical API12 + beta1/beta2 case counts as exact as well)
+    bool exact;
+};
+
+inline ApiVersionResolution ResolveVersionByApi(uint8_t major, uint8_t minor, uint8_t patch,
+                                                const std::string &subApi)
 {
-    if (api == API_12 && (subApi == SUB_API_VERSION_1 || subApi == SUB_API_VERSION_2)) {
-        return std::array<uint8_t, File::VERSION_SIZE> {12, 0, 2, 0};
+    if (major == API_12 && minor == 0 && patch == 0 &&
+        (subApi == SUB_API_VERSION_1 || subApi == SUB_API_VERSION_2)) {
+        return {std::array<uint8_t, File::VERSION_SIZE> {12, 0, 2, 0}, true};
     }
 
-    const auto iter = api_version_map.find(api);
-    if (iter == api_version_map.end()) {
-        // if there is no corresponding api version, the default branch is current version.
-        return version;
+    const ApiVersion key {major, minor, patch};
+    const auto iter = api_version_map.find(key);
+    if (iter != api_version_map.end()) {
+        return {iter->second, true};
     }
-    return iter->second;
+
+    // The requested version is not a known one:
+    //  - above the newest known version, or below the oldest one: keep the legacy
+    //    behaviour and resolve to the current (latest) version;
+    //  - between two known versions: fall back to the nearest lower known version.
+    const auto upper = api_version_map.upper_bound(key);
+    if (upper == api_version_map.begin() || upper == api_version_map.end()) {
+        return {version, false};
+    }
+    return {std::prev(upper)->second, false};
+}
+
+inline std::optional<const std::array<uint8_t, File::VERSION_SIZE>> GetVersionByApi(uint8_t major,
+    uint8_t minor, uint8_t patch, const std::string &subApi)
+{
+    return ResolveVersionByApi(major, minor, patch, subApi).version;
+}
+
+// Legacy single-component entry point: an integer api level N means N.0.0.
+inline std::optional<const std::array<uint8_t, File::VERSION_SIZE>> GetVersionByApi(uint8_t api,
+                                                                                    std::string subApi)
+{
+    return GetVersionByApi(api, 0, 0, subApi);
 }
 
 }  // namespace panda::panda_file

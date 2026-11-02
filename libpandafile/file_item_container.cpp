@@ -154,6 +154,8 @@ static T *GetOrInsert(C &map, I &items, const P &pos, const E &key, bool is_fore
 
 /*static*/
 uint8_t ItemContainer::apiVersion = 0;
+uint8_t ItemContainer::apiMinorVersion = 0;
+uint8_t ItemContainer::apiPatchVersion = 0;
 std::string ItemContainer::subApiVersion = DEFAULT_SUB_API_VERSION;
 
 ItemContainer::ItemContainer()
@@ -427,7 +429,8 @@ void ItemContainer::ReLayout()
 
 void ItemContainer::ComputeLayoutForReferencedItems()
 {
-    const auto bc_version = GetVersionByApi(ItemContainer::GetApi(), ItemContainer::GetSubApi());
+    const auto bc_version = GetVersionByApi(ItemContainer::GetApi(), ItemContainer::GetApiMinor(),
+        ItemContainer::GetApiPatch(), ItemContainer::GetSubApi());
     uint32_t original_offset = 0;
     uint32_t num_classes = class_map_.size();
     uint32_t num_literalarrays = literalarray_map_.size();
@@ -656,7 +659,8 @@ bool ItemContainer::WriteHeaderIndexInfo(Writer *writer)
         return false;
     }
 
-    const auto bc_version = GetVersionByApi(ItemContainer::GetApi(), ItemContainer::GetSubApi());
+    const auto bc_version = GetVersionByApi(ItemContainer::GetApi(), ItemContainer::GetApiMinor(),
+        ItemContainer::GetApiPatch(), ItemContainer::GetSubApi());
 
     uint32_t num_literalarrays = INVALID_INDEX;
     uint32_t literalarray_idx_offset = INVALID_OFFSET;
@@ -721,7 +725,8 @@ bool ItemContainer::WriteHeader(Writer *writer, ssize_t *checksum_offset)
     }
     writer->CountChecksum(true);
 
-    const auto bc_version = GetVersionByApi(ItemContainer::GetApi(), ItemContainer::GetSubApi());
+    const auto bc_version = GetVersionByApi(ItemContainer::GetApi(), ItemContainer::GetApiMinor(),
+        ItemContainer::GetApiPatch(), ItemContainer::GetSubApi());
     const auto &version = bytecode_version_.has_value() ? bytecode_version_.value() : bc_version.value();
     std::vector<uint8_t> versionVec(std::begin(version), std::end(version));
 
@@ -802,7 +807,8 @@ bool ItemContainer::Write(Writer *writer)
     {
         // Write literalArray idx
         panda::Timer::ScopeTimer timer(panda::EVENT_WRITE_LITERALARRAY_IDX);
-        const auto bc_version = GetVersionByApi(ItemContainer::GetApi(), ItemContainer::GetSubApi());
+        const auto bc_version = GetVersionByApi(ItemContainer::GetApi(), ItemContainer::GetApiMinor(),
+            ItemContainer::GetApiPatch(), ItemContainer::GetSubApi());
         if (ContainsLiteralArrayInHeader(bc_version.value())) {
             for (auto &entry : literalarray_map_) {
                 if (!writer->Write(entry.second->GetOffset())) {
@@ -850,7 +856,8 @@ std::map<std::string, size_t> ItemContainer::GetStat()
     stat["class_idx_item"] = class_map_.size() * ID_SIZE;
     stat["line_number_program_idx_item"] = line_number_program_index_item_.GetNumItems() * ID_SIZE
                                            + line_number_item_roundup_size_;
-    const auto bc_version = GetVersionByApi(ItemContainer::GetApi(), ItemContainer::GetSubApi());
+    const auto bc_version = GetVersionByApi(ItemContainer::GetApi(), ItemContainer::GetApiMinor(),
+        ItemContainer::GetApiPatch(), ItemContainer::GetSubApi());
     if (ContainsLiteralArrayInHeader(bc_version.value())) {
         stat["literalarray_idx"] = literalarray_map_.size() * ID_SIZE;
     } else {

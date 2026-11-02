@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2023 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2023-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -82,8 +82,9 @@ HWTEST_F(DisasmTest, disassembler_column_number_test_003, TestSize.Level1)
     panda::disasm::Disassembler disasm {};
     disasm.Disassemble(file_name, false, false);
     disasm.CollectInfo();
-    // The known column number in the abc file
-    std::vector<size_t> expectedColumnNumber = {4, 16, 4, 15, 4, -1, 3, 14, 6, 14, 6, -1};
+    // The known column number in the abc file; the `this` load column entries
+    // are gone since this-property writes fold into stthisbyname.
+    std::vector<size_t> expectedColumnNumber = {16, 4, 15, 4, -1, 3, 14, 6, 14, 6, -1};
     std::vector<size_t> columnNumber = disasm.GetColumnNumber();
     ASSERT_EQ(expectedColumnNumber.size(), columnNumber.size());
     for (size_t i = 0; i < expectedColumnNumber.size(); ++i) {
@@ -123,9 +124,10 @@ HWTEST_F(DisasmTest, disassembler_column_number_test_005, TestSize.Level1)
     panda::disasm::Disassembler disasm {};
     disasm.Disassemble(file_name, false, false);
     disasm.CollectInfo();
-    // The known column number in the abc file
+    // The known column number in the abc file; the `this` load column entries
+    // are gone since this-property writes fold into stthisbyname.
     std::vector<size_t> expectedColumnNumber = {10, 6, 10, 6, 10, 14, 6, 10, 14, 6, 9, 1, 2, -1, 1,
-                                                4, 16, 4, 15, 4, -1, 3, 14, 6, 14, 6, 8, 4, -1};
+                                                16, 4, 15, 4, -1, 3, 14, 6, 14, 6, 8, 4, -1};
     std::vector<size_t> columnNumber = disasm.GetColumnNumber();
     ASSERT_EQ(expectedColumnNumber.size(), columnNumber.size());
     for (size_t i = 0; i < expectedColumnNumber.size(); ++i) {

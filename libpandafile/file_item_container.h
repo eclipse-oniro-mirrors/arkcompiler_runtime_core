@@ -235,6 +235,15 @@ public:
     static void SetApi(uint8_t api)
     {
         ItemContainer::apiVersion = api;
+        ItemContainer::apiMinorVersion = 0;
+        ItemContainer::apiPatchVersion = 0;
+    }
+
+    static void SetApi(uint8_t api, uint8_t apiMinor, uint8_t apiPatch)
+    {
+        ItemContainer::apiVersion = api;
+        ItemContainer::apiMinorVersion = apiMinor;
+        ItemContainer::apiPatchVersion = apiPatch;
     }
 
     static void SetSubApi(std::string subApi)
@@ -250,6 +259,16 @@ public:
     static uint8_t GetApi()
     {
         return ItemContainer::apiVersion;
+    }
+
+    static uint8_t GetApiMinor()
+    {
+        return ItemContainer::apiMinorVersion;
+    }
+
+    static uint8_t GetApiPatch()
+    {
+        return ItemContainer::apiPatchVersion;
     }
 
     void InvalidateComputeLayout()
@@ -268,6 +287,8 @@ public:
         return cur_offset_ != 0;
     }
     static uint8_t apiVersion;
+    static uint8_t apiMinorVersion;
+    static uint8_t apiPatchVersion;
     static std::string subApiVersion;
 
 private:
@@ -291,7 +312,8 @@ private:
         {
             ASSERT(type_ != IndexType::NONE);
 
-            const auto bc_version = GetVersionByApi(ItemContainer::GetApi(), ItemContainer::GetSubApi());
+            const auto bc_version = GetVersionByApi(ItemContainer::GetApi(), ItemContainer::GetApiMinor(),
+                ItemContainer::GetApiPatch(), ItemContainer::GetSubApi());
             if (bc_version.value().front() >= API_12 && (type == IndexType::FIELD || type == IndexType::PROTO)) {
                 SetNeedsEmit(false);
             }

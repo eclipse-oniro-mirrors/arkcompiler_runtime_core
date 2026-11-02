@@ -1,15 +1,15 @@
 # source binary: dedup_class_buffer.abc
 
-0 0x3fd { 1 [ i32:0, ]}
-1 0x3cc { 1 [ i32:0, ]}
-3 0x3d5 
-5 0x3a4 
-2 0x3d9 { 1 [
+0 0x407 { 1 [ i32:0, ]}
+1 0x3d6 { 1 [ i32:0, ]}
+3 0x3df 
+5 0x3ae 
+2 0x3e3 { 1 [
 	MODULE_REQUEST_ARRAY: {
 	};
 	ModuleTag: LOCAL_EXPORT, local_name: C2, export_name: C2;
 ]}
-4 0x3a8 { 1 [
+4 0x3b2 { 1 [
 	MODULE_REQUEST_ARRAY: {
 	};
 	ModuleTag: LOCAL_EXPORT, local_name: C1, export_name: C1;
@@ -31,16 +31,16 @@
 .record dedup_cls_src1 {
 	u8 pkgName@dedup_cls_src1 = 0x0
 	u8 isCommonjs = 0x0
-	u32 scopeNames = 0x3a4
-	u32 moduleRecordIdx = 0x3a8
+	u32 scopeNames = 0x3ae
+	u32 moduleRecordIdx = 0x3b2
 }
 
 .language ECMAScript
 .record dedup_cls_src2 {
 	u8 pkgName@dedup_cls_src2 = 0x0
 	u8 isCommonjs = 0x0
-	u32 scopeNames = 0x3d5
-	u32 moduleRecordIdx = 0x3d9
+	u32 scopeNames = 0x3df
+	u32 moduleRecordIdx = 0x3e3
 }
 
 L_ESSlotNumberAnnotation:
@@ -115,6 +115,6 @@ L_ESSlotNumberAnnotation:
 	returnundefined
 }
 
-[offset:0x393, name_value:x]
-[offset:0x396, name_value:y]
-[offset:0x399, name_value:prototype]
+[offset:0x39d, name_value:x]
+[offset:0x3a0, name_value:y]
+[offset:0x3a3, name_value:prototype]

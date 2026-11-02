@@ -1332,7 +1332,7 @@ HWTEST_F(AssemblyEmitterTest, assembly_emitter_test_023, TestSize.Level1)
     // api 11
     {
         std::string descriptor;
-        auto pf = AsmEmitter::Emit(res.Value(), nullptr, 11);
+        auto pf = AsmEmitter::Emit(res.Value(), nullptr, TargetApiVersion {11});
         EXPECT_NE(pf, nullptr);
 
         auto class_id = pf->GetClassId(GetTypeDescriptor("_GLOBAL", &descriptor));
@@ -1355,7 +1355,7 @@ HWTEST_F(AssemblyEmitterTest, assembly_emitter_test_023, TestSize.Level1)
     // api 12
     {
         std::string descriptor;
-        auto pf = AsmEmitter::Emit(res.Value(), nullptr, 12);
+        auto pf = AsmEmitter::Emit(res.Value(), nullptr, TargetApiVersion {12});
         EXPECT_NE(pf, nullptr);
 
         auto class_id = pf->GetClassId(GetTypeDescriptor("_GLOBAL", &descriptor));

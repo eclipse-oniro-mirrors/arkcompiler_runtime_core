@@ -385,10 +385,16 @@ HWTEST_F(VerifierNewChecksTest, verifier_new_checks_004, TestSize.Level1)
     const std::string base_file_name = GRAPH_TEST_ABC_DIR "test_constant_pool.abc";
     std::vector<unsigned char> buffer;
     ASSERT_TRUE(ReadAbcFile(base_file_name, buffer));
-    // The known literal array id operand of an instruction in the abc file
-    std::vector<unsigned char> literal_id = {0x0f, 0x00};
+    // The literal-array index operand of the instruction in the abc file,
+    // anchored on the instruction shape instead of a hardcoded id: the abc
+    // layout produced by the frontend may shift, and a plain byte-pair scan
+    // then hits an unrelated earlier occurrence.
+    size_t operand_offset = 0;
+    uint32_t method_cp_index = 0;
+    ASSERT_TRUE(FindDefineClassLiteralOperand(base_file_name, buffer, operand_offset, method_cp_index));
     std::vector<unsigned char> invalid_id = {0xfe, 0xff};
-    ASSERT_TRUE(TamperFirst(buffer, literal_id, invalid_id));
+    buffer[operand_offset] = invalid_id[0];
+    buffer[operand_offset + 1U] = invalid_id[1];
     const std::string tar_file_name = GRAPH_TEST_ABC_DIR "verifier_new_checks_004.abc";
     GenerateModifiedAbc(buffer, tar_file_name);
 
