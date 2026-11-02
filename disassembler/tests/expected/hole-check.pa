@@ -13,12 +13,12 @@
 
 .language ECMAScript
 .record _ESModuleRecord {
-	u32 hole-check.js = 0x5b1
+	u32 hole-check.js = 0x7dc
 }
 
 .language ECMAScript
 .record _ESScopeNamesRecord {
-	u32 hole-check.js = 0x59e
+	u32 hole-check.js = 0x7c4
 }
 
 .language ECMAScript
@@ -53,7 +53,7 @@ L_ESSlotNumberAnnotation:
 	newlexenv 0x1
 	ldai 0x1
 	stlexvar 0x0, 0x0
-	definefunc 0x0, #*@0*#inner:(any,any,any), 0x0
+	definefunc 0x0, #*@1*#inner:(any,any,any), 0x0
 	callarg0 0x1
 	return
 }
@@ -66,8 +66,63 @@ L_ESSlotNumberAnnotation:
 	ldlexvar 0x1, 0x1
 	throw.undefinedifholewithname "other"
 	stlexvar 0x0, 0x0
-	definefunc 0x0, #*@1*#inner:(any,any,any), 0x0
+	definefunc 0x0, #*@2*#inner:(any,any,any), 0x0
 	callarg0 0x1
+	return
+}
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0x1 }
+.language ECMAScript
+.function any #*#canLocalCrossBlock(any a0, any a1, any a2, any a3) <static> {
+	ldlocalmodulevar 0x1
+	throw.undefinedifholewithname "localExport"
+	ldai 0x1
+	stmodulevar 0x1
+	lda a3
+	callruntime.isfalse 0x0
+	jnez jump_label_0
+	ldlocalmodulevar 0x1
+	return
+jump_label_0:
+	ldai 0x0
+	return
+}
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0x3 }
+.language ECMAScript
+.function any #*#canLocalEntrySeed(any a0, any a1, any a2) <static> {
+	ldlocalmodulevar 0x1
+	throw.undefinedifholewithname "localExport"
+	ldai 0x1
+	stmodulevar 0x1
+	definefunc 0x0, #*@0*#inner:(any,any,any), 0x0
+	callarg0 0x1
+	return
+}
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0x1 }
+.language ECMAScript
+.function any #*#canLocalMultiRead(any a0, any a1, any a2) <static> {
+	ldlocalmodulevar 0x1
+	sta v0
+	throw.undefinedifholewithname "localExport"
+	ldlocalmodulevar 0x1
+	add2 0x0, v0
+	return
+}
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0x0 }
+.language ECMAScript
+.function any #*#canLocalStoreThenRead(any a0, any a1, any a2) <static> {
+	ldlocalmodulevar 0x1
+	throw.undefinedifholewithname "localExport"
+	ldai 0x1
+	stmodulevar 0x1
+	ldlocalmodulevar 0x1
 	return
 }
 
@@ -132,13 +187,33 @@ L_ESSlotNumberAnnotation:
 .language ECMAScript
 .function any #*#cantEntrySeedStoreAfter(any a0, any a1, any a2) <static> {
 	newlexenv 0x1
-	definefunc 0x0, #*@2*#inner:(any,any,any), 0x0
+	definefunc 0x0, #*@3*#inner:(any,any,any), 0x0
 	sta v0
 	ldai 0x1
 	stlexvar 0x0, 0x0
 	lda v0
 	callarg0 0x1
 	return
+}
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0x0 }
+.language ECMAScript
+.function any #*#cantLocalReadOnly(any a0, any a1, any a2) <static> {
+	ldlocalmodulevar 0x1
+	throw.undefinedifholewithname "localExport"
+	return
+}
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0x0 }
+.language ECMAScript
+.function any #*#cantLocalWriteOnly(any a0, any a1, any a2) <static> {
+	ldlocalmodulevar 0x1
+	throw.undefinedifholewithname "localExport"
+	ldai 0x1
+	stmodulevar 0x1
+	returnundefined
 }
 
 L_ESSlotNumberAnnotation:
@@ -184,7 +259,7 @@ L_ESSlotNumberAnnotation:
 	u32 SlotNumber { 0x0 }
 .language ECMAScript
 .function any #*@0*#inner(any a0, any a1, any a2) <static> {
-	ldlexvar 0x0, 0x0
+	ldlocalmodulevar 0x1
 	return
 }
 
@@ -201,36 +276,55 @@ L_ESSlotNumberAnnotation:
 .language ECMAScript
 .function any #*@2*#inner(any a0, any a1, any a2) <static> {
 	ldlexvar 0x0, 0x0
+	return
+}
+
+L_ESSlotNumberAnnotation:
+	u32 SlotNumber { 0x0 }
+.language ECMAScript
+.function any #*@3*#inner(any a0, any a1, any a2) <static> {
+	ldlexvar 0x0, 0x0
 	throw.undefinedifholewithname "x"
 	return
 }
 
 L_ESSlotNumberAnnotation:
-	u32 SlotNumber { 0xb }
+	u32 SlotNumber { 0x11 }
 .language ECMAScript
 .function any func_main_0(any a0, any a1, any a2) <static> {
 	newlexenv 0x2
 	definefunc 0x0, #*#canCrossBlockStore:(any,any,any,any), 0x1
 	definefunc 0x1, #*#canEntrySeed:(any,any,any), 0x0
 	definefunc 0x2, #*#canEntrySeedNonConst:(any,any,any), 0x0
-	definefunc 0x3, #*#canMultiReadNoStore:(any,any,any), 0x0
-	definefunc 0x4, #*#canStoreNonConst:(any,any,any), 0x0
-	definefunc 0x5, #*#canStoreThenRead:(any,any,any), 0x0
-	definefunc 0x6, #*#cantCondInit:(any,any,any,any), 0x1
-	definefunc 0x7, #*#cantEntrySeedStoreAfter:(any,any,any), 0x0
-	definefunc 0x8, #*#cantReadOnlyCapture:(any,any,any), 0x0
-	definefunc 0x9, #*#cantTryCatch:(any,any,any), 0x0
-	definefunc 0xa, #*#cantWriteOnly:(any,any,any), 0x0
+	definefunc 0x3, #*#canLocalCrossBlock:(any,any,any,any), 0x1
+	definefunc 0x4, #*#canLocalEntrySeed:(any,any,any), 0x0
+	definefunc 0x5, #*#canLocalMultiRead:(any,any,any), 0x0
+	definefunc 0x6, #*#canLocalStoreThenRead:(any,any,any), 0x0
+	definefunc 0x7, #*#canMultiReadNoStore:(any,any,any), 0x0
+	definefunc 0x8, #*#canStoreNonConst:(any,any,any), 0x0
+	definefunc 0x9, #*#canStoreThenRead:(any,any,any), 0x0
+	definefunc 0xa, #*#cantCondInit:(any,any,any,any), 0x1
+	definefunc 0xb, #*#cantEntrySeedStoreAfter:(any,any,any), 0x0
+	definefunc 0xc, #*#cantLocalReadOnly:(any,any,any), 0x0
+	definefunc 0xd, #*#cantLocalWriteOnly:(any,any,any), 0x0
+	definefunc 0xe, #*#cantReadOnlyCapture:(any,any,any), 0x0
+	definefunc 0xf, #*#cantTryCatch:(any,any,any), 0x0
+	definefunc 0x10, #*#cantWriteOnly:(any,any,any), 0x0
 	ldundefined
 	stlexvar 0x0, 0x0
 	ldundefined
 	stlexvar 0x0, 0x1
+	ldai 0x1
+	stmodulevar 0x1
+	ldlocalmodulevar 0x1
+	stmodulevar 0x0
 	returnundefined
 }
 
 # ====================
 # STRING
 
-[offset:0x1f0, name_value:captured]
-[offset:0x1fa, name_value:other]
-[offset:0x201, name_value:x]
+[offset:0x2ae, name_value:captured]
+[offset:0x2b8, name_value:localExport]
+[offset:0x2c5, name_value:other]
+[offset:0x2cc, name_value:x]

@@ -1,0 +1,2 @@
+/js/cross_module_hole_check/AS.js;AS;esm;js/cross_module_hole_check/AS.js;AS;false
+/js/cross_module_hole_check/BS.js;BS;esm;js/cross_module_hole_check/BS.js;BS;false

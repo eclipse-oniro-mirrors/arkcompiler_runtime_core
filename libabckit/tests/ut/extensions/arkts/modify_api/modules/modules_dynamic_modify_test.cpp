@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -40,9 +40,11 @@ class LibAbcKitArkTSModifyApiModulesTest : public ::testing::Test {};
 
 constexpr auto MAIN_MODULE_NAME = "modules_dynamic_modify";
 
-// ========================================
-// Helpers
-// ========================================
+/*
+ * ========================================
+ * Helpers
+ * ========================================
+ */
 
 static void ModifyMetaDynModuleRemoveImport(AbckitFile *file, const std::string &name, bool shouldBeRemoved)
 {
@@ -161,6 +163,12 @@ static void TransformIrDynModuleRemoveNSImport(AbckitGraph *graph, const std::st
 
 static void TransformIrDynModuleRemoveExport(AbckitGraph *graph, const std::string &exportName)
 {
+    /*
+     * Try to find the throw instruction by name (original behavior).
+     * HoleCheckElimination Rule S may have already eliminated the throw for
+     * local exports whose declaration store dominates the read — in that case,
+     * fall back to finding the LDLOCALMODULEVAR by matching its STMODULEVAR slot.
+     */
     AbckitInst *instWithName = helpers::FindFirstInst(
         graph, ABCKIT_ISA_API_DYNAMIC_OPCODE_THROW_UNDEFINEDIFHOLEWITHNAME, [&](AbckitInst *inst) {
             auto nameOffset = g_implG->iGetImmediate(inst, 0);
@@ -168,13 +176,43 @@ static void TransformIrDynModuleRemoveExport(AbckitGraph *graph, const std::stri
             return nameStr == exportName;
         });
 
-    ASSERT_NE(instWithName, nullptr);
-    auto ldLocalModuleVarInst = g_implG->iGetPrev(instWithName);
-    ASSERT_NE(ldLocalModuleVarInst, nullptr);
-    auto callArg1Inst = g_implG->iGetNext(instWithName);
-    ASSERT_NE(callArg1Inst, nullptr);
+    AbckitInst *ldLocalModuleVarInst = nullptr;
+    AbckitInst *callArg1Inst = nullptr;
 
-    g_implG->iRemove(instWithName);
+    if (instWithName != nullptr) {
+        // Throw exists — get prev (ldlocalmodulevar) and next (callarg1).
+        ldLocalModuleVarInst = g_implG->iGetPrev(instWithName);
+        callArg1Inst = g_implG->iGetNext(instWithName);
+        ASSERT_NE(ldLocalModuleVarInst, nullptr);
+        ASSERT_NE(callArg1Inst, nullptr);
+        g_implG->iRemove(instWithName);
+    } else {
+        /*
+         * Throw was eliminated by Rule S — find the LDLOCALMODULEVAR whose
+         * STMODULEVAR (same slot) stores a CONSTANT value, and whose result
+         * feeds a CALLARG1 (the print call).
+         */
+        AbckitInst *matchCallArg1 =
+            helpers::FindFirstInst(graph, ABCKIT_ISA_API_DYNAMIC_OPCODE_CALLARG1, [&](AbckitInst *inst) {
+                auto in1 = g_implG->iGetInput(inst, 1);
+                if (g_dynG->iGetOpcode(in1) != ABCKIT_ISA_API_DYNAMIC_OPCODE_LDLOCALMODULEVAR) {
+                    return false;
+                }
+                auto slot = g_implG->iGetImmediate(in1, 0);
+                AbckitInst *stModVar = helpers::FindFirstInst(
+                    graph, ABCKIT_ISA_API_DYNAMIC_OPCODE_STMODULEVAR,
+                    [slot](AbckitInst *stInst) { return g_implG->iGetImmediate(stInst, 0) == slot; });
+                if (stModVar == nullptr) {
+                    return false;
+                }
+                auto storedValue = g_implG->iGetInput(stModVar, 0);
+                return g_dynG->iGetOpcode(storedValue) == ABCKIT_ISA_API_DYNAMIC_OPCODE_CONSTANT;
+            });
+        ASSERT_NE(matchCallArg1, nullptr);
+        ldLocalModuleVarInst = g_implG->iGetInput(matchCallArg1, 1);
+        callArg1Inst = matchCallArg1;
+    }
+
     g_implG->iRemove(ldLocalModuleVarInst);
     g_implG->iRemove(callArg1Inst);
 
@@ -468,9 +506,11 @@ static void TransformIrAddStarExportFunc2(AbckitGraph *graph, AbckitFile *file, 
     g_implG->iInsertBefore(callInst, lastInst);
 }
 
-// ========================================
-// Modules Tests
-// ========================================
+/*
+ * ========================================
+ * Modules Tests
+ * ========================================
+ */
 
 constexpr auto UNMODIFIED_EXPECTED_OUTPUT =
     "regular import func1 from module1\nregular import func1 from module2\nregular default import func1 from "

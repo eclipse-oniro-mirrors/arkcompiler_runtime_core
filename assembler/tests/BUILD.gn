@@ -35,6 +35,85 @@ assembler_test_js_files = [ "test_class_access_flags" ]
 
 test_js_path = "//arkcompiler/runtime_core/assembler/tests/js/"
 
+# End-to-end fixtures for the cross-module hole-check elimination: three-file
+# module chains (consumer -> re-exporter -> source). Compiled by the REAL
+# frontend in both layouts:
+#  - unmerged (single-file) .abc: module/phase literals hang off the shared
+#    _ESModuleRecord / _ModuleRequestPhaseRecord records;
+#  - --merge-abc merged .abc (one per scenario, see the filesInfo-driven
+#    actions below): module/phase literals hang off each module's own record
+#    (moduleRecordIdx / moduleRequestPhaseIdx fields), and the merge pipeline
+#    already ran the elimination when producing the artifact.
+e2e_test_js_files = [
+  "A",
+  "B",
+  "SRC",
+  "AP",
+  "BP",
+  "SRCP",
+  "AS",
+  "BS",
+  "try_catch",
+]
+
+e2e_test_js_path =
+    "//arkcompiler/runtime_core/assembler/tests/js/cross_module_hole_check/"
+
+# Unmerged (single-file) artifacts: each module compiled separately, the way
+# per-file hap compilation produces them.
+foreach(file, e2e_test_js_files) {
+  es2abc_gen_abc("gen_e2e_${file}_abc") {
+    test_js = "${e2e_test_js_path}${file}.js"
+    test_abc = "$target_out_dir/${file}.abc"
+    src_js = rebase_path(test_js)
+    dst_file = rebase_path(test_abc)
+    extra_args = [ "--module" ]
+    in_puts = [ test_js ]
+    out_puts = [ test_abc ]
+  }
+}
+
+# Merge-abc layout: ONE es2abc invocation per scenario through the REAL
+# multi-module pipeline (--input-file-list + --merge-abc, mirroring
+# disassembler/tests/dedup_literal_array). filesInfo.txt pins each module's
+# record name (A/B/SRC, AP/BP/SRCP) so the fixtures' import specifiers
+# ('./B.js' -> record "B") resolve to them; EmitMergedAbcJob then merges the
+# per-module programs and EmitPrograms runs the cross-module hole-check
+# elimination inside the frontend — the merged .abc artifact already reflects
+# the elimination result. handle_fileinfo.py prepends the absolute source dir
+# to the file paths at build time (paths in GN outputs are build-machine
+# dependent).
+foreach(scenario,
+        [
+          "lazy",
+          "plain",
+          "sdk",
+        ]) {
+  action("gen_e2e_${scenario}_filesinfo_action") {
+    script = "$ark_root/disassembler/tests/handle_fileinfo.py"
+    inputs = [ "${e2e_test_js_path}filesInfo_${scenario}.txt" ]
+    outputs = [ "$target_out_dir/merge_abc/filesInfo_${scenario}.txt" ]
+    args = [
+      rebase_path("${e2e_test_js_path}filesInfo_${scenario}.txt"),
+      rebase_path("$target_out_dir/merge_abc/filesInfo_${scenario}.txt"),
+      rebase_path("./"),
+    ]
+  }
+
+  es2abc_gen_abc("gen_e2e_${scenario}_merged_abc") {
+    test_abc = "$target_out_dir/e2e_${scenario}_merged.abc"
+    fileinfo_path =
+        rebase_path("$target_out_dir/merge_abc/filesInfo_${scenario}.txt")
+    src_js = "@${fileinfo_path}"
+    dst_file = rebase_path(test_abc)
+    extra_args = [
+      "--module",
+      "--merge-abc",
+    ]
+    out_puts = [ test_abc ]
+  }
+}
+
 foreach(file, assembler_test_js_files) {
   es2abc_gen_abc("gen_${file}_abc") {
     test_js = "${test_js_path}${file}.js"
@@ -102,7 +181,74 @@ host_unittest_action("AssemblerTest") {
   }
 }
 
+# End-to-end tests on real frontend artifacts. This test binary is linked
+# FULLY STATICALLY (abc2program_frontend_static pulls in the static
+# assembler/pandafile/pandabase): mixing the static abc2program with the
+# shared libarkassembler.so duplicates the libraries' globals and double-frees
+# at process exit. Keep it self-contained.
+config("e2e_test_private_config") {
+  visibility = [ ":*" ]
+  include_dirs = [
+    "$ark_root/assembler",
+    "$ark_root/abc2program",
+    "$root_gen_dir/libpandabase",
+    "$ark_root",
+  ]
+
+  defines = [ "PANDA_WITH_ECMASCRIPT" ]
+}
+
+host_unittest_action("CrossModuleHoleCheckE2eTest") {
+  module_out_path = module_output_path
+
+  sources = [ "cross_module_hole_check_e2e_test.cpp" ]
+
+  configs = [
+    ":e2e_test_private_config",
+    "$ark_root:ark_config",
+    "$ark_root/assembler:arkassembler_public_config",
+    "$ark_root/libpandabase:arkbase_public_config",
+    "$ark_root/libpandafile:arkfile_public_config",
+  ]
+
+  deps = [
+    "$ark_root/abc2program:abc2program_frontend_static",
+    "$ark_root/assembler:libarkassembler_frontend_static",
+  ]
+
+  external_deps = [ sdk_libc_secshared_dep ]
+  if (ark_standalone_build) {
+    deps += [ "$build_root/third_party_gn/googletest:gtest_main" ]
+  } else {
+    external_deps += [ "googletest:gtest_main" ]
+  }
+
+  if (enable_hilog) {
+    external_deps += [ "hilog:libhilog" ]
+  }
+
+  test_abc_dir = rebase_path(target_out_dir)
+  defines = [ "GRAPH_TEST_ABC_DIR=\"${test_abc_dir}/\"" ]
+  foreach(file, e2e_test_js_files) {
+    deps += [ ":gen_e2e_${file}_abc" ]
+  }
+  foreach(scenario,
+          [
+            "lazy",
+            "plain",
+            "sdk",
+          ]) {
+    deps += [
+      ":gen_e2e_${scenario}_filesinfo_action",
+      ":gen_e2e_${scenario}_merged_abc",
+    ]
+  }
+}
+
 group("host_unittest") {
   testonly = true
-  deps = [ ":AssemblerTestAction" ]
+  deps = [
+    ":AssemblerTestAction",
+    ":CrossModuleHoleCheckE2eTestAction",
+  ]
 }

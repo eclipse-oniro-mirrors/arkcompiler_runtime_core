@@ -49,19 +49,25 @@ bool IsHoleCheckThrow(const Inst *inst)
                                       RuntimeInterface::IntrinsicId::THROW_UNDEFINEDIFHOLEWITHNAME_PREF_ID16;
 }
 
-// Per-method context: the frontend-recorded table (throw/store pandasm::Ins
-// -> HoleCheckTarget) and the pc->pandasm::Ins map. Absent when the graph was
-// built without the pandasm Program (no frontend record -> no elimination).
+/*
+ * Per-method context: the frontend-recorded tables (throw/store pandasm::Ins
+ * -> HoleCheckTarget) and the pc->pandasm::Ins map. Absent when the graph was
+ * built without the pandasm Program (no frontend record -> no elimination).
+ * `table` maps throws; `storeTable` maps declaration/reassignment stores.
+ */
 struct HoleCheckCtx {
     const std::unordered_map<const pandasm::Ins *, HoleCheckTarget> *table {nullptr};
+    const std::unordered_map<const pandasm::Ins *, HoleCheckTarget> *storeTable {nullptr};
     const std::unordered_map<size_t, pandasm::Ins *> *pc_map {nullptr};
 };
 
-// Look up an instruction's variable identity from the frontend-recorded
-// table (inst PC -> pc_map -> pandasm::Ins -> table) — the absolute varId
-// for lexical / local-module bindings. External imports (ldexternalmodulevar)
-// are not recorded here: their cross-module check is done at ins level in
-// AsmEmitter::EmitPrograms (EliminateCrossModuleHoleChecks).
+/*
+ * Look up an instruction's variable identity from the frontend-recorded
+ * table (inst PC -> pc_map -> pandasm::Ins -> table) — the absolute varId
+ * for lexical / local-module bindings. External imports (ldexternalmodulevar)
+ * are not recorded here: their cross-module check is done at ins level in
+ * AsmEmitter::EmitPrograms (EliminateCrossModuleHoleChecks).
+ */
 HoleCheckTarget LookupTarget(const Inst *inst, HoleCheckCtx ctx)
 {
     if (ctx.table != nullptr && ctx.pc_map != nullptr) {
@@ -69,6 +75,26 @@ HoleCheckTarget LookupTarget(const Inst *inst, HoleCheckCtx ctx)
         if (pit != ctx.pc_map->end() && pit->second != nullptr) {
             auto tit = ctx.table->find(pit->second);
             if (tit != ctx.table->end() && tit->second.IsValid()) {
+                return tit->second;
+            }
+        }
+    }
+    return HoleCheckTarget::Invalid();
+}
+
+/*
+ * Look up a store instruction's variable identity from the frontend-recorded
+ * storeVarTable (same PC -> pandasm::Ins -> storeTable mechanism as
+ * LookupTarget, but for stlexvar/stmodulevar stores). Returns Invalid when the
+ * instruction is not a frontend-recorded store.
+ */
+HoleCheckTarget LookupStoreTarget(const Inst *inst, HoleCheckCtx ctx)
+{
+    if (ctx.storeTable != nullptr && ctx.pc_map != nullptr) {
+        auto pit = ctx.pc_map->find(inst->GetPc());
+        if (pit != ctx.pc_map->end() && pit->second != nullptr) {
+            auto tit = ctx.storeTable->find(pit->second);
+            if (tit != ctx.storeTable->end() && tit->second.IsValid()) {
                 return tit->second;
             }
         }
@@ -114,23 +140,42 @@ bool CatchReachableRethrow(const Graph *graph, const Inst *inst, const HoleCheck
     return false;
 }
 
-// Transfer function: a hole-check throw of V -> gen V (Rule T: if it executed
-// without throwing, V was non-hole). For a caught throw, only gen when the
-// catch subgraph does not re-check V (otherwise a reachable throw for V could
-// be unsoundly eliminated). Stores are NOT gen'd — every reassignment store
-// is preceded by a write-side throw (Rule T covers it), and declaration
-// stores are in another function (the entry seed covers it).
+/*
+ * Transfer function:
+ *   * Rule T: a hole-check throw of V -> gen V (if it executed without
+ *     throwing, V was non-hole). For a caught throw, only gen when the
+ *     catch subgraph does not re-check V.
+ *   * Rule S: a declaration/reassignment store of V (stlexvar/stmodulevar
+ *     recorded in storeVarTable) -> gen V. The frontend records stores only
+ *     for let/const/class bindings, and its emission guarantees the stored
+ *     value is non-hole: declaration stores evaluate the RHS first (a prior
+ *     throw fires if the RHS reads an uninitialized let/const), and
+ *     reassignment stores are preceded by a write-side throw. Per ECMA, once
+ *     initialized a binding never becomes hole again, so the store proves V
+ *     non-hole for all subsequent points on the fall-through path. Stores do
+ *     not throw, so no CatchReachableRethrow guard is needed; the must-analysis
+ *     intersection at catch-handler entry correctly withholds the gen on
+ *     exception paths where the store did not execute.
+ */
 void ApplyTransfer(const Inst *inst, std::unordered_set<uint32_t> &nonHole, const Graph *graph, HoleCheckCtx ctx)
 {
-    if (!IsHoleCheckThrow(inst)) {
+    if (IsHoleCheckThrow(inst)) {
+        auto t = LookupTarget(inst, ctx);
+        if (t.IsValid() && (!graph->IsInstThrowable(inst) || !CatchReachableRethrow(graph, inst, t, ctx))) {
+            nonHole.insert(t.GetVarId());
+        }
         return;
     }
-    auto t = LookupTarget(inst, ctx);
-    if (!t.IsValid()) {
-        return;
-    }
-    if (!graph->IsInstThrowable(inst) || !CatchReachableRethrow(graph, inst, t, ctx)) {
-        nonHole.insert(t.GetVarId());
+    /*
+     * Rule S: gen from declaration/reassignment stores recorded by the
+     * frontend. Covers the case where a declaration store and a subsequent
+     * read of the same variable are in the SAME function (e.g. `export class
+     * A {}` followed by `let b = new A()` in func_main_0) — the entry-seed
+     * mechanism only propagates to NESTED functions, not within the same one.
+     */
+    auto st = LookupStoreTarget(inst, ctx);
+    if (st.IsValid()) {
+        nonHole.insert(st.GetVarId());
     }
 }
 
@@ -162,10 +207,12 @@ std::unordered_set<uint32_t> IntersectPredecessorOuts(
     return inSet;
 }
 
-// Forward must-availability dataflow fixpoint. "V non-hole" is available at a
-// point iff on every path from function entry a witness (a throw of V that
-// already executed) occurs and is not killed. The entry block's IN is the
-// seed (external precondition), not recomputed from preds.
+/*
+ * Forward must-availability dataflow fixpoint. "V non-hole" is available at a
+ * point iff on every path from function entry a witness (a throw of V that
+ * already executed) occurs and is not killed. The entry block's IN is the
+ * seed (external precondition), not recomputed from preds.
+ */
 std::unordered_map<const BasicBlock *, std::unordered_set<uint32_t>> ComputeAvailability(
     const Graph *graph, HoleCheckCtx ctx, const std::unordered_set<uint32_t> &entrySeed)
 {
@@ -199,9 +246,11 @@ std::unordered_map<const BasicBlock *, std::unordered_set<uint32_t>> ComputeAvai
     return inSets;
 }
 
-// Find throws whose variable is proven non-hole at the load that feeds them.
-// A throw is redundant iff its variable is non-hole at the load (evaluated by
-// replaying the block from IN up to the load).
+/*
+ * Find throws whose variable is proven non-hole at the load that feeds them.
+ * A throw is redundant iff its variable is non-hole at the load (evaluated by
+ * replaying the block from IN up to the load).
+ */
 ArenaVector<Inst *> CollectRedundantThrows(
     const Graph *graph, HoleCheckCtx ctx,
     const std::unordered_map<const BasicBlock *, std::unordered_set<uint32_t>> &inSets)
@@ -266,9 +315,11 @@ void SeedClassMethodsFromLiteralArray(const pandasm::Program *prog, const std::s
     }
 }
 
-// Scan one function's instructions: accumulate non-hole varIds from
-// stlexvar/stmodulevar, and snapshot the current set at each
-// definefunc/defineclasswithbuffer for the defined function.
+/*
+ * Scan one function's instructions: accumulate non-hole varIds from
+ * stlexvar/stmodulevar, and snapshot the current set at each
+ * definefunc/defineclasswithbuffer for the defined function.
+ */
 void ScanFunction(const pandasm::Program *prog, const std::string &funcName, const pandasm::Function &func,
                   std::unordered_map<std::string, std::unordered_set<uint32_t>> *seeds)
 {
@@ -319,6 +370,7 @@ bool HoleCheckElimination::RunImpl()
         auto fit = prog->function_table.find(funcName);
         if (fit != prog->function_table.end()) {
             ctx.table = &fit->second.holeCheckVarTable;
+            ctx.storeTable = &fit->second.storeVarTable;
         }
     }
 
@@ -334,9 +386,11 @@ bool HoleCheckElimination::RunImpl()
         LOG(DEBUG, BYTECODE_OPTIMIZER) << "HoleCheckElimination removes throw.undefinedifholewithname";
         auto *load = inst->GetInput(STORED_VALUE_INPUT_INDEX).GetInst();
         inst->GetBasicBlock()->RemoveInst(inst);
-        // After removing the throw, its feeding load (a pure ldlexvar /
-        // ldlocalmodulevar / ldexternalmodulevar that existed solely to supply
-        // the throw's accumulator input) is dead; remove it too.
+        /*
+         * After removing the throw, its feeding load (a pure ldlexvar /
+         * ldlocalmodulevar / ldexternalmodulevar that existed solely to supply
+         * the throw's accumulator input) is dead; remove it too.
+         */
         if (load != nullptr && !load->HasUsers() && !load->CanThrow()) {
             load->GetBasicBlock()->RemoveInst(load);
         }
@@ -359,15 +413,17 @@ void ComputeEntryNonHoleSeeds(pandasm::Program *prog, BytecodeOptIrInterface *if
     if (prog == nullptr || iface == nullptr || outSeeds == nullptr) {
         return;
     }
-    // Multi-pass fixpoint: scan ALL functions (not just func_main_0) to handle
-    // nested functions. Each function starts with its own entry seed (inherited
-    // from the enclosing function at its definefunc/defineclasswithbuffer), then
-    // accumulates non-hole varIds from its own stlexvar/stmodulevar. At each
-    // definefunc/defineclasswithbuffer, snapshot for the defined function.
-    // Iterate until no new seeds are discovered. The result is written into
-    // the caller-owned `outSeeds` (a per-program stack local in
-    // OptimizePandaFile). No global/static cache: multiple files are optimized
-    // concurrently on different threads, so any shared cache would race.
+    /*
+     * Multi-pass fixpoint: scan ALL functions (not just func_main_0) to handle
+     * nested functions. Each function starts with its own entry seed (inherited
+     * from the enclosing function at its definefunc/defineclasswithbuffer), then
+     * accumulates non-hole varIds from its own stlexvar/stmodulevar. At each
+     * definefunc/defineclasswithbuffer, snapshot for the defined function.
+     * Iterate until no new seeds are discovered. The result is written into
+     * the caller-owned `outSeeds` (a per-program stack local in
+     * OptimizePandaFile). No global/static cache: multiple files are optimized
+     * concurrently on different threads, so any shared cache would race.
+     */
     auto &seeds = *outSeeds;
     seeds.clear();
 

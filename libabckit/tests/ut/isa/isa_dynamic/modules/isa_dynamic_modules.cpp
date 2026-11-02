@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -36,9 +36,11 @@ static auto g_dynG = AbckitGetIsaApiDynamicImpl(ABCKIT_VERSION_RELEASE_1_0_0);
 
 class LibAbcKitIsaDynamicModulesTest : public ::testing::Test {};
 
-// ========================================
-// Helpers
-// ========================================
+/*
+ * ========================================
+ * Helpers
+ * ========================================
+ */
 
 static void IsetModuleTest(AbckitGraph *graph, AbckitCoreModule *module, AbckitIsaApiDynamicOpcode opcode,
                            bool negative = false, bool wrongCtx = false)
@@ -322,11 +324,16 @@ static std::vector<helpers::InstSchema<AbckitIsaApiDynamicOpcode>> g_bb2Insts {
     {44, ABCKIT_ISA_API_DYNAMIC_OPCODE_CALLTHIS0, {43, 14}},
     {45, ABCKIT_ISA_API_DYNAMIC_OPCODE_TRYLDGLOBALBYNAME, {}},
     {46, ABCKIT_ISA_API_DYNAMIC_OPCODE_LDLOCALMODULEVAR, {}},
-    {47, ABCKIT_ISA_API_DYNAMIC_OPCODE_THROW_UNDEFINEDIFHOLEWITHNAME, {46}},
+    /*
+     * Note: THROW_UNDEFINEDIFHOLEWITHNAME for LocalExportConst (was {47, ..., {46}})
+     * is eliminated by HoleCheckElimination Rule S (the declaration STMODULEVAR
+     * earlier in this block proves the variable non-hole).
+     */
     {48, ABCKIT_ISA_API_DYNAMIC_OPCODE_CALLARG1, {45, 46}},
     {49, ABCKIT_ISA_API_DYNAMIC_OPCODE_TRYLDGLOBALBYNAME, {}},
     {50, ABCKIT_ISA_API_DYNAMIC_OPCODE_LDLOCALMODULEVAR, {}},
-    {51, ABCKIT_ISA_API_DYNAMIC_OPCODE_THROW_UNDEFINEDIFHOLEWITHNAME, {50}},
+    // Note: THROW_UNDEFINEDIFHOLEWITHNAME for LocalExportLet (was {51, ..., {50}})
+    // is eliminated by HoleCheckElimination Rule S (same reason as above).
     {52, ABCKIT_ISA_API_DYNAMIC_OPCODE_CALLARG1, {49, 50}},
     {53, ABCKIT_ISA_API_DYNAMIC_OPCODE_LDOBJBYNAME, {15}},
     {54, ABCKIT_ISA_API_DYNAMIC_OPCODE_CALLTHIS0, {53, 15}},
@@ -351,9 +358,11 @@ static std::vector<helpers::BBSchema<AbckitIsaApiDynamicOpcode>> CreateBBSchemaF
             {{1}, {}, {}}};
 }
 
-// ========================================
-// Modules Tests
-// ========================================
+/*
+ * ========================================
+ * Modules Tests
+ * ========================================
+ */
 
 // Test: test-kind=api, api=IsaApiDynamicImpl::iSetModule, abc-kind=ArkTS1, category=positive, extension=c
 TEST_F(LibAbcKitIsaDynamicModulesTest, DynamicIsetModule)
@@ -833,11 +842,11 @@ TEST_F(LibAbcKitIsaDynamicModulesTest, LibAbcKitTestCreateDynGetmodulenamespace)
         },
         [](AbckitGraph *graph) {
             auto bbSchema = CreateBBSchemaForModules();
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 47,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 45,
                                            {59, ABCKIT_ISA_API_DYNAMIC_OPCODE_GETMODULENAMESPACE, {}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 48,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 46,
                                            {60, ABCKIT_ISA_API_DYNAMIC_OPCODE_LDOBJBYNAME, {59}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 49,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 47,
                                            {61, ABCKIT_ISA_API_DYNAMIC_OPCODE_CALLTHIS0, {60, 59}});
             helpers::VerifyGraph(graph, bbSchema);
         });
@@ -871,11 +880,11 @@ TEST_F(LibAbcKitIsaDynamicModulesTest, LibAbcKitTestCreateDynWideGetmodulenamesp
         },
         [](AbckitGraph *graph) {
             auto bbSchema = CreateBBSchemaForModules();
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 47,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 45,
                                            {59, ABCKIT_ISA_API_DYNAMIC_OPCODE_WIDE_GETMODULENAMESPACE, {}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 48,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 46,
                                            {60, ABCKIT_ISA_API_DYNAMIC_OPCODE_LDOBJBYNAME, {59}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 49,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 47,
                                            {61, ABCKIT_ISA_API_DYNAMIC_OPCODE_CALLTHIS0, {60, 59}});
             helpers::VerifyGraph(graph, bbSchema);
         });
@@ -908,11 +917,11 @@ TEST_F(LibAbcKitIsaDynamicModulesTest, LibAbcKitTestCreateDynLdexternalmodulevar
         },
         [](AbckitGraph *graph) {
             auto bbSchema = CreateBBSchemaForModules();
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 47,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 45,
                                            {59, ABCKIT_ISA_API_DYNAMIC_OPCODE_LDEXTERNALMODULEVAR, {}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 48,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 46,
                                            {60, ABCKIT_ISA_API_DYNAMIC_OPCODE_THROW_UNDEFINEDIFHOLEWITHNAME, {59}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 49,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 47,
                                            {61, ABCKIT_ISA_API_DYNAMIC_OPCODE_CALLARG0, {59}});
             helpers::VerifyGraph(graph, bbSchema);
         });
@@ -945,11 +954,11 @@ TEST_F(LibAbcKitIsaDynamicModulesTest, LibAbcKitTestCreateDynWideLdexternalmodul
         },
         [](AbckitGraph *graph) {
             auto bbSchema = CreateBBSchemaForModules();
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 47,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 45,
                                            {59, ABCKIT_ISA_API_DYNAMIC_OPCODE_WIDE_LDEXTERNALMODULEVAR, {}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 48,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 46,
                                            {60, ABCKIT_ISA_API_DYNAMIC_OPCODE_THROW_UNDEFINEDIFHOLEWITHNAME, {59}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 49,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 47,
                                            {61, ABCKIT_ISA_API_DYNAMIC_OPCODE_CALLARG0, {59}});
             helpers::VerifyGraph(graph, bbSchema);
         });
@@ -982,13 +991,13 @@ TEST_F(LibAbcKitIsaDynamicModulesTest, LibAbcKitTestCreateDynLdlocalmodulevar)
         },
         [](AbckitGraph *graph) {
             auto bbSchema = CreateBBSchemaForModules();
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 47,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 45,
                                            {59, ABCKIT_ISA_API_DYNAMIC_OPCODE_TRYLDGLOBALBYNAME, {}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 48,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 46,
                                            {60, ABCKIT_ISA_API_DYNAMIC_OPCODE_LDLOCALMODULEVAR, {}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 49,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 47,
                                            {61, ABCKIT_ISA_API_DYNAMIC_OPCODE_THROW_UNDEFINEDIFHOLEWITHNAME, {60}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 50,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 48,
                                            {62, ABCKIT_ISA_API_DYNAMIC_OPCODE_CALLARG1, {59, 60}});
             helpers::VerifyGraph(graph, bbSchema);
         });
@@ -1022,13 +1031,13 @@ TEST_F(LibAbcKitIsaDynamicModulesTest, LibAbcKitTestCreateDynWideLdlocalmoduleva
         },
         [](AbckitGraph *graph) {
             auto bbSchema = CreateBBSchemaForModules();
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 47,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 45,
                                            {59, ABCKIT_ISA_API_DYNAMIC_OPCODE_TRYLDGLOBALBYNAME, {}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 48,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 46,
                                            {60, ABCKIT_ISA_API_DYNAMIC_OPCODE_WIDE_LDLOCALMODULEVAR, {}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 49,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 47,
                                            {61, ABCKIT_ISA_API_DYNAMIC_OPCODE_THROW_UNDEFINEDIFHOLEWITHNAME, {60}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 50,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 48,
                                            {62, ABCKIT_ISA_API_DYNAMIC_OPCODE_CALLARG1, {59, 60}});
             helpers::VerifyGraph(graph, bbSchema);
         });
@@ -1061,15 +1070,15 @@ TEST_F(LibAbcKitIsaDynamicModulesTest, LibAbcKitTestCreateDynStmodulevar)
         },
         [](AbckitGraph *graph) {
             auto bbSchema = CreateBBSchemaForModules();
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 47,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 45,
                                            {59, ABCKIT_ISA_API_DYNAMIC_OPCODE_TRYLDGLOBALBYNAME, {}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 48,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 46,
                                            {60, ABCKIT_ISA_API_DYNAMIC_OPCODE_STMODULEVAR, {4}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 49,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 47,
                                            {61, ABCKIT_ISA_API_DYNAMIC_OPCODE_LDLOCALMODULEVAR, {}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 50,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 48,
                                            {62, ABCKIT_ISA_API_DYNAMIC_OPCODE_THROW_UNDEFINEDIFHOLEWITHNAME, {61}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 51,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 49,
                                            {63, ABCKIT_ISA_API_DYNAMIC_OPCODE_CALLARG1, {59, 61}});
             helpers::VerifyGraph(graph, bbSchema);
         });
@@ -1102,15 +1111,15 @@ TEST_F(LibAbcKitIsaDynamicModulesTest, LibAbcKitTestCreateDynWideStmodulevar)
         },
         [](AbckitGraph *graph) {
             auto bbSchema = CreateBBSchemaForModules();
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 47,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 45,
                                            {59, ABCKIT_ISA_API_DYNAMIC_OPCODE_TRYLDGLOBALBYNAME, {}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 48,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 46,
                                            {60, ABCKIT_ISA_API_DYNAMIC_OPCODE_WIDE_STMODULEVAR, {4}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 49,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 47,
                                            {61, ABCKIT_ISA_API_DYNAMIC_OPCODE_WIDE_LDLOCALMODULEVAR, {}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 50,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 48,
                                            {62, ABCKIT_ISA_API_DYNAMIC_OPCODE_THROW_UNDEFINEDIFHOLEWITHNAME, {61}});
-            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 51,
+            bbSchema[1].instSchemas.insert(bbSchema[1].instSchemas.begin() + 49,
                                            {63, ABCKIT_ISA_API_DYNAMIC_OPCODE_CALLARG1, {59, 61}});
             helpers::VerifyGraph(graph, bbSchema);
         });

@@ -24,14 +24,28 @@
 
 namespace panda::pandasm {
 
-// Cross-module hole-check elimination, done at pandasm-ins level in
-// EmitPrograms (no bytecode optimizer involved): an external module variable
-// (ldexternalmodulevar) is hole only inside a cyclic import chain. With ALL
-// programs of the merged output at hand, build the import graph from each
-// module record's module-request/regular-import literal, detect cycles, and
-// remove the redundant `ldexternalmodulevar N; throw.undefinedifholewithname`
-// pairs whose import is provably acyclic. Conservative on any unknown
-// (missing record/literal, unrecognized layout) — the throw is kept.
+/*
+ * Cross-module hole-check elimination, done at pandasm-ins level in
+ * EmitPrograms (no bytecode optimizer involved): an external module variable
+ * (ldexternalmodulevar) is hole only inside a cyclic import chain. With ALL
+ * programs of the merged output at hand, build the import graph from each
+ * module record's module-request/regular-import literal, detect cycles, and
+ * remove the redundant `ldexternalmodulevar N; throw.undefinedifholewithname`
+ * pairs whose import is provably acyclic. Conservative on any unknown
+ * (missing record/literal, unrecognized layout) — the throw is kept — EXCEPT
+ * SDK records (record names starting with @ohos: / @system: / @hms), which
+ * are pre-compiled system modules that never import back into project source,
+ * so a chain that reaches an absent SDK record is treated as acyclic.
+ * Additionally, a module that re-exports an imported binding whose module
+ * request is lazy (recorded in the module-request phase literal buffer as
+ * INTEGER_8 = 1) is treated as cyclic: the re-export does not trigger the
+ * lazy load, so the binding may still be hole. Re-exports are collected from
+ * both the local-export form (`import lazy { x } from 'mod'; export { x };`)
+ * and the indirect-export form — including the implicit indirect form the
+ * frontend generates from the lazy pattern above, which reuses the lazy
+ * import's request index (CheckImplicitIndirectExport /
+ * ConvertLocalExportToIndirect).
+ */
 PANDA_PUBLIC_API void EliminateCrossModuleHoleChecks(const std::vector<Program *> &progs);
 
 }  // namespace panda::pandasm
