@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <string>
 
 namespace arkplatform {
 using TaggedType = uint64_t;
@@ -70,6 +71,11 @@ public:
     virtual const void *GetEcmaVM() const
     {
         return nullptr;
+    }
+
+    virtual std::string GetArkTSMode() const
+    {
+        return "dynamic";
     }
 
     /**

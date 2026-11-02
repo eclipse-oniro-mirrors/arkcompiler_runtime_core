@@ -936,6 +936,11 @@ add_gtests(
 )
 
 add_gtests(
+    arkruntime_oom_stats_test
+    tests/oom_stats_test.cpp
+)
+
+add_gtests(
     arkruntime_ark_vm_api_test
     tests/ark_vm_api_test.cpp
 )

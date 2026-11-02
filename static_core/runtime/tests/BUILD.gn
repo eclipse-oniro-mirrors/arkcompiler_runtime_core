@@ -118,6 +118,11 @@ ark_runtime_unittest("arkruntime_utils_test") {
   module_out_path = runtime_test_module_out_path
 }
 
+ark_runtime_unittest("arkruntime_oom_stats_test") {
+  sources = [ "oom_stats_test.cpp" ]
+  module_out_path = runtime_test_module_out_path
+}
+
 ark_unittest_group("runtime_tests") {
   deps = [
     ":arkruntime_async_stack_test",
@@ -125,6 +130,7 @@ ark_unittest_group("runtime_tests") {
     ":arkruntime_buffer_serializer_test",
     ":arkruntime_heap_dump_test",
     ":arkruntime_memory_management_test",
+    ":arkruntime_oom_stats_test",
     ":arkruntime_pgo_class_context_utils_test",
     ":arkruntime_stack_overflow_test",
     ":global_storage_satb_lost_test",

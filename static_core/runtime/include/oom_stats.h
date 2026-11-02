@@ -34,7 +34,8 @@ public:
 
     static void NotifyBeforeManagedOom(size_t heapLimitBytes, size_t activeMemoryBytes, size_t failedAllocBytes,
                                        [[maybe_unused]] const std::string &processName,
-                                       [[maybe_unused]] SpaceType spaceType);
+                                       [[maybe_unused]] SpaceType spaceType,
+                                       [[maybe_unused]] const std::string &arkTSMode = "static");
 
 private:
     NO_COPY_SEMANTIC(OomNotifier);
