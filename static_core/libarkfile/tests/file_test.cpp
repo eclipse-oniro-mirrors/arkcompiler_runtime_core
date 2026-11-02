@@ -737,6 +737,7 @@ TEST(File, GetSpanFromId)
     EXPECT_EQ(lastByteSpan.Size(), 1U);
 }
 
+#ifndef NDEBUG
 TEST(File, GetSpanFromIdInvalidOffsetShouldFatal)
 {
     std::vector<uint8_t> data;
@@ -750,6 +751,7 @@ TEST(File, GetSpanFromIdInvalidOffsetShouldFatal)
     // Zero offset is not a valid entity id
     EXPECT_DEATH(pandaFile->GetSpanFromId(File::EntityId(0)), ".*");
 }
+#endif  // NDEBUG
 
 TEST(File, ThrowIfWithCheckNoFatalWhenConditionIsFalse)
 {

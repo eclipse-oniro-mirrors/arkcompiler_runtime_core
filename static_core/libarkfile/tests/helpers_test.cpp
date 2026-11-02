@@ -49,6 +49,7 @@ TEST(Helpers, ReadFromValueSpan)
     EXPECT_EQ(helpers::Read<sizeof(uint32_t)>(sp), 0x44332211U);
 }
 
+#ifndef NDEBUG
 TEST(Helpers, ReadOutOfBoundsShouldFatal)
 {
     {
@@ -71,6 +72,7 @@ TEST(Helpers, ReadOutOfBoundsShouldFatal)
         EXPECT_DEATH({ (void)helpers::Read<sizeof(uint32_t)>(&sp); }, ".*");
     }
 }
+#endif  // NDEBUG
 
 TEST(Helpers, GetOptionalTaggedValue)
 {
@@ -104,6 +106,7 @@ TEST(Helpers, GetOptionalTaggedValueEmptySpan)
     EXPECT_EQ(next.Size(), 0U);
 }
 
+#ifndef NDEBUG
 TEST(Helpers, GetOptionalTaggedValueTruncatedShouldFatal)
 {
     // Tag matches but there is not enough data for the value
@@ -113,6 +116,7 @@ TEST(Helpers, GetOptionalTaggedValueTruncatedShouldFatal)
     Span<const uint8_t> next;
     EXPECT_DEATH({ (void)helpers::GetOptionalTaggedValue<uint32_t>(sp, 0x01, &next); }, ".*");
 }
+#endif  // NDEBUG
 
 TEST(Helpers, EnumerateTaggedValues)
 {
