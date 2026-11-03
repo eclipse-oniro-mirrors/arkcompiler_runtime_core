@@ -46,6 +46,15 @@ enable_hisysevent =
     !ark_static_standalone_build && !ark_standalone_build &&
     !(defined(is_arkui_x) && is_arkui_x) && is_ohos && is_standard_system
 
+# Package (hap/hsp/hqf) abc reading reuses the foundation ability_base extractortool instead of
+# the historical in-repo copy. Only possible where that part exists: the OHOS standard system
+# device build. Everything else (host tools, mingw/win/mac, standalone frontend, SDK, arkui-x)
+# reads packages through the built-in zip reader in ets_abc_package.cpp.
+enable_ets_package_extractor =
+    !ark_static_standalone_build && !ark_standalone_build &&
+    !(defined(is_arkui_x) && is_arkui_x) && is_ohos && is_standard_system &&
+    !panda_runtime_sdk_build
+
 if (enable_hilog) {
   hiviewdfx_ext_deps += [ "hilog:libhilog" ]
 }

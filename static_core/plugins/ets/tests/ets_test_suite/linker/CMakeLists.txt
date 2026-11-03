@@ -112,9 +112,18 @@ function(test_runtime_linker_extensions test)
         compile_ets_code(${ets_source} ${output_abc} ${compilation_target}
             OPT_LEVEL ${ARG_OPT_LEVEL}
             COMPILER_EXTRA_OPTIONS "--ets-module")
+        if (src_filename STREQUAL "additional1.ets")
+            set(additional_hap_source_abc ${output_abc})
+        endif()
+        if (src_filename STREQUAL "additional2.ets")
+            set(additional_second_source_abc ${output_abc})
+        endif()
     endforeach()
     if (NOT additional_hap_source_abc)
         message(FATAL_ERROR "additional1.ets is required to build runtime linker HAP test package")
+    endif()
+    if (NOT additional_second_source_abc)
+        message(FATAL_ERROR "additional2.ets is required to build runtime linker HAP test package")
     endif()
 
     set(additional_hap_stage_dir "${additional_abc_dir}/additional1_hap")
@@ -140,6 +149,102 @@ function(test_runtime_linker_extensions test)
         COMMAND ${CMAKE_COMMAND} -E make_directory ${additional_invalid_hap_stage_dir}/ets
         COMMAND ${CMAKE_COMMAND} -E touch ${additional_invalid_hap_stage_dir}/ets/not_modules_static.abc
         COMMAND ${CMAKE_COMMAND} -E chdir ${additional_invalid_hap_stage_dir} zip -r -0 ${additional_invalid_hap_file} ets
+    )
+
+    # Ambiguous and inconsistent packages: two local entries named ets/modules_static.abc with
+    # distinguishable payloads (additional1 / additional2), plus descriptor-before-target and
+    # corrupt-local-header shapes. The consistency traversal must reject them for `.hap`.
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    set(additional_ambiguous_hap_file "${additional_abc_dir}/additional1_ambiguous.ets.hap")
+    set(additional_duplicate_hap_file "${additional_abc_dir}/additional1_duplicate.ets.hap")
+    set(additional_descriptor_hap_file "${additional_abc_dir}/additional1_descriptor.ets.hap")
+    set(additional_corrupt_hap_file "${additional_abc_dir}/additional1_corrupt.ets.hap")
+    set(additional_malformed_hap_file "${additional_abc_dir}/additional1_malformed.ets.hap")
+    set(additional_corrupt_central_hap_file "${additional_abc_dir}/additional1_corrupt_central.ets.hap")
+    set(additional_oversized_hap_file "${additional_abc_dir}/additional1_oversized.ets.hap")
+    set(additional_native_only_hap_file "${additional_abc_dir}/additional1_native_only.ets.hap")
+    set(additional_dup_hsp_file "${linker_tests_out_dir}/additional1_dup.ets.hsp")
+    set(additional_dup_hsp_relative_file "additional1_dup.ets.hsp")
+    add_custom_command(
+        OUTPUT ${additional_ambiguous_hap_file}
+        COMMENT "Create ${additional_ambiguous_hap_file}"
+        COMMAND ${Python3_EXECUTABLE} ${linker_tests_in_dir}/scripts/make_ambiguous_hap.py ambiguous
+                ets/modules_static.abc ${additional_hap_source_abc} ${additional_second_source_abc}
+                ${additional_ambiguous_hap_file}
+        DEPENDS ${additional_hap_source_abc} ${additional_second_source_abc}
+                ${linker_tests_in_dir}/scripts/make_ambiguous_hap.py
+    )
+    add_custom_command(
+        OUTPUT ${additional_duplicate_hap_file}
+        COMMENT "Create ${additional_duplicate_hap_file}"
+        COMMAND ${Python3_EXECUTABLE} ${linker_tests_in_dir}/scripts/make_ambiguous_hap.py duplicate
+                ets/modules_static.abc ${additional_hap_source_abc} ${additional_second_source_abc}
+                ${additional_duplicate_hap_file}
+        DEPENDS ${additional_hap_source_abc} ${additional_second_source_abc}
+                ${linker_tests_in_dir}/scripts/make_ambiguous_hap.py
+    )
+    add_custom_command(
+        OUTPUT ${additional_dup_hsp_file}
+        COMMENT "Create ${additional_dup_hsp_file}"
+        COMMAND ${Python3_EXECUTABLE} ${linker_tests_in_dir}/scripts/make_ambiguous_hap.py duplicate
+                additional1_dup.ets/ets/modules_static.abc ${additional_hap_source_abc}
+                ${additional_second_source_abc} ${additional_dup_hsp_file}
+        DEPENDS ${additional_hap_source_abc} ${additional_second_source_abc}
+                ${linker_tests_in_dir}/scripts/make_ambiguous_hap.py
+    )
+    add_custom_command(
+        OUTPUT ${additional_descriptor_hap_file}
+        COMMENT "Create ${additional_descriptor_hap_file}"
+        COMMAND ${Python3_EXECUTABLE} ${linker_tests_in_dir}/scripts/make_ambiguous_hap.py descriptor
+                ets/modules_static.abc ${additional_hap_source_abc} ${additional_second_source_abc}
+                ${additional_descriptor_hap_file}
+        DEPENDS ${additional_hap_source_abc} ${additional_second_source_abc}
+                ${linker_tests_in_dir}/scripts/make_ambiguous_hap.py
+    )
+    add_custom_command(
+        OUTPUT ${additional_corrupt_hap_file}
+        COMMENT "Create ${additional_corrupt_hap_file}"
+        COMMAND ${Python3_EXECUTABLE} ${linker_tests_in_dir}/scripts/make_ambiguous_hap.py corrupt
+                ets/modules_static.abc ${additional_hap_source_abc} ${additional_second_source_abc}
+                ${additional_corrupt_hap_file}
+        DEPENDS ${additional_hap_source_abc} ${additional_second_source_abc}
+                ${linker_tests_in_dir}/scripts/make_ambiguous_hap.py
+    )
+    add_custom_command(
+        OUTPUT ${additional_malformed_hap_file}
+        COMMENT "Create ${additional_malformed_hap_file}"
+        COMMAND ${Python3_EXECUTABLE} ${linker_tests_in_dir}/scripts/make_ambiguous_hap.py malformed
+                ets/modules_static.abc ${additional_hap_source_abc} ${additional_second_source_abc}
+                ${additional_malformed_hap_file}
+        DEPENDS ${additional_hap_source_abc} ${additional_second_source_abc}
+                ${linker_tests_in_dir}/scripts/make_ambiguous_hap.py
+    )
+    add_custom_command(
+        OUTPUT ${additional_corrupt_central_hap_file}
+        COMMENT "Create ${additional_corrupt_central_hap_file}"
+        COMMAND ${Python3_EXECUTABLE} ${linker_tests_in_dir}/scripts/make_ambiguous_hap.py corrupt_central
+                ets/modules_static.abc ${additional_hap_source_abc} ${additional_second_source_abc}
+                ${additional_corrupt_central_hap_file}
+        DEPENDS ${additional_hap_source_abc} ${additional_second_source_abc}
+                ${linker_tests_in_dir}/scripts/make_ambiguous_hap.py
+    )
+    add_custom_command(
+        OUTPUT ${additional_oversized_hap_file}
+        COMMENT "Create ${additional_oversized_hap_file}"
+        COMMAND ${Python3_EXECUTABLE} ${linker_tests_in_dir}/scripts/make_ambiguous_hap.py oversized_extra
+                ets/modules_static.abc ${additional_hap_source_abc} ${additional_second_source_abc}
+                ${additional_oversized_hap_file}
+        DEPENDS ${additional_hap_source_abc} ${additional_second_source_abc}
+                ${linker_tests_in_dir}/scripts/make_ambiguous_hap.py
+    )
+    add_custom_command(
+        OUTPUT ${additional_native_only_hap_file}
+        COMMENT "Create ${additional_native_only_hap_file}"
+        COMMAND ${Python3_EXECUTABLE} ${linker_tests_in_dir}/scripts/make_ambiguous_hap.py native_only
+                ets/modules_static.abc ${additional_hap_source_abc} ${additional_second_source_abc}
+                ${additional_native_only_hap_file}
+        DEPENDS ${additional_hap_source_abc} ${additional_second_source_abc}
+                ${linker_tests_in_dir}/scripts/make_ambiguous_hap.py
     )
 
     set(additional_hsp_stage_dir "${linker_tests_out_dir}/additional1_hsp")
@@ -179,11 +284,25 @@ function(test_runtime_linker_extensions test)
         ADDITIONAL_ABC_FILES=${additional_abc_files}
         ADDITIONAL_HAP_FILE=${additional_hap_file}
         ADDITIONAL_INVALID_HAP_FILE=${additional_invalid_hap_file}
+        ADDITIONAL_AMBIGUOUS_HAP_FILE=${additional_ambiguous_hap_file}
+        ADDITIONAL_DUPLICATE_HAP_FILE=${additional_duplicate_hap_file}
+        ADDITIONAL_DUP_HSP_FILE=${additional_dup_hsp_relative_file}
+        ADDITIONAL_DESCRIPTOR_HAP_FILE=${additional_descriptor_hap_file}
+        ADDITIONAL_CORRUPT_HAP_FILE=${additional_corrupt_hap_file}
+        ADDITIONAL_MALFORMED_HAP_FILE=${additional_malformed_hap_file}
+        ADDITIONAL_CORRUPT_CENTRAL_HAP_FILE=${additional_corrupt_central_hap_file}
+        ADDITIONAL_OVERSIZED_HAP_FILE=${additional_oversized_hap_file}
+        ADDITIONAL_NATIVE_ONLY_HAP_FILE=${additional_native_only_hap_file}
         ADDITIONAL_HSP_FILE=${additional_hsp_relative_file}
         ${PANDA_RUN_PREFIX})
 
     add_custom_target(${test}-add-deps DEPENDS ${compilations_targets_list} ${native_lib}
-                      ${additional_hap_file} ${additional_invalid_hap_file} ${additional_hsp_file})
+                      ${additional_hap_file} ${additional_invalid_hap_file} ${additional_ambiguous_hap_file}
+                      ${additional_duplicate_hap_file} ${additional_dup_hsp_file}
+                      ${additional_descriptor_hap_file} ${additional_corrupt_hap_file}
+                      ${additional_malformed_hap_file} ${additional_corrupt_central_hap_file}
+                      ${additional_oversized_hap_file} ${additional_native_only_hap_file}
+                      ${additional_hsp_file})
     # Note that some functions must be deliberately not inlined due to tests purposes.
     # For more information please refer to definitions of those methods
     add_linker_test(${test} ${test}-add-deps

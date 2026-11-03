@@ -57,7 +57,7 @@ bool EndsWith(std::string_view path, std::string_view suffix);
 /** @brief Outcome of reading a package's abc entry. */
 enum class PackageReadResult {
     OK,            ///< The abc entry was read and opened; `outPf` holds it.
-    OPEN_FAILED,   ///< The package itself cannot be opened (the extractor rejects it).
+    OPEN_FAILED,   ///< The package itself cannot be opened (the reader rejects it).
     NO_ABC_ENTRY,  ///< The package is readable, but carries no abc entry (a native-only patch).
 };
 
@@ -75,10 +75,11 @@ enum class PackageReadResult {
  * @param packagePath path of the package file.
  * @param suffix the package suffix of @a packagePath (HSP_SUFFIX selects the hsp entry style).
  * @param[out] outPf receives the opened file on OK.
+ * @param fileLabel the name the file is opened under; defaults to the derived package path
+ *        (hot reload passes its target's derived name).
  */
 PackageReadResult ReadPackageAbc(const std::string &packagePath, std::string_view suffix,
-                                 std::unique_ptr<const panda_file::File> &outPf);
-
+                                 std::unique_ptr<const panda_file::File> &outPf, std::string_view fileLabel = {});
 }  // namespace ark::ets
 
 #endif  // PANDA_PLUGINS_ETS_RUNTIME_TYPES_ETS_ABC_PACKAGE_H_
