@@ -14,6 +14,7 @@
  */
 
 #include "unit_test.h"
+#include "optimizer/analysis/rpo.h"
 
 #include <algorithm>
 #include <array>
@@ -38,6 +39,27 @@ TEST_F(PassManagerTest, ExecutionIdBelongsToManagerAndIsInheritedByChild)
 
     PassManager child(GetGraph(), &first);
     EXPECT_EQ(child.GetExecutionCounter(), firstId);
+}
+
+TEST_F(PassManagerTest, ChildGraphRetainsExecutionIdAfterPass)
+{
+    auto *parent = GetGraph();
+    parent->CreateStartBlock();
+    ASSERT_TRUE(parent->RunPass<Rpo>());
+    const auto parentId = parent->GetPassManager()->GetExecutionCounter();
+    ASSERT_NE(parentId, 0U);
+
+    auto *child = parent->CreateChildGraph(parent->GetMethod());
+    ASSERT_NE(child, nullptr);
+    ASSERT_EQ(child->GetParentGraph(), parent);
+    EXPECT_EQ(child->GetPassManager()->GetExecutionCounter(), parentId);
+
+    child->CreateStartBlock();
+    ASSERT_FALSE(child->IsAnalysisValid<Rpo>());
+    ASSERT_TRUE(child->RunPass<Rpo>());
+    EXPECT_TRUE(child->IsAnalysisValid<Rpo>());
+    EXPECT_EQ(child->GetPassManager()->GetExecutionCounter(), parentId);
+    EXPECT_EQ(parent->GetPassManager()->GetExecutionCounter(), parentId);
 }
 
 TEST_F(PassManagerTest, ConcurrentTopLevelExecutionsReceiveUniqueIds)
