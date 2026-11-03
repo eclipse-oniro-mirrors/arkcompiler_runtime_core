@@ -55,7 +55,6 @@ cases:
     - type: Long
 
     - type: never
-      expected: "Semantic error ESE0350: Class 'never' is already defined with different type."
 
     - type: number
 

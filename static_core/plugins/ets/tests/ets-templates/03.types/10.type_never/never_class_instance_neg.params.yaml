@@ -131,4 +131,4 @@ types:
       use: |-
         never()
       stdout: |-
-        "Semantic error ESE0350: Class 'never' is already defined with different type."
+        "Syntax error ESY0295: never is a predefined type, cannot be used as an identifier"
