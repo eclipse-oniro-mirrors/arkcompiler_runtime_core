@@ -129,6 +129,22 @@
         /* ANI helper functions (not the public CAPI ANI_*) */
         Ani*;
 
+        /* Statically-linked libc++ template leaks */
+        _ZNSt*;
+        _ZNKSt*;
+        _ZSt*;
+        _ZTVNSt*;
+        _ZTINSt*;
+        _ZTSNSt*;
+        _ZTCNSt*;
+        _ZTTNSt*;
+        _ZTVN10__cxxabiv1*;
+        _ZTIN10__cxxabiv1*;
+        _ZTSN10__cxxabiv1*;
+
+        /* Statically-linked ICU vtable leak */
+        _ZTVN6icu*;
+
         /* ================================================================
          * ark::pandasm symbols statically compiled into libarktsruntime via
          * the libarktsassembler_static source_set (arkruntime_deps). The
