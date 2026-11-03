@@ -128,7 +128,8 @@ static_core/libarkbase/tests/taskmanager/                @artemu @molotkovmikhai
 static_core/plugins/ets/bytecode_optimizer/              ^mbolshov @oatuwwutao @Graceunderpressure @xhq1999 ^chernykhsergey
 static_core/plugins/ets/compiler/                        @Prof @wanzixuan330 @chernykhsergey ^asidorov @LeechyLiang @sherry2395
 static_core/plugins/ets/doc/concurrency                  ^konstanting @anedoria @dmitriitr ^tanglu100 @MofengMa ^weixin_41079876
-static_core/plugins/ets/doc/spec                         ^konstanting ^Prof ^sergeyandreev ^slynkodenis ^nazarovkonstantin ^mbolshov ^akmaevaleksey ^anedoria ^klooer ^wanzixuan330 ^mengbierr ^davidwulanxi ^egavrin ^igelhaus ^vpukhov ^dmitriitr ^zsw_zhushiwei @fanglou @dumbledore @vigavi
+static_core/plugins/ets/doc/spec                         ^konstanting ^Prof ^sergeyandreev ^slynkodenis ^nazarovkonstantin ^mbolshov ^akmaevaleksey ^anedoria ^klooer ^wanzixuan330 ^mengbierr ^davidwulanxi ^egavrin ^igelhaus ^vpukhov ^dmitriitr ^zsw_zhushiwei @fanglou @dumbledore @vigavi ^WeixinZhang
+static_core/plugins/ets/doc/spec_700                      @fanglou @vigavi @zhaoshuting ^dumbledore ^WeixinZhang
 static_core/plugins/ets/irtoc_scripts/                   @Prof @mbolshov @asidorov ^wanzixuan330 ^gitee-dakeQI ^chernykhsergey ^LeechyLiang @lizheng89
 static_core/plugins/ets/isa/                             @mbolshov @gitee-dakeQI @lizheng89
 static_core/plugins/ets/libllvmbackend/                  ^Prof @urandon ^asidorov ^gitee-dakeQI @lizheng89
@@ -165,6 +166,7 @@ static_core/runtime/include/mem/                         ^dmitriitr @artemu ^git
 static_core/runtime/include/tooling/                     @slynkodenis ^kurnevichstanislav
 static_core/runtime/tests/tooling/                       @slynkodenis ^kurnevichstanislav
 static_core/scripts/mem/memmem/                          @nazarovkonstantin ^ipetrov
+static_core/plugins/ets/doc/zh/spec_700                      @fanglou @vigavi @zhaoshuting ^dumbledore ^WeixinZhang
 static_core/plugins/ets/runtime/ani/ani_helpers*                              @wanzixuan330 ^slynkodenis ^asidorov @zengmanyi @LeechyLiang
 static_core/plugins/ets/runtime/finalreg/*                                    ^dmitriitr @artemu @ipetrov ^shemetovphilip
 static_core/plugins/ets/runtime/interop_js/                                   @igelhaus ^nazarovkonstantin @vpukhov @slynkodenis @benzunfu ^molotkovmikhail ^ipetrov ^atremu
