@@ -262,7 +262,7 @@ surrounding scope.
     // This 'item' is of type 'number'
 
     function foo (item: boolean) {
-       // this 'item' is of type 'number'
+       // this 'item' is of type 'boolean'
        let item: number[] = [] // Compile-time error, parameter 'item' and
                                // local variable 'item' lead to duplication as
                                // they are in the same scope
@@ -1393,8 +1393,7 @@ can be performed while leaving the ``try-catch``:
         // Some processing
       }
       finally {
-        // Finally clause is executed after try-catch
-            completes normally or abruptly
+        // Finally clause is executed after try-catch completes normally or abruptly
         r.close()
       }
     }

@@ -65,7 +65,7 @@ Assignment-like Contexts
   :ref:`Function Call Expression`, :ref:`Method Call Expression`,
   :ref:`Explicit Constructor Call`, and :ref:`New Expressions`);
 
-- *Return contexts* (see :ref:`return Statements`) the allow specifying
+- *Return contexts* (see :ref:`return Statements`) that allow specifying
   a resultant value of a function, method or lambda call;
 
 - *Composite literal contexts* that allow setting an expression value to an

@@ -16,24 +16,26 @@ Interoperability
 ****************
 
 .. meta:
-    frontend_status: Done
+    frontend_status: None
 
-.. _Interoperability chapter name:
+.. _Concurrency interoperability:
 
-``Interoperability`` chapter name
-=================================
+Concurrency interoperability
+=============================
 
 .. meta:
-    frontend_status: Done
+    frontend_status: None
 
-Chapter text.
+This chapter will describe the interoperability between |LANG| and
+JavaScript code executing within the same runtime instance: sharing of
+|C_WORKERS| between JavaScript and |LANG| |C_JOBS|, and scheduling of
+coroutines initiated from both languages within a single |C_WORKER|.
 
 .. note::
-   A note.
+   The content of this chapter is to be defined.
 
 .. index::
-   term1
-   term 2
+   interoperability
 
 |
 

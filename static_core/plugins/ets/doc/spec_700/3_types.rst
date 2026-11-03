@@ -1029,7 +1029,7 @@ The boolean operators are as follows:
    ``string``.
 
 Type ``boolean`` is a class type that is a part of the :ref:`Standard Library`.
-It means that type ``boolean  is a subtype of ``Object``, and therefore can be
+It means that type ``boolean`` is a subtype of ``Object``, and therefore can be
 used at any place where a class name is expected.
 
 .. code-block:: typescript
@@ -1949,7 +1949,7 @@ Readonly Tuple Types
 .. meta:
     frontend_status: Done
 
-If an *tuple* type has the prefix ``readonly``, then its elements cannot be
+If a *tuple* type has the prefix ``readonly``, then its elements cannot be
 modified after the initial assignment directly or through a function or method
 call. Otherwise, a :index:`compile-time error` occurs as follows:
 
@@ -2445,7 +2445,7 @@ after another:
 #. If one type in a union is ``never``, then type ``never`` is removed.
 
    This procedure is performed recursively until none of the above steps can
-   can be performed again.
+   be performed again.
 
 .. index::
    union type
@@ -2853,7 +2853,7 @@ is a subtype of ``Awaited<U>`` if ``T`` is a subtype of ``U``. The use of type
                                                 // type F is (p: Promise<string>) => Promise<number>>
 
     type G = Awaited<Promise<Array<Promise<number>>>>
-                                                // type F is Array<Promise<number>>
+                                                // type G is Array<Promise<number>>
 
     function foo <T extends SuperType> (p: Awaited<T>) {}
     function bar <T extends SubType> (p: Awaited<T>) {
@@ -3376,7 +3376,7 @@ Default values of value types are as follows:
 +--------------+--------------------+
 | ``double``   | +0.0 as ``double`` |
 +--------------+--------------------+
-| ``char``     | ``u0000``          |
+| ``char``     | ``\u0000``         |
 +--------------+--------------------+
 | ``boolean``  | ``false``          |
 +--------------+--------------------+

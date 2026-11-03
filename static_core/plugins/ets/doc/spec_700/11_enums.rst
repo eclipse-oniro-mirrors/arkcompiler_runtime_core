@@ -113,7 +113,7 @@ The following operators can be applied to operands of enumeration types:
 
 Implicit conversions (see :ref:`Enumeration to Numeric Type Conversion`,
 :ref:`Enumeration to string Type Conversion`) are used to convert
-a value of enumeration type to numeric types or type ``string`` depends on the
+a value of enumeration type to numeric types or type ``string`` depending on the
 enumeration base type:
 
 .. code-block:: typescript
@@ -242,7 +242,7 @@ type. Otherwise, a :index:`compile-time error` occurs:
     enum E5: double { C, D } // Compile-time error, base type is not an integer type
 
 If initializers for all members are omitted, then the first member is assigned
-the value zero. The other member is assigned the value of the
+the value zero. Each subsequent member is assigned the value of the
 immediately preceding member plus one.
 
 If some but not all members have their values set explicitly, then

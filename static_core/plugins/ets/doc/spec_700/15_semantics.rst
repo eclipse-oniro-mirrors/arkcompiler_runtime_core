@@ -662,7 +662,7 @@ true:
       // OK, assigning subinterface (J<:I)
       i = j
 
-      // Compile-time error, cannot assign superinterface (I>:JJ
+      // Compile-time error, cannot assign superinterface (I>:J)
       j = i
 
 -  ``T`` is type ``Object`` (C<:Object) if

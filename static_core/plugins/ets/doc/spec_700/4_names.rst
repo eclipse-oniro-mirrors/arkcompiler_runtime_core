@@ -321,7 +321,7 @@ Other entities are referred to by their simple (unqualified) names.
 
 An entity is accessible (see :ref:`Accessible`) in the scope it is declared
 and can be accessible in nested or other module scopes.
-The accessiblity rules depend on the scope level:
+The accessibility rules depend on the scope level:
 
 .. _module-access:
 
@@ -540,7 +540,7 @@ follows:
 - Variable name is used to read or change the value of the variable;
 
 - Name of a module introduced as a result of qualified import
-  see :ref:`Bind All with Qualified Access`) is used to deal
+  (see :ref:`Bind All with Qualified Access`) is used to deal
   with exported entities.
 
 .. index::
@@ -1018,7 +1018,7 @@ Assignability with Initializer
     frontend_status: Done
 
 If a variable or constant declaration contains a type annotation ``T`` and the
-initializer expression is of type ``E``, then type ``E ``must be assignable to
+initializer expression is of type ``E``, then type ``E`` must be assignable to
 type ``T`` (see :ref:`Assignability`).
 
 .. index::
@@ -1094,7 +1094,7 @@ If type of an initializer expression cannot be inferred, then a
 
     let c = cond() ? 3 : 3.14 // Type of 'c' is int | double
     let c1 = true ? 3 : 3.14  // Type of 'c1' is int
-    let c2 = false ? 3 : 3.14 // Type of 'c1' is double
+    let c2 = false ? 3 : 3.14 // Type of 'c2' is double
 
     let d = cond() ? "one" : "two" // Type of 'd' is string
 
@@ -1110,7 +1110,7 @@ If type of an initializer expression cannot be inferred, then a
 
     const dd  = cond() ? "one" : "two" // Type of 'dd'  is "one" | "two"
     const dd1 = true   ? "one" : "two" // Type of 'dd1' is "one"
-    const dd2 = cond() ? "one" : "two" // Type of 'dd2' is "two"
+    const dd2 = false ? "one" : "two" // Type of 'dd2' is "two"
 
     const ee = cond() ? 1 : "one" // Type of 'ee' is int | "one"
 
