@@ -109,8 +109,19 @@ void EtsVmOutOfMemoryListener::OutOfMemory(size_t size, SpaceType spaceType)
     mem::HeapManager *heapManager = vm_->GetHeapManager();
     auto *memStats = vm_->GetMemStats();
     const size_t activeMemory = (memStats != nullptr) ? memStats->GetFootprintHeap() : 0U;
+    std::string arkTSMode = "static";
+#if defined(PANDA_JS_ETS_HYBRID_MODE)
+    auto *mainInteropCtx = interop::js::InteropCtx::GetMainInteropContext(vm_);
+    if (mainInteropCtx != nullptr) {
+        auto *ecmaIface = mainInteropCtx->GetECMAInterface();
+        if (ecmaIface != nullptr) {
+            arkTSMode = ecmaIface->GetArkTSMode();
+        }
+    }
+#endif
     ark::oom_stats::OomNotifier::NotifyBeforeManagedOom(heapManager->GetMaxMemory(), activeMemory, size,
-                                                        Runtime::GetCurrent()->GetProcessPackageName(), spaceType);
+                                                        Runtime::GetCurrent()->GetProcessPackageName(), spaceType,
+                                                        arkTSMode);
 
     TriggerOOMDump();
 }

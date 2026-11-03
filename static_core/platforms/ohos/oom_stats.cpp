@@ -38,12 +38,12 @@ namespace ark::oom_stats {
 namespace {
 const std::string MAIN_THREAD_STR = "main thread";
 const std::string CHILD_THREAD_STR = "child thread";
-const std::string STATIC_STR = "static";
 }  // namespace
 
 void OomNotifier::NotifyBeforeManagedOom(size_t heapLimitBytes, size_t activeMemoryBytes, size_t failedAllocBytes,
                                          [[maybe_unused]] const std::string &processName,
-                                         [[maybe_unused]] SpaceType spaceType)
+                                         [[maybe_unused]] SpaceType spaceType,
+                                         [[maybe_unused]] const std::string &arkTSMode)
 {
 #ifdef PANDA_ENABLE_HISYSEVENT
     pid_t pid = getprocpid();
@@ -56,14 +56,17 @@ void OomNotifier::NotifyBeforeManagedOom(size_t heapLimitBytes, size_t activeMem
                                   processName.c_str(), "LIMITSIZE", heapLimitBytes, "ACTIVE_MEMORY", activeMemoryBytes,
                                   "TYPE", "OOMDump", "EVENT_CONFIG", "", "APP_RUNNING_UNIQUE_ID",
                                   &DFX_GetAppRunningUniqueId == nullptr ? "" : DFX_GetAppRunningUniqueId(),
-                                  "ARKTS_TYPE", STATIC_STR, "THREAD_TYPE", threadType, "SPACE_TYPE", spaceTypeStr,
+                                  "ARKTS_TYPE", arkTSMode, "THREAD_TYPE", threadType, "SPACE_TYPE", spaceTypeStr,
                                   "LAST_ALLOCATE_OBJECT_SIZE", failedAllocBytes, "HEAP_TYPE", "");
     if (ret != 0) {
         LOG(ERROR, RUNTIME) << "OomNotifier::NotifyBeforeManagedOom HiSysEventWrite failed, ret=" << ret;
     }
+    LOG(INFO, RUNTIME) << "OomNotifier::NotifyBeforeManagedOom, heapLimit = " << heapLimitBytes
+                       << ", activeMemory = " << activeMemoryBytes << ", failedAlloc = " << failedAllocBytes
+                       << ", arkTSMode = " << arkTSMode;
 #else
-    LOG(INFO, RUNTIME) << "OOM notify: heapLimit=" << heapLimitBytes << ", activeMemory=" << activeMemoryBytes
-                       << ", failedAlloc=" << failedAllocBytes;
+    LOG(INFO, RUNTIME) << "Not Support HiSysEventWrite, OOM notify: heapLimit=" << heapLimitBytes
+                       << ", activeMemory=" << activeMemoryBytes << ", failedAlloc=" << failedAllocBytes;
 #endif
 }
 
