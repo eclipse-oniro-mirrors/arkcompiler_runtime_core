@@ -195,17 +195,17 @@ also non-nullish.
 
     let x = new G<Base>      // OK
     let y = new G<Derived>   // OK
-    let z = new G<SomeType>  // Compile-time : SomeType is not compatible with Base
+    let z = new G<SomeType>  // Compile-time error: SomeType is not compatible with Base
 
     class H<T extends Base|SomeType> {}
     let h1 = new H<Base>     // OK
     let h2 = new H<Derived>  // OK
     let h3 = new H<SomeType> // OK
-    let h4 = new H<Object>   // Compile-time : Object is not compatible with Base|SomeType
+    let h4 = new H<Object>   // Compile-time error: Object is not compatible with Base|SomeType
 
     class Exotic<T extends "aa"| "bb"> {}
     let e1 = new Exotic<"aa">   // OK
-    let e2 = new Exotic<"cc">  // Compile-time : "cc" is not compatible with "aa"| "bb"
+    let e2 = new Exotic<"cc">  // Compile-time error: "cc" is not compatible with "aa"| "bb"
 
     class A {
       f1: number = 0

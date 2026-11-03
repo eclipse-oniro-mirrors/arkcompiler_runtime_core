@@ -1790,27 +1790,27 @@ The re-exporting practices are represented in the following examples:
     // re-export1.ets
     export * from "./a.ets"
     export * from "./b.ets"
-      /* Compile-time error as two diffrent re-exported declarations are not
+      /* Compile-time error as two different re-exported declarations are not
          distinguishable */
 
     // re-export2.ets
     export * from "./a.ets"
     export * from "./b.ets"
     export {Item} from "./a.ets" 
-      /* Item from ./a.ets supersedes conflicitng Items from the star re-exports
+      /* Item from ./a.ets supersedes conflicting Items from the star re-exports
          from a and b modules */
 
     // re-export3.ets
     export * from "./a.ets"
     export * from "./b.ets"
     export class Item {}
-      /* Item declared in the current module supersedes conflicitng Items from
+      /* Item declared in the current module supersedes conflicting Items from
          the star re-exports from a and b modules */
 
     // re-export4.ets
     export {Item} from "./a.ets"
     export {Item} from "./b.ets"
-      /* Compile-time error as two diffrent re-exported declarations are not
+      /* Compile-time error as two different re-exported declarations are not
          distinguishable */
 
     // re-export5.ets
@@ -2000,7 +2000,7 @@ appearance within the module until an error is thrown (see
 Thus, if a top-level statement refers to a variable or constant and the
 declaration of that variable or constant (see
 :ref:`Variable and Constant Declarations`) is textually located after the
-the current statement, then a :index:`compile-time error` occurs.
+current statement, then a :index:`compile-time error` occurs.
 
 .. code-block:: typescript
    :linenos:

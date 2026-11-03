@@ -241,10 +241,10 @@ characters:
       ;
 
     ZWJ:
-     '\u200C'
+     '\u200D'
     ;
     ZWNJ:
-     '\u200D'
+     '\u200C'
     ;
 
     unicodeIDStart
@@ -477,7 +477,6 @@ characters:
    square bracket
    keyword
 
-+----------+----------+----------+----------+----------+----------+----------+
 +----------+----------+----------+----------+----------+----------+----------+
 |  ``+``   |  ``&``   |  ``+=``  | ``|=``   | ``&=``   |  ``<``   |  ``?.``  |
 +----------+----------+----------+----------+----------+----------+----------+
@@ -946,7 +945,7 @@ and more. An escape sequence always starts with the backslash character
 
 -  ``\`` (backslash, U+005c),
 
--  ``x`` and two hexadecimal digits (like ``7F``),
+-  ``x`` and two hexadecimal digits (like ``\x7F``),
 
 -  ``u`` and four hexadecimal digits that form a fixed Unicode escape
    sequence like ``\u005c``,
@@ -955,7 +954,7 @@ and more. An escape sequence always starts with the backslash character
    a bounded Unicode escape sequence like ``\u{5c}``, and
 
 -  Any single character except digits from '1' to '9' and characters ``'x'``,
-   ``'u'``, ``'CR'``, and ``'LF'``.
+   ``'u'``, and control characters CR (U+000D) and LF (U+000A).
 
 .. index::
    string literal

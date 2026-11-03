@@ -970,7 +970,7 @@ The use of such a class is represented in following example:
 .. code-block:: typescript
    :linenos:
 
-    @MyAnno({name: "someName", attr: [1, 2]})
+    @MyAnno({name: "someName", attrs: [1, 2]})
     class A {}
 
     let my: MyAnno = // call of reflection library to get instance of annotation for type A

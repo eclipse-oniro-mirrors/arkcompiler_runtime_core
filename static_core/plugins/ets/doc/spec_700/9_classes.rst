@@ -21,7 +21,7 @@ Classes
 Class declarations introduce new reference types and describe the manner
 of their implementation.
 
-A class body contains declarations and initilization blocks.
+A class body contains declarations and initialization blocks.
 
 Declarations can introduce class members (see :ref:`Class Members`) or class
 constructors (see :ref:`Constructor Declaration`).
@@ -885,7 +885,7 @@ Implementing Optional Interface Properties
 .. meta:
     frontend_status: None
 
-A class can implement :ref:`Optional Interface Properties`)
+A class can implement (:ref:`Optional Interface Properties`)
 from superinterfaces or use implicitly defined accessors from an interface.
 
 The use of accessors implicitly defined in the interface is represented in
@@ -1062,7 +1062,7 @@ Members can be static or non-static as follows:
 
 .. note::
     Static members of a superclass are not inherited. A subclass that is to use
-    static members of its superclass must use explicit qualification by the the
+    static members of its superclass must use explicit qualification by the
     name of the superclass. It applies to any kind of static members:
 
     - static fields;
@@ -2007,7 +2007,7 @@ Overriding a field by a single accessor or by both accessors causes a
     }
     class D extends C {
         get num(): number  { return this.shadow } // Compile-time error, wrong overriding
-        set num(x: number) { this.shadow = p }    // Compile-time error, wrong overriding
+        set num(x: number) { this.shadow = x }    // Compile-time error, wrong overriding
         private shadow: number = 123
     }
 
@@ -2146,7 +2146,7 @@ Static methods are not inherited from superclasses:
 
     class Base {
         static foo() { console.log ("static foo() from Base") }
-        static bar() { console.log ("static foo() from Base") }
+        static bar() { console.log ("static bar() from Base") }
     }
 
     class Derived extends Base {
@@ -2154,7 +2154,7 @@ Static methods are not inherited from superclasses:
     }
 
     Base.foo() // Output: static foo() from Base
-    Base.bar() // Output: static foo() from Base
+    Base.bar() // Output: static bar() from Base
     Derived.bar()           // Compile-time error, there is no bar() in Derived
     Derived.foo("a string") // Output: static foo() from Derived
     Derived.foo()           // Compile-time error, there is no foo(p:string) in Derived
@@ -2355,9 +2355,9 @@ A :index:`compile-time error` occurs if:
    ``override``.
 
 If the signature of an overridden method contains parameters with default
-values (see ref: "Optional Parameters"), then the corresponding parameters in
+values (see :ref:`Optional Parameters`), then the corresponding parameters in
 the overridden method must also have default values aligned with 
-ref: "Override-Compatible Signatures." 
+:ref:`Override-Compatible Signatures`.
 
 If at least one method parameter in a subclass has no default value, then the
 overloading (not overriding) occurs for both methods. 
@@ -2559,7 +2559,7 @@ Class Accessor Declarations
 
 
 Class accessors are declared in the form of getters or setters, i.e., methods
-with predefined signatures that suport using field access syntax to call such
+with predefined signatures that support using field access syntax to call such
 methods. A class can define a getter, a setter, or both with the same name.
 
 Class accessors are often used instead of fields to add additional control for
@@ -2933,8 +2933,8 @@ the following:
    to be executed in the order they appear in a class body.
 
 4. Code that neither uses ``this`` nor accesses fields through ``this``,
-   i.e., fields not expliclity initialized in the body of a
-   *primiary constructor* or during the step 3, are not read.
+   i.e., fields not explicitly initialized in the body of a
+   *primary constructor* or during the step 3, are not read.
 
 5. Arbitrary code after all fields are initialized as defined in **item 4**.
 

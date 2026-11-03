@@ -94,7 +94,7 @@ context that is already ambient:
    compatibility
    ambient
 
-*Ambient declaration* by itself does not guarantee that non-ambient declartion
+*Ambient declaration* by itself does not guarantee that non-ambient declaration
 declared elsewhere for the same name entity is identical to the ambient one. 
 By its nature, any *ambient declaration* is a requirement only that the build
 system (see :ref:`Build System`) provides a proper non-ambient declaration.
@@ -682,7 +682,7 @@ the namespace is exported.
 
     // module1
     declare export namespace A {
-        function foo()
+        function foo(): void
         let a: number
     }
 

@@ -43,8 +43,11 @@ program in accordance with the following rules:
    These rules are incomplete and will be updated.
 
 .. index::
-   term1
-   term 2
+   scheduling
+   job
+   EAWorker
+   priority
+   FIFO
 
 |
 

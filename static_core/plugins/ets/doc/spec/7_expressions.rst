@@ -1833,9 +1833,9 @@ compiler uses smart typing techniques.
         d = 2
     }
     function foo (p: Base | Derived) {
-        consoel.log (p)
+        console.log (p)
     }
-    foo ({b: 11, d= 22}) // Type of the object literal is inferred as Derived
+    foo ({b: 11, d: 22}) // Type of the object literal is inferred as Derived
     foo ({b: 11})        // Type of the object literal is inferred as Base
 
 
@@ -2359,7 +2359,7 @@ a function call as illustrated in the following example:
    foo(...array2)
    foo (...[...array2])  // spread array2 elements into arguments of the foo() call
 
-   // recall,  'array3 = [ ..array1, ..array2])' (see above)
+   // recall,  'array3 = [...array1, ...array2]' (see above)
    // next two calls are also equivalent
    foo(...array3)
    foo(...[...array1, ...array2])
@@ -2408,7 +2408,7 @@ or for the *rest parameter*:
 
    // RW array in spread, readonly target
    let ro: readonly int[] = [...b]
-      ro[1] = 1 // Compile-time error
+   ro[1] = 1 // Compile-time error
    function foo(...p_ro: readonly int[]) {
       p_ro[1] = 1 // Compile-time error
    }
@@ -3011,10 +3011,10 @@ the set of candidates to call is determined by the form of *object reference*,
                                       see :ref:`Access to Common Union Members`.
    ================================= =================================================================
 
-A :index:`compile-time error` occurs set is empty, in other words,
+A :index:`compile-time error` occurs if the set is empty, in other words,
 no entity is available to call.
 
-If a set contains more then one entity, then :ref:`Overload Resolution` is used
+If a set contains more than one entity, then :ref:`Overload Resolution` is used
 to select the method or function to call (see :ref:`Overload Set at Method Call`
 for details).
 
@@ -3535,8 +3535,8 @@ or equal to that string’s *length*, then ``RangeError`` is thrown.
 .. code-block:: typescript
    :linenos:
 
-    console.log("abc"[1]]) // prints: b
-    console.log("abc"[3]]) // runtime exception
+    console.log("abc"[1]) // prints: b
+    console.log("abc"[3]) // runtime exception
 
 The result of a string indexing expression is a value of ``string`` type.
 
@@ -3873,7 +3873,7 @@ There are two syntactical forms of the *new expression*:
         | newArrayInstance
         ;
 
-Type of a *new expression* is ether ``class`` or ``array``.
+Type of a *new expression* is either ``class`` or ``array``.
 
 A *new class instance expression* creates a new object that is an instance
 of the specified class and it is described in full details below.
@@ -4170,7 +4170,7 @@ then a :index:`compile-time warning` occurs.
 
     class X<out T> { }
     function foo(p1: X<Object>) {
-        p1 as X<number> // Compile-time warning, such cast converison is type unsafe
+        p1 as X<number> // Compile-time warning, such cast conversion is type unsafe
     }
 
 
@@ -4371,7 +4371,7 @@ specifics illustrated by the example below:
 .. code-block:: typescript
    :linenos:
 
-    // Test for the array of the speciifc type elements
+    // Test for the array of the specific type elements
     function test0 (o: Object) {
        if (o instanceof Array) { // type erasure allows to check if parameter
                                  // is of an Array kind
@@ -4708,7 +4708,7 @@ following example:
     let x = lhs_expression ?? rhs_expression
 
     let x$ = lhs_expression
-    if (x$ == null || x == undefined) {x = rhs_expression} else x = x$!
+    if (x$ == null || x$ == undefined) {x = rhs_expression} else x = x$!
 
     // Type of x is NonNullishType(lhs_expression)|Type(rhs_expression)
 
@@ -5281,7 +5281,7 @@ The result of a unary bitwise complement expression is a value, not a variable
 The result of a unary bitwise complement expression:
 
 -  ``-1`` if the operand is ``NaN``;
--  ``-1`` if the operand is positive or negative inifinity;
+-  ``-1`` if the operand is positive or negative infinity;
 -  Otherwise, the bitwise complement of the value of the ``int``,
    ``long`` or ``bigint`` operand. For any operand ``x`` of these types,
    ``~x`` equals ``(-x)-1``.
@@ -6035,9 +6035,6 @@ Exponentiation Expression
 *************************
 
 .. meta:
-    frontend_status: None
-
-.. meta:
     frontend_status: Done
 
 Exponentiation expression uses the binary *exponentiation operator* '``**``'.
@@ -6190,9 +6187,9 @@ combination of types is determined as follows:
    additive expression
    additive operator
    syntax
-   sting type
+   string type
    operand
-   sting concatenation
+   string concatenation
    convertible type
    operator
    widening numeric conversion
@@ -6496,7 +6493,7 @@ overflow.
    shift
 
 The value of *n* ``>>`` *s* is *n* right-shifted by *s* bit positions with
-sign-extension. The resultant value is :math:`floor(n / 2s)`. If *n* is
+sign-extension. The resultant value is :math:`floor(n / 2^s)`. If *n* is
 non-negative, then it is equivalent to truncating integer division (as computed
 by the integer division operator by 2 to the power *s*).
 

@@ -1096,7 +1096,7 @@ However, they do not have access to generic parameters of the surrounding class.
 
     class A<T> {
         static $_invoke(p: T) { } /* Compile-time error, as type T is not
-                                     avaialable for the static method */
+                                     available for the static method */
     }
 
     class B<T> {
@@ -1110,7 +1110,7 @@ However, they do not have access to generic parameters of the surrounding class.
        The same works for $_invoke as well */
 
     B<number> (factory)               /* ok, no type inference, number is the
-                                         type arguement for the 
+                                         type argument for the
                                          $_instantiate<U> method */
     B (factory)                       // ok, with type inference
     B.$_instantiate (factory)         // ok, with type inference

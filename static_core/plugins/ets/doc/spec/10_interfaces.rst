@@ -176,7 +176,7 @@ the declared interface also implements all interfaces that the interface
 
 A :index:`compile-time error` occurs if:
 
--  `typeReference`` in the ``extends`` clause refers directly to, or is an
+-  ``typeReference`` in the ``extends`` clause refers directly to, or is an
    alias of non-interface type.
 -  Interface type named by ``typeReference`` is not :ref:`Accessible`.
 -  Type arguments (see :ref:`Type Arguments`) of ``typeReference`` denote a
