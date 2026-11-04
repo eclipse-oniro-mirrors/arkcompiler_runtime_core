@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2022-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2022-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -61,6 +61,14 @@ class TestPreparationStep(ABC):
     @abstractmethod
     def transform(self, force_generated: bool) -> List[str]:
         pass
+
+    def _collect_generated_tests(self) -> List[str]:
+        # ".ats" tests are the renamed ".ets" ones; collect both extensions during the migration
+        tests: List[str] = []
+        for extension in ('ets', 'ats'):
+            glob_expression = os.path.join(self.test_gen_path, f"**/*.{extension}")
+            tests.extend(glob(glob_expression, recursive=True))
+        return tests
 
 
 class CtsTestPreparationStep(TestPreparationStep):
@@ -203,8 +211,7 @@ class ESCheckedTestPreparationStep(TestPreparationStep):
                         'Failed to run es cross-validator, please, make sure that '
                         'all required tools are installed (see tests-u-runner/readme.md#ets-es-checked-dependencies)')
             Log.exception_and_raise(_LOGGER, f"invalid return code {res.returncode}\n" + res.stdout + res.stderr)
-        glob_expression = os.path.join(self.test_gen_path, "**/*.ets")
-        return list(glob(glob_expression, recursive=True))
+        return self._collect_generated_tests()
 
 
 class CopyStep(TestPreparationStep):
@@ -213,8 +220,7 @@ class CopyStep(TestPreparationStep):
 
     def transform(self, force_generated: bool) -> List[str]:
         utils.copy(self.test_source_path, self.test_gen_path, remove_if_exist=False)
-        glob_expression = os.path.join(self.test_gen_path, "**/*.ets")
-        return list(glob(glob_expression, recursive=True))
+        return self._collect_generated_tests()
 
 
 class JitStep(TestPreparationStep):
@@ -236,8 +242,7 @@ class JitStep(TestPreparationStep):
         return "Test preparation step for any ets test suite: transforming for JIT testing"
 
     def transform(self, force_generated: bool) -> List[str]:
-        glob_expression = os.path.join(self.test_gen_path, "**/*.ets")
-        tests = list(glob(glob_expression, recursive=True))
+        tests = self._collect_generated_tests()
         with multiprocessing.Pool(processes=self.config.general.processes) as pool:
             run_tests = pool.imap_unordered(self.jit_transform_one_test, tests, chunksize=self.config.general.chunksize)
             pool.close()

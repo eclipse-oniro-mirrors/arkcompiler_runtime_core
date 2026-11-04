@@ -93,7 +93,11 @@ class RunnerETS(RunnerFileBased):
         self.collect_excluded_test_lists(test_name=suite_name)
         self.collect_ignored_test_lists(test_name=suite_name)
 
-        self.add_directories([TestDirectory(self.test_root, "ets", [])])
+        # ".ats" tests are the renamed ".ets" ones; discover both extensions during the migration
+        self.add_directories([
+            TestDirectory(self.test_root, "ets", []),
+            TestDirectory(self.test_root, "ats", []),
+        ])
 
     @property
     def default_work_dir_root(self) -> Path:

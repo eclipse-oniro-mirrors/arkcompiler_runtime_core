@@ -274,7 +274,8 @@ class TestStandardFlow(ITestFlow, Test):
             return []
 
         if files := [file for file in self.metadata.files if file.endswith(".d.ets")]:
-            raise InvalidConfiguration(f"Test {self.test_id} should not refer to a dependent .d.ets file(s): {files}")
+            raise InvalidConfiguration(
+                f"Test {self.test_id} should not refer to a dependent .d.ets/.d.ats file(s): {files}")
 
         id_pos: int = str(self.path).find(self.test_id)
         test_root: str = str(self.path)[:id_pos]
