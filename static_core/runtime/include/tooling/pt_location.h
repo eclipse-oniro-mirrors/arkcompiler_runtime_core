@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -25,8 +25,8 @@ class PtLocation {
 public:
     using EntityId = panda_file::File::EntityId;
 
-    explicit PtLocation(const char *pandaFile, EntityId methodId, uint32_t bytecodeOffset)
-        : pandaFile_(pandaFile), methodId_(methodId), bytecodeOffset_(bytecodeOffset)
+    explicit PtLocation(const char *pandaFile, EntityId methodId, uint32_t bytecodeOffset, int32_t lineNumber = 0)
+        : pandaFile_(pandaFile), methodId_(methodId), bytecodeOffset_(bytecodeOffset), lineNumber_(lineNumber)
     {
     }
 
@@ -45,6 +45,11 @@ public:
         return bytecodeOffset_;
     }
 
+    int32_t GetLineNumber() const
+    {
+        return lineNumber_;
+    }
+
     bool operator==(const PtLocation &location) const
     {
         return methodId_ == location.methodId_ && bytecodeOffset_ == location.bytecodeOffset_ &&
@@ -60,6 +65,7 @@ private:
     const char *pandaFile_;
     EntityId methodId_;
     uint32_t bytecodeOffset_ {0};
+    int32_t lineNumber_ {0};
 };
 }  // namespace ark::tooling
 
