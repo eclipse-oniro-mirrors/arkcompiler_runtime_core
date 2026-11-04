@@ -89,8 +89,9 @@ class TestSuite(ITestSuite):
         self.excluded_tests: list[Path] = []
         self.workflow_kind = self.config.workflow.workflow_type
         self.supported_extensions: list[str] = list({
-            self.config.test_suite.extension(collection)
+            extension
             for collection in self.config.test_suite.collections
+            for extension in self.config.test_suite.extensions(collection)
         })
 
     @property
@@ -98,8 +99,8 @@ class TestSuite(ITestSuite):
         return self.__work_dir.gen
 
     @property
-    def extension(self) -> str:
-        return cast(str, self.config.test_suite.get_parameter("extension", DEFAULT_EXTENSION))
+    def extensions(self) -> list[str]:
+        return self.config.test_suite.extensions()
 
     @property
     def explicit_list(self) -> Path | None:
@@ -237,7 +238,7 @@ class TestSuite(ITestSuite):
                     test_gen_path=self.test_root / collection.name,
                     config=self.config,
                     collection=collection,
-                    extension=self.config.test_suite.extension(collection)
+                    extension=self.config.test_suite.extensions(collection)
                 ))
                 copy_source_path = self.test_root / collection.name
                 real_source_path = collection.test_root / collection.name
@@ -249,12 +250,13 @@ class TestSuite(ITestSuite):
                          f"Cannot process the collection '{collection.name}'")
                 _LOGGER.default(error)
                 continue
-            extension = self.config.test_suite.extension(collection)
+            extensions = self.config.test_suite.extensions(collection)
             with_js = self.config.test_suite.with_js(collection)
-            if (extension == "js" and with_js) or extension != "js":
-                steps.extend(self.__add_copy_steps(collection, copy_source_path, extension))
+            is_js_only = extensions == ["js"]
+            if (is_js_only and with_js) or not is_js_only:
+                steps.extend(self.__add_copy_steps(collection, copy_source_path, extensions))
             if self.jit_repeats > 0:
-                steps.extend(self.__add_jit_steps(collection, copy_source_path, extension))
+                steps.extend(self.__add_jit_steps(collection, copy_source_path, extensions))
         return steps
 
     def _locate_chapters_file(self) -> Path:
@@ -271,8 +273,8 @@ class TestSuite(ITestSuite):
             f"Not found '{self.config.test_suite.groups.chapters_file}' in any list root "
             f"'{self.list_roots!s}'")
 
-    def __add_copy_steps(self, collection: CollectionsOptions, copy_source_path: Path, extension: str) \
-            -> list[TestPreparationStep]:
+    def __add_copy_steps(self, collection: CollectionsOptions, copy_source_path: Path,
+                         extensions: list[str]) -> list[TestPreparationStep]:
         steps: list[TestPreparationStep] = []
         if collection.exclude:
             for file_path in copy_source_path.iterdir():
@@ -283,7 +285,7 @@ class TestSuite(ITestSuite):
                     test_gen_path=self.test_root / collection.name / file_path.name,
                     config=self.config,
                     collection=collection,
-                    extension=extension
+                    extension=extensions
                 ))
         elif copy_source_path != self.test_root / collection.name:
             steps.append(CopyStep(
@@ -291,12 +293,12 @@ class TestSuite(ITestSuite):
                 test_gen_path=self.test_root / collection.name,
                 config=self.config,
                 collection=collection,
-                extension=extension
+                extension=extensions
             ))
         return steps
 
-    def __add_jit_steps(self, collection: CollectionsOptions, copy_source_path: Path, extension: str) \
-            -> list[TestPreparationStep]:
+    def __add_jit_steps(self, collection: CollectionsOptions, copy_source_path: Path,
+                        extensions: list[str]) -> list[TestPreparationStep]:
         steps: list[TestPreparationStep] = []
         if collection.exclude:
             for file_path in copy_source_path.iterdir():
@@ -307,7 +309,7 @@ class TestSuite(ITestSuite):
                     test_gen_path=self.test_root / collection.name / file_path.name,
                     config=self.config,
                     collection=collection,
-                    extension=extension,
+                    extension=extensions,
                     num_repeats=self.jit_repeats
                 ))
         else:
@@ -316,7 +318,7 @@ class TestSuite(ITestSuite):
                 test_gen_path=self.test_root / collection.name,
                 config=self.config,
                 collection=collection,
-                extension=extension,
+                extension=extensions,
                 num_repeats=self.jit_repeats
             ))
         return steps
@@ -361,9 +363,9 @@ class TestSuite(ITestSuite):
         """
         tests: list[Path] = []
         for collection in self.config.test_suite.collections:
-            extension = self.config.test_suite.extension(collection)
-            glob_expression = (self.test_root / collection.name).rglob(f"**/*.{extension}")
-            tests.extend(glob_expression)
+            for extension in self.config.test_suite.extensions(collection):
+                glob_expression = (self.test_root / collection.name).rglob(f"**/*.{extension}")
+                tests.extend(glob_expression)
         return [Path(test) for test in set(tests)]
 
     def __get_explicit_test_path(self, test_id: str) -> Path | None:
@@ -531,15 +533,16 @@ class TestSuite(ITestSuite):
 
         matched: set[str] = set()
 
-        test_glob = f"*.{self.extension}"
+        test_globs = [f"*.{extension}" for extension in self.extensions]
 
         for p in self.test_root.glob(filter_mask):
             if p.is_file():
                 matched.add(p.relative_to(self.test_root).as_posix())
             elif p.is_dir():
-                for f in p.rglob(test_glob):
-                    if f.is_file():
-                        matched.add(f.relative_to(self.test_root).as_posix())
+                for test_glob in test_globs:
+                    for f in p.rglob(test_glob):
+                        if f.is_file():
+                            matched.add(f.relative_to(self.test_root).as_posix())
 
         return matched
 

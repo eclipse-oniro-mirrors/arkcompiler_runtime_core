@@ -24,6 +24,7 @@ parameters:
   build: ${PANDA_BUILD}
   enable-verifier: false
   extension: ets
+  test-extensions: [ets, ats]
   use-metadata: false
   es2panda-workflow-args:
     - '--thread=0'

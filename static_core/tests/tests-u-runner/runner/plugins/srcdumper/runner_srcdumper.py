@@ -86,11 +86,9 @@ class RunnerSRCDumper(RunnerJS):
             f'--arktsconfig={self.arktsconfig}'
         ]
         return [
-            TestDirectory('compiler/ets', 'ets', flags),
-            TestDirectory('parser/ets', 'ets', flags),
-            TestDirectory('runtime/ets', 'ets', flags),
-            TestDirectory('ast', 'ets', flags),
-            TestDirectory('srcdump', 'ets', flags),
+            TestDirectory(directory, extension, flags)
+            for extension in ('ets', 'ats')
+            for directory in ('compiler/ets', 'parser/ets', 'runtime/ets', 'ast', 'srcdump')
         ]
 
     def _copy_test_files_to_artifacts(self, test_dirs: List[TestDirectory]) -> None:

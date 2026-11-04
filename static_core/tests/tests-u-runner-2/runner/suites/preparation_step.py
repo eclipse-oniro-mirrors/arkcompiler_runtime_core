@@ -38,12 +38,13 @@ EXPECTED_EXT = ".expected"
 
 class TestPreparationStep(ABC):
     def __init__(self, test_source_path: Path, *, test_gen_path: Path, config: Config, collection: CollectionsOptions,
-                 extension: str = "ets") -> None:
+                 extension: str | list[str] = "ets") -> None:
         self.__test_source_path = test_source_path.resolve()
         self.__test_gen_path = test_gen_path.resolve()
 
         self.config = config
-        self.extension = extension
+        self.extensions: list[str] = [extension] if isinstance(extension, str) else list(extension)
+        self.extension = self.extensions[0]
         self.collection = collection
 
     @property
@@ -64,7 +65,7 @@ class TestPreparationStep(ABC):
     def get_d_ets_files(test_path: Path) -> set[Path]:
         d_ets_files = set()
         for file_name in test_path.parent.iterdir():
-            if file_name.is_file() and file_name.suffixes[-2:] == [".d", ".ets"]:
+            if file_name.is_file() and file_name.suffixes[-2:] in ([".d", ".ets"], [".d", ".ats"]):
                 d_ets_files.add(file_name)
         return d_ets_files
 
@@ -112,7 +113,7 @@ class TestPreparationStep(ABC):
         if not test_path.is_file():
             return
 
-        if test_path.suffixes[-2:] == ['.d', '.ets']:
+        if test_path.suffixes[-2:] in (['.d', '.ets'], ['.d', '.ats']):
             return
 
         test_metadata = TestMetadata.get_metadata(test_path)
@@ -123,13 +124,13 @@ class TestPreparationStep(ABC):
                 full_dep_path = (self.test_source_path / Path(dep_file)).resolve()
             result.add(full_dep_path)
 
-            if full_dep_path.is_file() and full_dep_path.suffix == f".{self.extension}":
+            if full_dep_path.is_file() and full_dep_path.suffix in {f".{ext}" for ext in self.extensions}:
                 self._collect_deps(full_dep_path, seen, result)
 
 
 class CustomGeneratorTestPreparationStep(TestPreparationStep):
     def __init__(self, test_source_path: Path, *, test_gen_path: Path, config: Config, collection: CollectionsOptions,
-                 extension: str) -> None:
+                 extension: str | list[str]) -> None:
         super().__init__(
             test_source_path=test_source_path,
             test_gen_path=test_gen_path,
@@ -160,7 +161,8 @@ class CustomGeneratorTestPreparationStep(TestPreparationStep):
             elif self.collection.generator_script is not None:
                 self.__generate_by_script(self.collection.generator_script)
         finally:
-            yield from self.test_gen_path.rglob(f"**/*.{self.extension}")
+            for extension in self.extensions:
+                yield from self.test_gen_path.rglob(f"**/*.{extension}")
 
     def __generate_by_class(self, clazz: str) -> None:
         generator_class: type[IGenerator] = self.__get_generator_class(clazz)
@@ -198,7 +200,8 @@ class CustomGeneratorTestPreparationStep(TestPreparationStep):
 
 class CopyStep(TestPreparationStep):
     def __str__(self) -> str:
-        return (f"Test preparation step: copying *.{self.extension} files "
+        extensions = ", ".join(f"*.{extension}" for extension in self.extensions)
+        return (f"Test preparation step: copying {extensions} files "
                 f"from {self.test_source_path} to {self.test_gen_path}")
 
     def transform(self, force_generated: bool) -> Generator[Path, None, None]:
@@ -214,9 +217,11 @@ class CopyStep(TestPreparationStep):
                         dep_file_dest = self.test_gen_root / rel_path / dep_file.name
                         copy(dep_file, dep_file_dest, remove_if_exist=False)
             if self.test_gen_path.is_file():
-                yield from self.test_gen_path.parent.rglob(f"**/*.{self.extension}")
+                for extension in self.extensions:
+                    yield from self.test_gen_path.parent.rglob(f"**/*.{extension}")
             else:
-                yield from self.test_gen_path.rglob(f"**/*.{self.extension}")
+                for extension in self.extensions:
+                    yield from self.test_gen_path.rglob(f"**/*.{extension}")
         except FileNotFoundError:
             yield from []
 
@@ -230,7 +235,7 @@ class JitStep(TestPreparationStep):
 
     def __init__(self, test_source_path: Path, *, test_gen_path: Path, config: Config,
                  collection: CollectionsOptions,
-                 extension: str = "ets", num_repeats: int = 0):
+                 extension: str | list[str] = "ets", num_repeats: int = 0):
         super().__init__(
             test_source_path=test_source_path,
             test_gen_path=test_gen_path,
@@ -247,7 +252,9 @@ class JitStep(TestPreparationStep):
         return "Test preparation step for any ets test suite: transforming for JIT testing"
 
     def transform(self, force_generated: bool) -> Generator[Path, None, None]:
-        tests = self.test_gen_path.rglob(f"**/*.{self.extension}")
+        tests: list[Path] = []
+        for extension in self.extensions:
+            tests.extend(self.test_gen_path.rglob(f"**/*.{extension}"))
         with multiprocessing.Pool(processes=self.config.general.processes) as pool:
             run_tests = pool.imap_unordered(self.jit_transform_one_test, tests, chunksize=self.config.general.chunksize)
             pool.close()

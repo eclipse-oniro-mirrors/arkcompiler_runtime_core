@@ -34,6 +34,7 @@ workflows:
 
 parameters:
     extension: ets
+    test-extensions: [ets, ats]
     load-runtimes: ets
     work-dir: ${WORK_DIR}/${suite-name}
     es2panda-test-suite-args:

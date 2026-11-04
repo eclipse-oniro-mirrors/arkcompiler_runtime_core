@@ -16,6 +16,7 @@
 #
 
 import argparse
+import re
 from functools import cached_property
 from pathlib import Path
 from typing import Any, cast
@@ -46,6 +47,7 @@ class TestSuiteOptions(IOptions):
     __PARAMETERS = "parameters"
     __EXTENSION = "extension"
     __DEFAULT_EXTENSION = "ets"
+    __TEST_EXTENSIONS = "test-extensions"
     __FILTER = "filter"
     __DEFAULT_FILTER = "*"
     __LOAD_RUNTIMES = "load-runtimes"
@@ -225,6 +227,16 @@ class TestSuiteOptions(IOptions):
 
     def extension(self, collection: CollectionsOptions | None = None) -> str:
         return str(self.get_parameter(self.__EXTENSION, self.__DEFAULT_EXTENSION, collection))
+
+    def extensions(self, collection: CollectionsOptions | None = None) -> list[str]:
+        value = self.get_parameter(self.__TEST_EXTENSIONS, None, collection)
+        if value is None:
+            return [self.extension(collection)]
+        if isinstance(value, str):
+            # Collection parameters flatten lists to space-joined strings, CLI may pass comma-separated values
+            value = [ext for ext in re.split(r"[,\s]+", value) if ext]
+        result = [str(ext) for ext in value]
+        return result if result else [self.extension(collection)]
 
     def with_js(self, collection: CollectionsOptions | None = None) -> bool:
         return cast(bool, self.get_parameter(self.__WITH_JS, self.__DEFAULT_WITH_JS, collection))

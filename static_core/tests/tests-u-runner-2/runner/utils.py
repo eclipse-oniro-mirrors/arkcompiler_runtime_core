@@ -59,6 +59,8 @@ NamingRule = Callable[[str, str], tuple[str, str]]
 ALLOWED_TEST_EXTS = (
     (".d", ".ets"),
     (".ets",),
+    (".d", ".ats"),
+    (".ats",),
 )
 DEFAULT_CFG_REL_PATH = Path("static_core/tests/tests-u-runner-2/cfg")
 
@@ -641,5 +643,5 @@ def escape(line: str, *, escaped_chars: str = ".+?", add_dots: str = "*") -> str
 
 
 def normalize_build_system_path(output: str) -> str:
-    pattern = r'At File:\s*(?:[A-Za-z]:)?[/\\].*?[/\\]([^/\\]+\.ets:\d+:\d+)'
+    pattern = r'At File:\s*(?:[A-Za-z]:)?[/\\].*?[/\\]([^/\\]+\.(?:ets|ats):\d+:\d+)'
     return re.sub(pattern, r'At File: \1', output)
