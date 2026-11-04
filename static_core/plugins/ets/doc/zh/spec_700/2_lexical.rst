@@ -646,6 +646,15 @@ Unicode 字符类别 *UNICODE_CLASS_LU*、*UNICODE_CLASS_LL*、*UNICODE_CLASS_LT
     // Compile-time error, the value is too large for type double:
     1.7e309
 
+若浮点字面量不带后缀且其值落入 ``float`` 类型的范围内，则可以赋给 ``float``
+类型的目标（见 :ref:`Type Inference for Constant Expressions`）：
+
+.. code-block:: typescript
+   :linenos:
+
+    let f: float = 1.0    // OK, the value fits into the range of type 'float'
+    let g: float = 3.4e39 // Compile-time error, the value is too large for type 'float'
+
 .. index::
    floating-point literal
    compile-time error

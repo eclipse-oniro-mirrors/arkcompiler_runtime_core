@@ -170,7 +170,7 @@
    :linenos:
 
        function foo() {
-           let x = 1 // x is of type 'int' (default type of '1')
+            let x = 1 // x is of type 'int' (default inferred type of '1')
            let y = [1, 2] // x is of type 'number[]'
        }
 
@@ -296,7 +296,7 @@
 
        foo(1) // Compile-time error
 
-在上面的示例中，值 1 的类型被推断为 int，也就是整数字面量的默认类型。
+在上面的示例中，值 1 的类型被推断为 int，也就是整数字面量的 *默认推断类型*。
 该表达式等价于“以 int 作为类型实参调用 foo”，这会导致
 :index:`compile-time error`，因为 int 不是 number（类型参数约束）的子类型。
 
@@ -304,7 +304,7 @@
 
 .. index::
    inferred type
-   default type
+   default inferred type
    integer literal
    expression
    subtype
@@ -1468,14 +1468,30 @@ rest 参数 ``FPrest``（若存在）以及返回类型 ``FR``，而函数类型
 - :ref:`Cast Expression` 上下文；
 - :ref:`Numeric Operator Contexts`。
 
-若上下文不允许推断类型，则按如下规则设置 *值默认类型*：
+若上下文不允许推断类型，则常量表达式的类型称为其 *默认推断类型*，规则如下：
 
 - 若常量表达式为大整数类型（见 :ref:`Specifics of Constant Expressions Evaluation`）
-  且其值可用 32 位表示，则默认类型为 ``int``；
+  且其值可用 32 位表示，则默认推断类型为 ``int``；
 - 若常量表达式为大整数类型（见 :ref:`Specifics of Constant Expressions Evaluation`）
-  且其值可用 64 位表示，则默认类型为 ``long``；
-- 浮点常量表达式（见 :ref:`Specifics of Constant Expressions Evaluation`）的默认类型
-  为 ``double`` 或 ``float``。
+  且其值可用 64 位表示，则默认推断类型为 ``long``；
+- 浮点常量表达式的默认推断类型为 ``double`` 或 ``float``，取决于表达式所含的
+  *浮点后缀* 与浮点操作数（见 :ref:`Floating-Point Literals` 与
+  :ref:`Specifics of Constant Expressions Evaluation`）；若二者均无，则
+  默认推断类型为 ``double``。
+
+若整数常量表达式的值无法用 64 位表示，则产生 :index:`compile-time error`
+（见 :ref:`Integer Literals`）。
+
+例如，``2147483647`` （:math:`2^{31} - 1`）的默认推断类型为 ``int`` （该值在
+32 位范围内）；而 ``2147483648`` （:math:`2^{31}`）与
+``9223372036854775807`` （:math:`2^{63} - 1`）的默认推断类型为 ``long``
+（超出 32 位范围，但在 64 位范围内）。
+
+.. note::
+   ``-`` 不是整数字面量的一部分，而是 :ref:`Unary Minus` 运算符（最小
+   ``long`` 值的记法除外，见 :ref:`Integer Literals`）。默认推断类型由整个
+   常量表达式求值后的值决定：``- 2147483648`` 的默认推断类型为 ``int``，
+   因为值 :math:`-2^{31}` 在 32 位范围内。
 
 仅当 *目标类型* 为以下之一时，才进行类型推断：
 
@@ -1486,9 +1502,11 @@ rest 参数 ``FPrest``（若存在）以及返回类型 ``FR``，而函数类型
 
 当 *目标类型* 为数值类型时，若满足以下条件之一，则从 *目标类型* 和常量表达式的值推断类型：
 
-#. *目标类型* 等于或大于值默认类型；或
+#. *目标类型* 等于或大于值的 *默认推断类型*；或
 
-#. 值为 *整数值* 且能落入 *目标类型* 的范围内。
+#. 值为 *整数值* （即整数常量表达式的值）且能落入 *目标类型* 的范围内；或
+
+#. 浮点常量表达式的值落入 *目标浮点类型* 的范围内。
 
 .. note::
    若存在 *浮点后缀*，则该字面量已显式声明为 ``floating-point literal``，不再做类型推断。
@@ -1503,60 +1521,81 @@ rest 参数 ``FPrest``（若存在）以及返回类型 ``FR``，而函数类型
 .. code-block:: typescript
    :linenos:
 
-       let l: long = 1     // OK, target type is larger than literal default type
-       let b: byte = 127   // OK, integer value fits type 'byte'
-       let f: float = 123f // OK, target type is the same as literal default type
-       let g: double = 11  // OK, target type is larger than literal default type
+        let l: long = 1     // OK, target type is larger than literal default inferred type
+        let b: byte = 127   // OK, integer value fits type 'byte'
+        let f: float = 123f // OK, target type is the same as literal default inferred type
+        let g: double = 11  // OK, target type is larger than literal default inferred type
 
-       b = 63 + 64           // OK, integer value fits type 'byte'
-       b = 1 as short        // OK, integer value fits type 'byte'
-       let s: short = -32767 // OK, integer value fits type 'short'
+        b = 63 + 64           // OK, integer value fits type 'byte'
+        b = 1 as short        // OK, integer value fits type 'byte'
+        f = 3.14              // OK, the value fits into the range of type 'float'
+        let s: short = -32767 // OK, integer value fits type 'short'
 
        l = 1.0    // Compile-time error, 'double' cannot be assigned to 'long'
        b = 128    // Compile-time error, value is out of range
-       f = 3.14   // Compile-time error, 'double' cannot be assigned to 'float'
+       f = 3.4e39 // Compile-time error, the value is too large for 'float'
 
 当目标类型是包含至少一个数值类型的联合类型时，推断规则如下：
 
-- 若没有任何数值成员适合该值，则使用默认类型；
-- 若只有一个数值成员适合该值，则该成员类型就是推断结果；
-- 若有多个数值成员都适合该值，则：
+- **子类型匹配规则**：若字面量的 *默认推断类型* 是 *目标类型* 的子类型（即默认推断类型是联合中某个成员的子类型——数值或非数值），则 *默认推断类型* 即为推断结果；
+- **唯一拓宽规则**：否则，若联合中恰有一个数值成员 ``N``:sub:`i` 可由 *默认推断类型* 经 *拓宽数值转换* （见 :ref:`Widening Numeric Conversions`）到达，则 ``N``:sub:`i` 为推断结果；
+- **拓宽歧义规则**：否则，若联合中有多个数值成员可由 *默认推断类型* 经 *拓宽数值转换* 到达，则因类型推断歧义产生 :index:`compile-time error`；
+- 否则，因字面量无法赋值给联合类型而产生 :index:`compile-time error`。
 
-  - 若该值是整数值，且适合的整数数值类型只有一个，则推断为该整数类型；
-  - 否则，会因类型推断歧义而产生 :index:`compile-time error`。
+.. note::
+   与 *Case 1* 不同，将整数值或浮点值落入更小数值类型的范围，在联合目标类型中 **不予考虑**。仅 *子类型匹配规则*、*唯一拓宽规则* 与 *拓宽歧义规则* 被考虑。非数值联合成员（如 ``Object``）参与 *子类型匹配规则* 的子类型检查，但不作为拓宽规则的候选。例如，整数字面量 ``1`` 的默认推断类型为 ``int``，可以赋值给 ``byte | Object``，因为 ``int`` 是 ``Object`` 的子类型（*子类型匹配规则*）；但不能赋值给 ``byte | string``，因为 ``int`` 既不是 ``byte`` 也不是 ``string`` 的子类型，且 ``int`` 到 ``byte`` 不是 *拓宽数值转换*。
 
 联合目标类型上的推断示例如下：
 
 .. code-block:: typescript
    :linenos:
 
-       let b: byte | Object = 127 // inferred type for 127 is 'byte'
-       b = 128 /* inferred type for 128 is 'int' (default literal type),
-                  which is a subtype of Object
-               */
+        let b: byte | Object = 127 /* inferred type for 127 is 'int' (default inferred type),
+                                     which is a subtype of Object (Rule Subtype-Matching)
+                                   */
+        b = 128 /* inferred type for 128 is 'int' (default inferred type),
+                   which is a subtype of Object (Rule Subtype-Matching)
+                */
 
-       let c: byte | string = 127 // inferred type for 127 is 'byte'
-       c = 128 /* inferred type for 128 is 'int' (default literal type),
-                  compile-time error as no type in a union is a supertype for
-                  'int'
-               */
+        let c: byte | string = 127 /* Compile-time error: default inferred type 'int' is
+                                      not a subtype of 'byte' or 'string', and no widening
+                                      numeric conversion from 'int' to 'byte' exists
+                                   */
 
-       let d: int | double = 1.0 // inferred type for 1.0 is 'double'
-       d = 1 // inferred type for 1 is 'int'
+       let d: int | double = 1.0 // inferred type for 1.0 is 'double' (Rule Subtype-Matching)
+       d = 1 // inferred type for 1 is 'int' (Rule Subtype-Matching)
 
-       let e: byte | long = 128 // inferred type for 128 is 'long'
-       e = 127 // Compile-time error, type inference ambiguity for 127
+       let e: byte | long = 128 // inferred type for 128 is 'long' (Rule Unique-Widening)
+       e = 127 // inferred type for 127 is 'long' (Rule Unique-Widening)
 
-       let f: float | double = 3.14 // inferred type is 'double'
-       f = 2f                       // inferred type is 'float'
+       let f: float | double = 3.14 // inferred type is 'double' (Rule Subtype-Matching)
+       f = 2f                       // inferred type is 'float' (Rule Subtype-Matching)
 
-       let g: float | double = 3.4e39 // inferred type is 'double'
-       g = 1 // Compile-time error, type inference ambiguity for 1
+       let g: float | double = 3.4e39 // inferred type is 'double' (Rule Subtype-Matching)
+       g = 1 // Compile-time error, type inference ambiguity for 1 (Rule Ambiguous-Widening)
+
+       let h: int | long = 1 // inferred type for 1 is 'int' (Rule Subtype-Matching)
+
+        let i: long | float = 1 // Compile-time error, type inference ambiguity for 1 (Rule Ambiguous-Widening)
+
+        let j: int | long = 2147483647 /* inferred type is 'int': the value fits into
+                                          the 32-bit range, so the default inferred
+                                          type is 'int' (Rule Subtype-Matching)
+                                       */
+        let k: int | long = 2147483648 /* inferred type is 'long': the value does not
+                                          fit into the 32-bit range, so the default
+                                          inferred type is 'long' (Rule Subtype-Matching)
+                                       */
+        let l: byte | int = 2147483648 /* Compile-time error: the default inferred
+                                          type is 'long', which is a subtype of
+                                          neither 'byte' nor 'int', and no widening
+                                          numeric conversion from 'long' to 'byte'
+                                          or 'int' exists
+                                       */
 
 .. note::
 
-    若目标类型是不包含任何数值类型的联合类型，则使用字面量的默认类型。
-    以下代码合法（数值类型是 ``Object`` 的子类型）：
+    若目标类型是不包含任何数值类型的联合类型，*子类型匹配规则* 仍然适用：字面量的默认推断类型若是该联合的子类型，则使用默认推断类型。以下代码合法（数值类型是 ``Object`` 的子类型）：
 
     .. code-block:: typescript
         :linenos:
@@ -1568,6 +1607,7 @@ rest 参数 ``FPrest``（若存在）以及返回类型 ``FR``，而函数类型
 .. index::
    numeric type
    inferred type
+   default inferred type
    target type
    integer type
    context
