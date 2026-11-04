@@ -715,6 +715,16 @@ If a floating-point literal is too large for its type, then a
     // Compile-time error, the value is too large for type double:
     1.7e309
 
+An unsuffixed floating-point literal can be assigned to a target of type
+``float`` if its value fits into the range of type ``float`` (see
+:ref:`Type Inference for Constant Expressions`):
+
+.. code-block:: typescript
+   :linenos:
+
+    let f: float = 1.0    // OK, the value fits into the range of type 'float'
+    let g: float = 3.4e39 // Compile-time error, the value is too large for type 'float'
+
 .. index::
    floating-point literal
    compile-time error

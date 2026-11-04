@@ -183,7 +183,7 @@ as follows:
    :linenos:
 
     function foo() {
-        let x = 1 // x is of type 'int' (default type of '1')
+        let x = 1 // x is of type 'int' (default inferred type of '1')
         let y = [1, 2] // x is of type 'number[]'
     }
 
@@ -316,17 +316,17 @@ The semantics is represented in the example below:
     function foo <T extends number> (x: T) {}
     foo (1) // Compile-time error
 
-The type of ``'1'`` in the example above is inferred as ``int`` (default type of
-an integer literal). The expression is considered as ``foo <int>(1)`` and causes
-a :index:`compile-time error` because ``int`` is not a subtype of ``number``
-(type parameter constraint).
+The type of ``'1'`` in the example above is inferred as ``int`` (*default
+inferred type* of an integer literal). The expression is considered as
+``foo <int>(1)`` and causes a :index:`compile-time error` because ``int`` is
+not a subtype of ``number`` (type parameter constraint).
 
 Explicit type argument ``foo <number>(1)`` must be used to have such code
 compiled with no errors.
 
 .. index::
    inferred type
-   default type
+   default inferred type
    integer literal
    expression
    subtype
@@ -1592,15 +1592,37 @@ The following contexts allow inference:
 - :ref:`Assignment-like Contexts`;
 - :ref:`Cast Expression` context.
 
-If context does not allow the type to be inferred, the value type
-is set as follows (see :ref:`Specifics of Constant Expressions Evaluation`
+If context does not allow the type to be inferred, the type of the constant
+expression is called its *default inferred type*, and it is determined as
+follows (see :ref:`Specifics of Constant Expressions Evaluation`
 for detail):
 
 - ``int`` for an integer constant expression if its value
   can be represented by a 32-bit number;
 - ``long`` for an integer constant expression if its value
   can be represented by a 64-bit number;
-- ``double`` or ``float`` for a floating-point constant expression.
+- ``double`` or ``float`` for a floating-point constant expression: the type
+  is determined by the *floating-point suffixes* and floating-point operands
+  the expression contains (see :ref:`Floating-Point Literals` and
+  :ref:`Specifics of Constant Expressions Evaluation`), and is ``double``
+  if the expression contains neither.
+
+An integer constant expression whose value cannot be represented by a
+64-bit number causes a :index:`compile-time error` (see :ref:`Integer Literals`).
+
+For example, the *default inferred type* of ``2147483647``
+(:math:`2^{31} - 1`) is ``int``, as the value fits into the 32-bit range,
+while the *default inferred type* of ``2147483648`` (:math:`2^{31}`) and
+``9223372036854775807`` (:math:`2^{63} - 1`) is ``long``, as these values do
+not fit into the 32-bit range, but fit into the 64-bit range.
+
+.. note::
+   ``-`` is not a part of an integer literal, but the :ref:`Unary Minus`
+   operator (except for the notation of the smallest ``long`` values, see
+   :ref:`Integer Literals`). The *default inferred type* is determined by
+   the evaluated value of the whole constant expression: ``- 2147483648``
+   has the *default inferred type* ``int``, as the value :math:`-2^{31}`
+   fits into the 32-bit range.
 
 Type inference is used only where the *target type* is one of the following:
 
@@ -1611,13 +1633,17 @@ Type inference is used only where the *target type* is one of the following:
 **Case 1: Target type is a numeric type**
 
 Where a *target type* is numeric, the type of a constant expression is inferred
-from the *target type* and the value of the const expression,
+from the *target type* and the value of the constant expression,
 if one of following conditions is met:
 
-#. *Target type* is equal to or larger than the value default type; or
+#. *Target type* is equal to or larger than the *default inferred type*
+   of the value; or
 
-#. Value is an *integer value* that fitting into the range
-   of the *target type*.
+#. Value is an *integer value* (the value of an integer constant
+   expression) that fits into the range of the *target type*; or
+
+#. The value of a floating-point constant expression fits into the
+   range of the *target floating-point type*.
 
 .. note::
    A *floating-point suffix* if present declares a ``floating-point literal``,
@@ -1634,70 +1660,111 @@ Type inference for a numeric *target type* is represented in the examples below:
 .. code-block:: typescript
    :linenos:
 
-    let l: long = 1     // OK, target type is larger than literal default type
+    let l: long = 1     // OK, target type is larger than literal default inferred type
     let b: byte = 127   // OK, integer value fits type 'byte'
-    let f: float = 123f // OK, target type is the same as literal default type
-    let g: double = 11  // OK, target type is larger than literal default type
+    let f: float = 123f // OK, target type is the same as literal default inferred type
+    let g: double = 11  // OK, target type is larger than literal default inferred type
 
     b = 63 + 64           // OK, integer value fits type 'byte'
     b = 1 as short        // OK, integer value fits type 'byte'
+    f = 3.14              // OK, the value fits into the range of type 'float'
     let s: short = -32767 // OK, integer value fits type 'short'
 
     l = 1.0    // Compile-time error, 'double' cannot be assigned to 'long'
     b = 128    // Compile-time error, value is out of range
-    f = 3.14   // Compile-time error, 'double' cannot be assigned to 'float'
+    f = 3.4e39 // Compile-time error, the value is too large for 'float'
 
 **Case 2: Target type is a union type containing at least one numeric type**
 
 In the case the *target type* is a union type
 (``N``:sub:`1` ``| ... | N``:sub:`k` ``| ... | U``:sub:`n`), where ``k``
 :math:`\geq` ``1`` and ``N``:sub:`i` is a numeric type, then the inferred
-literal type is determined as follows:
+literal type is determined by the following rules:
 
-#. If no ``N``:sub:`i` suits the value, then the default type is used;
+#. **Rule Subtype-Matching:** If the *default inferred type* of the literal is
+   a subtype of the *target type* (i.e., the default inferred type is a
+   subtype of one of the union members — numeric or non-numeric), then the
+   *default inferred type* is the inferred type;
 
-#. If only a single ``N``:sub:`i` suits the value, then ``N``:sub:`i` is the
-   inferred type;
+#. **Rule Unique-Widening:** Otherwise, if exactly one numeric type
+   ``N``:sub:`i` in the union is reachable from the *default inferred type*
+   via *widening numeric conversion* (see :ref:`Widening Numeric
+   Conversions`), then ``N``:sub:`i` is the inferred type;
 
-#. If several ``N`` types suit the value, then the following checks are
-   performed:
+#. **Rule Ambiguous-Widening:** Otherwise, if several numeric types in the
+   union are reachable from the *default inferred type* via *widening
+   numeric conversion*, a :index:`compile-time error` occurs due to type
+   inference ambiguity;
 
-   - If the value is an integer value, and only one suitable *integer*
-     ``N``:sub:`i` is present, then this ``N``:sub:`i` is the inferred type.
+#. Otherwise, a :index:`compile-time error` occurs as the
+   literal cannot be assigned to the union type.
 
-Otherwise, a :index:`compile-time error` occurs due to type inference ambiguity.
+.. note::
+   Unlike *Case 1*, fitting an integer value or a floating-point value
+   into the range of a smaller numeric type is **not** considered for
+   union target types. Only *Rule Subtype-Matching*, *Rule Unique-Widening*,
+   and *Rule Ambiguous-Widening* are considered. Non-numeric union members
+   (such as ``Object``) participate in the subtype check of
+   *Rule Subtype-Matching* but are not candidates for the widening rules.
+   For example, an integer literal ``1`` with *default inferred type*
+   ``int`` can be assigned to ``byte | Object`` because ``int`` is a
+   subtype of ``Object`` (*Rule Subtype-Matching*), but cannot be assigned
+   to ``byte | string`` because ``int`` is not a subtype of either
+   ``byte`` or ``string``, and ``int`` to ``byte`` is not a *widening
+   numeric conversion*.
 
 Type inference for a union target type is represented in the examples below:
 
 .. code-block:: typescript
    :linenos:
 
-    let b: byte | Object = 127 // inferred type for 127 is 'byte'
-    b = 128 /* inferred type for 128 is 'int' (default literal type),
-               which is a subtype of Object
+    let b: byte | Object = 127 /* inferred type for 127 is 'int' (default inferred type),
+                                 which is a subtype of Object (Rule Subtype-Matching)
+                               */
+    b = 128 /* inferred type for 128 is 'int' (default inferred type),
+               which is a subtype of Object (Rule Subtype-Matching)
             */
 
-    let c: byte | string = 127 // inferred type for 127 is 'byte'
-    c = 128 /* inferred type for 128 is 'int' (default literal type),
-               compile-time error as no type in a union is a supertype for
-               'int'
-            */
+    let c: byte | string = 127 /* Compile-time error: default inferred type 'int' is
+                                  not a subtype of 'byte' or 'string', and no widening
+                                  numeric conversion from 'int' to 'byte' exists
+                               */
 
-    let d: int | double = 1.0 // inferred type for 1.0 is 'double'
-    d = 1 // inferred type for 1 is 'int'
+    let d: int | double = 1.0 // inferred type for 1.0 is 'double' (Rule Subtype-Matching)
+    d = 1 // inferred type for 1 is 'int' (Rule Subtype-Matching)
 
-    let e: byte | long = 128 // inferred type for 128 is 'long'
-    e = 127 // Compile-time error, type inference ambiguity for 127
+    let e: byte | long = 128 // inferred type for 128 is 'long' (Rule Unique-Widening)
+    e = 127 // inferred type for 127 is 'long' (Rule Unique-Widening)
 
-    let f: float | double = 3.14 // inferred type is 'double'
-    f = 2f                       // inferred type is 'float'
+    let f: float | double = 3.14 // inferred type is 'double' (Rule Subtype-Matching)
+    f = 2f                       // inferred type is 'float' (Rule Subtype-Matching)
 
-    let g: float | double = 3.4e39 // inferred type is 'double'
-    g = 1 // Compile-time error, type inference ambiguity for 1
+    let g: float | double = 3.4e39 // inferred type is 'double' (Rule Subtype-Matching)
+    g = 1 // Compile-time error, type inference ambiguity for 1 (Rule Ambiguous-Widening)
+
+    let h: int | long = 1 // inferred type for 1 is 'int' (Rule Subtype-Matching)
+
+    let i: long | float = 1 // Compile-time error, type inference ambiguity for 1 (Rule Ambiguous-Widening)
+
+    let j: int | long = 2147483647 /* inferred type is 'int': the value fits into
+                                      the 32-bit range, so the default inferred
+                                      type is 'int' (Rule Subtype-Matching)
+                                   */
+    let k: int | long = 2147483648 /* inferred type is 'long': the value does not
+                                      fit into the 32-bit range, so the default
+                                      inferred type is 'long' (Rule Subtype-Matching)
+                                   */
+    let l: byte | int = 2147483648 /* Compile-time error: the default inferred
+                                      type is 'long', which is a subtype of
+                                      neither 'byte' nor 'int', and no widening
+                                      numeric conversion from 'long' to 'byte'
+                                      or 'int' exists
+                                   */
 
 .. index::
    numeric type
    inferred type
+   default inferred type
    target type
    integer type
    context
@@ -1707,9 +1774,10 @@ Type inference for a union target type is represented in the examples below:
 
 .. note::
 
-    If *target type* is a union type that contains no numeric type, then the
-    default type of the literal is used. The following code is valid as
-    numeric types are subtypes of 'Object':
+    If *target type* is a union type that contains no numeric type, then
+    *Rule Subtype-Matching* still applies: the *default inferred type*
+    of the literal is used if it is a subtype of the union. The following
+    code is valid as numeric types are subtypes of 'Object':
 
     .. code-block:: typescript
         :linenos:
