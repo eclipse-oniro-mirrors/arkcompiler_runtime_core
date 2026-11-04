@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2021-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -94,6 +94,13 @@ ohos_shared_library("arktsdisassembler") {
   ]
 
   external_deps = [ sdk_libc_secshared_ext_dep ]
+
+  # GNU ld only; skipped in debug builds and standalone layouts where the
+  # ohos_shared_library wrapper does not support version_script.
+  if (current_cpu == "arm64" && !is_mac && !is_mingw && !is_win &&
+      !is_debug && !ark_standalone_build && !ark_static_standalone_build) {
+    version_script = "libarktsdisassembler.map"
+  }
 
   if (is_mingw || is_win) {
     output_extension = "dll"

@@ -83,6 +83,13 @@ ohos_shared_library("libarkverifier") {
 
   public_configs = [ ":arkverifier_public_config" ]
 
+  # GNU ld only; skipped in debug builds and standalone layouts where the
+  # ohos_shared_library wrapper does not support version_script.
+  if (current_cpu == "arm64" && !is_mac && !is_mingw && !is_win &&
+      !is_debug && !ark_standalone_build) {
+    version_script = "libarkverifier.map"
+  }
+
   if (!is_standard_system) {
     relative_install_dir = "ark"
   }
