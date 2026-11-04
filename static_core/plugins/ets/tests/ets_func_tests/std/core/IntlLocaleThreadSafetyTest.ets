@@ -111,9 +111,74 @@ function testLocaleOptionsStillOverrideCachedData(): void {
     arktest.assertEQ(overridden.calendar, 'gregory');
 }
 
+function mixedTagWorker(startFlag: Int32Array, workerId: Int32Array): void {
+    waitForStart(startFlag);
+    for (let i = 0; i < ITERATIONS_PER_WORKER; i++) {
+        let tagId = (workerId[0] + i) % 4;
+        assertTaggedLocale(tagId.toInt(), createTaggedLocale(tagId.toInt()));
+    }
+}
+
+async function testConcurrentDifferentTagCacheReplacement(): Promise<void> {
+    let startFlag = new Int32Array(new ArrayBuffer(4));
+    let promises: Promise<Any>[] = [];
+
+    for (let i = 0; i < WORKER_COUNT; i++) {
+        let workerId = new Int32Array(new ArrayBuffer(4));
+        workerId[0] = i;
+        promises.push(taskpool.execute(mixedTagWorker, startFlag, workerId));
+    }
+
+    Atomics.store(startFlag, 0, 1);
+    await Promise.all(promises);
+}
+
+function optionsWorker(startFlag: Int32Array, workerId: Int32Array): void {
+    waitForStart(startFlag);
+    for (let i = 0; i < ITERATIONS_PER_WORKER; i++) {
+        let tagId = (workerId[0] % 3).toInt();
+        if (tagId == 0) {
+            let l = new Intl.Locale('en-US-u-ca-gregory-cu-cny', { hourCycle: 'h23' } as Intl.LocaleOptions);
+            arktest.assertEQ(l.language, 'en');
+            arktest.assertEQ(l.region, 'US');
+            arktest.assertEQ(l.calendar, 'gregory');
+            arktest.assertEQ(l.hourCycle, 'h23');
+        } else if (tagId == 1) {
+            let l = new Intl.Locale('zh-Hans-CN-u-co-pinyin-cu-cny', { numberingSystem: 'latn' } as Intl.LocaleOptions);
+            arktest.assertEQ(l.language, 'zh');
+            arktest.assertEQ(l.script, 'Hans');
+            arktest.assertEQ(l.region, 'CN');
+            arktest.assertEQ(l.collation, 'pinyin');
+            arktest.assertEQ(l.numberingSystem, 'latn');
+        } else {
+            let l = new Intl.Locale('ja-JP', { calendar: 'japanese', hourCycle: 'h12' } as Intl.LocaleOptions);
+            arktest.assertEQ(l.language, 'ja');
+            arktest.assertEQ(l.region, 'JP');
+            arktest.assertEQ(l.calendar, 'japanese');
+            arktest.assertEQ(l.hourCycle, 'h12');
+        }
+    }
+}
+
+async function testConcurrentMixedTagsAndOptions(): Promise<void> {
+    let startFlag = new Int32Array(new ArrayBuffer(4));
+    let promises: Promise<Any>[] = [];
+
+    for (let i = 0; i < WORKER_COUNT; i++) {
+        let workerId = new Int32Array(new ArrayBuffer(4));
+        workerId[0] = i;
+        promises.push(taskpool.execute(optionsWorker, startFlag, workerId));
+    }
+
+    Atomics.store(startFlag, 0, 1);
+    await Promise.all(promises);
+}
+
 function main(): int {
     let suite = new arktest.ArkTestsuite('IntlLocaleThreadSafety');
     suite.addAsyncTest('concurrent same tag cache hits', testConcurrentSameTagCacheHits);
+    suite.addAsyncTest('concurrent different tag cache replacement', testConcurrentDifferentTagCacheReplacement);
+    suite.addAsyncTest('concurrent mixed tags and options', testConcurrentMixedTagsAndOptions);
     suite.addTest('sequential cache replacement', testSequentialCacheReplacement);
     suite.addTest('locale options override cached data', testLocaleOptionsStillOverrideCachedData);
 

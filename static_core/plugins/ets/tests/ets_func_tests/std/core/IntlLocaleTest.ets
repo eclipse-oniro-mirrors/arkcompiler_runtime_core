@@ -364,7 +364,7 @@ function testCacheWithLocaleObject() : int {
         const l3 = new Intl.Locale(l1, { hourCycle: 'h24' } as Intl.LocaleOptions)
         arktest.assertEQ(l3.language, 'en')
         arktest.assertEQ(l3.region, 'GB')
-        arktest.assertEQ(l3.calendar, '')
+        arktest.assertEQ(l3.calendar, 'gregory')
         arktest.assertEQ(l3.hourCycle, 'h24')
     }
     {

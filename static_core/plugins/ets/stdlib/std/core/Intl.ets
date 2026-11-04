@@ -1405,6 +1405,8 @@ export class DateTimeFormat {
     }
 
     final class ParsedLocaleData {
+        tag: string | undefined
+        canonicalTag: string | undefined
         language: string | undefined
         script: string | undefined
         region: string | undefined
@@ -1413,10 +1415,13 @@ export class DateTimeFormat {
         numberingSystem: string | undefined
         hourCycle: string | undefined
         numeric: boolean | undefined
+        numericSet: boolean = false
         caseFirst: string | undefined
         baseName: string | undefined
 
         constructor(
+            tag: string | undefined,
+            canonicalTag: string | undefined,
             language: string | undefined,
             script: string | undefined,
             region: string | undefined,
@@ -1425,9 +1430,12 @@ export class DateTimeFormat {
             numberingSystem: string | undefined,
             hourCycle: string | undefined,
             numeric: boolean | undefined,
+            numericSet: boolean,
             caseFirst: string | undefined,
             baseName: string | undefined
         ) {
+            this.tag = tag
+            this.canonicalTag = canonicalTag
             this.language = language
             this.script = script
             this.region = region
@@ -1436,6 +1444,7 @@ export class DateTimeFormat {
             this.numberingSystem = numberingSystem
             this.hourCycle = hourCycle
             this.numeric = numeric
+            this.numericSet = numericSet
             this.caseFirst = caseFirst
             this.baseName = baseName
         }
@@ -1445,9 +1454,14 @@ export class DateTimeFormat {
         // Single-entry cache for parseTag to avoid re-parsing the same tag
         // This is effective for common patterns like repeated locale creation with the same tag
         // Using single entry keeps memory footprint minimal while covering most use cases
-        private static lastParsedTag: string | undefined = undefined;
-        private static lastParsedResult: ParsedLocaleData | undefined = undefined;
-        private static localeCacheMutex: Object = ConcurrencyHelpers.mutexCreate();
+        private static cachedLocale: ParsedLocaleData | undefined = undefined;
+
+        private static localeInited: boolean = false
+
+        private static cachedRegionSet: Set<string> | undefined = undefined;
+        private static cachedScriptSet: Set<string> | undefined = undefined;
+        private static cachedNumberingSystemSet: Set<string> | undefined = undefined;
+        private static cachedLangSet: Set<string> | undefined = undefined;
 
         /**
          * Get cached locale data for a given tag
@@ -1455,25 +1469,60 @@ export class DateTimeFormat {
          * @returns Cached ParsedLocaleData or undefined if not found
          */
         private static getCachedLocale(tag: string): ParsedLocaleData | undefined {
-            let result: ParsedLocaleData | undefined = undefined;
-            ConcurrencyHelpers.lockGuard(Locale.localeCacheMutex, () => {
-                if (Locale.lastParsedTag == tag && Locale.lastParsedResult != undefined) {
-                    result = Locale.lastParsedResult;
-                }
-            });
-            return result;
+            let entry = Locale.cachedLocale;
+            if (entry != undefined && entry.tag == tag) {
+                return entry;
+            }
+            return undefined;
         }
 
         /**
          * Cache locale data for a given tag
-         * @param tag The BCP47 language tag to use as cache key
          * @param data The parsed locale data to cache
          */
-        private static setCachedLocale(tag: string, data: ParsedLocaleData): void {
-            ConcurrencyHelpers.lockGuard(Locale.localeCacheMutex, () => {
-                Locale.lastParsedTag = tag;
-                Locale.lastParsedResult = data;
-            });
+        private static setCachedLocale(data: ParsedLocaleData): void {
+            Locale.cachedLocale = data;
+        }
+
+        private static buildSetFromList(list: string): Set<string> {
+            let s = new Set<string>()
+            let parts = list.split(',')
+            for (let i = 0; i < parts.length; i++) {
+                s.add(parts[i])
+            }
+            return s
+        }
+
+        private getRegionSet(): Set<string> {
+            if (Locale.cachedRegionSet == undefined) {
+                Locale.cachedRegionSet = Locale.buildSetFromList(this.regionList())
+            }
+            return Locale.cachedRegionSet as Set<string>
+        }
+
+        private getScriptSet(): Set<string> {
+            if (Locale.cachedScriptSet == undefined) {
+                Locale.cachedScriptSet = Locale.buildSetFromList(this.scriptList())
+            }
+            return Locale.cachedScriptSet as Set<string>
+        }
+
+        private getNumberingSystemSet(): Set<string> {
+            if (Locale.cachedNumberingSystemSet == undefined) {
+                let list = this.numberingSystemList()
+                if (list == '') {
+                    return new Set<string>()
+                }
+                Locale.cachedNumberingSystemSet = Locale.buildSetFromList(list)
+            }
+            return Locale.cachedNumberingSystemSet as Set<string>
+        }
+
+        private getLangSet(): Set<string> {
+            if (Locale.cachedLangSet == undefined) {
+                Locale.cachedLangSet = Locale.buildSetFromList(this.langList())
+            }
+            return Locale.cachedLangSet as Set<string>
         }
 
         private _baseName?: string;
@@ -1481,11 +1530,13 @@ export class DateTimeFormat {
         private _calendar?: string;
         private _caseFirst?: string;
         private _numeric?: boolean;
+        private _numericSet: boolean = false;
         private _collation?: string;
         private _hourCycle?: string;
         private _numberingSystem?: string;
         private _region?: string;
         private _script?: string;
+        private _originalTag: string = '';
 
         set baseName(value: string | undefined) {
             this._baseName = value
@@ -1574,83 +1625,72 @@ export class DateTimeFormat {
         * @param options options
         */
         public constructor(tag: BCP47LanguageTag | Locale, options?: LocaleOptions) {
-            // Step 1: Initialize locale
-            this.initLocale()
+            if (!Locale.localeInited) {
+                this.initLocale()
+                Locale.localeInited = true
+            }
 
-            // Use local variable for default language to avoid multiple calls within same constructor
             let defaultLanguage: string | undefined = undefined
-            let canSkipValidation: boolean = false
 
-            // Step 2: Process tag parameter
             if (tag instanceof BCP47LanguageTag) {
-                this.tag = tag
-                canSkipValidation = this.parseTag()
+                this._tag = tag
+                this._originalTag = tag
+                this.parseTag()
             } else {
-                // Get default language only once if needed for either language or baseName
-                if (tag.language == undefined || tag.baseName == undefined) {
+                if (tag._language == undefined || tag._baseName == undefined) {
                     defaultLanguage = this.defaultLang()
                 }
 
-                this.language = (tag.language != undefined) ? tag.language : defaultLanguage
-                this.baseName = (tag.baseName != undefined) ? tag.baseName : defaultLanguage
-                this.calendar = (tag.calendar != undefined) ? tag.calendar : ''
-                this.caseFirst = (tag.caseFirst != undefined) ? tag.caseFirst : undefined
-                this.numeric = (tag.numeric != undefined) ? tag.numeric : false
-                this.collation = tag.collation
-                this.hourCycle = tag.hourCycle
-                this.numberingSystem = tag.numberingSystem
-                this.region = tag.region
-                this.script = tag.script
-                this.tag = tag.tag
+                this._language = (tag._language != undefined) ? tag._language : defaultLanguage
+                this._baseName = (tag._baseName != undefined) ? tag._baseName : defaultLanguage
+                this._calendar = (tag._calendar != undefined) ? tag._calendar : ''
+                this._caseFirst = (tag._caseFirst != undefined) ? tag._caseFirst : undefined
+                this._numeric = (tag._numeric != undefined) ? tag._numeric : false
+                this._numericSet = tag._numericSet
+                this._collation = tag._collation
+                this._hourCycle = tag._hourCycle
+                this._numberingSystem = tag._numberingSystem
+                this._region = tag._region
+                this._script = tag._script
+                this._tag = tag._tag
+                this._originalTag = tag._originalTag
             }
 
-            // Step 3: Process options parameter
             if (options != undefined) {
-                canSkipValidation = false  // Options modify the locale, so validation is required
-                this.checkOptions(options)
+                this.applyOptions(options, defaultLanguage)
+            }
+        }
 
-                // Only fetch defaultLang if we need it and haven't already cached it in local variable
-                if ((options.language == undefined || options.baseName == undefined) && defaultLanguage == undefined) {
-                    defaultLanguage = this.defaultLang()
-                }
+        private applyOptions(options: LocaleOptions, defaultLanguage: string | undefined): void {
+            this.checkOptions(options)
 
-                // For options overrides, use options value if provided, else keep current value or use default
-                if (options.language != undefined) {
-                    this.language = options.language
-                } else if (this.language == undefined && defaultLanguage != undefined) {
-                    this.language = defaultLanguage
-                }
-                if (options.baseName != undefined) {
-                    this.baseName = options.baseName
-                } else if (this.baseName == undefined && defaultLanguage != undefined) {
-                    this.baseName = defaultLanguage
-                }
-                this.calendar = (options.calendar != undefined) ? options.calendar : ''
-                this.caseFirst = (options.caseFirst != undefined) ? options.caseFirst : undefined
-                this.numeric = (options.numeric != undefined) ? options.numeric : false
-                this.collation = (options.collation != undefined) ? options.collation : this.collation
-                this.hourCycle = (options.hourCycle != undefined) ? options.hourCycle : this.hourCycle
-                this.numberingSystem = (options.numberingSystem != undefined) ? options.numberingSystem : this.numberingSystem
-                this.region = (options.region != undefined) ? (options.region as string).toUpperCase() : this.region
-                this.script = (options.script != undefined) ? options.script : this.script
+            if ((options.language == undefined || options.baseName == undefined) && defaultLanguage == undefined) {
+                defaultLanguage = this.defaultLang()
             }
 
-            // Step 4: Validate region and script (skip if we used cached data), then create tag (always)
-            if (!canSkipValidation) {
-                // Validate region
-                if (this.region != undefined) {
-                    let regionUpper: string = (this.region as string).toUpperCase()
-                    if (!this.regionList().includes(regionUpper)) {
-                        throw new RangeError(this.errMsg)
-                    }
-                }
-
-                // Validate script
-                if (this.script != undefined && !this.scriptList().includes(this.script as string)) {
-                    throw new RangeError(this.errMsg)
-                }
+            if (options.language != undefined) {
+                this._language = options.language
+            } else if (this._language == undefined && defaultLanguage != undefined) {
+                this._language = defaultLanguage
             }
-            this.tag = this.createTag()
+            if (options.baseName != undefined) {
+                this._baseName = options.baseName
+            } else if (this._baseName == undefined && defaultLanguage != undefined) {
+                this._baseName = defaultLanguage
+            }
+            this._calendar = options.calendar != undefined ? options.calendar : this._calendar
+            this._caseFirst = options.caseFirst != undefined ? options.caseFirst : this._caseFirst
+            this._numeric = options.numeric != undefined ? options.numeric : this._numeric
+            if (options.numeric != undefined) {
+                this._numericSet = true
+            }
+            this._collation = options.collation != undefined ? options.collation : this._collation
+            this._hourCycle = options.hourCycle != undefined ? options.hourCycle : this._hourCycle
+            this._numberingSystem = options.numberingSystem != undefined ? options.numberingSystem : this._numberingSystem
+            this._region = options.region != undefined ? options.region!.toUpperCase() : this._region
+            this._script = options.script != undefined ? options.script : this._script
+
+            this._tag = this.createTag()
         }
 
         native langList() : string
@@ -1659,24 +1699,20 @@ export class DateTimeFormat {
         native numberingSystemList() : string
         native initLocale() : void
         native maximizeInfo(lang: string) : string
-        native isTagValid(tag: string) : int
         native parseTagImpl(tag:string) : string
         private native defaultLang() : string
 
         static native defaultTag(): string
 
         private fillBaseName() {
-            let sb = new StringBuilder()
-            sb.append(this.language as string)
-            if (this.script != undefined && this.script != '' && this.script != ' ') {
-                sb.append('-')
-                sb.append(this.script as string)
+            let base = this._language!
+            if (this._script != undefined && this._script != '' && this._script != ' ') {
+                base = base.concat('-', this._script!)
             }
-            if (this.region != undefined && this.region != '' && this.region != ' ') {
-                sb.append('-')
-                sb.append(this.region as string)
+            if (this._region != undefined && this._region != '' && this._region != ' ') {
+                base = base.concat('-', this._region!)
             }
-            this.baseName = sb.toString()
+            this._baseName = base
         }
 
         /**
@@ -1687,11 +1723,11 @@ export class DateTimeFormat {
         */
         public maximize() : Locale {
             let res = new Locale(this)
-            let info = this.maximizeInfo(this.language as string).split(',')
-            res.region = info[0]
-            res.script = info.length > 1 ? info[1] : res.script
+            let info = this.maximizeInfo(this._language!).split(',')
+            res._region = info[0]
+            res._script = info.length > 1 ? info[1] : res._script
             this.fillBaseName()
-            res.tag = res.createTag()
+            res._tag = res.createTag()
             return res
         }
 
@@ -1702,10 +1738,10 @@ export class DateTimeFormat {
         */
         public minimize() : Locale {
             let res = new Locale(this)
-            res.region = undefined
-            res.script = undefined
-            res.baseName = res.language
-            res.tag = res.createTag()
+            res._region = undefined
+            res._script = undefined
+            res._baseName = res._language
+            res._tag = res.createTag()
             return res
         }
 
@@ -1714,197 +1750,209 @@ export class DateTimeFormat {
         * @return The locale's Unicode locale identifier string.
         */
         public override toString() : BCP47LanguageTag {
-            return this.tag
+            return this._tag
         }
 
-        private tag: BCP47LanguageTag = ''
+        private _tag: BCP47LanguageTag = ''
 
-        private uFlags() : BCP47LanguageTag {
-            // BCP47/UTS#35: a unicode locale extension is a single `-u-` singleton followed by
-            // keyword pairs (`key` or `key-type`), with keys sorted in ascending order.
-            // The leading `-u` is the first element so one join('-') yields the whole extension.
-            let keywords = new Array<string>()
-            keywords.push('-u')
-            let calendar = this.calendar
-            if (calendar != undefined && calendar != '') {
-                keywords.push('ca')
-                keywords.push(calendar)
+        private uFlags(): string {
+            let lowerTag = this._originalTag.toLowerCase()
+            let uIdx = lowerTag.indexOf('-u-')
+
+            if (uIdx < 0) {
+                return this.buildKnownUFlags()
             }
-            let collation = this.collation
-            if (collation != undefined && collation != '') {
-                keywords.push('co')
-                keywords.push(collation)
+
+            return this.buildMergedUFlags(lowerTag, uIdx)
+        }
+
+        private buildKnownUFlags(): string {
+            let result = ''
+            if (this._calendar != undefined && this._calendar != '') {
+                result = this._calendar == 'true' ? result.concat('-ca') : result.concat('-ca-', this._calendar!)
             }
-            let hourCycle = this.hourCycle
-            if (hourCycle != undefined && hourCycle != '' && (hourCycle instanceof LocaleHourCycleKey)) {
-                keywords.push('hc')
-                keywords.push(hourCycle)
+            if (this._collation != undefined && this._collation != '') {
+                result = this._collation == 'true' ? result.concat('-co') : result.concat('-co-', this._collation!)
             }
-            let caseFirst = this.caseFirst
-            if (caseFirst != undefined && caseFirst != '') {
-                keywords.push('kf')
-                keywords.push(caseFirst)
+            if (this._hourCycle != undefined && this._hourCycle != '') {
+                result = this._hourCycle == 'true' ? result.concat('-hc') : result.concat('-hc-', this._hourCycle!)
             }
-            if (this.numeric == true) {
-                keywords.push('kn')
+            if (this._caseFirst != undefined && (this._caseFirst == '' || this._caseFirst == 'true')) {
+                result = result.concat('-kf')
+            } else if (this._caseFirst != undefined && this._caseFirst != '') {
+                result = result.concat('-kf-', this._caseFirst!)
             }
-            let numberingSystem = this.numberingSystem
-            if (numberingSystem != undefined && numberingSystem != '') {
-                keywords.push('nu')
-                keywords.push(numberingSystem)
+            if (this._numericSet) {
+                result = result.concat(this._numeric == true ? '-kn' : '-kn-false')
             }
-            if (keywords.length == 1) {
+            if (this._numberingSystem != undefined && this._numberingSystem != '') {
+                result = this._numberingSystem == 'true' ? result.concat('-nu') : result.concat('-nu-', this._numberingSystem!)
+            }
+            return result == '' ? '' : '-u' + result
+        }
+
+        private fillKnownPairs(pairs: Map<string, string>, keys: Array<string>): void {
+            if (this._calendar != undefined && this._calendar != '') {
+                pairs.set('ca', this._calendar == 'true' ? '' : this._calendar!)
+                keys.push('ca')
+            }
+            if (this._collation != undefined && this._collation != '') {
+                pairs.set('co', this._collation == 'true' ? '' : this._collation!)
+                keys.push('co')
+            }
+            if (this._hourCycle != undefined && this._hourCycle != '') {
+                pairs.set('hc', this._hourCycle == 'true' ? '' : this._hourCycle!)
+                keys.push('hc')
+            }
+            if (this._caseFirst != undefined) {
+                pairs.set('kf', this._caseFirst == 'true' || this._caseFirst == '' ? '' : this._caseFirst!)
+                keys.push('kf')
+            }
+            if (this._numericSet) {
+                pairs.set('kn', this._numeric == true ? '' : 'false')
+                keys.push('kn')
+            }
+            if (this._numberingSystem != undefined && this._numberingSystem != '') {
+                pairs.set('nu', this._numberingSystem == 'true' ? '' : this._numberingSystem!)
+                keys.push('nu')
+            }
+        }
+
+        private buildMergedUFlags(lowerTag: string, uIdx: int): string {
+            let pairs = new Map<string, string>()
+            let keys = new Array<string>()
+            this.fillKnownPairs(pairs, keys)
+
+            let ext = lowerTag.substring(uIdx + 3)
+            let parts = ext.split('-')
+            let i = 0
+            while (i < parts.length) {
+                let key = parts[i]
+                i++
+                let value = ''
+                while (i < parts.length && parts[i].length > 2) {
+                    value = value == '' ? parts[i] : value + '-' + parts[i]
+                    i++
+                }
+                if (!pairs.has(key)) {
+                    pairs.set(key, value)
+                    keys.push(key)
+                }
+            }
+
+            if (keys.length == 0) {
                 return ''
             }
-            return keywords.join('-')
+            keys.sort()
+            let result = '-u'
+            for (let j = 0; j < keys.length; j++) {
+                let v = pairs.get(keys[j])!
+                result = v == '' ? result.concat('-', keys[j]) : result.concat('-', keys[j], '-', v)
+            }
+            return result
         }
 
         private createTag() : BCP47LanguageTag {
-            let sb = new StringBuilder()
             this.fillBaseName()
-            sb.append(this.baseName as string)
-            sb.append(this.uFlags())
-            return sb.toString()
-        }
-
-        private errOptionMessage(val : string, name : string) : string {
-            return 'Value ' + val + ' out of range for locale options property ' + name
+            let flagStr = this.uFlags()
+            if (flagStr == '') {
+                return this._baseName!
+            }
+            return this._baseName!.concat(flagStr)
         }
 
         private errMsg = 'Incorrect locale information provided'
         private checkOptions(options: LocaleOptions) {
-            if  ((options.calendar != undefined && !Locale.calendarValues.includes(options.calendar!)) ||
-                (options.caseFirst != undefined && !Locale.caseFirstValues.includes(options.caseFirst!)) ||
-                (options.collation != undefined && !Locale.collationValues.includes(options.collation!)) ||
-                (options.hourCycle != undefined && !Locale.hourCycleValues.includes(options.hourCycle!)) ||
+            if ((options.calendar != undefined && !Locale.calendarSet.has(options.calendar!)) ||
+                (options.caseFirst != undefined && !Locale.caseFirstSet.has(options.caseFirst!)) ||
+                (options.collation != undefined && !Locale.collationSet.has(options.collation!)) ||
+                (options.hourCycle != undefined && !Locale.hourCycleSet.has(options.hourCycle!)) ||
                 (options.numberingSystem != undefined && (options.numberingSystem! == '' ||
-                                !this.numberingSystemList().includes(options.numberingSystem!))) ||
-                (options.region != undefined && (options.region! == '' || !this.regionList().includes(options.region!.toUpperCase()))) ||
-                (options.script != undefined && (options.script! == '' || !this.scriptList().includes(options.script!)))
+                                !this.getNumberingSystemSet().has(options.numberingSystem!))) ||
+                (options.region != undefined && (options.region! == '' || !this.getRegionSet().has(options.region!.toUpperCase()))) ||
+                (options.script != undefined && (options.script! == '' || !this.getScriptSet().has(options.script!)))
             ) {
                 throw new RangeError(this.errMsg)
             }
         }
 
-        private parseTag(): boolean {
-            if (this.tag == '') {
+        private parseTag(): void {
+            if (this._tag == '') {
                 throw new RangeError('First argument to Intl.Locale constructor can\'t be empty or missing')
             }
 
-            // Check if we have a cached result for this tag
-            let cached = Locale.getCachedLocale(this.tag)
+            let cached = Locale.getCachedLocale(this._tag)
             if (cached != undefined) {
-                // Use cached values (avoids expensive validation and parsing)
-                this.language = cached.language
-                this.script = cached.script
-                this.region = cached.region
-                this.calendar = cached.calendar
-                this.collation = cached.collation
-                this.numberingSystem = cached.numberingSystem
-                this.hourCycle = cached.hourCycle
-                this.numeric = cached.numeric
-                this.caseFirst = cached.caseFirst
-                this.baseName = cached.baseName
-                return true  // Cache hit
+                this._language = cached.language
+                this._script = cached.script
+                this._region = cached.region
+                this._calendar = cached.calendar
+                this._collation = cached.collation
+                this._numberingSystem = cached.numberingSystem
+                this._hourCycle = cached.hourCycle
+                this._numeric = cached.numeric
+                this._numericSet = cached.numericSet
+                this._caseFirst = cached.caseFirst
+                this._baseName = cached.baseName
+                this._tag = cached.canonicalTag as string
+                return
             }
 
-            if (this.isTagValid(this.tag) == 1) {
+            let argsStr : string = this.parseTagImpl(this._tag)
+            if (argsStr == '') {
                 throw new RangeError(this.errMsg)
             }
-
-            let argsStr : string = this.parseTagImpl(this.tag)
             let args: string[] = argsStr.split(' ')
             const getValue = (val: string): string | undefined => (val === '') ? undefined : val
-            this.language = args[LocaleInfoKeys.LANG]
-            this.script = getValue(args[LocaleInfoKeys.SCRIPT])
-            this.region = getValue(args[LocaleInfoKeys.COUNTRY])
-            this.calendar = getValue(args[LocaleInfoKeys.U_CA])
-            this.collation = getValue(args[LocaleInfoKeys.U_CO])
-            this.numberingSystem = getValue(args[LocaleInfoKeys.U_NU])
-            this.hourCycle = getValue(args[LocaleInfoKeys.U_HC])
-            this.numeric = (args[LocaleInfoKeys.U_KN] == 'true') ? true : false
-            this.caseFirst = getValue(args[LocaleInfoKeys.U_KF])
+            this._language = args[LocaleInfoKeys.LANG]
+            this._script = getValue(args[LocaleInfoKeys.SCRIPT])
+            this._region = getValue(args[LocaleInfoKeys.COUNTRY])
+            this._calendar = getValue(args[LocaleInfoKeys.U_CA])
+            this._collation = getValue(args[LocaleInfoKeys.U_CO])
+            this._numberingSystem = getValue(args[LocaleInfoKeys.U_NU])
+            this._hourCycle = getValue(args[LocaleInfoKeys.U_HC])
+            this._numeric = (args[LocaleInfoKeys.U_KN] == 'true') ? true : ((args[LocaleInfoKeys.U_KN] == 'false') ? false : false)
+            this._numericSet = (args[LocaleInfoKeys.U_KN] == 'true' || args[LocaleInfoKeys.U_KN] == 'false')
+            this._caseFirst = args[LocaleInfoKeys.U_KF] == 'true' ? '' : getValue(args[LocaleInfoKeys.U_KF])
 
-            if (this.tag.includes('-u')) {
-               if (this.language != undefined && !this.langList().includes(this.language as string)) {
+            if (this._tag.includes('-u')) {
+               if (this._language != undefined && !this.getLangSet().has(this._language!)) {
                     throw new RangeError('Incorrect locale information provided')
                }
             }
             this.fillBaseName()
+            this._tag = this.createTag()
 
-            // Cache the parsed result to avoid redundant parsing for the same tag
-            Locale.setCachedLocale(this.tag, new ParsedLocaleData(
-                this.language,
-                this.script,
-                this.region,
-                this.calendar,
-                this.collation,
-                this.numberingSystem,
-                this.hourCycle,
-                this.numeric,
-                this.caseFirst,
-                this.baseName
+            Locale.setCachedLocale(new ParsedLocaleData(
+                this._originalTag,
+                this._tag,
+                this._language,
+                this._script,
+                this._region,
+                this._calendar,
+                this._collation,
+                this._numberingSystem,
+                this._hourCycle,
+                this._numeric,
+                this._numericSet,
+                this._caseFirst,
+                this._baseName
             ))
-
-            return false  // Cache miss
         }
 
-        private fillScriptOrRegion(val : string) {
-            if (val.length <= 3) {
-                this.region = val.toUpperCase()
-            }
-            else {
-                this.script = val
-            }
-        }
-
-        private static readonly calendarValues: ReadonlyArray<string> = Array.of<string> (
-            'buddhist',
-            'chinese',
-            'coptic',
-            'dangi',
-            'ethioaa',
-            'ethiopic',
-            'gregory',
-            'hebrew',
-            'indian',
-            'islamic',
-            'islamic-umalqura',
-            'islamic-tbla',
-            'islamic-civil',
-            'islamic-rgsa',
-            'iso8601',
-            'japanese',
-            'persian',
-            'roc',
-            'islamicc'
-        )
-
-        private static readonly caseFirstValues: ReadonlyArray<string> = Array.of<string>('upper', 'lower', 'false')
-
-        private static readonly hourCycleValues: ReadonlyArray<string> = Array.of<string>('h12', 'h23', 'h11', 'h24')
-
-        private static readonly collationValues: ReadonlyArray<string> = Array.of<string>(
-            'big5han',
-            'compat',
-            'dict',
-            'direct',
-            'ducet',
-            'emoji',
-            'eor',
-            'gb2312',
-            'phonebk',
-            'phonetic',
-            'pinyin',
-            'reformed',
-            'search',
-            'searchjl',
-            'standard',
-            'stroke',
-            'trad',
-            'unihan',
-            'zhuyin'
-        )
+        private static readonly calendarSet: Set<string> = new Set<string>([
+            'buddhist', 'chinese', 'coptic', 'dangi', 'ethioaa', 'ethiopic',
+            'gregory', 'hebrew', 'indian', 'islamic', 'islamic-umalqura',
+            'islamic-tbla', 'islamic-civil', 'islamic-rgsa', 'iso8601',
+            'japanese', 'persian', 'roc', 'islamicc'
+        ])
+        private static readonly caseFirstSet: Set<string> = new Set<string>(['upper', 'lower', 'false'])
+        private static readonly hourCycleSet: Set<string> = new Set<string>(['h12', 'h23', 'h11', 'h24'])
+        private static readonly collationSet: Set<string> = new Set<string>([
+            'big5han', 'compat', 'dict', 'direct', 'ducet', 'emoji', 'eor',
+            'gb2312', 'phonebk', 'phonetic', 'pinyin', 'reformed', 'search',
+            'searchjl', 'standard', 'stroke', 'trad', 'unihan', 'zhuyin'
+        ])
     }
 
     // Intl.NumberFormat

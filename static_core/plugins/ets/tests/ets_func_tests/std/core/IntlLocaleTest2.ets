@@ -68,7 +68,7 @@ function test2String() : int {
         const l = new Intl.Locale('en-u-kn', {numeric : false} as Intl.LocaleOptions)
         arktest.assertFalse(l.language == null)
         arktest.assertFalse(l.language == undefined)
-        arktest.assertEQ(l.toString(), l.language!.toLowerCase())
+        arktest.assertEQ(l.toString(), l.language!.toLowerCase() + '-u-kn-false')
     }
     {
         const l = new Intl.Locale('en-u-kn')
