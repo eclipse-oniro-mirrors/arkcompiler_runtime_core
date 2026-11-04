@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2023-2024 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2023-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -14,6 +14,7 @@
  */
 
 #include "unit_test.h"
+#include "optimizer/analysis/loop_analyzer.h"
 #include "optimizer/ir/analysis.h"
 #include "optimizer/optimizations/loop_peeling.h"
 #include "optimizer/optimizations/loop_unswitch.h"
@@ -165,6 +166,9 @@ public:
 
     void BuildGraphSameCondition();
     Graph *BuildExpectedSameCondition();
+
+    void BuildGraphInvertedCondition(ConditionCode ccA, uint64_t immA, ConditionCode ccB, uint64_t immB);
+    void BuildGraphEqualConditionCompareMixed();
 
     void BuildGraphMultipleConditionsLimitInstructions();
     Graph *BuildExpectedMultipleConditionsLimitInstructions();
@@ -415,6 +419,287 @@ TEST_F(LoopUnswitchTest, TestSameCondition)
     auto graph = BuildExpectedSameCondition();
     graph->RunPass<Cleanup>();
     ASSERT_TRUE(GraphComparator().Compare(GetGraph(), graph));
+}
+
+// Loop with two loop-invariant conditions on the same value, built with the given condition
+// shapes, e.g. `jnez`/`jeqz` on the same boolean flag after Peepholes folds
+// `IfImm NE (Compare EQ x, 0), 0` into `IfImm EQ x, 0`:
+//     IfImm p0 ccA, immA
+//     IfImm p0 ccB, immB
+// The constants planted by LoopUnswitch must be derived from each condition's own CC/imm,
+// otherwise a condition whose shape differs from the guard is folded to the wrong value.
+void LoopUnswitchTest::BuildGraphInvertedCondition(ConditionCode ccA, uint64_t immA, ConditionCode ccB, uint64_t immB)
+{
+    GRAPH(GetGraph())
+    {
+        PARAMETER(0U, 0U).b();
+        PARAMETER(1U, 1U).b();
+        CONSTANT(2U, 100U).i64();
+        CONSTANT(3U, 0U).i64();
+        CONSTANT(4U, 1U).i64();
+        BASIC_BLOCK(2U, 3U, 4U)
+        {
+            INST(5U, Opcode::Phi).i64().Inputs(3U, 16U);
+            INST(6U, Opcode::Phi).i64().Inputs(3U, 15U);
+            INST(7U, Opcode::Compare).b().SrcType(DataType::Type::INT64).CC(CC_GE).Inputs(6U, 2U);
+            INST(8U, Opcode::IfImm).SrcType(DataType::BOOL).CC(CC_NE).Imm(0U).Inputs(7U);
+        }
+        BASIC_BLOCK(4U, 5U, 6U)
+        {
+            INST(9U, Opcode::IfImm).SrcType(DataType::BOOL).CC(ccA).Imm(immA).Inputs(0U);
+        }
+        BASIC_BLOCK(6U, 5U)
+        {
+            INST(10U, Opcode::Add).i64().Inputs(5U, 6U);
+        }
+        BASIC_BLOCK(5U, 8U)
+        {
+            INST(11U, Opcode::Phi).i64().Inputs(5U, 10U);
+            INST(12U, Opcode::Add).i64().Inputs(11U, 4U);
+        }
+        BASIC_BLOCK(8U, 9U, 10U)
+        {
+            INST(13U, Opcode::IfImm).SrcType(DataType::BOOL).CC(ccB).Imm(immB).Inputs(0U);
+        }
+        BASIC_BLOCK(9U, 10U)
+        {
+            INST(14U, Opcode::Sub).i64().Inputs(12U, 6U);
+        }
+        BASIC_BLOCK(10U, 2U)
+        {
+            INST(15U, Opcode::Phi).i64().Inputs(12U, 14U);
+            INST(16U, Opcode::Add).i64().Inputs(5U, 4U);
+        }
+        BASIC_BLOCK(3U, -1L)
+        {
+            INST(17U, Opcode::Return).i64().Inputs(6U);
+        }
+    }
+}
+
+// Finds the in-loop condition folded to a constant with the given condition code
+static Inst *FindConstCondIfImm(Loop *loop, ConditionCode cc)
+{
+    for (auto *bb : loop->GetBlocks()) {
+        for (auto *inst : bb->AllInsts()) {
+            if (inst->GetOpcode() == Opcode::IfImm && inst->GetInput(0).GetInst()->IsConst() &&
+                inst->CastToIfImm()->GetCc() == cc) {
+                return inst;
+            }
+        }
+    }
+    return nullptr;
+}
+
+static void RecordFoldedCondConstant(Inst *inst, uint64_t *value, size_t *count, bool *sameValue)
+{
+    if (inst->GetOpcode() != Opcode::IfImm || !inst->GetInput(0).GetInst()->IsConst()) {
+        return;
+    }
+    auto currValue = inst->GetInput(0).GetInst()->CastToConstant()->GetRawValue();
+    if (*count == 0) {
+        *value = currValue;
+    }
+    *sameValue = *sameValue && (currValue == *value);
+    (*count)++;
+}
+
+TEST_F(LoopUnswitchTest, TestInvertedCondition)
+{
+    BuildGraphInvertedCondition(ConditionCode::CC_NE, 0U, ConditionCode::CC_EQ, 0U);
+    ASSERT_TRUE(GetGraph()->RunPass<LoopPeeling>());
+    ASSERT_TRUE(GetGraph()->RunPass<LoopUnswitch>(2U, 100U));
+
+    ASSERT_TRUE(GetGraph()->GetAnalysis<LoopAnalyzer>().Run());
+    auto *rootLoop = GetGraph()->GetRootLoop();
+    ASSERT_EQ(rootLoop->GetInnerLoops().size(), 2U);
+    uint32_t seenValues = 0;
+    for (auto *loop : rootLoop->GetInnerLoops()) {
+        uint64_t value = 0;
+        size_t count = 0;
+        bool sameValue = true;
+        for (auto *bb : loop->GetBlocks()) {
+            for (auto *inst : bb->AllInsts()) {
+                RecordFoldedCondConstant(inst, &value, &count, &sameValue);
+            }
+        }
+        ASSERT_EQ(count, 2U);
+        ASSERT_TRUE(sameValue);
+        ASSERT_TRUE(value == 0U || value == 1U);
+        seenValues |= 1U << value;
+    }
+    ASSERT_EQ(seenValues, 3U);
+}
+
+// Opposite conditions with the same condition code and different immediates
+TEST_F(LoopUnswitchTest, TestInvertedConditionNeImms)
+{
+    BuildGraphInvertedCondition(ConditionCode::CC_NE, 0U, ConditionCode::CC_NE, 1U);
+    ASSERT_TRUE(GetGraph()->RunPass<LoopPeeling>());
+    ASSERT_TRUE(GetGraph()->RunPass<LoopUnswitch>(2U, 100U));
+
+    ASSERT_TRUE(GetGraph()->GetAnalysis<LoopAnalyzer>().Run());
+    auto *rootLoop = GetGraph()->GetRootLoop();
+    ASSERT_EQ(rootLoop->GetInnerLoops().size(), 2U);
+    uint32_t seenValues = 0;
+    for (auto *loop : rootLoop->GetInnerLoops()) {
+        uint64_t value = 0;
+        size_t count = 0;
+        bool sameValue = true;
+        for (auto *bb : loop->GetBlocks()) {
+            for (auto *inst : bb->AllInsts()) {
+                RecordFoldedCondConstant(inst, &value, &count, &sameValue);
+            }
+        }
+        ASSERT_EQ(count, 2U);
+        ASSERT_TRUE(sameValue);
+        ASSERT_TRUE(value == 0U || value == 1U);
+        seenValues |= 1U << value;
+    }
+    ASSERT_EQ(seenValues, 3U);
+}
+
+TEST_F(LoopUnswitchTest, TestInvertedConditionEqImms)
+{
+    BuildGraphInvertedCondition(ConditionCode::CC_EQ, 0U, ConditionCode::CC_EQ, 1U);
+    ASSERT_TRUE(GetGraph()->RunPass<LoopPeeling>());
+    ASSERT_TRUE(GetGraph()->RunPass<LoopUnswitch>(2U, 100U));
+
+    ASSERT_TRUE(GetGraph()->GetAnalysis<LoopAnalyzer>().Run());
+    auto *rootLoop = GetGraph()->GetRootLoop();
+    ASSERT_EQ(rootLoop->GetInnerLoops().size(), 2U);
+    uint32_t seenValues = 0;
+    for (auto *loop : rootLoop->GetInnerLoops()) {
+        uint64_t value = 0;
+        size_t count = 0;
+        bool sameValue = true;
+        for (auto *bb : loop->GetBlocks()) {
+            for (auto *inst : bb->AllInsts()) {
+                RecordFoldedCondConstant(inst, &value, &count, &sameValue);
+            }
+        }
+        ASSERT_EQ(count, 2U);
+        ASSERT_TRUE(sameValue);
+        ASSERT_TRUE(value == 0U || value == 1U);
+        seenValues |= 1U << value;
+    }
+    ASSERT_EQ(seenValues, 3U);
+}
+
+// Equal conditions with different condition codes and immediates, e.g. `p0 != 0` and `p0 == 1`
+TEST_F(LoopUnswitchTest, TestEqualConditionNeEqImms)
+{
+    BuildGraphInvertedCondition(ConditionCode::CC_NE, 0U, ConditionCode::CC_EQ, 1U);
+    ASSERT_TRUE(GetGraph()->RunPass<LoopPeeling>());
+    ASSERT_TRUE(GetGraph()->RunPass<LoopUnswitch>(2U, 100U));
+
+    ASSERT_TRUE(GetGraph()->GetAnalysis<LoopAnalyzer>().Run());
+    auto *rootLoop = GetGraph()->GetRootLoop();
+    ASSERT_EQ(rootLoop->GetInnerLoops().size(), 2U);
+    uint32_t seenValues = 0;
+    for (auto *loop : rootLoop->GetInnerLoops()) {
+        uint64_t value = 0;
+        size_t count = 0;
+        bool sameValue = true;
+        for (auto *bb : loop->GetBlocks()) {
+            for (auto *inst : bb->AllInsts()) {
+                RecordFoldedCondConstant(inst, &value, &count, &sameValue);
+            }
+        }
+        ASSERT_EQ(count, 2U);
+        ASSERT_TRUE(sameValue);
+        ASSERT_TRUE(value == 0U || value == 1U);
+        seenValues |= 1U << value;
+    }
+    ASSERT_EQ(seenValues, 3U);
+}
+
+// Evaluates the condition folded to a constant
+static bool EvalFoldedCond(Inst *inst)
+{
+    auto value = inst->GetInput(0).GetInst()->CastToConstant()->GetRawValue();
+    auto *ifImm = inst->CastToIfImm();
+    return ifImm->GetCc() == ConditionCode::CC_NE ? value != ifImm->GetImm() : value == ifImm->GetImm();
+}
+
+// Loop with two equal loop-invariant conditions on the same values with opposite condition codes
+// in both the IfImm and the Compare, e.g. `p0 >= p1` and `!(p0 < p1)`:
+//     IfImm NE (Compare GE p0, p1), 0
+//     IfImm EQ (Compare LT p0, p1), 0
+// LoopUnswitch must fold both so that they hold in the guard-true loop copy and don't hold in
+// the other copy, deriving the constants from each condition's own CC/imm.
+void LoopUnswitchTest::BuildGraphEqualConditionCompareMixed()
+{
+    GRAPH(GetGraph())
+    {
+        PARAMETER(0U, 0U).i64();
+        PARAMETER(1U, 1U).i64();
+        CONSTANT(2U, 100U).i64();
+        CONSTANT(3U, 0U).i64();
+        CONSTANT(4U, 1U).i64();
+        BASIC_BLOCK(20U, 2U)
+        {
+            INST(30U, Opcode::Compare).b().SrcType(DataType::Type::INT64).CC(CC_GE).Inputs(0U, 1U);
+            INST(31U, Opcode::Compare).b().SrcType(DataType::Type::INT64).CC(CC_LT).Inputs(0U, 1U);
+        }
+        BASIC_BLOCK(2U, 3U, 4U)
+        {
+            INST(5U, Opcode::Phi).i64().Inputs(3U, 16U);
+            INST(6U, Opcode::Phi).i64().Inputs(3U, 15U);
+            INST(7U, Opcode::Compare).b().SrcType(DataType::Type::INT64).CC(CC_GE).Inputs(6U, 2U);
+            INST(8U, Opcode::IfImm).SrcType(DataType::BOOL).CC(CC_NE).Imm(0U).Inputs(7U);
+        }
+        BASIC_BLOCK(4U, 5U, 6U)
+        {
+            INST(9U, Opcode::IfImm).SrcType(DataType::BOOL).CC(CC_NE).Imm(0U).Inputs(30U);
+        }
+        BASIC_BLOCK(6U, 5U) {}
+        BASIC_BLOCK(5U, 8U)
+        {
+            INST(11U, Opcode::Phi).i64().Inputs(5U, 5U);
+            INST(12U, Opcode::Add).i64().Inputs(11U, 4U);
+        }
+        BASIC_BLOCK(8U, 9U, 10U)
+        {
+            INST(13U, Opcode::IfImm).SrcType(DataType::BOOL).CC(CC_EQ).Imm(0U).Inputs(31U);
+        }
+        BASIC_BLOCK(9U, 10U) {}
+        BASIC_BLOCK(10U, 2U)
+        {
+            INST(15U, Opcode::Phi).i64().Inputs(12U, 12U);
+            INST(16U, Opcode::Add).i64().Inputs(5U, 4U);
+        }
+        BASIC_BLOCK(3U, -1L)
+        {
+            INST(17U, Opcode::Return).i64().Inputs(6U);
+        }
+    }
+}
+
+TEST_F(LoopUnswitchTest, TestEqualConditionCompareMixed)
+{
+    BuildGraphEqualConditionCompareMixed();
+    ASSERT_TRUE(GetGraph()->RunPass<LoopPeeling>());
+    ASSERT_TRUE(GetGraph()->RunPass<LoopUnswitch>(2U, 100U));
+
+    ASSERT_TRUE(GetGraph()->GetAnalysis<LoopAnalyzer>().Run());
+    auto *rootLoop = GetGraph()->GetRootLoop();
+    ASSERT_EQ(rootLoop->GetInnerLoops().size(), 2U);
+    bool seenFirst = false;
+    bool firstHolds = false;
+    for (auto *loop : rootLoop->GetInnerLoops()) {
+        auto *neCond = FindConstCondIfImm(loop, ConditionCode::CC_NE);
+        auto *eqCond = FindConstCondIfImm(loop, ConditionCode::CC_EQ);
+        ASSERT_NE(neCond, nullptr);
+        ASSERT_NE(eqCond, nullptr);
+        ASSERT_EQ(EvalFoldedCond(neCond), EvalFoldedCond(eqCond));
+        if (seenFirst) {
+            ASSERT_NE(EvalFoldedCond(neCond), firstHolds);
+        } else {
+            firstHolds = EvalFoldedCond(neCond);
+            seenFirst = true;
+        }
+    }
 }
 
 // CC-OFFNXT(huge_method, G.FUN.01) graph creation

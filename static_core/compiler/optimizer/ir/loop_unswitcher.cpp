@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -136,25 +136,30 @@ void LoopUnswitcher::BuildLoopUnswitchDataFlow(LoopClonerData *unswitchData, Ins
     ReplaceWithConstantCondition(ifInstUnswitch);
 }
 
-void LoopUnswitcher::ReplaceWithConstantCondition(Inst *ifInst)
+static void GetConditionConstants(IfImmInst *ifImm, Inst **trueConst, Inst **falseConst)
 {
-    auto graph = ifInst->GetBasicBlock()->GetGraph();
-    auto i1 = graph->FindOrCreateConstant(1);
-    auto i2 = graph->FindOrCreateConstant(0);
-
-    auto ifImm = ifInst->CastToIfImm();
+    auto graph = ifImm->GetBasicBlock()->GetGraph();
+    *trueConst = graph->FindOrCreateConstant(1);
+    *falseConst = graph->FindOrCreateConstant(0);
     ASSERT(ifImm->GetCc() == ConditionCode::CC_NE || ifImm->GetCc() == ConditionCode::CC_EQ);
     if ((ifImm->GetImm() == 0) != (ifImm->GetCc() == ConditionCode::CC_NE)) {
-        std::swap(i1, i2);
+        std::swap(*trueConst, *falseConst);
     }
+}
 
+void LoopUnswitcher::ReplaceWithConstantCondition(Inst *ifInst)
+{
     for (auto inst : conditions_) {
+        Inst *trueConst = nullptr;
+        Inst *falseConst = nullptr;
+        GetConditionConstants(inst->CastToIfImm(), &trueConst, &falseConst);
+
         if (IsConditionEqual(inst, ifInst, true)) {
-            inst->SetInput(0, i2);
-            GetClone(inst)->SetInput(0, i1);
+            inst->SetInput(0, falseConst);
+            GetClone(inst)->SetInput(0, trueConst);
         } else {
-            inst->SetInput(0, i1);
-            GetClone(inst)->SetInput(0, i2);
+            inst->SetInput(0, trueConst);
+            GetClone(inst)->SetInput(0, falseConst);
         }
     }
 }
