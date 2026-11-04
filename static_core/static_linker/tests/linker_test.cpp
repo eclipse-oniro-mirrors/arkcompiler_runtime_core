@@ -377,6 +377,11 @@ TEST(linkertests, ForeignFieldStaticInstance)
     TestMultiple("ffield_static_instance", {"1", "2"}, true, DefaultConfig(), nullptr, false);
 }
 
+TEST(linkertests, ForeignMethodStaticInstance)
+{
+    TestMultiple("fmethod_static_instance", {"1", "2", "3"});
+}
+
 TEST(linkertests, DeduplicatedMethod)
 {
     auto res = Result {};
