@@ -146,27 +146,54 @@ TEST_F(AsyncWorkTest, DeleteAsyncWorkInvalidArgs)
 
 TEST_F(AsyncWorkTest, QueueAsyncWorkTwiceError)
 {
-    auto event = AsyncWorkEvent();
-    AsyncWork *work = nullptr;
-    using TestData = std::tuple<AsyncWorkEvent &, AsyncWork **>;
-    auto testData = TestData {event, &work};
+    auto completed = AsyncWorkEvent();
+    // Keep the work from completing until the second queue attempt has finished.
+    auto releaseExecute = AsyncWorkEvent();
+    auto deleted = AsyncWorkEvent();
+    struct TestData {
+        AsyncWorkEvent *completed = nullptr;
+        AsyncWorkEvent *releaseExecute = nullptr;
+        AsyncWorkEvent *deleted = nullptr;
+        AsyncWork *work = nullptr;
+        AniWorkerId completionWorker = -1;
+        WorkStatus completionStatus = WorkStatus::ERROR;
+    };
+    auto testData = TestData {&completed, &releaseExecute, &deleted};
     auto status = CreateAsyncWork(
-        env_, [](ani_env *env, [[maybe_unused]] void *data) { ASSERT_EQ(env, GetCurrentEnv()); },
+        env_,
+        [](ani_env *env, void *data) {
+            ASSERT_EQ(env, GetCurrentEnv());
+            reinterpret_cast<TestData *>(data)->releaseExecute->Wait();
+        },
         [](ani_env *env, WorkStatus s, void *data) {
             ASSERT_EQ(env, GetCurrentEnv());
-            auto &[e, w] = *reinterpret_cast<TestData *>(data);
-            ASSERT_EQ(s, WorkStatus::OK);
-            ASSERT_EQ(DeleteAsyncWork(env, *w), WorkStatus::OK);
-            e.Fire();
+            auto *testData = reinterpret_cast<TestData *>(data);
+            testData->completionWorker = GetWorkerId(env);
+            testData->completionStatus = s;
+            testData->completed->Fire();
         },
-        (void *)&testData, &work);
+        &testData, &testData.work);
     ASSERT_EQ(status, WorkStatus::OK);
-    ASSERT_NE(work, nullptr);
+    ASSERT_NE(testData.work, nullptr);
 
-    ASSERT_EQ(QueueAsyncWork(env_, work), WorkStatus::OK);
-    ASSERT_EQ(QueueAsyncWork(env_, work), WorkStatus::ERROR);
+    ASSERT_EQ(QueueAsyncWork(env_, testData.work), WorkStatus::OK);
+    auto secondStatus = QueueAsyncWork(env_, testData.work);
+    releaseExecute.Fire();
 
-    event.Wait();
+    completed.Wait();
+    // Run deletion on the completion worker after its callback has returned.
+    auto deleteStatus = SendEvent(
+        env_, testData.completionWorker,
+        [](void *data) {
+            auto *testData = reinterpret_cast<TestData *>(data);
+            EXPECT_EQ(DeleteAsyncWork(GetCurrentEnv(), testData->work), WorkStatus::OK);
+            testData->deleted->Fire();
+        },
+        &testData);
+    ASSERT_EQ(deleteStatus, WorkStatus::OK);
+    deleted.Wait();
+    ASSERT_EQ(testData.completionStatus, WorkStatus::OK);
+    ASSERT_EQ(secondStatus, WorkStatus::ERROR);
 }
 
 TEST_F(AsyncWorkTest, QueueAsyncWork)
