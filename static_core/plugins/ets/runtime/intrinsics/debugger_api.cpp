@@ -3093,8 +3093,20 @@ static EtsObject *DispatchArithmeticOrComparison(BinaryNumericCtx const &ctx)
         case NumericOp::MUL:
             return BoxNumericResult(ctx.executionCtx, ctx.av * ctx.bv, rank);
         case NumericOp::DIV:
+            // Integer division by zero must throw, matching native int/long
+            // division semantics (ArithmeticError "/ by zero"); float/double
+            // division keeps IEEE 754 semantics (returns Infinity).
+            if (rank <= NUMERIC_RANK_LONG && ctx.bv == 0.0) {
+                ark::ThrowArithmeticException();
+                return nullptr;
+            }
             return BoxNumericResult(ctx.executionCtx, ctx.av / ctx.bv, rank);
         case NumericOp::MOD:
+            // Same as DIV: integer modulo by zero throws, float/double keeps NaN.
+            if (rank <= NUMERIC_RANK_LONG && ctx.bv == 0.0) {
+                ark::ThrowArithmeticException();
+                return nullptr;
+            }
             return BoxNumericResult(ctx.executionCtx, std::fmod(ctx.av, ctx.bv), rank);
         case NumericOp::POW:
             return BoxNumericResult(ctx.executionCtx, std::pow(ctx.av, ctx.bv), rank);
@@ -3209,8 +3221,17 @@ static EtsObject *DispatchBitwise(BinaryNumericCtx const &ctx)
 // according to the chosen rank. Comparisons always return Boolean. Shifts use
 // the left operand's type for the result and truncate the right to int.
 static EtsObject *DispatchBinaryNumeric(EtsExecutionContext *executionCtx, EtsPlatformTypes const *ptypes, NumericOp op,
-                                        EtsObject *a, EtsObject *b)
+                                        EtsObject *aRaw, EtsObject *bRaw)
 {
+    // Pin the arguments: DispatchArithmeticOrComparison may throw an exception
+    // (integer division/modulo by zero), and the exception's class loading and
+    // allocation can trigger a moving GC that invalidates the raw pointers.
+    EtsHandleScope handleScope(executionCtx);
+    EtsHandle<EtsObject> aHandle(executionCtx, aRaw);
+    EtsHandle<EtsObject> bHandle(executionCtx, bRaw);
+
+    auto *a = aHandle.GetPtr();
+    auto *b = bHandle.GetPtr();
     auto avOpt = GetBoxedNumericValueAsDouble(ptypes, a);
     auto bvOpt = GetBoxedNumericValueAsDouble(ptypes, b);
     if (!avOpt.has_value() || !bvOpt.has_value()) {
@@ -3222,6 +3243,19 @@ static EtsObject *DispatchBinaryNumeric(EtsExecutionContext *executionCtx, EtsPl
     if (result != nullptr) {
         return result;
     }
+    // DispatchArithmeticOrComparison returns nullptr either because the op
+    // is not in its group (fall through to shift/bitwise), or because it
+    // threw an exception (integer division/modulo by zero). Check for a
+    // pending exception to distinguish the two cases. After a throw the
+    // raw pointers a/b may have been moved by a GC, so re-read from the
+    // pinned handles before continuing.
+    if (UNLIKELY(executionCtx->GetMT()->HasPendingException())) {
+        return nullptr;
+    }
+    a = aHandle.GetPtr();
+    b = bHandle.GetPtr();
+    ctx.a = a;
+    ctx.b = b;
 
     // Shifts: result type depends only on the left operand (Long/Double→long,
     // otherwise int). Right operand is truncated to int.
