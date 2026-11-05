@@ -1451,6 +1451,7 @@ static void CollectAllStrings(pandasm::Program *prog, AbckitFile *file)
 {
     for (auto &sImpl : prog->strings) {
         auto s = std::make_unique<AbckitString>();
+        s->file = file;
         s->impl = sImpl;
         file->strings.insert({sImpl, std::move(s)});
     }
@@ -1590,17 +1591,6 @@ void CloseFileStatic(AbckitFile *file)
     }
     file->types.clear();
 
-    if (file->needOptimize) {
-        std::unordered_map<AbckitCoreFunction *, FunctionStatus *> &functionsMap = file->functionsMap;
-        for (auto &[_, status] : functionsMap) {
-            DestroyGraphStaticSync(status->graph);
-            delete status;
-        }
-        functionsMap.clear();
-
-        file->generateStatus.clear<panda_file::File, AbckitIrInterface>();
-    }
-
     if ((file->destoryData != nullptr) && (file->data != nullptr)) {
         file->destoryData(file->data);
     }
@@ -1614,17 +1604,6 @@ void CloseFileStatic(AbckitFile *file)
 
 void WriteAbcStatic(AbckitFile *file, const char *path, size_t len)
 {
-    if (file->needOptimize) {
-        std::unordered_map<AbckitCoreFunction *, FunctionStatus *> &functionsMap = file->functionsMap;
-        for (auto &[func, status] : functionsMap) {
-            if (status->writeBack) {
-                FunctionSetGraphStaticSync(func, status->graph);
-            }
-            delete status;
-        }
-        functionsMap.clear();
-    }
-
     LIBABCKIT_LOG_FUNC;
     auto spath = std::string(path, len);
     LIBABCKIT_LOG(DEBUG) << spath << '\n';
@@ -1674,23 +1653,14 @@ void WriteAbcStatic(AbckitFile *file, const char *path, size_t len)
 
 void DestroyGraphStatic(AbckitGraph *graph)
 {
-    if (!graph->file->needOptimize) {
-        DestroyGraphStaticSync(graph);
-    }
-}
-
-void DestroyGraphStaticSync(AbckitGraph *graph)
-{
     LIBABCKIT_LOG_FUNC;
     auto *ctxGInternal = reinterpret_cast<CtxGInternal *>(graph->internal);
     // dirty hack to obtain PandaFile pointer
     // NOTE(mshimenkov): refactor it
-    if (!graph->file->needOptimize) {
-        auto *fileWrapper =
-            reinterpret_cast<panda_file::File *>(ctxGInternal->runtimeAdapter->GetBinaryFileForMethod(nullptr));
-        delete fileWrapper;
-        delete ctxGInternal->irInterface;
-    }
+    auto *fileWrapper =
+        reinterpret_cast<panda_file::File *>(ctxGInternal->runtimeAdapter->GetBinaryFileForMethod(nullptr));
+    delete fileWrapper;
+    delete ctxGInternal->irInterface;
     delete ctxGInternal->runtimeAdapter;
     delete ctxGInternal->localAllocator;
     delete ctxGInternal->allocator;

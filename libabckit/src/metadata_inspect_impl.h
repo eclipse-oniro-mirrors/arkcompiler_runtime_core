@@ -18,6 +18,8 @@
 
 #include "libabckit/c/metadata_core.h"
 
+#include <atomic>
+#include <condition_variable>
 #include <cstdint>
 #include <map>
 #include <variant>
@@ -26,6 +28,31 @@
 #include <string>
 #include <memory>
 #include <unordered_set>
+#include <mutex>
+#include <shared_mutex>
+#include <string_view>
+#include <thread>
+
+struct AbckitIrInterface;
+struct AbckitDynamicGraphCacheEntry;
+
+enum class AbckitDynamicGraphSnapshotState {
+    EMPTY,
+    BUILDING,
+    READY,
+    FAILED,
+    STALE,
+};
+
+enum class AbckitFileLifecycleState {
+    OPEN,
+    CLOSING,
+    CLOSED,
+};
+
+namespace panda::panda_file {
+class File;
+}  // namespace panda::panda_file
 
 namespace panda::pandasm {
 struct Program;
@@ -382,6 +409,10 @@ struct AbckitCoreClass {
      */
     std::unique_ptr<AbckitCoreClass> array = nullptr;
 
+    // Concurrent Dynamic cache misses are benign: CreateStringDynamic interns names under
+    // stringsCacheMutex, so racing publishers store the same AbckitString pointer.
+    std::atomic<AbckitString *> cachedDisplayName {nullptr};
+
     /*
      * Language-dependent implementation to store class data.
      */
@@ -488,6 +519,10 @@ struct AbckitCoreFunction {
      * To store asyncImpl of the function.
      */
     std::unique_ptr<AbckitCoreFunction> asyncImpl = nullptr;
+
+    // Concurrent Dynamic cache misses are benign: CreateStringDynamic interns names under
+    // stringsCacheMutex, so racing publishers store the same AbckitString pointer.
+    std::atomic<AbckitString *> cachedDisplayName {nullptr};
 
     std::variant<std::unique_ptr<AbckitJsFunction>, std::unique_ptr<AbckitArktsFunction>> impl;
 
@@ -813,6 +848,9 @@ inline void AbckitCoreModule::InsertInstance<AbckitCoreAnnotationInterface>(
 }
 
 struct AbckitString {
+    AbckitString() = default;
+
+    AbckitFile *file = nullptr;
     std::string_view impl;
 };
 
@@ -887,40 +925,95 @@ struct AbckitType {
     }
 };
 
-const static size_t GRAPH_CACHE_MAX_SIZE = 4294967296;  // 4G
-const static size_t GRAPH_CACHE_MAX_PERCENT = 80;       // percent threshould
+struct AbckitFileThreadState {
+    size_t GetActiveOperationCount()
+    {
+        std::lock_guard<std::mutex> lock(lifecycleMutex);
+        return activeOperations;
+    }
 
-struct AbckitFileGenerateStatus {
-    bool generated = false;
-    void *pf = nullptr;
-    void *irInterface = nullptr;
-    template <typename PF>
-    PF *getFile()
+    bool TryBeginOperation()
     {
-        return static_cast<PF *>(this->pf);
-    }
-    template <typename IF>
-    IF *getIrInterface()
-    {
-        return static_cast<IF *>(this->irInterface);
-    }
-    template <typename PF, typename IF>
-    void clear()
-    {
-        if (this->pf != nullptr) {
-            delete static_cast<PF *>(this->pf);
-            this->pf = nullptr;
+        std::lock_guard<std::mutex> lock(lifecycleMutex);
+        if (lifecycleState != AbckitFileLifecycleState::OPEN) {
+            return false;
         }
-        if (this->irInterface != nullptr) {
-            delete static_cast<IF *>(this->irInterface);
-            this->irInterface = nullptr;
+        ++activeOperations;
+        return true;
+    }
+
+    void FinishOperation()
+    {
+        std::lock_guard<std::mutex> lock(lifecycleMutex);
+        if (activeOperations > 0) {
+            --activeOperations;
         }
     }
-};
 
-struct FunctionStatus {
-    AbckitGraph *graph = nullptr;
-    bool writeBack = false;
+    bool PromoteOperationToGraph()
+    {
+        std::lock_guard<std::mutex> lock(lifecycleMutex);
+        if (activeOperations == 0 || lifecycleState != AbckitFileLifecycleState::OPEN) {
+            return false;
+        }
+        --activeOperations;
+        ++activeGraphs;
+        return true;
+    }
+
+    void FinishGraph()
+    {
+        std::lock_guard<std::mutex> lock(lifecycleMutex);
+        if (activeGraphs > 0) {
+            --activeGraphs;
+        }
+    }
+
+    bool CanWriteFromRegisteredOperation()
+    {
+        std::lock_guard<std::mutex> lock(lifecycleMutex);
+        return lifecycleState == AbckitFileLifecycleState::OPEN && activeOperations == 1 && activeGraphs == 0;
+    }
+
+    bool TryBeginClose()
+    {
+        std::lock_guard<std::mutex> lock(lifecycleMutex);
+        if (lifecycleState != AbckitFileLifecycleState::OPEN || activeOperations != 0 || activeGraphs != 0) {
+            return false;
+        }
+        lifecycleState = AbckitFileLifecycleState::CLOSING;
+        return true;
+    }
+
+    void FinishClose()
+    {
+        std::lock_guard<std::mutex> lock(lifecycleMutex);
+        lifecycleState = AbckitFileLifecycleState::CLOSED;
+    }
+
+    // Lock order: apiMutex -> typesCacheMutex -> stringsCacheMutex.
+    // litarrsCacheMutex and metadataCacheMutex are independent leaf locks.
+    // Guards public API access to AbckitFile-owned metadata.
+    std::shared_mutex apiMutex;
+    // Guards file->strings and Program::strings.
+    std::shared_mutex stringsCacheMutex;
+    // Guards file->types. Type updates can create strings, so this lock may be held before stringsCacheMutex.
+    std::recursive_mutex typesCacheMutex;
+    // Guards file->litarrs.
+    std::mutex litarrsCacheMutex;
+    // Guards remaining lazy metadata wrappers such as literals and values.
+    std::recursive_mutex metadataCacheMutex;
+    // Guards lifecycleState, activeOperations and activeGraphs.
+    std::mutex lifecycleMutex;
+    AbckitFileLifecycleState lifecycleState = AbckitFileLifecycleState::OPEN;
+    size_t activeOperations = 0;
+    size_t activeGraphs = 0;
+    // apiMutex -> suspendedReadersMutex. Structural writers drop apiMutex before waiting here.
+    // One entry per thread temporarily releasing an outer API read lock, not per nesting level.
+    // Updates hold both locks; reads need suspendedReadersMutex or exclusive apiMutex ownership.
+    std::mutex suspendedReadersMutex;
+    std::condition_variable suspendedReadersCv;
+    size_t suspendedReaders = 0;
 };
 
 struct AbckitFile {
@@ -953,6 +1046,8 @@ struct AbckitFile {
         std::unordered_map<std::string, std::unique_ptr<AbckitValue>> arrayVals;
     };
 
+    std::shared_ptr<AbckitFileThreadState> threadState = std::make_shared<AbckitFileThreadState>();
+
     libabckit::Mode frontend = libabckit::Mode::DYNAMIC;
 
     /*
@@ -984,6 +1079,59 @@ struct AbckitFile {
     AbcKitValues values;
     std::vector<std::unique_ptr<AbckitLiteralArray>> litarrs;
 
+    struct DynamicGraphCache {
+        class BuildStateGuard final {
+        public:
+            BuildStateGuard(DynamicGraphCache &cache, uint64_t buildEpoch) : cache_(cache), buildEpoch_(buildEpoch) {}
+
+            ~BuildStateGuard()
+            {
+                if (!active_) {
+                    return;
+                }
+                {
+                    std::lock_guard<std::mutex> lock(cache_.mutex);
+                    cache_.entry.reset();
+                    cache_.state = cache_.invalidationEpoch == buildEpoch_ ? AbckitDynamicGraphSnapshotState::FAILED
+                                                                           : AbckitDynamicGraphSnapshotState::STALE;
+                }
+                cache_.cv.notify_all();
+            }
+
+            BuildStateGuard(const BuildStateGuard &) = delete;
+            BuildStateGuard &operator=(const BuildStateGuard &) = delete;
+
+            void Release()
+            {
+                active_ = false;
+            }
+
+        private:
+            DynamicGraphCache &cache_;
+            uint64_t buildEpoch_;
+            bool active_ = true;
+        };
+
+        size_t GetSuccessfulBuildCount() const
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            return successfulBuildCount;
+        }
+
+        mutable std::mutex mutex;
+        std::condition_variable cv;
+        AbckitDynamicGraphSnapshotState state = AbckitDynamicGraphSnapshotState::EMPTY;
+        std::shared_ptr<AbckitDynamicGraphCacheEntry> entry;
+        uint64_t invalidationEpoch = 0;
+        size_t successfulBuildCount = 0;
+    };
+
+    DynamicGraphCache dynamicGraphCache;
+    // Protected by threadState->apiMutex.
+    std::atomic<uint64_t> dynamicStructuralGeneration {0};
+    std::unordered_map<std::thread::id, uint64_t> dynamicStructuralGenerationsByThread;
+    std::unordered_map<AbckitCoreFunction *, uint64_t> dynamicFunctionVersions;
+
     /*
      * To store all program strings
      */
@@ -1014,10 +1162,6 @@ struct AbckitFile {
      */
     void *data = nullptr;
 
-    bool needOptimize = false;
-    AbckitFileGenerateStatus generateStatus;
-    std::unordered_map<AbckitCoreFunction *, FunctionStatus *> functionsMap;
-
     /**
      * Function point to delete data
      */
@@ -1033,6 +1177,354 @@ struct AbckitFile {
      * per-function annotation refresh calls (async, lambda, FunctionOverload).
      */
     std::vector<std::pair<std::string, std::string>> pendingFunctionRenames;
+};
+
+inline bool UsesDynamicThreadSafety(const AbckitFile *file)
+{
+    return file != nullptr && file->frontend == libabckit::Mode::DYNAMIC;
+}
+
+class AbckitFileApiReadLock final {
+public:
+    explicit AbckitFileApiReadLock(AbckitFile *file)
+    {
+        if (!UsesDynamicThreadSafety(file)) {
+            return;
+        }
+        state_ = file->threadState;
+
+        auto *state = state_.get();
+        auto &readDepth = ReadDepth();
+        auto found = readDepth.find(state);
+        if (found != readDepth.end()) {
+            ++found->second;
+            return;
+        }
+        readDepth[state] = 1;
+        if (WriteDepth().find(state) != WriteDepth().end()) {
+            return;
+        }
+        tracksOperation_ = state_->TryBeginOperation();
+        if (!tracksOperation_) {
+            readDepth.erase(state);
+            conflict_ = true;
+            return;
+        }
+        state_->apiMutex.lock_shared();
+        locked_ = true;
+    }
+
+    ~AbckitFileApiReadLock()
+    {
+        if (state_ == nullptr) {
+            return;
+        }
+
+        auto *state = state_.get();
+        auto &readDepth = ReadDepth();
+        auto found = readDepth.find(state);
+        if (found == readDepth.end()) {
+            return;
+        }
+        if (--found->second == 0) {
+            readDepth.erase(found);
+        }
+        if (tracksOperation_) {
+            state_->FinishOperation();
+        }
+        if (locked_) {
+            state_->apiMutex.unlock_shared();
+        }
+    }
+
+    AbckitFileApiReadLock(const AbckitFileApiReadLock &) = delete;
+    AbckitFileApiReadLock &operator=(const AbckitFileApiReadLock &) = delete;
+
+    bool HasConflict() const
+    {
+        return conflict_;
+    }
+
+private:
+    static std::unordered_map<AbckitFileThreadState *, size_t> &ReadDepth()
+    {
+        thread_local std::unordered_map<AbckitFileThreadState *, size_t> depth;
+        return depth;
+    }
+
+    static std::unordered_map<AbckitFileThreadState *, size_t> &WriteDepth()
+    {
+        thread_local std::unordered_map<AbckitFileThreadState *, size_t> depth;
+        return depth;
+    }
+
+    static std::unordered_map<AbckitFileThreadState *, size_t> &SuspendedReadDepth()
+    {
+        thread_local std::unordered_map<AbckitFileThreadState *, size_t> depth;
+        return depth;
+    }
+
+    std::shared_ptr<AbckitFileThreadState> state_;
+    bool locked_ = false;
+    bool tracksOperation_ = false;
+    bool conflict_ = false;
+
+    friend class AbckitFileApiWriteLock;
+    friend class AbckitFileApiReadLockSuspension;
+};
+
+class AbckitFileApiReadLockSuspension final {
+public:
+    explicit AbckitFileApiReadLockSuspension(AbckitFile *file)
+    {
+        if (!UsesDynamicThreadSafety(file)) {
+            return;
+        }
+        state_ = file->threadState;
+
+        auto *state = state_.get();
+        if (AbckitFileApiReadLock::ReadDepth().find(state) == AbckitFileApiReadLock::ReadDepth().end() ||
+            AbckitFileApiReadLock::WriteDepth().find(state) != AbckitFileApiReadLock::WriteDepth().end()) {
+            return;
+        }
+
+        auto &suspendedReadDepth = AbckitFileApiReadLock::SuspendedReadDepth();
+        auto &depth = suspendedReadDepth[state];
+        if (depth++ == 0) {
+            {
+                std::lock_guard<std::mutex> lock(state_->suspendedReadersMutex);
+                ++state_->suspendedReaders;
+            }
+            state_->apiMutex.unlock_shared();
+        }
+        participates_ = true;
+    }
+
+    ~AbckitFileApiReadLockSuspension()
+    {
+        if (!participates_) {
+            return;
+        }
+
+        auto *state = state_.get();
+        auto &suspendedReadDepth = AbckitFileApiReadLock::SuspendedReadDepth();
+        auto found = suspendedReadDepth.find(state);
+        if (found == suspendedReadDepth.end()) {
+            return;
+        }
+        if (--found->second == 0) {
+            suspendedReadDepth.erase(found);
+            state_->apiMutex.lock_shared();
+            {
+                std::lock_guard<std::mutex> lock(state_->suspendedReadersMutex);
+                --state_->suspendedReaders;
+            }
+            state_->suspendedReadersCv.notify_all();
+        }
+    }
+
+    AbckitFileApiReadLockSuspension(const AbckitFileApiReadLockSuspension &) = delete;
+    AbckitFileApiReadLockSuspension &operator=(const AbckitFileApiReadLockSuspension &) = delete;
+
+private:
+    std::shared_ptr<AbckitFileThreadState> state_;
+    bool participates_ = false;
+};
+
+enum class AbckitFileApiWriteMode { DEFAULT, STRUCTURAL };
+
+class AbckitFileApiWriteLock final {
+public:
+    explicit AbckitFileApiWriteLock(AbckitFile *file, bool trackLifecycle = true,
+                                    AbckitFileApiWriteMode mode = AbckitFileApiWriteMode::DEFAULT)
+    {
+        if (!UsesDynamicThreadSafety(file)) {
+            return;
+        }
+        state_ = file->threadState;
+
+        auto *state = state_.get();
+        if (AbckitFileApiReadLock::ReadDepth().find(state) != AbckitFileApiReadLock::ReadDepth().end() &&
+            AbckitFileApiReadLock::WriteDepth().find(state) == AbckitFileApiReadLock::WriteDepth().end() &&
+            AbckitFileApiReadLock::SuspendedReadDepth().find(state) ==
+                AbckitFileApiReadLock::SuspendedReadDepth().end()) {
+            conflict_ = true;
+            return;
+        }
+
+        auto &writeDepth = AbckitFileApiReadLock::WriteDepth();
+        auto found = writeDepth.find(state);
+        if (found != writeDepth.end()) {
+            if (mode == AbckitFileApiWriteMode::STRUCTURAL && !WaitForSuspendedReaders(true)) {
+                conflict_ = true;
+                return;
+            }
+            ++found->second;
+            return;
+        }
+        if (trackLifecycle) {
+            tracksOperation_ = state_->TryBeginOperation();
+            if (!tracksOperation_) {
+                conflict_ = true;
+                return;
+            }
+        }
+        writeDepth[state] = 1;
+        state_->apiMutex.lock();
+        if (mode == AbckitFileApiWriteMode::STRUCTURAL && !WaitForSuspendedReaders(false)) {
+            writeDepth.erase(state);
+            state_->apiMutex.unlock();
+            if (tracksOperation_) {
+                state_->FinishOperation();
+                tracksOperation_ = false;
+            }
+            conflict_ = true;
+            return;
+        }
+        locked_ = true;
+    }
+
+    ~AbckitFileApiWriteLock()
+    {
+        if (state_ == nullptr || conflict_) {
+            return;
+        }
+
+        auto *state = state_.get();
+        auto &writeDepth = AbckitFileApiReadLock::WriteDepth();
+        auto found = writeDepth.find(state);
+        if (found == writeDepth.end()) {
+            return;
+        }
+        if (--found->second == 0) {
+            writeDepth.erase(found);
+        }
+        if (tracksOperation_) {
+            state_->FinishOperation();
+        }
+        if (locked_) {
+            state_->apiMutex.unlock();
+        }
+    }
+
+    bool HasConflict() const
+    {
+        return conflict_;
+    }
+
+    AbckitFileApiWriteLock(const AbckitFileApiWriteLock &) = delete;
+    AbckitFileApiWriteLock &operator=(const AbckitFileApiWriteLock &) = delete;
+
+private:
+    // Called with apiMutex exclusively held. A waiting writer must let suspended
+    // readers finish snapshot construction and reacquire their outer shared lock.
+    bool WaitForSuspendedReaders(bool recursive)
+    {
+        if (state_->suspendedReaders == 0U) {
+            return true;
+        }
+        const auto &suspendedDepth = AbckitFileApiReadLock::SuspendedReadDepth();
+        const size_t ownReader = suspendedDepth.find(state_.get()) != suspendedDepth.end() ? 1U : 0U;
+        std::unique_lock<std::mutex> lock(state_->suspendedReadersMutex);
+        while (state_->suspendedReaders > ownReader) {
+            // Two read callbacks cannot upgrade against each other. Nor may a
+            // nested writer release an exclusive lock belonging to its caller.
+            if (ownReader != 0U || recursive) {
+                return false;
+            }
+            state_->apiMutex.unlock();
+            state_->suspendedReadersCv.wait(lock, [this]() { return state_->suspendedReaders == 0U; });
+            lock.unlock();
+            state_->apiMutex.lock();
+            lock.lock();
+        }
+        return true;
+    }
+
+    std::shared_ptr<AbckitFileThreadState> state_;
+    bool locked_ = false;
+    bool tracksOperation_ = false;
+    bool conflict_ = false;
+};
+
+class AbckitFileMetadataCacheLock final {
+public:
+    explicit AbckitFileMetadataCacheLock(AbckitFile *file)
+    {
+        if (!UsesDynamicThreadSafety(file)) {
+            return;
+        }
+        state_ = file->threadState;
+        lock_ = std::unique_lock<std::recursive_mutex>(state_->metadataCacheMutex);
+    }
+
+private:
+    std::shared_ptr<AbckitFileThreadState> state_;
+    std::unique_lock<std::recursive_mutex> lock_;
+};
+
+class AbckitFileStringsCacheReadLock final {
+public:
+    explicit AbckitFileStringsCacheReadLock(AbckitFile *file)
+    {
+        if (!UsesDynamicThreadSafety(file)) {
+            return;
+        }
+        state_ = file->threadState;
+        lock_ = std::shared_lock<std::shared_mutex>(state_->stringsCacheMutex);
+    }
+
+private:
+    std::shared_ptr<AbckitFileThreadState> state_;
+    std::shared_lock<std::shared_mutex> lock_;
+};
+
+class AbckitFileStringsCacheWriteLock final {
+public:
+    explicit AbckitFileStringsCacheWriteLock(AbckitFile *file)
+    {
+        if (!UsesDynamicThreadSafety(file)) {
+            return;
+        }
+        state_ = file->threadState;
+        lock_ = std::unique_lock<std::shared_mutex>(state_->stringsCacheMutex);
+    }
+
+private:
+    std::shared_ptr<AbckitFileThreadState> state_;
+    std::unique_lock<std::shared_mutex> lock_;
+};
+
+class AbckitFileTypesCacheLock final {
+public:
+    explicit AbckitFileTypesCacheLock(AbckitFile *file)
+    {
+        if (!UsesDynamicThreadSafety(file)) {
+            return;
+        }
+        state_ = file->threadState;
+        lock_ = std::unique_lock<std::recursive_mutex>(state_->typesCacheMutex);
+    }
+
+private:
+    std::shared_ptr<AbckitFileThreadState> state_;
+    std::unique_lock<std::recursive_mutex> lock_;
+};
+
+class AbckitFileLitArrsCacheLock final {
+public:
+    explicit AbckitFileLitArrsCacheLock(AbckitFile *file)
+    {
+        if (!UsesDynamicThreadSafety(file)) {
+            return;
+        }
+        state_ = file->threadState;
+        lock_ = std::unique_lock<std::mutex>(state_->litarrsCacheMutex);
+    }
+
+private:
+    std::shared_ptr<AbckitFileThreadState> state_;
+    std::unique_lock<std::mutex> lock_;
 };
 
 struct AbckitDynamicImportDescriptorPayload {

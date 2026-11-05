@@ -1509,7 +1509,7 @@ static void CompareDump1(std::stringstream &ss)
         "\\s+21.any  Intrinsic.callarg1\\s+0x[a-f0-9]+ v3, v8\\s+bc: 0x[a-f0-9]+\n"
         "\\s+26.any  Intrinsic.callrange\\s+0x[a-f0-9]+, 0x4 v4, v22, v23, v24, v25\\s+bc: 0x[a-f0-9]+\n"
         "\\s+27.void Intrinsic.returnundefined\\s+bc: 0x[a-f0-9]+\n\n";
-    EXPECT_TRUE(helpers::Match(ss.str(), expected));
+    EXPECT_TRUE(helpers::Match(ss.str(), expected)) << ss.str();
 }
 
 // Test: test-kind=api, api=GraphApiImpl::iDump, abc-kind=ArkTS1, category=positive, extension=c

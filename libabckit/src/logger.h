@@ -101,23 +101,23 @@ public:
 
     // NOLINTNEXTLINE(fuchsia-statically-constructed-objects)
     inline static std::map<std::string, std::unique_ptr<AbckitComponent>> components_ = {};
-    inline static bool isInitialized_ = false;
 
     static Logger *logger_;
 
     static void Initialize(MODE mode)
     {
-        if (isInitialized_) {
-            return;
-        }
-        if (const char *env = std::getenv("LIBABCKIT_DEBUG_MODE")) {
-            if ((std::find(TRUE_VALUES.begin(), TRUE_VALUES.end(), static_cast<std::string>(env))) !=
-                TRUE_VALUES.end()) {
-                mode = MODE::DEBUG_MODE;
+        // Publish the logger once; subsequent calls only check the local-static guard.
+        [[maybe_unused]] static const bool INITIALIZED = [mode]() {
+            auto effectiveMode = mode;
+            if (const char *env = std::getenv("LIBABCKIT_DEBUG_MODE")) {
+                if ((std::find(TRUE_VALUES.begin(), TRUE_VALUES.end(), static_cast<std::string>(env))) !=
+                    TRUE_VALUES.end()) {
+                    effectiveMode = MODE::DEBUG_MODE;
+                }
             }
-        }
-        logger_ = new Logger(mode);
-        isInitialized_ = true;
+            logger_ = new Logger(effectiveMode);
+            return true;
+        }();
     }
 
     explicit Logger(MODE mode) : loggerMode_(mode) {}

@@ -704,6 +704,11 @@ void AssignClassesToParent(std::vector<std::unique_ptr<AbckitCoreClass>> &klasse
                 klass->owningModule->InsertClass(name, std::move(klass));
                 break;
             case ParentKind::NAMESPACE: {
+                // JS does not have namespaces, fall back to module
+                if (klass->owningModule->target == ABCKIT_TARGET_JS) {
+                    klass->owningModule->InsertClass(name, std::move(klass));
+                    break;
+                }
                 ASSERT(nameToNamespace.count(parentName) != 0);
                 auto *n = nameToNamespace[parentName];
                 klass->parentNamespace = n;
@@ -918,6 +923,11 @@ void AssignFunction(std::unique_ptr<AbckitCoreFunction> &f, std::string &name,
             f->owningModule->functions.emplace_back(std::move(f));
             return;
         case ParentKind::NAMESPACE: {
+            // JS does not have namespaces, fall back to module
+            if (f->owningModule->target == ABCKIT_TARGET_JS) {
+                f->owningModule->functions.emplace_back(std::move(f));
+                return;
+            }
             ASSERT(nameToNamespace.count(parentName) == 1);
             auto *n = nameToNamespace[parentName];
             f->parentNamespace = n;
@@ -1213,6 +1223,11 @@ void CollectNamespaces(pandasm::Program *prog, AbckitFile *file,
         if (!IsNamespaceFunc(functionName)) {
             continue;
         }
+        // JS does not have namespaces, skip functions belonging to JS modules
+        std::string moduleName = pandasm::GetOwnerName(function.name);
+        if (file->localModules.count(moduleName) != 0 && file->localModules[moduleName]->target == ABCKIT_TARGET_JS) {
+            continue;
+        }
         namespaces->emplace_back(CreateNamespace(function, file));
         ASSERT(nameToNamespace->count(function.name) == 0);
         (*nameToNamespace)[function.name] = namespaces->back().get();
@@ -1266,6 +1281,7 @@ void CreateWrappers(pandasm::Program *prog, AbckitFile *file)
     // Strings
     for (auto &sImpl : prog->strings) {
         auto s = std::make_unique<AbckitString>();
+        s->file = file;
         s->impl = sImpl;
         file->strings.insert({sImpl, std::move(s)});
     }
@@ -1316,17 +1332,7 @@ AbckitFile *OpenAbcDynamic(const char *path, size_t len)
 
 void WriteAbcDynamic(AbckitFile *file, const char *path, size_t len)
 {
-    if (file->needOptimize) {
-        std::unordered_map<AbckitCoreFunction *, FunctionStatus *> &functionsMap = file->functionsMap;
-        for (auto &[func, status] : functionsMap) {
-            if (status->writeBack) {
-                FunctionSetGraphDynamicSync(func, status->graph);
-            }
-            delete status;
-        }
-        functionsMap.clear();
-    }
-
+    InvalidateDynamicGraphCacheForStructuralChange(file);
     auto program = file->GetDynamicProgram();
 
     pandasm::AsmEmitter::PandaFileToPandaAsmMaps *mapsp = nullptr;
@@ -1341,13 +1347,6 @@ void WriteAbcDynamic(AbckitFile *file, const char *path, size_t len)
 
 void DestroyGraphDynamic(AbckitGraph *graph)
 {
-    if (!graph->file->needOptimize) {
-        DestroyGraphDynamicSync(graph);
-    }
-}
-
-void DestroyGraphDynamicSync(AbckitGraph *graph)
-{
     LIBABCKIT_LOG_FUNC;
     GraphWrapper::DestroyGraphDynamic(graph);
 }
@@ -1355,6 +1354,8 @@ void DestroyGraphDynamicSync(AbckitGraph *graph)
 void CloseFileDynamic(AbckitFile *file)
 {
     LIBABCKIT_LOG_FUNC;
+
+    InvalidateDynamicGraphCache(file);
 
     for (auto &[_, type] : file->types) {
         if (type != nullptr) {
@@ -1369,17 +1370,6 @@ void CloseFileDynamic(AbckitFile *file)
         }
     }
     file->types.clear();
-
-    if (file->needOptimize) {
-        std::unordered_map<AbckitCoreFunction *, FunctionStatus *> &functionsMap = file->functionsMap;
-        for (auto &[_, status] : functionsMap) {
-            DestroyGraphDynamicSync(status->graph);
-            delete status;
-        }
-        functionsMap.clear();
-
-        file->generateStatus.clear<panda_file::File, AbckitIrInterface>();
-    }
 
     auto *ctxIInternal = reinterpret_cast<struct CtxIInternal *>(file->internal);
     delete ctxIInternal->driver;

@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -40,6 +40,13 @@ public:
 
     void Run();
 
+    // 20260807927972 Task 02-07: per-function entry points for parallel scheduling. CollectCheckerTasks
+    // runs the (read-only) subclass-method discovery on the main thread; workers call RunCheckerTask
+    // on distinct methods (createGraphFromFunction D1 single-builder snapshot + per-graph bounds-check
+    // surgery + functionSetGraph D4 prepare/commit + destroyGraph on different methods -> thread-safe).
+    void CollectCheckerTasks(std::vector<AbckitCoreFunction *> &tasks);
+    void RunCheckerTask(AbckitCoreFunction *method);
+
     AbckitFile *GetFile()
     {
         return file_;
@@ -48,6 +55,8 @@ public:
 private:
     AbckitCoreImportDescriptor *GetImportDescriptor(AbckitCoreModule *module);
     void ModifyFunction(AbckitCoreFunction *method, AbckitCoreImportDescriptor *id);
+    void CollectCheckerTasksForMethod(AbckitCoreImportDescriptor *impDescriptor, AbckitCoreFunction *method,
+                                      std::vector<AbckitCoreFunction *> &tasks);
     void AddParamChecker(AbckitCoreFunction *method);
     AbckitCoreFunction *GetSubclassMethod(AbckitCoreImportDescriptor *id, AbckitInst *inst);
     AbckitCoreFunction *GetMethodToModify(AbckitCoreClass *klass);

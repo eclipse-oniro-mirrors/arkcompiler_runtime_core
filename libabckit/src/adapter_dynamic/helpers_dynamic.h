@@ -54,6 +54,13 @@ struct ModuleIterateData {
 const panda::panda_file::File *EmitDynamicProgram(AbckitFile *file, panda::pandasm::Program *program,
                                                   panda::pandasm::AsmEmitter::PandaFileToPandaAsmMaps *mapsp,
                                                   bool getFile, std::string_view path = {});
+void InvalidateDynamicGraphCache(AbckitFile *file);
+// Structural-generation helpers require the caller to hold file->threadState->apiMutex
+// (shared for reads, exclusive for updates).
+void InvalidateDynamicGraphCacheForStructuralChange(AbckitFile *file);
+uint64_t GetDynamicStructuralGenerationForThread(const AbckitFile *file, const std::thread::id &threadId);
+void MarkDynamicGraphCacheFunctionDirty(AbckitFile *file, AbckitCoreFunction *function);
+uint64_t GetDynamicGraphFunctionVersion(const AbckitFile *file, AbckitCoreFunction *function);
 bool IterateModuleSections(
     ModuleIterateData &data, const std::function<size_t(ModuleIterateData *)> &requestIdxSectionModifier,
     const std::function<std::pair<size_t, size_t>(ModuleIterateData *, size_t, size_t)> &sectionModifier,

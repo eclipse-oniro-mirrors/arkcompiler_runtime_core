@@ -108,6 +108,7 @@ AbckitArktsModule *FileAddExternalModuleArktsV2Static(AbckitFile *file, const ch
         coreModule->moduleName = strings.at(moduleName).get();
     } else {
         auto s = std::make_unique<AbckitString>();
+        s->file = file;
         s->impl = moduleName;
         strings.insert({moduleName, std::move(s)});
         coreModule->moduleName = strings[moduleName].get();
@@ -300,6 +301,7 @@ AbckitString *CreateStringStatic(AbckitFile *file, const char *value, size_t len
     }
 
     auto s = std::make_unique<AbckitString>();
+    s->file = file;
     s->impl = progValue;
     auto result = strings.emplace(progValue, std::move(s));
     return result.first->second.get();
@@ -574,17 +576,6 @@ bool FunctionSetNameStatic(AbckitCoreFunction *function, const char *name)
 }
 
 void FunctionSetGraphStatic(AbckitCoreFunction *function, AbckitGraph *graph)
-{
-    if (function->owningModule->file->needOptimize) {
-        std::unordered_map<AbckitCoreFunction *, FunctionStatus *> &functionsMap =
-            function->owningModule->file->functionsMap;
-        functionsMap[function]->writeBack = true;
-    } else {
-        FunctionSetGraphStaticSync(function, graph);
-    }
-}
-
-void FunctionSetGraphStaticSync(AbckitCoreFunction *function, AbckitGraph *graph)
 {
     LIBABCKIT_LOG_FUNC;
 

@@ -64,6 +64,8 @@ extern "C" AbckitArktsModule *CoreModuleToArktsModule(AbckitCoreModule *m)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(m, nullptr);
+    // Resolve the stable owner before reading the replaceable target and extension implementation.
+    LIBABCKIT_FILE_READ_GUARD(m->file);
     LIBABCKIT_CHECK_ARKTS_TARGET(m);
     return m->GetArkTSImpl();
 }

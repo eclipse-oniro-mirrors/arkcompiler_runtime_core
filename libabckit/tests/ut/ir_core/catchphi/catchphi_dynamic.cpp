@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -104,6 +104,40 @@ TEST_F(LibAbcKitDynamicCatchPhiTest, CatchPhiNoAccDynamicValid)
     output = helpers::ExecuteDynamicAbc(ABCKIT_ABC_DIR "ut/ir_core/catchphi/catchphi_dynamic_noacc_modified.abc",
                                         "catchphi_dynamic");
     EXPECT_TRUE(helpers::Match(output, "42\n"));
+}
+
+// Test: test-kind=api, api=GraphApiImpl::bbCreateCatchPhi, abc-kind=ArkTS1, category=positive, extension=c
+TEST_F(LibAbcKitDynamicCatchPhiTest, CatchPhiF64InputDynamicValid)
+{
+    auto output =
+        helpers::ExecuteDynamicAbc(ABCKIT_ABC_DIR "ut/ir_core/catchphi/catchphi_dynamic.abc", "catchphi_dynamic");
+    EXPECT_TRUE(helpers::Match(output, "CATCH\n"));
+
+    helpers::TransformMethod(
+        ABCKIT_ABC_DIR "ut/ir_core/catchphi/catchphi_dynamic.abc",
+        ABCKIT_ABC_DIR "ut/ir_core/catchphi/catchphi_dynamic_f64_modified.abc", "main",
+        [](AbckitFile * /*file*/, AbckitCoreFunction * /*method*/, AbckitGraph *graph) {
+            auto *print = helpers::FindFirstInst(graph, ABCKIT_ISA_API_DYNAMIC_OPCODE_CALLARG1);
+            ASSERT_NE(print, nullptr);
+            auto *constantF64 = g_implG->gFindOrCreateConstantF64(graph, 0.9);
+            ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+            ASSERT_NE(constantF64, nullptr);
+            auto *catchPhi = g_implG->bbCreateCatchPhi(g_implG->iGetBasicBlock(print), 2, constantF64, print);
+            ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+            ASSERT_NE(catchPhi, nullptr);
+            g_implG->iSetInput(print, catchPhi, 1);
+            ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+        },
+        [&]([[maybe_unused]] AbckitGraph *graph) {});
+
+    // Recreate the graph from the written ABC so GraphChecker validates the decoded CatchPhi inputs.
+    helpers::InspectMethod(ABCKIT_ABC_DIR "ut/ir_core/catchphi/catchphi_dynamic_f64_modified.abc", "main",
+                           []([[maybe_unused]] AbckitFile *file, [[maybe_unused]] AbckitCoreFunction *method,
+                              [[maybe_unused]] AbckitGraph *graph) {});
+
+    output = helpers::ExecuteDynamicAbc(ABCKIT_ABC_DIR "ut/ir_core/catchphi/catchphi_dynamic_f64_modified.abc",
+                                        "catchphi_dynamic");
+    EXPECT_TRUE(helpers::Match(output, "0.9\n"));
 }
 
 }  // namespace libabckit::test

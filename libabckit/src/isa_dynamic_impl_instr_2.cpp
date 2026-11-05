@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License"); * you may not use this file except in compliance with
  * the License. You may obtain a copy of the License at
  *
@@ -463,6 +463,7 @@ extern "C" AbckitInst *IcreateDYNAMICCreatearraywithbuffer(AbckitGraph *graph, A
     LIBABCKIT_BAD_ARGUMENT(graph, nullptr);
     LIBABCKIT_BAD_ARGUMENT(literalArray, nullptr);
     LIBABCKIT_WRONG_MODE(graph, Mode::DYNAMIC, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(graph->file);
     return IcreateDynCreatearraywithbufferStatic(graph, literalArray);
 }
 
@@ -475,6 +476,7 @@ extern "C" AbckitInst *IcreateDYNAMICCreateobjectwithbuffer(AbckitGraph *graph, 
     LIBABCKIT_BAD_ARGUMENT(graph, nullptr);
     LIBABCKIT_BAD_ARGUMENT(literalArray, nullptr);
     LIBABCKIT_WRONG_MODE(graph, Mode::DYNAMIC, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(graph->file);
     return IcreateDynCreateobjectwithbufferStatic(graph, literalArray);
 }
 
@@ -564,6 +566,7 @@ extern "C" AbckitInst *IcreateDYNAMICNewlexenvwithname(AbckitGraph *graph, uint6
     LIBABCKIT_BAD_ARGUMENT(graph, nullptr);
     LIBABCKIT_BAD_ARGUMENT(literalArray, nullptr);
     LIBABCKIT_WRONG_MODE(graph, Mode::DYNAMIC, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(graph->file);
 
     return IcreateDynNewlexenvwithnameStatic(graph, imm0, literalArray);
 }
@@ -578,6 +581,7 @@ extern "C" AbckitInst *IcreateDYNAMICWideNewlexenvwithname(AbckitGraph *graph, u
     LIBABCKIT_BAD_ARGUMENT(graph, nullptr);
     LIBABCKIT_BAD_ARGUMENT(literalArray, nullptr);
     LIBABCKIT_WRONG_MODE(graph, Mode::DYNAMIC, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(graph->file);
 
     return IcreateDynWideNewlexenvwithnameStatic(graph, imm0, literalArray);
 }
@@ -1167,6 +1171,7 @@ extern "C" AbckitInst *IcreateDYNAMICCallruntimeCreateprivateproperty(AbckitGrap
     LIBABCKIT_BAD_ARGUMENT(graph, nullptr);
     LIBABCKIT_BAD_ARGUMENT(literalArray, nullptr);
     LIBABCKIT_WRONG_MODE(graph, Mode::DYNAMIC, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(graph->file);
     return IcreateDynCallruntimeCreateprivatepropertyStatic(graph, imm0, literalArray);
 }
 
@@ -1219,6 +1224,7 @@ extern "C" AbckitInst *IcreateDYNAMICCallruntimeDefinesendableclass(AbckitGraph 
     LIBABCKIT_WRONG_CTX(graph, input0->graph, nullptr);
 
     LIBABCKIT_WRONG_CTX(graph->file, function->owningModule->file, nullptr);
+    LIBABCKIT_FILE_READ_GUARD(graph->file);
     LIBABCKIT_WRONG_MODE(graph, Mode::DYNAMIC, nullptr);
     return IcreateDynCallruntimeDefinesendableclassStatic(graph, function, literalArray, imm0, input0);
 }

@@ -366,6 +366,7 @@ set(PANDA_COMPILER_TESTS_SOURCES
     tests/optional_inputs_test.cpp
     tests/osr_test.cpp
     tests/panda_runner.cpp
+    tests/pass_manager_test.cpp
     tests/peepholes_test.cpp
     tests/redundant_loop_elimination_test.cpp
     tests/reg_alloc_common_test.cpp

@@ -22,6 +22,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -37,7 +38,8 @@ public:
     using LineColumnPair = std::pair<size_t, uint32_t>;
     static void CreateGraphWrappers(AbckitGraph *graph);
     static AbckitGraph *BuildGraphDynamic(FileWrapper *pf, AbckitIrInterface *irInterface, AbckitFile *file,
-                                          uint32_t methodOffset);
+                                          uint32_t methodOffset, bool ownsIrInterface = true,
+                                          std::shared_ptr<AbckitDynamicGraphCacheEntry> cacheEntry = nullptr);
     static void *BuildCodeDynamic(AbckitGraph *graph, const std::string &funcName,
                                   std::unordered_map<size_t, LineColumnPair> *pcToLineColumn = nullptr);
     static void BuildPcToLineColumnMap(AbckitGraph *graph, const std::vector<LineColumnPair> &lineColumnPerIns,

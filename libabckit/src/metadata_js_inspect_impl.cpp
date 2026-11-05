@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -60,6 +60,8 @@ extern "C" AbckitJsModule *CoreModuleToJsModule(AbckitCoreModule *m)
     LIBABCKIT_IMPLEMENTED;
     LIBABCKIT_TIME_EXEC;
     LIBABCKIT_BAD_ARGUMENT(m, nullptr);
+    // Same-name external module replacement changes both target and impl under the file write lock.
+    LIBABCKIT_FILE_READ_GUARD(m->file);
     LIBABCKIT_CHECK_JS_TARGET(m);
     return m->GetJsImpl();
 }

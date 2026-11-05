@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -17,6 +17,7 @@
 #include "helpers/visit_helper/visit_helper-inl.h"
 #include "libabckit/c/metadata_core.h"
 
+#include <algorithm>
 #include <iostream>
 #include <cstring>
 
@@ -32,6 +33,44 @@ void ApiModifier::Run()
             return true;
         });
     });
+}
+
+// 20260807927972 Task 02-07: per-function entry points for parallel scheduling. CollectCheckerTasks
+// runs the read-only subclass-method discovery on the main thread (the inspect/enumerate API is
+// not hardened for concurrency); RunCheckerTask is the per-method bounds-check surgery that workers
+// run concurrently on distinct methods (createGraphFromFunction D1 + functionSetGraph D4).
+void ApiModifier::CollectCheckerTasks(std::vector<AbckitCoreFunction *> &tasks)
+{
+    visitor_.EnumerateModules([&](AbckitCoreModule *mod) {
+        AbckitCoreImportDescriptor *impDescriptor = GetImportDescriptor(mod);
+        if (impDescriptor == nullptr) {
+            return;
+        }
+        visitor_.EnumerateModuleFunctions(mod, [&](AbckitCoreFunction *method) {
+            CollectCheckerTasksForMethod(impDescriptor, method, tasks);
+            return true;
+        });
+    });
+}
+
+void ApiModifier::CollectCheckerTasksForMethod(AbckitCoreImportDescriptor *impDescriptor, AbckitCoreFunction *method,
+                                               std::vector<AbckitCoreFunction *> &tasks)
+{
+    visitor_.EnumerateFunctionInsts(method, [&](AbckitInst *inst) {
+        AbckitCoreFunction *sub = GetSubclassMethod(impDescriptor, inst);
+        if (sub == nullptr) {
+            return;
+        }
+        // Dedup by pointer: a subclass handle may be referenced from more than one site.
+        if (std::find(tasks.begin(), tasks.end(), sub) == tasks.end()) {
+            tasks.push_back(sub);
+        }
+    });
+}
+
+void ApiModifier::RunCheckerTask(AbckitCoreFunction *method)
+{
+    AddParamChecker(method);
 }
 
 AbckitCoreImportDescriptor *ApiModifier::GetImportDescriptor(AbckitCoreModule *module)

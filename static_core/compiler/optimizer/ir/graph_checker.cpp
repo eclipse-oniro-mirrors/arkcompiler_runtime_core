@@ -262,7 +262,8 @@ void GraphChecker::CheckInputType(Inst *inst)
         [[maybe_unused]] auto inputType = GetCommonType(inst->GetInputType(i));
         [[maybe_unused]] auto realInputType = GetCommonType(input->GetType());
         if (GetGraph()->IsAbcKit()) {
-            if (inputType == DataType::ANY && input->IsConst() && (inst->IsIntrinsic() || inst->IsPhi())) {
+            if (inputType == DataType::ANY && input->IsConst() &&
+                (inst->IsIntrinsic() || inst->IsPhi() || (GetGraph()->IsDynamicMethod() && inst->IsCatchPhi()))) {
                 continue;
             }
         }

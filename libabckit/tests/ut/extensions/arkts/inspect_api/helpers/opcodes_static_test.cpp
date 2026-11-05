@@ -20,11 +20,13 @@
 #include "libabckit/c/isa/isa_static.h"
 #include "libabckit/c/ir_core.h"
 #include "libabckit/src/adapter_static/helpers_static.h"
+#include "libabckit/src/ir_impl.h"
 
 namespace libabckit::test {
 
 static auto g_impl = AbckitGetApiImpl(ABCKIT_VERSION_RELEASE_1_0_0);
 static auto g_implI = AbckitGetInspectApiImpl(ABCKIT_VERSION_RELEASE_1_0_0);
+static auto g_implM = AbckitGetModifyApiImpl(ABCKIT_VERSION_RELEASE_1_0_0);
 static auto g_implG = AbckitGetGraphApiImpl(ABCKIT_VERSION_RELEASE_1_0_0);
 static auto g_statG = AbckitGetIsaApiStaticImpl(ABCKIT_VERSION_RELEASE_1_0_0);
 
@@ -84,6 +86,66 @@ TEST_F(LibAbcKitArkTSInspectApiOpcodesStaticTest, Helpers_StaticOpcodesAndOperan
             isInstance != nullptr) {
             (void)g_statG->iGetClass(isInstance);
         }
+    });
+
+    g_impl->closeFile(file);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+}
+
+// Test: test-kind=api, api=GraphApiImpl::iGetLiteralArray, abc-kind=ArkTS2, category=negative, extension=c
+TEST_F(LibAbcKitArkTSInspectApiOpcodesStaticTest, MissingLiteralArrayIdFailsClosed)
+{
+    constexpr auto INPUT_PATH = ABCKIT_ABC_DIR "ut/extensions/arkts/inspect_api/helpers/opcodes_static_test.abc";
+    AbckitFile *file = nullptr;
+    helpers::AssertOpenAbc(INPUT_PATH, &file);
+
+    helpers::InspectMethod(file, "main", [](AbckitFile *abcFile, AbckitCoreFunction *, AbckitGraph *graph) {
+        auto *literal = g_implM->createLiteralU32(abcFile, 1U);
+        ASSERT_NE(literal, nullptr);
+        auto *literalArray = g_implM->createLiteralArray(abcFile, &literal, 1U);
+        ASSERT_NE(literalArray, nullptr);
+        auto *inst = g_statG->iCreateLoadConstArray(graph, literalArray);
+        ASSERT_NE(inst, nullptr);
+        const auto offset = inst->impl->CastToIntrinsic()->GetImms()[0];
+        AbckitIrInterface missingIdInterface(graph->irInterface->GetMethods(), graph->irInterface->GetFields(),
+                                             graph->irInterface->GetClasses(), graph->irInterface->GetStrings(),
+                                             graph->irInterface->GetLiteralArrays());
+        ASSERT_EQ(missingIdInterface.literalarrays.erase(offset), 1U);
+        auto *originalInterface = graph->irInterface;
+        graph->irInterface = &missingIdInterface;
+
+        auto *result = g_implG->iGetLiteralArray(inst);
+        graph->irInterface = originalInterface;
+        EXPECT_EQ(result, nullptr);
+        EXPECT_EQ(g_impl->getLastError(), ABCKIT_STATUS_INTERNAL_ERROR);
+    });
+
+    g_impl->closeFile(file);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+}
+
+// Test: test-kind=api, api=GraphApiImpl::iGetString, abc-kind=ArkTS2, category=negative, extension=c
+TEST_F(LibAbcKitArkTSInspectApiOpcodesStaticTest, MissingStringIdFailsClosed)
+{
+    constexpr auto INPUT_PATH = ABCKIT_ABC_DIR "ut/extensions/arkts/inspect_api/helpers/opcodes_static_test.abc";
+    AbckitFile *file = nullptr;
+    helpers::AssertOpenAbc(INPUT_PATH, &file);
+
+    helpers::InspectMethod(file, "main", [](AbckitFile *, AbckitCoreFunction *, AbckitGraph *graph) {
+        auto *inst = helpers::FindFirstInst(graph, ABCKIT_ISA_API_STATIC_OPCODE_LOADSTRING);
+        ASSERT_NE(inst, nullptr);
+        const auto offset = inst->impl->CastToIntrinsic()->GetImms()[0];
+        AbckitIrInterface missingIdInterface(graph->irInterface->GetMethods(), graph->irInterface->GetFields(),
+                                             graph->irInterface->GetClasses(), graph->irInterface->GetStrings(),
+                                             graph->irInterface->GetLiteralArrays());
+        ASSERT_EQ(missingIdInterface.strings.erase(offset), 1U);
+        auto *originalInterface = graph->irInterface;
+        graph->irInterface = &missingIdInterface;
+
+        auto *string = g_implG->iGetString(inst);
+        graph->irInterface = originalInterface;
+        EXPECT_EQ(string, nullptr);
+        EXPECT_EQ(g_impl->getLastError(), ABCKIT_STATUS_INTERNAL_ERROR);
     });
 
     g_impl->closeFile(file);

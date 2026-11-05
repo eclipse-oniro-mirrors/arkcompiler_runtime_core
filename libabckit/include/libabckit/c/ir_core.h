@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -66,6 +66,9 @@ enum AbckitBitImmSize {
 
 /**
  * @brief Struct that holds the pointers to the graph manipulation API.
+ * @note A Graph, its basic blocks, instructions, and iterators require exclusive access by one thread at a time.
+ * Different Dynamic Graphs may be processed concurrently while their owning files and metadata remain valid.
+ * Callers must coordinate metadata changes and file/Graph destruction. Static Graph concurrency is not guaranteed.
  */
 struct CAPI_EXPORT AbckitGraphApi {
     /**

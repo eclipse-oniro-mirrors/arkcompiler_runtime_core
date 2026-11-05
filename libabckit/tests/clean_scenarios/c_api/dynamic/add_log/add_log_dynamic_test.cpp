@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -24,6 +24,7 @@
 #include "libabckit/src/logger.h"
 
 #include <gtest/gtest.h>
+#include <filesystem>
 
 namespace {
 
@@ -249,6 +250,11 @@ static std::string GetMethodName(AbckitCoreFunction *method)
 // Test: test-kind=scenario, abc-kind=ArkTS1, category=positive, extension=c
 TEST_F(AbckitScenarioCTestClean, LibAbcKitTestDynamicAddLogClean)
 {
+    constexpr auto OUTPUT_PATH = ABCKIT_ABC_DIR "clean_scenarios/c_api/dynamic/add_log/add_log_dynamic_modified.abc";
+    std::error_code error;
+    std::filesystem::remove(OUTPUT_PATH, error);
+    ASSERT_FALSE(error) << error.message();
+
     // ExecuteDynamicAbc is helper function needed for testing. Вoes not affect the logic of IR transformation
     auto output = helpers::ExecuteDynamicAbc(ABCKIT_ABC_DIR "clean_scenarios/c_api/dynamic/add_log/add_log_dynamic.abc",
                                              "add_log_dynamic");
@@ -256,6 +262,8 @@ TEST_F(AbckitScenarioCTestClean, LibAbcKitTestDynamicAddLogClean)
 
     constexpr auto INPUT_PATH = ABCKIT_ABC_DIR "clean_scenarios/c_api/dynamic/add_log/add_log_dynamic.abc";
     AbckitFile *file = g_impl->openAbc(INPUT_PATH, strlen(INPUT_PATH));
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    ASSERT_NE(file, nullptr);
     UserData data = {};
     data.print = g_implM->createString(file, "print", strlen("print"));
     data.date = g_implM->createString(file, "Date", strlen("Date"));
@@ -264,21 +272,29 @@ TEST_F(AbckitScenarioCTestClean, LibAbcKitTestDynamicAddLogClean)
                                      strlen("file: src/MyClass, function: MyClass.handle"));
     data.consume = g_implM->createString(file, "Ellapsed time:", strlen("Ellapsed time:"));
 
-    AbckitCoreFunction *handleMethod;
+    AbckitCoreFunction *handleMethod = nullptr;
     EnumerateAllMethods(file, [&](AbckitCoreFunction *method) {
         auto methodName = GetMethodName(method);
         if (methodName == "handle") {
             handleMethod = method;
         }
     });
+    ASSERT_NE(handleMethod, nullptr);
 
     AbckitGraph *graph = g_implI->createGraphFromFunction(handleMethod);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    ASSERT_NE(graph, nullptr);
     TransformIr(graph, &data);
+    ASSERT_FALSE(HasFatalFailure());
     g_implM->functionSetGraph(handleMethod, graph);
-    constexpr auto OUTPUT_PATH = ABCKIT_ABC_DIR "clean_scenarios/c_api/dynamic/add_log/add_log_dynamic_modified.abc";
-    g_impl->writeAbc(file, OUTPUT_PATH, strlen(OUTPUT_PATH));
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
     g_impl->destroyGraph(graph);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    g_impl->writeAbc(file, OUTPUT_PATH, strlen(OUTPUT_PATH));
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    ASSERT_TRUE(std::filesystem::is_regular_file(OUTPUT_PATH));
     g_impl->closeFile(file);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
 
     output = helpers::ExecuteDynamicAbc(OUTPUT_PATH, "add_log_dynamic");
     EXPECT_TRUE(helpers::Match(output,

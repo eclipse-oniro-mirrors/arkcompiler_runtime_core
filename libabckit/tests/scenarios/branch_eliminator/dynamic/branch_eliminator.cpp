@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -44,6 +44,28 @@ void BranchEliminator::Run()
         vh_.EnumerateModuleFunctions(mod,
                                      [&](AbckitCoreFunction *func) { EliminateBranchWithSuspect(func, suspects); });
     });
+}
+
+// 20260807927972 Task 02-06: per-function entry points for parallel scheduling. CollectFunctionTasks
+// runs on the main thread (module/function enumeration + suspects resolution are read-only but not
+// hardened for concurrency); RunFunctionTask is the per-function eliminate (createGraphFromFunction
+// D1 + functionSetGraph D4 on distinct functions) that workers run concurrently.
+void BranchEliminator::CollectFunctionTasks(std::vector<std::pair<AbckitCoreFunction *, SuspectsType>> &tasks)
+{
+    vh_.EnumerateModules([&](AbckitCoreModule *mod) {
+        SuspectsType suspects;
+        if (!GetSuspects(mod, suspects)) {
+            return;
+        }
+        vh_.EnumerateModuleFunctions(mod, [&](AbckitCoreFunction *func) {
+            tasks.emplace_back(func, suspects);  // copy: suspects is read-only during elimination
+        });
+    });
+}
+
+void BranchEliminator::RunFunctionTask(AbckitCoreFunction *func, const SuspectsType &suspects)
+{
+    EliminateBranchWithSuspect(func, suspects);
 }
 
 bool BranchEliminator::GetSuspects(AbckitCoreModule *mod, SuspectsType &suspects)

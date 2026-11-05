@@ -16,6 +16,7 @@
 #ifndef COMPILER_OPTIMIZER_PASS_MANAGER_H
 #define COMPILER_OPTIMIZER_PASS_MANAGER_H
 
+#include <atomic>
 #include <tuple>
 #include "compiler_options.h"
 #include "pass.h"
@@ -151,16 +152,16 @@ public:
         return checkMode_;
     }
 
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     size_t GetExecutionCounter() const
     {
-        return executionCounter_;
+        return executionId_;
     }
 
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void StartExecution()
     {
-        executionCounter_++;
+        // Atomic with relaxed order reason: only unique ID allocation is needed; no other data is published.
+        executionId_ = executionCounter_.fetch_add(1, std::memory_order_relaxed) + 1;
+        firstExecution_ = false;
     }
 
 private:
@@ -169,7 +170,8 @@ private:
     const ArenaVector<Analysis *> analyses_;
 
     PassManagerStatistics *stats_ {nullptr};
-    inline static size_t executionCounter_ {0};
+    size_t executionId_ {0};
+    inline static std::atomic_size_t executionCounter_ {0};
 
     // Whether passes are run by checker.
     bool checkMode_ {false};

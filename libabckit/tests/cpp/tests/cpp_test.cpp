@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -31,6 +31,11 @@ class LibAbcKitCppTest : public ::testing::Test {};
 // CC-OFFNXT(WordsTool.95) sensitive word conflict
 // NOLINTNEXTLINE(google-build-using-namespace)
 using namespace abckit;
+
+TEST_F(LibAbcKitCppTest, WrongStateExceptionExplainsLifecycleFailure)
+{
+    EXPECT_STREQ(abckit::Exception(ABCKIT_STATUS_WRONG_STATE).what(), "Wrong state");
+}
 
 // CC-OFFNXT(G.FUD.06) perf critical
 inline std::vector<core::Function> GetAllFunctions(const File *file)

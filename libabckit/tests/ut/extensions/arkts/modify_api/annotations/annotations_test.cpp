@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -698,11 +698,78 @@ TEST_F(LibAbcKitModifyApiAnnotationsTests, ClassAddAnnotation_WrongTargets)
 // Test: test-kind=api, api=ArktsModifyApiImpl::classRemoveAnnotation, abc-kind=ArkTS1, category=positive, extension=c
 TEST_F(LibAbcKitModifyApiAnnotationsTests, ClassRemoveAnnotation)
 {
+    constexpr auto OUTPUT =
+        ABCKIT_ABC_DIR "ut/extensions/arkts/modify_api/annotations/annotations_dynamic_modified.abc";
     helpers::TransformMethod(ABCKIT_ABC_DIR "ut/extensions/arkts/modify_api/annotations/annotations_dynamic.abc",
-                             ABCKIT_ABC_DIR
-                             "ut/extensions/arkts/modify_api/annotations/annotations_dynamic_modified.abc",
-                             "foo", ModifyClassRemoveAnnotation);
+                             OUTPUT, "foo", ModifyClassRemoveAnnotation);
     ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+
+    AbckitFile *persistedFile = nullptr;
+    helpers::AssertOpenAbc(OUTPUT, &persistedFile);
+    auto *method = helpers::FindMethodByName(persistedFile, "foo");
+    ASSERT_NE(method, nullptr);
+    auto *klass = g_implI->functionGetParentClass(method);
+    ASSERT_NE(klass, nullptr);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    helpers::AnnotationByNameContext annotationFinder = {nullptr, "Anno1"};
+    ASSERT_TRUE(g_implI->classEnumerateAnnotations(klass, &annotationFinder, helpers::AnnotationByNameFinder));
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    EXPECT_EQ(annotationFinder.anno, nullptr);
+    g_impl->closeFile(persistedFile);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+}
+
+// Test: test-kind=api, api=ArktsModifyApiImpl::classRemoveAnnotation, abc-kind=ArkTS1, category=negative, extension=c
+TEST_F(LibAbcKitModifyApiAnnotationsTests, ClassRemoveAnnotation_UnresolvedInterface)
+{
+    constexpr auto INPUT = ABCKIT_ABC_DIR "ut/extensions/arkts/modify_api/annotations/annotations_dynamic.abc";
+    constexpr auto OUTPUT =
+        ABCKIT_ABC_DIR "ut/extensions/arkts/modify_api/annotations/annotations_unresolved_preserved.abc";
+    AbckitFile *file = nullptr;
+    helpers::AssertOpenAbc(INPUT, &file);
+    auto *function = helpers::FindMethodByName(file, "foo");
+    ASSERT_NE(function, nullptr);
+    auto *klass = g_implI->functionGetParentClass(function);
+    ASSERT_NE(klass, nullptr);
+    helpers::AnnotationByNameContext finder {nullptr, "Anno1"};
+    g_implI->classEnumerateAnnotations(klass, &finder, helpers::AnnotationByNameFinder);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    ASSERT_NE(finder.anno, nullptr);
+    auto *arkClass = g_implArkI->coreClassToArktsClass(klass);
+    auto *arkAnnotation = g_implArkI->coreAnnotationToArktsAnnotation(finder.anno);
+    ASSERT_NE(arkClass, nullptr);
+    ASSERT_NE(arkAnnotation, nullptr);
+    const auto annotationCount = klass->annotations.size();
+    const auto generation = file->dynamicStructuralGeneration.load();
+    auto *originalInterface = finder.anno->ai;
+    // Model an annotation whose interface could not be resolved by the loader.
+    // Keep its valid class owner and use the real public API and Program backend.
+    finder.anno->ai = nullptr;
+    g_implArkM->classRemoveAnnotation(arkClass, arkAnnotation);
+    const auto status = g_impl->getLastError();
+    // Restore the fixture before serialization, without dereferencing a possibly erased annotation.
+    if (klass->annotations.size() == annotationCount) {
+        finder.anno->ai = originalInterface;
+    }
+    EXPECT_EQ(status, ABCKIT_STATUS_UNSUPPORTED);
+    EXPECT_EQ(klass->annotations.size(), annotationCount);
+    EXPECT_EQ(file->dynamicStructuralGeneration.load(), generation);
+    g_impl->writeAbc(file, OUTPUT, strlen(OUTPUT));
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    g_impl->closeFile(file);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+
+    helpers::AssertOpenAbc(OUTPUT, &file);
+    function = helpers::FindMethodByName(file, "foo");
+    ASSERT_NE(function, nullptr);
+    klass = g_implI->functionGetParentClass(function);
+    ASSERT_NE(klass, nullptr);
+    finder = {nullptr, "Anno1"};
+    g_implI->classEnumerateAnnotations(klass, &finder, helpers::AnnotationByNameFinder);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    EXPECT_NE(finder.anno, nullptr);
+    g_impl->closeFile(file);
+    EXPECT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
 }
 
 // Test: test-kind=api, api=ArktsModifyApiImpl::classRemoveAnnotation, abc-kind=ArkTS1, category=negative, extension=c

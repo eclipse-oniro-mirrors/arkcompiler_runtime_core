@@ -66,6 +66,12 @@ struct CAPI_EXPORT AbckitApi {
      * @note Set `ABCKIT_STATUS_BAD_ARGUMENT` error if `file` is NULL.
      * @note Set `ABCKIT_STATUS_BAD_ARGUMENT` error if `path` is NULL.
      * @note Set `ABCKIT_STATUS_BAD_ARGUMENT` error if `path` is not valid.
+     * @note For a Dynamic file, wait for ordinary conflicting file locks before checking lifecycle state.
+     * Set `ABCKIT_STATUS_WRONG_STATE` if another API operation is still active or a Dynamic
+     * Graph or prepared function still uses `file`. The `writeAbc` call registers its own operation and may proceed
+     * only while it is the sole active operation.
+     * @note Writing a Dynamic file has exclusive access to that file for the duration of the call. Dynamic emitter
+     * work may also be serialized with writes or snapshot builds for other files.
      * @note Allocates
      */
     void (*writeAbc)(AbckitFile *file, const char *path, size_t len);
@@ -75,6 +81,13 @@ struct CAPI_EXPORT AbckitApi {
      * @return None.
      * @param [ in ] file - File to close.
      * @note Set `ABCKIT_STATUS_BAD_ARGUMENT` error if `file` is NULL.
+     * @note For a Dynamic file, wait for ordinary conflicting file locks before checking lifecycle state.
+     * Set `ABCKIT_STATUS_WRONG_STATE` if another API operation is still active or a Dynamic
+     * Graph or prepared function still uses `file`.
+     * @note The caller must externally synchronize `closeFile` with threads that may start new API calls using
+     * `file` or handles obtained from it.
+     * @note After `closeFile` succeeds, `file` and every handle obtained from it are invalid. A rejected close
+     * leaves the file open; resolve the reported conflict before retrying.
      */
     void (*closeFile)(AbckitFile *file);
 
@@ -83,14 +96,18 @@ struct CAPI_EXPORT AbckitApi {
      * @return None.
      * @param [ in ] graph - Graph to destroy.
      * @note Set `ABCKIT_STATUS_BAD_ARGUMENT` error if `graph` is NULL.
+     * @note The caller must ensure that no other thread accesses `graph` while it is being destroyed.
      */
     void (*destroyGraph)(AbckitGraph *graph);
 
     /**
-     * @brief Opens switch of needOptimize.
+     * @brief Retained for compatibility; has no effect.
+     * @deprecated Graph caching is managed internally.
      * @return None.
-     * @param [ in ] file - File to close.
+     * @param [ in ] file - Valid file handle.
+     * @param [ in ] needOptimize - Ignored.
      * @note Set `ABCKIT_STATUS_BAD_ARGUMENT` error if `file` is NULL.
+     * @note Otherwise, clear the previous error without changing graph creation or submission behavior.
      */
     void (*setNeedOptimize)(AbckitFile *file, bool needOptimize);
 };

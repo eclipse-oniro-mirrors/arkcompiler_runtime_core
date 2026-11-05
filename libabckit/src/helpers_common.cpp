@@ -423,6 +423,7 @@ AbckitType *GetOrCreateType(
     std::variant<AbckitCoreClass *, AbckitCoreInterface *, AbckitCoreEnum *, std::nullptr_t> reference,
     AbckitString *name)
 {
+    AbckitFileTypesCacheLock cacheLock(file);
     size_t hash = 0;
     hash = HashCombine(hash, (size_t)id);
     hash = HashCombine(hash, rank);
@@ -466,6 +467,7 @@ AbckitType *GetOrCreateType(
 
 void TypeSetNameHelper(AbckitType *type, const char *name, size_t len)
 {
+    AbckitFileTypesCacheLock cacheLock(type->file);
     auto &cache = type->file->types;
 
     size_t oldHash = 0;
@@ -515,6 +517,7 @@ void TypeSetNameHelper(AbckitType *type, const char *name, size_t len)
 
 void TypeSetRankHelper(AbckitType *type, size_t rank)
 {
+    AbckitFileTypesCacheLock cacheLock(type->file);
     auto &cache = type->file->types;
 
     size_t oldHash = 0;

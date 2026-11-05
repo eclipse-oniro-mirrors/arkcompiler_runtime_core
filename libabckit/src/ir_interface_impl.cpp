@@ -14,46 +14,111 @@
  */
 
 #include "libabckit/src/ir_impl.h"
+#include "libabckit/src/statuses_impl.h"
 #include <cassert>
+
+namespace {
+std::string ReportMissingId(const char *idKind, uint32_t offset)
+{
+    LIBABCKIT_LOG(ERROR) << "Missing " << idKind << " ID for offset " << offset << '\n';
+    libabckit::statuses::SetLastError(ABCKIT_STATUS_INTERNAL_ERROR);
+    return {};
+}
+}  // namespace
+
+AbckitIrInterface::AbckitIrInterface(const AbckitIrInterface *lookupSource) : lookupSource_(lookupSource)
+{
+    ASSERT(lookupSource_ != nullptr);
+}
+
+const AbckitIrInterface::IdMap &AbckitIrInterface::GetMethods() const
+{
+    return lookupSource_ == nullptr ? methods : lookupSource_->GetMethods();
+}
+
+const AbckitIrInterface::IdMap &AbckitIrInterface::GetFields() const
+{
+    return lookupSource_ == nullptr ? fields : lookupSource_->GetFields();
+}
+
+const AbckitIrInterface::IdMap &AbckitIrInterface::GetClasses() const
+{
+    return lookupSource_ == nullptr ? classes : lookupSource_->GetClasses();
+}
+
+const AbckitIrInterface::IdMap &AbckitIrInterface::GetStrings() const
+{
+    return lookupSource_ == nullptr ? strings : lookupSource_->GetStrings();
+}
+
+const AbckitIrInterface::IdMap &AbckitIrInterface::GetLiteralArrays() const
+{
+    return lookupSource_ == nullptr ? literalarrays : lookupSource_->GetLiteralArrays();
+}
 
 std::string AbckitIrInterface::GetMethodIdByOffset(uint32_t offset) const
 {
     auto it = methods.find(offset);
-    ASSERT(it != methods.cend());
+    if (it != methods.cend()) {
+        return std::string(it->second);
+    }
+    if (lookupSource_ != nullptr) {
+        return lookupSource_->GetMethodIdByOffset(offset);
+    }
 
-    return std::string(it->second);
+    return ReportMissingId("method", offset);
 }
 
 std::string AbckitIrInterface::GetStringIdByOffset(uint32_t offset) const
 {
     auto it = strings.find(offset);
-    ASSERT(it != strings.cend());
+    if (it != strings.cend()) {
+        return std::string(it->second);
+    }
+    if (lookupSource_ != nullptr) {
+        return lookupSource_->GetStringIdByOffset(offset);
+    }
 
-    return std::string(it->second);
+    return ReportMissingId("string", offset);
 }
 
 std::string AbckitIrInterface::GetLiteralArrayIdByOffset(uint32_t offset) const
 {
     auto it = literalarrays.find(offset);
-    ASSERT(it != literalarrays.cend());
+    if (it != literalarrays.cend()) {
+        return std::string(it->second);
+    }
+    if (lookupSource_ != nullptr) {
+        return lookupSource_->GetLiteralArrayIdByOffset(offset);
+    }
 
-    return std::string(it->second);
+    return ReportMissingId("literal array", offset);
 }
 
 std::string AbckitIrInterface::GetTypeIdByOffset(uint32_t offset) const
 {
     auto it = classes.find(offset);
-    ASSERT(it != classes.cend());
+    if (it != classes.cend()) {
+        return std::string(it->second);
+    }
+    if (lookupSource_ != nullptr) {
+        return lookupSource_->GetTypeIdByOffset(offset);
+    }
 
-    return std::string(it->second);
+    return ReportMissingId("type", offset);
 }
 
 std::string AbckitIrInterface::GetFieldIdByOffset(uint32_t offset) const
 {
     auto it = fields.find(offset);
-    ASSERT(it != fields.cend());
+    if (it != fields.cend()) {
+        return std::string(it->second);
+    }
+    if (lookupSource_ != nullptr) {
+        return lookupSource_->GetFieldIdByOffset(offset);
+    }
 
-    return std::string(it->second);
+    return ReportMissingId("field", offset);
 }
 
 void AbckitIrInterface::SetPcToLineColumnForCurrentMethod(std::unordered_map<size_t, std::pair<size_t, uint32_t>> &&map)

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -15,15 +15,16 @@
 
 #include <gtest/gtest.h>
 #include <cstring>
+#include <string_view>
 
 #include "libabckit/c/abckit.h"
 #include "libabckit/c/metadata_core.h"
-#include "metadata_inspect_impl.h"  // NOTE(mshimenkov)
 
 namespace libabckit::test {
 
 static auto g_impl = AbckitGetApiImpl(ABCKIT_VERSION_RELEASE_1_0_0);
 static auto g_implI = AbckitGetInspectApiImpl(ABCKIT_VERSION_RELEASE_1_0_0);
+static auto g_implM = AbckitGetModifyApiImpl(ABCKIT_VERSION_RELEASE_1_0_0);
 
 class LibAbcKitInspectApiStringsTest : public ::testing::Test {};
 
@@ -36,13 +37,21 @@ TEST_F(LibAbcKitInspectApiStringsTest, AbckitStringToStringStatic)
     g_implI->abckitStringToString(nullptr);
     ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_BAD_ARGUMENT);
 
-    std::string testString = "testString";
+    constexpr auto INPUT_PATH = ABCKIT_ABC_DIR "internal/implementation_api/abc_static.abc";
+    auto *file = g_impl->openAbc(INPUT_PATH, strlen(INPUT_PATH));
+    ASSERT_NE(file, nullptr);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
 
-    auto *abcTestString = new AbckitString {testString};  // NOTE
+    constexpr std::string_view TEST_STRING = "testString";
+    auto *abcTestString = g_implM->createString(file, TEST_STRING.data(), TEST_STRING.size());
+    ASSERT_NE(abcTestString, nullptr);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
     auto name = g_implI->abckitStringToString(abcTestString);
-    delete abcTestString;
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    ASSERT_EQ(name, TEST_STRING);
 
-    ASSERT_EQ(name, testString);
+    g_impl->closeFile(file);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
 }
 
 // Test: test-kind=api, api=InspectApiImpl::abckitStringToString, abc-kind=ArkTS1, category=positive, extension=c
@@ -54,13 +63,21 @@ TEST_F(LibAbcKitInspectApiStringsTest, AbckitStringToStringDynamic)
     g_implI->abckitStringToString(nullptr);
     ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_BAD_ARGUMENT);
 
-    std::string testString = "testString";
+    constexpr auto INPUT_PATH = ABCKIT_ABC_DIR "internal/implementation_api/abc_dynamic.abc";
+    auto *file = g_impl->openAbc(INPUT_PATH, strlen(INPUT_PATH));
+    ASSERT_NE(file, nullptr);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
 
-    auto *abcTestString = new AbckitString {testString};  // NOTE
+    constexpr std::string_view TEST_STRING = "testString";
+    auto *abcTestString = g_implM->createString(file, TEST_STRING.data(), TEST_STRING.size());
+    ASSERT_NE(abcTestString, nullptr);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
     auto name = g_implI->abckitStringToString(abcTestString);
-    delete abcTestString;
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    ASSERT_EQ(name, TEST_STRING);
 
-    ASSERT_EQ(name, testString);
+    g_impl->closeFile(file);
+    ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
 }
 
 }  // namespace libabckit::test
