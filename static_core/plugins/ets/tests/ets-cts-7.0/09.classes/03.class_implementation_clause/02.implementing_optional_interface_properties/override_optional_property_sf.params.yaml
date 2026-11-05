@@ -24,26 +24,34 @@ cases:
     doc: optional property is implemented as union
 
   - decl: |-
+     m: number|undefined
      get n(): number|undefined {
-       return undefined
+       return this.m
+     }
+     set n(i: number|undefined) {
+       this.m = i
      }
     check: |-
       function main(): int {
         let a: C = new C()
         arktest.assertEQ(a.n, undefined)
-        try {
-          a.n = 41
-        } catch(e) {
-          arktest.assertTrue(e instanceof InvalidStoreAccessError)
-          return 0
-        }
-        return 1
+        a.n = 41
+        arktest.assertEQ(a.n, 41)
+        return 0
       }
-    doc: optional property is implemented as getter
+    doc: optional property is implemented as accessors backed by a field
 
   - decl: |-
-     set n(i: number|undefined) {}
-    doc: optional property is implemented as setter
+     n?: number
+    check: |-
+      function main(): int {
+        let a: C = new C()
+        arktest.assertEQ(a.n, undefined)
+        a.n = 2
+        arktest.assertEQ(a.n, 2)
+        return 0
+      }
+    doc: optional property is implemented as an optional field
 
   - decl: |-
      get n(): number|undefined {

@@ -15,25 +15,20 @@
 
 /*---
 desc: >-
-      A class can implement Optional Interface Properties from superinterfaces
-      or use implicitly defined accessors from an interface.
+      Writing an optional interface property through an instance of the implementing class stores the value,
+      when the property is explicitly declared by the class.
 ---*/
 
 interface I {
   n?: number
 }
 
-class C implements I {}
+class C implements I {
+  public n?: number
+}
 
 function main() {
   let c = new C()
-  try {
-    c.n = 1
-  } catch (e) {
-    if (e instanceof InvalidStoreAccessError) {
-        arktest.assertTrue(true);
-    } else {
-        arktest.assertTrue(false);
-    }
-  }
+  c.n = 1
+  arktest.assertEQ(c.n, 1)
 }

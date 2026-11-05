@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2025-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -15,17 +15,21 @@
 
 /*---
 desc: >-
-      A class can implement Optional Interface Properties from superinterfaces
-      or use implicitly defined accessors from an interface.
+      A class implementing an interface with optional properties must declare them explicitly.
+      An explicitly declared optional property reads as undefined before initialization and stores written values.
 ---*/
 
 interface I {
   n?: number
 }
 
-class C implements I {}
+class C implements I {
+  n?: number
+}
 
 function main() {
   let c = new C()
   arktest.assertEQ(c.n, undefined)
+  c.n = 1
+  arktest.assertEQ(c.n, 1)
 }

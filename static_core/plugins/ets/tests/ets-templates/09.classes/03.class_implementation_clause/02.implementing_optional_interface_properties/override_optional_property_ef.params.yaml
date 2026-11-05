@@ -38,22 +38,29 @@ cases:
     doc: optional property is implemented as getter and setter
 #2
   - decl: |-
+     m: number|undefined
      get n(): number|undefined {
-         return undefined
+         return this.m
+     }
+     set n(i: number|undefined) {
+         this.m = i
      }
     check: |-
       function main() {
-          arktest.assertEQ(new C().n, undefined)
+          let a: C = new C()
+          arktest.assertEQ(a.n, undefined)
+          a.n = 41
+          arktest.assertEQ(a.n, 41)
       }
-    doc: optional property is implemented as getter
+    doc: optional property is implemented as accessors backed by a field
 #3
   - decl: |-
-      set n(i: number|undefined) {
-      }
+      n?: number
     check: |-
       function main() {
           let a: C = new C()
-          a.n = 2
           arktest.assertEQ(a.n, undefined)
+          a.n = 2
+          arktest.assertEQ(a.n, 2)
       }
-    doc: optional property is implemented as setter
+    doc: optional property is implemented as an optional field

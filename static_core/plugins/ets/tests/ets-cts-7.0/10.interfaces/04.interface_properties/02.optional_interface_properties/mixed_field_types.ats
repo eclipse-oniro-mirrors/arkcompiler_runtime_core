@@ -15,9 +15,9 @@ limitations under the License.
 
 /*---
 desc: >-
-    If the default setter is not overridden in a class that implements the interface, InvalidStoreAccessError is
-    thrown at attempt to set value of an optional property.
-    Class declares mandatory Interface fields, some optional fields and has own fields.
+    Every optional interface property must be explicitly declared by the implementing class, together with
+    mandatory interface fields and own fields. A declared optional property reads as undefined before
+    initialization and stores written values.
 ---*/
 
 interface I {
@@ -27,7 +27,8 @@ interface I {
 }
 
 class C implements I {
-  a: number|undefined = 2
+  a: number | undefined = 2
+  b?: number
   c: number = 1
   d: number = 3
   e?: number = undefined
@@ -40,4 +41,6 @@ function main() {
   arktest.assertEQ(i.c, 1)
   arktest.assertEQ(i.d, 3)
   arktest.assertEQ(i.e, undefined)
+  i.b = 5
+  arktest.assertEQ(i.b, 5)
 }

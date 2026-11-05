@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Huawei Device Co., Ltd.
+# Copyright (c) 2025-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,73 +13,68 @@
 
 --- # List of invalid interface members
 cases:
-  - doc: Get, no getter/setter identified
+  - doc: Get, property is declared as an optional field
     decl: |-
       interface I {
         a?: number
       }
 
-      class A implements I {}
+      class A implements I {
+        a?: number
+      }
 
       function main() {
         let i: A = new A()
         arktest.assertEQ(i.a, undefined)
       }
 
-  - doc: Set, no getter/setter identified
-    decl: |-
-      interface I {
-        a?: number
-      }
-
-      class A implements I {}
-
-      function main() {
-        let res = false
-        let i: A = new A()
-        try {
-          i.a = 2
-        } catch (e) {
-          arktest.assertEQ(i.a, undefined)
-          arktest.assertTrue(e instanceof InvalidStoreAccessError)
-          res = true
-        }
-        arktest.assertTrue(res)
-      }
-
-  - doc: Get, getter is configured
+  - doc: Set, property is declared as an optional field
     decl: |-
       interface I {
         a?: number
       }
 
       class A implements I {
-        get a(): number | undefined { return 4 }
+        a?: number
+      }
+
+      function main() {
+        let i: A = new A()
+        i.a = 2
+        arktest.assertEQ(i.a, 2)
+      }
+
+  - doc: Get, property is implemented as accessors backed by a field
+    decl: |-
+      interface I {
+        a?: number
+      }
+
+      class A implements I {
+        m: number | undefined = 4
+        get a(): number | undefined { return this.m }
+        set a(v: number | undefined) { this.m = v }
       }
 
       function main() {
         let i: A = new A()
         arktest.assertEQ(i.a, 4)
+        i.a = 2
+        arktest.assertEQ(i.a, 2)
       }
 
-  - doc: Set, getter is configured
+  - doc: Set, property is declared as an optional field and written through an interface-typed reference
     decl: |-
       interface I {
         a?: number
       }
 
       class A implements I {
-        get a(): number | undefined { return 4 }
+        a?: number
       }
 
       function main() {
-        let res = false
-        let i: A = new A()
-        try {
-          i.a = 2
-        } catch (e) {
-          arktest.assertTrue(e instanceof InvalidStoreAccessError)
-          res = true
-        }
-        arktest.assertTrue(res)
+        let i: I = new A()
+        i.a = 2
+        arktest.assertEQ(i.a, 2)
       }
