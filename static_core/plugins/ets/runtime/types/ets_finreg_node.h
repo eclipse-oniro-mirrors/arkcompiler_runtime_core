@@ -59,6 +59,21 @@ public:
         return ObjectAccessor::SetObject(this, GetNextOffset(), ToCoreType(next));
     }
 
+    EtsWeakReference *GetToken() const
+    {
+        return reinterpret_cast<EtsWeakReference *>(ObjectAccessor::GetObject(this, GetTokenOffset()));
+    }
+
+    void ClearToken()
+    {
+        ObjectAccessor::SetObject(this, GetTokenOffset(), nullptr);
+    }
+
+    void SetBucketIdx(EtsInt bucketIdx)
+    {
+        bucketIdx_ = bucketIdx;
+    }
+
     EtsInt GetBucketIdx() const
     {
         return bucketIdx_;

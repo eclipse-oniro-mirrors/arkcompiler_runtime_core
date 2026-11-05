@@ -113,7 +113,8 @@ export final class FinalizationRegistry<T> {
 
                 // Rehash if elements count > 0.75 of map size
                 if (this.mapSize * 4 > this.buckets.length * 3) {
-                    this.rehash(this.buckets.length * 4)
+                    const newMap = new FixedArray<FinRegNode<T> | undefined>(this.buckets.length * 4, undefined);
+                    this.rehash(newMap);
                 }
             } finally {
                 this.mutex.unlock();
@@ -159,40 +160,7 @@ export final class FinalizationRegistry<T> {
         }
     }
 
-    private rehash(newSizeArg: int) {
-        const oldMap = this.buckets;
-        const newSize = newSizeArg;
-        this.buckets = new FixedArray<(FinRegNode<T> | undefined)>(newSize, undefined);
-        this.mapSize = 0;
-        for (let oldMapIdx = 0; oldMapIdx < oldMap.length; oldMapIdx++) {
-            let nextNode: (FinRegNode<T> | undefined) = undefined;
-            for (let currNode = oldMap[oldMapIdx]; currNode != undefined; currNode = nextNode) {
-                nextNode = currNode!.next;
-                if (currNode!.token!.deref() != undefined) {
-                    const bucketIdx = this.getBucketIndex(Runtime.getHashCode(currNode!.token!.deref()!));
-                    currNode!.bucketIdx = bucketIdx;
-                    if (this.buckets[bucketIdx] == undefined) {
-                        this.buckets[bucketIdx] = currNode;
-                        currNode!.prev = undefined;
-                        currNode!.next = undefined;
-                    } else {
-                        let head = this.buckets[bucketIdx]!;
-                        head.prev = currNode;
-                        currNode!.prev = undefined;
-                        currNode!.next = head;
-                        this.buckets[bucketIdx] = currNode;
-                    }
-                    this.mapSize++;
-                } else {
-                    // Token was deleted, so put node into non-unregistrable list
-                    currNode!.prev = undefined;
-                    currNode!.next = this.nonUnregistrableList;
-                    this.nonUnregistrableList = currNode;
-                    this.listSize++;
-                }
-            }
-        }
-    }
+    private native rehash(newMap: FixedArray<FinRegNode<T> | undefined>): void;
 
     private getBucketIndex(x: int): int {
         const t = x >> 31;

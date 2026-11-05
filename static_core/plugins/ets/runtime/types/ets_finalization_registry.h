@@ -69,6 +69,8 @@ public:
         ObjectAccessor::SetObject(this, GetFinalizationQueueHeadOffset(), EtsObject::ToCoreType(head));
     }
 
+    void Rehash(EtsTypedObjectArray<EtsFinRegNode> *newMap);
+
     static void Enqueue(EtsFinRegNode *node, EtsFinalizationRegistry *finReg);
 
     static EtsFinalizationRegistry *FromCoreType(ObjectHeader *obj)

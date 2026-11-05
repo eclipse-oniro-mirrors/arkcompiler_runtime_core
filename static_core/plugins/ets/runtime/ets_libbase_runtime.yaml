@@ -6116,6 +6116,17 @@ intrinsics:
       args: [ std.core.FinalizationRegistry ]
     impl: ark::ets::intrinsics::StdFinalizationRegistryPopFinReg
 
+  - name: StdFinalizationRegistryRehash
+    space: ets
+    class_name: std.core.FinalizationRegistry
+    method_name: rehash
+    static: false
+    signature:
+      ret: void
+      args:
+        - std.core.FinRegNode[]
+    impl: ark::ets::intrinsics::StdFinalizationRegistryRehash
+
   - name: StdFinalizationRegistryFinishCleanup
     space: ets
     class_name: std.core.FinalizationRegistry
