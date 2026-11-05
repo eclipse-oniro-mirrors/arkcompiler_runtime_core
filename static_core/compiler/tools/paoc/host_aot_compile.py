@@ -242,8 +242,24 @@ def build_config_components(abc_to_methods_file, existing_components):
     return components
 
 
+def build_host_env(aot_tool):
+    """Build environment for running ark_aot_host, adding LD_LIBRARY_PATH
+    for transitive .so dependencies that are not in the tool's own directory.
+    """
+    env = os.environ.copy()
+    tool_dir = os.path.dirname(os.path.abspath(aot_tool))
+    # --aot-tool is .../arkcompiler/runtime_core/ark_aot_host
+    # tool_dir is  .../arkcompiler/runtime_core
+    # two levels up is the parent of arkcompiler/, where thirdparty/ is a sibling
+    lz4_dir = os.path.join(os.path.dirname(os.path.dirname(tool_dir)), "thirdparty", "lz4")
+    if os.path.isdir(lz4_dir):
+        env["LD_LIBRARY_PATH"] = lz4_dir + ":" + env.get("LD_LIBRARY_PATH", "")
+        LOG.info("Adding LD_LIBRARY_PATH: %s", lz4_dir)
+    return env
+
+
 def compile_component(aot_tool, system_path, component, boot_json_path,
-                      default_aot_args, abc_to_methods_file):
+                      default_aot_args, abc_to_methods_file, host_env):
     """Compile a single component using ark_aot_host.
 
     Returns True on success, False on failure.
@@ -320,7 +336,8 @@ def compile_component(aot_tool, system_path, component, boot_json_path,
     LOG.info("Host AOT start: %s, cmd: %s", name, " ".join(cmd))
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False,
+                                env=host_env)
         if result.stdout:
             LOG.info("[%s] stdout:\n%s", name, result.stdout)
         if result.stderr:
@@ -415,6 +432,8 @@ def main():
     max_workers = max(1, min(len(components), cpu_count))
     LOG.info("Using thread pool workers=%d (cpu_count=%d)", max_workers, cpu_count)
 
+    host_env = build_host_env(args.aot_tool)
+
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_name = {}
         for component in components:
@@ -427,6 +446,7 @@ def main():
                 boot_json_path,
                 default_aot_args,
                 abc_to_methods_file,
+                host_env
             )
             future_to_name[future] = name
 
