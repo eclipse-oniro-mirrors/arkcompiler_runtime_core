@@ -13,11 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-import pathlib
-import tempfile
 import unittest
-from test.mock.device import FakeDevice
 
 import pydantic
 
@@ -28,8 +24,6 @@ from src.schema import (
     SnapshotCommand,
     UnprocessedFlow,
 )
-
-import lib
 
 
 def _app(commands: list[object], label: str = "app") -> dict[str, object]:
@@ -350,45 +344,6 @@ class PreprocessTest(unittest.TestCase):
                 }
             ],
         })
-
-    def test_run_persists_expanded_canonical_flow_json(self) -> None:
-        device = FakeDevice()
-        flow = preprocess_flow(
-            UnprocessedFlow.model_validate(
-                {
-                    "flow": [
-                        _app(
-                            [
-                                {
-                                    "macro": "repeat",
-                                    "payload": {
-                                        "iter_var": "i",
-                                        "n_iter": 2,
-                                        "commands": [
-                                            {"action": "snapshot",
-                                                "payload": "shot_{i}"},
-                                        ],
-                                    },
-                                }
-                            ]
-                        )
-                    ]
-                }
-            )
-        )
-        with tempfile.TemporaryDirectory() as directory:
-            out_dir = pathlib.Path(directory).joinpath("out")
-
-            lib.run(flow, device, out_dir=out_dir,
-                    device_log=False)
-
-            flow_json = json.loads(
-                out_dir.joinpath("flow.json").read_text(encoding="utf-8"))
-        self.assertNotIn("macro", json.dumps(flow_json))
-        self.assertEqual(flow_json["flow"][0]["commands"], [
-            {"action": "snapshot", "payload": "shot_0"},
-            {"action": "snapshot", "payload": "shot_1"},
-        ])
 
 
 if __name__ == "__main__":

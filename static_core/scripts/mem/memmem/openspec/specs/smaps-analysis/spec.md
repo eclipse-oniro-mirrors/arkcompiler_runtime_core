@@ -47,7 +47,15 @@ The system SHALL group parsed smaps mappings by mapping tag and produce a memory
 - **THEN** the parser assigns it a stable tag suitable for reporting
 
 ### Requirement: Smaps parser exposes typed summary objects
-The system SHALL expose immutable dataclasses for `MemProfile` and `SmapsSummary` where `SmapsSummary.total` contains aggregate metrics and `SmapsSummary.breakdown` maps tags to aggregate metrics.
+The parser SHALL preserve immutable MemProfile and SmapsSummary objects exposing total and per-tag profiles. Profile fields SHALL remain size_kb, rss_kb, pss_kb, referenced_kb, shared_kb, private_kb, swap_kb, swap_pss_kb and anonymous_kb integers. Parsing SHALL return a summary when at least one mapping is aggregated, including zero-valued mappings, and None when none is aggregated.
+
+#### Scenario: Matching mapping has zero values
+- **WHEN** an included mapping has no nonzero supported metrics
+- **THEN** the parser returns a zero-valued summary rather than None
+
+#### Scenario: No mapping is aggregated
+- **WHEN** text contains no mappings or all mappings are excluded
+- **THEN** the parser returns None
 
 #### Scenario: Caller parses smaps text
 - **WHEN** a caller invokes `parse_smaps_text` with raw smaps text
@@ -58,7 +66,23 @@ The system SHALL expose immutable dataclasses for `MemProfile` and `SmapsSummary
 - **THEN** the profile exposes `size_kb`, `rss_kb`, `pss_kb`, `referenced_kb`, `shared_kb`, `private_kb`, `swap_kb`, `swap_pss_kb`, and `anonymous_kb` integer fields
 
 ### Requirement: Smaps parser filters mappings by tag pattern
-The system SHALL accept an optional compiled regular expression as a tag filter for `parse_smaps_text`. When no filter is provided, the parser SHALL aggregate every mapping as today. When a filter is provided, the parser SHALL include a mapping's values in both the per-tag breakdown and the total profile only if `pattern.match(normalized_tag)` returns a match, where the pattern is a compiled `re.Pattern`, the tag is the normalized mapping tag (whitespace-stripped; `[anonymous]` for mappings without an explicit path), and matching uses `re.match` semantics anchored at the start of the tag. The parser SHALL return `None` when no mapping was aggregated (the text contains no mappings, or the filter excludes every mapping); mappings that are aggregated with zero values SHALL NOT be conflated with no aggregated mappings and SHALL yield a summary. The parser SHALL remain free of logging and global state.
+The system SHALL use a non-null compiled string regular expression for parse_smaps_text, defaulting to compiled `.*` when omitted. Explicit None, bytes patterns and non-pattern values SHALL be rejected. The pattern SHALL match each normalized tag using Pattern.match (start-anchored re.match semantics); whitespace SHALL be stripped and missing tags normalized to `[anonymous]`. Included mappings SHALL contribute to both totals and per-tag breakdowns. The parser SHALL remain logging-free and preserve existing supported-metric parsing, shared/private derivation, ignored unsupported or malformed metric lines, and zero defaults for absent metrics. No new content-integrity validation SHALL be inferred from structural evidence validation.
+
+#### Scenario: Default includes every tag
+- **WHEN** parsing is called with the default pattern
+- **THEN** every mapping contributes exactly as unfiltered parsing did
+
+#### Scenario: Start-anchored matching is used
+- **WHEN** patterns `.*\.so` and `\.so$` are applied to `/system/lib64/lib.so`
+- **THEN** the first matches and the second does not
+
+#### Scenario: Anonymous mapping is matched
+- **WHEN** a pattern matching `[anonymous]` is supplied
+- **THEN** pathless mappings are included according to their normalized tag
+
+#### Scenario: Explicit None is supplied
+- **WHEN** a caller passes None instead of a compiled string pattern
+- **THEN** the parser rejects it instead of treating it as an alternate unfiltered mode
 
 #### Scenario: Parser aggregates all tags without a filter
 - **WHEN** a caller invokes `parse_smaps_text` without a tag filter

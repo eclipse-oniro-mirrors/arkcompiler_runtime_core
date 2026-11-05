@@ -75,6 +75,13 @@ The ABD backend SHALL accept every existing UI action in a validated flow. Where
 - **WHEN** a flow requests coordinate text input or focused text through the ABD backend
 - **THEN** the backend performs best-effort Andr0id text input without changing flow validation
 
+### Requirement: Andr0id backend rejects multi-touch input
+The ABD backend SHALL preserve `is_command_supported(command)` behavior: `False` for `multi_touch_input` and `True` for every other current canonical flow command. The public `execute_flow` entry SHALL reject a flow containing a command the backend reports unsupported before reserving evidence, performing device actions, or launching an AppFlow. It SHALL NOT approximate multi-touch input through sequential single-pointer gestures. Moving execution and view ownership SHALL not change ABD UI command translation or device behavior.
+
+#### Scenario: Andr0id flow requires multi-touch input
+- **WHEN** a canonical flow contains `multi_touch_input` and ABD is selected
+- **THEN** `execute_flow` raises before evidence reservation, device actions, or AppFlow launch
+
 ### Requirement: Andr0id health check is temporarily synthetic
 The ABD backend SHALL return a healthy device-health result without reading Andr0id battery or thermal sources until Andr0id health discovery is implemented.
 

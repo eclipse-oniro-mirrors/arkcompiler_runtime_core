@@ -13,76 +13,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pathlib
-import tempfile
+import contextlib
+import io
 import unittest
-from unittest import mock
 
-import summarize
+from create_view import build_parser as create_view_parser
+from execute_flow import build_parser as execute_flow_parser
 
 
-class SummarizeTest(unittest.TestCase):
-    def test_completed_iteration_stores_skips_iteration_without_summary(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            out_dir = pathlib.Path(directory)
-            complete = out_dir.joinpath("iteration_0")
-            incomplete = out_dir.joinpath("iteration_1")
-            complete.mkdir()
-            incomplete.mkdir()
-            complete.joinpath("summary.csv").touch()
+class CliAcceptanceTest(unittest.TestCase):
+    def test_execute_flow_accepts_execution_options(self) -> None:
+        args = execute_flow_parser().parse_args([
+            "--flow", "flow.json", "--out-dir", "evidence", "--repeats", "2",
+            "--no-device-log",
+        ])
 
-            with mock.patch("summarize.lib.get_logger") as get_logger:
-                stores = summarize.completed_iteration_stores(out_dir)
+        self.assertEqual(args.out_dir.name, "evidence")
+        self.assertEqual(args.repeats, 2)
+        self.assertFalse(args.device_log)
 
-            self.assertEqual([store.local_out_dir()
-                             for store in stores], [complete])
-            get_logger.return_value.warn.assert_called_once_with(
-                f"skipping iteration without summary.csv: {incomplete}")
+    def test_create_view_requires_sources_and_destination(self) -> None:
+        parser = create_view_parser()
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                parser.parse_args([])
+            with self.assertRaises(SystemExit):
+                parser.parse_args(["evidence"])
 
-    def test_completed_iteration_stores_rejects_no_summaries(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            out_dir = pathlib.Path(directory)
-            out_dir.joinpath("iteration_0").mkdir()
 
-            with self.assertRaisesRegex(RuntimeError, "no iteration summary.csv"):
-                summarize.completed_iteration_stores(out_dir)
-
-    def test_main_passes_only_summary_stores_to_averaging(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            out_dir = pathlib.Path(directory)
-            complete = out_dir.joinpath("iteration_0")
-            complete.mkdir()
-            complete.joinpath("summary.csv").touch()
-            out_dir.joinpath("iteration_1").mkdir()
-            with mock.patch("sys.argv", ["summarize.py", "--out-dir", str(out_dir)]), \
-                    mock.patch("summarize.average_reports") as average:
-                self.assertEqual(summarize.main(), 0)
-
-            stores = average.call_args.args[1]
-            self.assertEqual([store.local_out_dir()
-                             for store in stores], [complete])
-
-    def test_parser_rejects_memmem_log_options(self) -> None:
-        with self.assertRaises(SystemExit):
-            summarize.build_parser().parse_args([
-                "--out-dir", "out", "--memmem-log-level", "info",
-            ])
-
-    def test_summarize_preserves_prior_summary_on_failure(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            out_dir = pathlib.Path(directory)
-            complete = out_dir.joinpath("iteration_0")
-            complete.mkdir()
-            complete.joinpath("summary.csv").touch()
-            summary = out_dir.joinpath("summary")
-            summary.mkdir()
-            summary.joinpath("old.txt").write_text("old", encoding="utf-8")
-
-            with mock.patch("summarize.average_reports",
-                            side_effect=RuntimeError("failed")):
-                with self.assertRaisesRegex(RuntimeError, "failed"):
-                    summarize.summarize(out_dir)
-
-            self.assertEqual(summary.joinpath(
-                "old.txt").read_text(encoding="utf-8"), "old")
-            self.assertFalse(out_dir.joinpath(".summary-backup").exists())
+if __name__ == "__main__":
+    unittest.main()

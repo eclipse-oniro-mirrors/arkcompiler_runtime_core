@@ -25,9 +25,33 @@ from test.mock.hdc import FakeHdc
 from src.device import CommandResult, Point, ThermalZoneHealth
 from src.platform.andr0id.abd import Abd
 from src.platform.andr0id.abd_device import AbdDevice
+from src.schema import (MultiTouchInputCommand, MultiTouchInputPayload,
+                        SwipeCommand, SwipePayload)
 
 
 class AbdTest(unittest.TestCase):
+    def test_command_support_rejects_only_multi_touch_input(self) -> None:
+        device = AbdDevice(FakeHdc())  # type: ignore[arg-type]
+        multi_touch = MultiTouchInputCommand(
+            action="multi_touch_input",
+            payload=MultiTouchInputPayload(
+                finger_list=(
+                    {"x1_pct": 0, "y1_pct": 0, "x2_pct": 50, "y2_pct": 50},
+                    {"x1_pct": 100, "y1_pct": 100, "x2_pct": 50, "y2_pct": 50},
+                ),
+                duration_ms=500,
+            ),
+        )
+        swipe = SwipeCommand(
+            action="swipe",
+            payload=SwipePayload(
+                x1_pct=0, y1_pct=0, x2_pct=100, y2_pct=100, velocity=200,
+            ),
+        )
+
+        self.assertFalse(device.is_command_supported(multi_touch))
+        self.assertTrue(device.is_command_supported(swipe))
+
     def test_shell_quotes_remote_arguments(self) -> None:
         completed = subprocess.CompletedProcess(
             args=[], returncode=0, stdout="", stderr="")

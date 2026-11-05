@@ -17,6 +17,8 @@ import typing
 
 import pydantic
 
+from src.pydantic_helpers import PydanticModel
+
 
 _LABEL_PATTERN = r"^[A-Za-z0-9_-]+$"
 _ITER_VAR_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]*$"
@@ -36,8 +38,7 @@ TextPayload = typing.Annotated[str, pydantic.Field(min_length=1, strict=True)]
 PayloadT = typing.TypeVar("PayloadT")
 
 
-class _CommandBase(pydantic.BaseModel, typing.Generic[PayloadT]):
-    model_config = pydantic.ConfigDict(extra="forbid")
+class _CommandBase(PydanticModel, typing.Generic[PayloadT]):
 
     payload: PayloadT
 
@@ -54,31 +55,29 @@ class ScreenshotCommand(_CommandBase[Label]):
     action: typing.Literal["screenshot"]
 
 
-class TapPayload(pydantic.BaseModel):
-    model_config = pydantic.ConfigDict(extra="forbid")
+class TapPayload(PydanticModel):
 
     x_pct: Percentile
     y_pct: Percentile
 
 
-class SwipePayload(pydantic.BaseModel):
-    model_config = pydantic.ConfigDict(extra="forbid")
+class Displacement(PydanticModel):
 
     x1_pct: Percentile
     y1_pct: Percentile
     x2_pct: Percentile
     y2_pct: Percentile
+
+
+class SwipePayload(Displacement):
     velocity: Velocity
 
 
 class FlingPayload(SwipePayload):
-    model_config = pydantic.ConfigDict(extra="forbid")
-
     step_length: StepLength
 
 
-class DirectionalFlingPayload(pydantic.BaseModel):
-    model_config = pydantic.ConfigDict(extra="forbid")
+class DirectionalFlingPayload(PydanticModel):
 
     direction: typing.Literal["left", "right", "up", "down"]
     velocity: Velocity
@@ -86,13 +85,20 @@ class DirectionalFlingPayload(pydantic.BaseModel):
 
 
 class InputTextPayload(TapPayload):
-    model_config = pydantic.ConfigDict(extra="forbid")
-
     text: TextPayload
 
 
-class NamedKeyPayload(pydantic.BaseModel):
-    model_config = pydantic.ConfigDict(extra="forbid")
+class MultiTouchInputPayload(PydanticModel):
+
+    finger_list: (
+        tuple[Displacement, Displacement]
+        | tuple[Displacement, Displacement, Displacement]
+    )
+    duration_ms: typing.Annotated[
+        int, pydantic.Field(ge=1, le=15000, strict=True)]
+
+
+class NamedKeyPayload(PydanticModel):
 
     key: typing.Literal["Home", "Back", "Power"]
 
@@ -137,6 +143,10 @@ class TextCommand(_CommandBase[TextPayload]):
     action: typing.Literal["text"]
 
 
+class MultiTouchInputCommand(_CommandBase[MultiTouchInputPayload]):
+    action: typing.Literal["multi_touch_input"]
+
+
 Command = typing.Annotated[
     WaitCommand
     | SnapshotCommand
@@ -150,13 +160,13 @@ Command = typing.Annotated[
     | FlingCommand
     | DirectionalFlingCommand
     | InputTextCommand
-    | TextCommand,
+    | TextCommand
+    | MultiTouchInputCommand,
     pydantic.Field(discriminator="action"),
 ]
 
 
-class AppFlow(pydantic.BaseModel):
-    model_config = pydantic.ConfigDict(extra="forbid")
+class AppFlow(PydanticModel):
 
     label: Label
     bundle: str
@@ -165,9 +175,9 @@ class AppFlow(pydantic.BaseModel):
     commands: list[Command]
 
 
-class Flow(pydantic.BaseModel):
+class Flow(PydanticModel):
     model_config = pydantic.ConfigDict(
-        serialize_by_alias=True, validate_by_name=True, extra="forbid")
+        serialize_by_alias=True, validate_by_name=True)
 
     desc: pydantic.StrictStr | None = pydantic.Field(
         default=None,
@@ -224,19 +234,18 @@ UnprocessedCommand = typing.Annotated[
     | FlingCommand
     | DirectionalFlingCommand
     | InputTextCommand
-    | TextCommand,
+    | TextCommand
+    | MultiTouchInputCommand,
     pydantic.Field(discriminator="action"),
 ]
 
 
-class _MacroBase(pydantic.BaseModel, typing.Generic[PayloadT]):
-    model_config = pydantic.ConfigDict(extra="forbid")
+class _MacroBase(PydanticModel, typing.Generic[PayloadT]):
 
     payload: PayloadT
 
 
-class RepeatMacroPayload(pydantic.BaseModel):
-    model_config = pydantic.ConfigDict(extra="forbid")
+class RepeatMacroPayload(PydanticModel):
 
     iter_var: IterVar
     n_iter: typing.Annotated[int, pydantic.Field(ge=0, strict=True)]
@@ -250,8 +259,7 @@ class RepeatMacro(_MacroBase[RepeatMacroPayload]):
 Macro = typing.Annotated[RepeatMacro, pydantic.Field(discriminator="macro")]
 
 
-class UnprocessedAppFlow(pydantic.BaseModel):
-    model_config = pydantic.ConfigDict(extra="forbid")
+class UnprocessedAppFlow(PydanticModel):
 
     label: str
     bundle: str
@@ -260,9 +268,9 @@ class UnprocessedAppFlow(pydantic.BaseModel):
     commands: list[Macro | Command]
 
 
-class UnprocessedFlow(pydantic.BaseModel):
+class UnprocessedFlow(PydanticModel):
     model_config = pydantic.ConfigDict(
-        serialize_by_alias=True, validate_by_name=True, extra="forbid")
+        serialize_by_alias=True, validate_by_name=True)
 
     desc: pydantic.StrictStr | None = pydantic.Field(
         default=None,

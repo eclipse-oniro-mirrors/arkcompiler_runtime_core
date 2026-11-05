@@ -24,6 +24,7 @@ import typing
 from src.device import (CommandResult, Device, DeviceHealth, Point, ScreenBounds,
                         ThermalZoneHealth)
 from src.platform.andr0id.abd import Abd
+from src.schema import Command, MultiTouchInputCommand
 
 
 _SIZE_RE = re.compile(r"(\d+)x(\d+)")
@@ -52,6 +53,9 @@ def _swipe_duration(start: Point, end: Point, velocity: int) -> int:
 class AbdDevice(Device):
     def __init__(self, abd: Abd) -> None:
         self.abd = abd
+
+    def is_command_supported(self, command: Command) -> bool:
+        return not isinstance(command, MultiTouchInputCommand)
 
     def launch_app(self, bundle: str, ability: str) -> None:
         result = self.abd.shell("am", "start", "-W",
@@ -204,6 +208,11 @@ class AbdDevice(Device):
         duration_ms = _swipe_duration(start, end, velocity)
         self._input("touchscreen", "draganddrop", str(start.x), str(start.y),
                     str(end.x), str(end.y), str(duration_ms))
+
+    def multi_touch_input(
+        self, _finger_list: list[tuple[Point, Point]], _duration_ms: int
+    ) -> None:
+        raise RuntimeError("ABD does not support multi-touch input")
 
     def fling(self, start: Point, end: Point, velocity: int, _step_length: int) -> None:
         self._fling(start, end)

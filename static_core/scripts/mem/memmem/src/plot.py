@@ -14,17 +14,14 @@
 # limitations under the License.
 
 import collections
-import math
+import dataclasses
 import pathlib
-import typing
 import matplotlib.pyplot as plt
 import matplotlib
 import matplotlib.ticker
 
-from src.result import ResultStore
-from src.metadata import ArtifactMetadataFile
-from src.log import get_logger
-from src.smaps import SUMMARY_METRICS, MemProfile
+from src.store import ViewStore
+from src.smaps import SUMMARY_METRICS
 
 
 matplotlib.use("Agg")
@@ -38,111 +35,41 @@ METRICS = [
 ]
 
 
-class PlotRow(typing.Protocol):
-    @property
-    def app_label(self) -> str:
-        ...
-
-    @property
-    def snapshot_label(self) -> str:
-        ...
-
-    @property
-    def profile(self) -> MemProfile:
-        ...
+@dataclasses.dataclass(frozen=True)
+class AveragedStatistics:
+    mean: float
+    geomean: float
+    median: float
+    std: float
+    min: int
+    max: int
 
 
-class AveragedStatistics(typing.Protocol):
-    @property
-    def mean(self) -> float:
-        ...
-
-    @property
-    def geomean(self) -> float:
-        ...
-
-    @property
-    def median(self) -> float:
-        ...
-
-    @property
-    def std(self) -> float:
-        ...
-
-    @property
-    def min(self) -> int:
-        ...
-
-    @property
-    def max(self) -> int:
-        ...
+@dataclasses.dataclass(frozen=True)
+class AveragedPlotRow:
+    app_label: str
+    snapshot_label: str
+    metrics: dict[str, AveragedStatistics]
 
 
-class AveragedPlotRow(typing.Protocol):
-    @property
-    def app_label(self) -> str:
-        ...
-
-    @property
-    def snapshot_label(self) -> str:
-        ...
-
-    @property
-    def metrics(self) -> typing.Mapping[str, AveragedStatistics]:
-        ...
-
-
-class LabelLayout(typing.NamedTuple):
+@dataclasses.dataclass(frozen=True)
+class LabelLayout:
     rotation: int
     font_size: int
     width: float
     bottom: float
 
 
-def generate_plots(rows: typing.Sequence[PlotRow], store: ResultStore) -> None:
-    snapshot_timestamps = read_snapshot_timestamps(store)
-    if not snapshot_timestamps:
-        get_logger().warn("skipping plot generation without snapshot metadata")
-        return
-    grouped: dict[str, list[PlotRow]] = collections.defaultdict(list)
-    for row in rows:
-        grouped[row.app_label].append(row)
-
-    for app_label, app_rows in grouped.items():
-        sorted_rows = sorted(
-            app_rows,
-            key=lambda row: snapshot_timestamps[row.snapshot_label],
-        )
-        first_timestamp = snapshot_timestamps[sorted_rows[0].snapshot_label]
-        x_values = [(snapshot_timestamps[row.snapshot_label] - first_timestamp) /
-                    1_000_000_000 for row in sorted_rows]
-        for metric, attribute in METRICS:
-            y_values = [_metric_value(row, attribute) for row in sorted_rows]
-            _write_plot(
-                app_label=app_label,
-                metric=metric,
-                x_values=x_values,
-                y_values=y_values,
-                snapshot_labels=[row.snapshot_label for row in sorted_rows],
-                y_label=f"{metric} KB",
-                title=f"{app_label} {metric}",
-                path=store.local_plot_path(
-                    app_label, metric, extension=PLOT_EXTENSION),
-            )
-
-
 def generate_averaged_plots(
-    rows: typing.Sequence[AveragedPlotRow],
-    store: ResultStore,
-    timestamps: typing.Mapping[str, int],
+    rows: list[AveragedPlotRow],
+    store: ViewStore,
+    timestamps: dict[str, int],
 ) -> None:
-    if not timestamps:
-        get_logger().warn("skipping averaged plot generation without snapshot metadata")
-        return
     grouped: dict[str, list[AveragedPlotRow]] = collections.defaultdict(list)
     for row in rows:
         if row.snapshot_label not in timestamps:
-            continue
+            raise RuntimeError(
+                f"missing timestamp for plotted snapshot: {row.snapshot_label}")
         grouped[row.app_label].append(row)
 
     for app_label, app_rows in grouped.items():
@@ -155,55 +82,25 @@ def generate_averaged_plots(
                     1_000_000_000 for row in sorted_rows]
         for metric, attribute in METRICS:
             _write_plot(
-                app_label=app_label,
-                metric=metric,
                 x_values=x_values,
                 y_values=[
                     row.metrics[attribute].geomean for row in sorted_rows],
                 snapshot_labels=[row.snapshot_label for row in sorted_rows],
                 y_label=f"{metric} KB",
                 title=f"{app_label} {metric}",
-                path=store.local_plot_path(
-                    app_label, metric, extension=PLOT_EXTENSION),
+                path=store.local_plot_path(app_label, metric),
                 y_err=[row.metrics[attribute].std for row in sorted_rows],
             )
 
 
-def read_snapshot_timestamps(store: ResultStore) -> dict[str, int]:
-    metadata_path = store.local_artifact_metadata_path(
-        store.local_snapshots_dir())
-    if not metadata_path.exists():
-        return {}
-    metadata = ArtifactMetadataFile.model_validate_json(
-        metadata_path.read_text(encoding="utf-8"))
-    return {artifact.label: int(artifact.timestamp)
-            for artifact in metadata.artifacts}
-
-
-def _metric_value(row: PlotRow, attribute: str) -> int:
-    value = typing.cast(int, getattr(row.profile, attribute))
-    if value < 0:
-        raise RuntimeError(
-            f"memory metric must be non-negative: {attribute}={value}")
-    return value
-
-
-def _log_value(value: int) -> float:
-    if value == 0:
-        return -1.0
-    return math.log10(value)
-
-
 def _write_plot(
-    app_label: str,
-    metric: str,
-    x_values: typing.Sequence[float],
-    y_values: typing.Sequence[float | int],
-    snapshot_labels: typing.Sequence[str],
+    x_values: list[float],
+    y_values: list[float | int],
+    snapshot_labels: list[str],
     y_label: str,
     title: str,
     path: pathlib.Path,
-    y_err: typing.Sequence[float] | None = None,
+    y_err: list[float] | None = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     layout = _label_layout(len(snapshot_labels))

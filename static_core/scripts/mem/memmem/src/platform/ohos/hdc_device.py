@@ -23,6 +23,7 @@ import typing
 
 from src.device import CommandResult, Device, DeviceHealth, Point, ScreenBounds, ThermalZoneHealth
 from src.platform.ohos.hdc import Hdc
+from src.schema import Command
 
 
 _BOUNDS_RE = re.compile(r"^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$")
@@ -37,6 +38,9 @@ def _raise_if_error(result: CommandResult, fallback: str) -> None:
 class HdcDevice(Device):
     def __init__(self, hdc: Hdc) -> None:
         self.hdc = hdc
+
+    def is_command_supported(self, _command: Command) -> bool:
+        return True
 
     def launch_app(self, bundle: str, ability: str) -> None:
         result = self.hdc.shell("aa", "start", "-a", ability, "-b", bundle)
@@ -191,6 +195,29 @@ class HdcDevice(Device):
             str(end.y),
             str(velocity),
         )
+
+    def multi_touch_input(
+        self,
+        finger_list: list[tuple[Point, Point]],
+        duration_ms: int,
+    ) -> None:
+        if not 2 <= len(finger_list) <= 3:
+            raise ValueError(
+                "multi-touch input requires two or three contact paths")
+        args = ["uinput", "-D", "0", "-T", "-m"]
+        for start, end in finger_list:
+            args.extend((str(start.x), str(start.y), str(end.x), str(end.y)))
+        args.append(str(duration_ms))
+        result = self.hdc.shell(*args)
+        # NOTE: SECURITY HOLE. hdc does not propagate all remote uinput failures,
+        # which uinput can report only on stdout. Flow schema validation constrains
+        # every argument before this call, but cannot detect device-side failures.
+        if result.is_error():
+            raise RuntimeError(
+                result.stderr.strip()
+                or result.stdout.strip()
+                or "multi-touch input failed"
+            )
 
     def drag(self, start: Point, end: Point, velocity: int) -> None:
         self._run_ui_input(

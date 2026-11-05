@@ -17,6 +17,7 @@ import argparse
 import dataclasses
 from datetime import datetime
 import json
+import math
 import pathlib
 import re
 import shlex
@@ -29,6 +30,8 @@ import typing
 
 import pydantic
 
+from src.cli_helpers import add_logging_arguments, load_config
+from src.path import absolutize
 from src.schema import (
     AppFlow,
     Command,
@@ -39,15 +42,18 @@ from src.schema import (
     Flow,
     KeyCommand,
     LongTapCommand,
+    MultiTouchInputCommand,
+    MultiTouchInputPayload,
     NamedKeyPayload,
     SwipeCommand,
     SwipePayload,
     TapCommand,
     TapPayload,
 )
-from run import load_config
 from src.platform.ohos.hdc import Hdc
 from src.types import positive_int
+
+import lib
 
 _STARTUP_TIMEOUT_S = 120.0
 
@@ -132,7 +138,8 @@ class UIEvent(pydantic.BaseModel):
     direction_y: str = pydantic.Field(
         default="", validation_alias="direction.Y")
     duration: float | str | None = None
-    finger_list: list[FingerEvent] = pydantic.Field(default_factory=list)
+    finger_list: list[FingerEvent] = pydantic.Field(
+        default_factory=list, validation_alias=pydantic.AliasChoices("finger_list", "fingerList"))
     key_code_1: str | None = None
 
 
@@ -224,6 +231,38 @@ def _handle_pointer_swipe(raw: UIEvent, bounds: Bounds) -> Command:
         x1_pct=x1_pct, y1_pct=y1_pct, x2_pct=x2_pct, y2_pct=y2_pct, velocity=velocity, step_length=step_length))
 
 
+def _handle_pointer_multi_touch(raw: UIEvent, bounds: Bounds) -> Command:
+    try:
+        finger_list = tuple({
+            "x1_pct": _normalize(int(finger.X_POSI or ""), bounds.left, bounds.width),
+            "y1_pct": _normalize(int(finger.Y_POSI or ""), bounds.top, bounds.height),
+            "x2_pct": _normalize(int(finger.X2_POSI or ""), bounds.left, bounds.width),
+            "y2_pct": _normalize(int(finger.Y2_POSI or ""), bounds.top, bounds.height),
+        } for finger in raw.finger_list)
+    except (ValueError, TypeError) as exc:
+        raise ValueError(f"malformed multi-contact record: {raw}") from exc
+
+    duration = raw.duration
+    if duration is None:
+        raise ValueError(f"malformed multi-contact record: {raw}")
+    try:
+        duration_us = float(duration)
+    except (ValueError, TypeError) as exc:
+        raise ValueError(f"malformed multi-contact record: {raw}") from exc
+    if not math.isfinite(duration_us) or duration_us < 0:
+        raise ValueError(f"malformed multi-contact record: {raw}")
+
+    # uiRecord reports high-resolution durations in microseconds.
+    duration_ms = max(1, min(15000, round(duration_us / 1000)))
+    return MultiTouchInputCommand(
+        action="multi_touch_input",
+        payload=MultiTouchInputPayload(
+            finger_list=finger_list,
+            duration_ms=duration_ms,
+        ),
+    )
+
+
 def _handle_key(raw: UIEvent) -> Command | None:
     try:
         key_code = int(raw.key_code_1 or "")
@@ -251,6 +290,15 @@ _POINTER_HANDLERS: dict[str, typing.Callable[[UIEvent, Bounds], Command]] = {
 
 def _convert_event(raw: UIEvent, bounds: Bounds) -> Command | None:
     if raw.EVENT_TYPE == _EVENT_TYPE_POINTER:
+        finger_count = len(raw.finger_list)
+        if finger_count > 3:
+            print(
+                f"  warning: skipping pointer record with {finger_count} contact paths; maximum is 3",
+                file=sys.stderr,
+            )
+            return None
+        if finger_count >= 2:
+            return _handle_pointer_multi_touch(raw, bounds)
         handler = _POINTER_HANDLERS.get(raw.OP_TYPE)
         if handler is None:
             print(
@@ -499,21 +547,25 @@ def output_path(now: datetime) -> pathlib.Path:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Record UI inputs from an OpenHarmony device and convert them into a benchmark flow JSON file.")
+        description="Record UI inputs from an OpenHarmony device and convert them into a benchmark flow JSON file.", allow_abbrev=False)
     parser.add_argument(
         "--timeout",
         type=positive_int,
         default=None,
         help="recording duration in seconds; if omitted, recording runs until manual stop",
     )
+    add_logging_arguments(parser)
     return parser
 
 
 def main() -> int:
     args = build_parser().parse_args()
     timeout: int | None = args.timeout
+    log_file = (absolutize(args.memmem_log_file)
+                if args.memmem_log_file is not None else None)
 
     try:
+        lib.configure_logger(args.memmem_log_level, log_file)
         output = output_path(datetime.now())
 
         config = load_config(pathlib.Path(".env"))
@@ -529,6 +581,8 @@ def main() -> int:
     except Exception as error:
         print(f"memmem error: {error}", file=sys.stderr)
         return 1
+    finally:
+        lib.reset_logger()
 
     return 0
 

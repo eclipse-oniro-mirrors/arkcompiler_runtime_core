@@ -28,8 +28,15 @@ from test.mock.hdc import FakeHdc
 import record_hdc as record
 from src.device import CommandResult as HdcResult
 from src.platform.ohos.hdc import Hdc
-from run import Config
-from src.schema import DoubleTapCommand, FlingCommand, Flow, KeyCommand, TapCommand
+from src.cli_helpers import Config
+from src.schema import (
+    DoubleTapCommand,
+    FlingCommand,
+    Flow,
+    KeyCommand,
+    MultiTouchInputCommand,
+    TapCommand,
+)
 
 
 _RECORDER_READY = (
@@ -44,14 +51,29 @@ _SUPPORTED_RECORD = (
 
 
 class RecordTest(unittest.TestCase):
+    def test_main_constructs_hdc_from_shared_config(self) -> None:
+        config = Config(hdc_path=pathlib.Path("/bin/false"))
+        with mock.patch("sys.argv", ["record_hdc.py"]), mock.patch(
+                "record_hdc.load_config", return_value=config) as load_config, mock.patch(
+                "record_hdc.Hdc") as hdc, mock.patch(
+                "record_hdc.convert_ui_inputs_into_flow", side_effect=RuntimeError("stop")):
+            self.assertEqual(record.main(), 1)
+
+        load_config.assert_called_once_with(pathlib.Path(".env"))
+        hdc.assert_called_once_with(config.hdc_path)
+
     def test_main_rejects_missing_hdc_path(self) -> None:
         with mock.patch("record_hdc.load_config", return_value=Config(None, None)):
             with mock.patch("record_hdc.build_parser") as parser:
                 parser.return_value.parse_args.return_value = mock.Mock(
-                    timeout=None)
-                with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                    timeout=None, memmem_log_level="err", memmem_log_file=None)
+                with mock.patch("record_hdc.lib.configure_logger") as configure, \
+                        mock.patch("record_hdc.lib.reset_logger") as reset, \
+                        contextlib.redirect_stderr(io.StringIO()) as stderr:
                     self.assertEqual(record.main(), 1)
         self.assertIn("HDC_PATH is required", stderr.getvalue())
+        configure.assert_called_once_with("err", None)
+        reset.assert_called_once_with()
 
     def test_bounds_parsing_and_normalization(self) -> None:
         bounds = record._parse_bounds_from_line(
@@ -105,6 +127,15 @@ class RecordTest(unittest.TestCase):
         self.assertEqual(fling_command.payload.x2_pct, 100)
         self.assertEqual(fling_command.payload.y2_pct, 0)
         self.assertNotIn("pinch", app_flows[0].label)
+
+    def test_recorder_events_ignore_unknown_fields(self) -> None:
+        event = record.UIEvent.model_validate({
+            "EVENT_TYPE": "pointer",
+            "unknown": "ignored",
+            "finger_list": [{"X_POSI": "640", "unknown": "ignored"}],
+        })
+
+        self.assertEqual(event.finger_list[0].X_POSI, "640")
 
     def test_key_events_convert_and_unknown_keys_warn(self) -> None:
         with contextlib.redirect_stderr(io.StringIO()):
@@ -160,6 +191,79 @@ class RecordTest(unittest.TestCase):
                 record.Bounds(left=0, top=0, right=100, bottom=100),
             )
 
+    def test_multi_contact_events_convert_before_op_type(self) -> None:
+        app_flows = record._convert_events(
+            self._events([
+                self._multi_contact("swipe", "125500", [
+                    (0, 100, 100, 0),
+                    (25, 75, 75, 25),
+                ]),
+                self._multi_contact("drag", "499", [
+                    (0, 0, 100, 100),
+                    (100, 0, 0, 100),
+                    (50, 25, 50, 75),
+                ]),
+                self._multi_contact("pinch", "15000500", [
+                    (0, 0, 100, 100),
+                    (100, 100, 0, 0),
+                ]),
+            ]),
+            record.Bounds(left=0, top=0, right=100, bottom=100),
+        )
+
+        commands = app_flows[0].commands
+        self.assertEqual(len(commands), 3)
+        self.assertTrue(all(isinstance(command, MultiTouchInputCommand)
+                        for command in commands))
+        first_command = typing.cast(MultiTouchInputCommand, commands[0])
+        second_command = typing.cast(MultiTouchInputCommand, commands[1])
+        third_command = typing.cast(MultiTouchInputCommand, commands[2])
+        self.assertEqual(first_command.payload.duration_ms, 126)
+        self.assertEqual(first_command.payload.finger_list[1].model_dump(), {
+            "x1_pct": 25, "y1_pct": 75, "x2_pct": 75, "y2_pct": 25})
+        self.assertEqual(second_command.payload.duration_ms, 1)
+        self.assertEqual(len(second_command.payload.finger_list), 3)
+        self.assertEqual(third_command.payload.duration_ms, 15000)
+
+    def test_malformed_multi_contact_data_fails(self) -> None:
+        for row in (
+            self._multi_contact("drag", "invalid", [
+                                (0, 0, 100, 100), (0, 100, 100, 0)]),
+            self._multi_contact(
+                "drag", "-1", [(0, 0, 100, 100), (0, 100, 100, 0)]),
+        ):
+            with self.assertRaises(ValueError):
+                record._convert_events(
+                    self._events([row]),
+                    record.Bounds(left=0, top=0, right=100, bottom=100),
+                )
+
+        missing_endpoint = self._multi_contact(
+            "drag", "1000", [(0, 0, 100, 100), (0, 100, 100, 0)])
+        del typing.cast(list[dict[str, str]], missing_endpoint["finger_list"])[
+            1]["X2_POSI"]
+        with self.assertRaises(ValueError):
+            record._convert_events(
+                self._events([missing_endpoint]),
+                record.Bounds(left=0, top=0, right=100, bottom=100),
+            )
+
+    def test_over_limit_multi_contact_event_warns_and_skips(self) -> None:
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            app_flows = record._convert_events(
+                self._events([self._multi_contact("swipe", "1000", [
+                    (0, 0, 100, 100),
+                    (100, 0, 0, 100),
+                    (0, 100, 100, 0),
+                    (100, 100, 0, 0),
+                ])]),
+                record.Bounds(left=0, top=0, right=100, bottom=100),
+            )
+
+        self.assertEqual(app_flows, [])
+        self.assertIn("maximum is 3", stderr.getvalue())
+
     def test_no_supported_commands_produces_empty_flow_list(self) -> None:
         with contextlib.redirect_stderr(io.StringIO()):
             app_flows = record._convert_events(
@@ -191,6 +295,16 @@ class RecordTest(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit):
                 record.build_parser().parse_args(["--timeout", "0"])
+
+    def test_parser_configures_logging_and_rejects_abbreviations(self) -> None:
+        args = record.build_parser().parse_args([
+            "--memmem-log-level", "warn", "--memmem-log-file", "memmem.log",
+        ])
+
+        self.assertEqual(args.memmem_log_level, "warn")
+        self.assertEqual(args.memmem_log_file, pathlib.Path("memmem.log"))
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            record.build_parser().parse_args(["--memmem-log", "info"])
 
     def test_record_device_inputs_readiness_timeout_fails(self) -> None:
         fake_process = _FakeProcess(io.StringIO(""))
@@ -348,6 +462,29 @@ class RecordTest(unittest.TestCase):
             "BUNDLE": bundle,
             "ABILITY": ability,
             "finger_list": [{"X_POSI": str(x), "Y_POSI": str(y)}],
+        }
+
+    def _multi_contact(
+        self,
+        op_type: str,
+        duration: str,
+        paths: list[tuple[int, int, int, int]],
+    ) -> dict[str, object]:
+        return {
+            "EVENT_TYPE": "pointer",
+            "OP_TYPE": op_type,
+            "BUNDLE": "com.example",
+            "ABILITY": "EntryAbility",
+            "duration": duration,
+            "finger_list": [
+                {
+                    "X_POSI": str(x1),
+                    "Y_POSI": str(y1),
+                    "X2_POSI": str(x2),
+                    "Y2_POSI": str(y2),
+                }
+                for x1, y1, x2, y2 in paths
+            ],
         }
 
 

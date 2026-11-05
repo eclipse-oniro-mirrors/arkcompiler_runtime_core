@@ -21,6 +21,7 @@ from typing import Any
 
 from src.device import DeviceHealth, Point, ScreenBounds, ThermalZoneHealth
 from src.device import CommandResult as HdcResult
+from src.schema import Command
 
 
 class FakeDevice:
@@ -49,6 +50,7 @@ class FakeDevice:
         fail_configure_device_log: bool = False,
         fail_device_log: bool = False,
         fail_terminate_app: bool = False,
+        unsupported_commands: list[Command] | None = None,
         default_smaps_content: str = "Size: 1 kB\nRss: 1 kB\nPss: 1 kB\n",
         default_log_content: str = "fake log\n",
         default_screenshot_content: str = "fake png\n",
@@ -79,6 +81,7 @@ class FakeDevice:
         self.fail_configure_device_log = fail_configure_device_log
         self.fail_device_log = fail_device_log
         self.fail_terminate_app = fail_terminate_app
+        self.unsupported_commands = unsupported_commands or []
         self.terminated_bundles: list[str] = []
         self.default_smaps_content = default_smaps_content
         self.default_log_content = default_log_content
@@ -88,9 +91,14 @@ class FakeDevice:
         self.waited_boot_completed = False
         self.woken = False
         self.screen_timeout_disabled = False
-        self.hilog_configured = False
-        self.hilog_paths: list[pathlib.PurePosixPath] = []
-        self.hilog_processes: list[subprocess.Popen[Any]] = []
+        self.log_configured = False
+        self.log_paths: list[pathlib.PurePosixPath] = []
+        self.log_processes: list[subprocess.Popen[Any]] = []
+        self.multi_touch_inputs: list[tuple[list[tuple[Point, Point]], int]] = [
+        ]
+
+    def is_command_supported(self, command: Command) -> bool:
+        return command not in self.unsupported_commands
 
     def screen_bounds(self) -> ScreenBounds:
         if self.screen_error is not None:
@@ -152,22 +160,22 @@ class FakeDevice:
 
     def configure_log_capture(self) -> None:
         if self.fail_configure_device_log:
-            raise RuntimeError("hilog setup failed")
-        self.hilog_configured = True
+            raise RuntimeError("device log setup failed")
+        self.log_configured = True
 
     def start_log_capture(self, path: pathlib.PurePosixPath) -> subprocess.Popen[Any]:
         if self.fail_device_log:
-            raise RuntimeError("hilog failed")
+            raise RuntimeError("device log capture failed")
         if path.parent not in self.dirs:
             raise RuntimeError("missing remote log directory")
-        self.hilog_paths.append(path)
+        self.log_paths.append(path)
         self.files[path] = self.default_log_content
         process = subprocess.Popen(
             [sys.executable, "-c", "import time; time.sleep(3600)"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        self.hilog_processes.append(process)
+        self.log_processes.append(process)
         return process
 
     def timestamp(self) -> str:
@@ -197,8 +205,6 @@ class FakeDevice:
     def recv_file(self, remote_path: pathlib.PurePosixPath, local_path: pathlib.Path) -> HdcResult:
         if self.fail_recv_file or remote_path in self.fail_recv_paths or remote_path.name in self.fail_recv_names:
             return HdcResult(1, "", "missing remote file")
-        if remote_path.name == "hilog.log" and remote_path not in self.files:
-            self.files[remote_path] = self.default_log_content
         if remote_path not in self.files:
             return HdcResult(1, "", "missing remote file")
         local_path.parent.mkdir(parents=True, exist_ok=True)
@@ -234,6 +240,11 @@ class FakeDevice:
 
     def drag(self, _start: Point, _end: Point, _velocity: int) -> None:
         pass
+
+    def multi_touch_input(
+        self, finger_list: list[tuple[Point, Point]], duration_ms: int
+    ) -> None:
+        self.multi_touch_inputs.append((finger_list, duration_ms))
 
     def fling(self, _start: Point, _end: Point, _velocity: int, _step_length: int) -> None:
         pass

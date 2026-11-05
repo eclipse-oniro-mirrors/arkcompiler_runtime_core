@@ -5,426 +5,156 @@ Defines the benchmark output layout, raw evidence handling, artifact receive beh
 
 ## Requirements
 
-### Requirement: Output directory preserves raw evidence
-The system SHALL atomically create the run output directory before device actions and SHALL fail rather than reuse an existing directory. The output directory SHALL store canonical validated flow JSON at `flow.json`, store app metadata at `app_metadata.json`, store snapshot metadata at `snapshots/metadata.json`, store screenshot metadata at `screenshots/metadata.json`, store raw smaps snapshots under `snapshots/<snapshot_label>/<app_label>-<snapshot_label>.smaps`, store screenshot artifacts under `screenshots/<screenshot_label>.png`, store the run-wide hilog artifact at `hilog/hilog.log` when hilog collection is enabled, and store generated memory trend plots under `plots/<app_label>/`. When repeats is greater than `1`, each iteration SHALL store its own copy of these artifacts under `iteration_{i}/`, and the run output directory SHALL additionally contain a `summary/` directory holding raw and filtered averaged reports plus discarded-iteration audit output.
+### Requirement: Standalone evidence declares expected artifact files
+An execution SHALL exclusively create its exact evidence destination before device actions. It SHALL write `apps.json` with an `apps` array of PID, label, bundle, and ability records in launch order; eager `snapshots/metadata.json` and `screenshots/metadata.json`; raw snapshots at `snapshots/<snapshot_label>/<app_label>.smaps`; screenshots at `screenshots/<screenshot_label>.png`; and optional device logs at `logs/log.log`. It SHALL NOT write flow copies or reports inside evidence. Each artifact metadata file SHALL have an ordered `artifacts` array; each artifact SHALL contain a valid label, a nonnegative integer nanosecond timestamp serialized as a decimal string, and a required nonempty ordered `files` array of relative forward-slash paths. Empty artifact arrays SHALL be accepted. Metadata SHALL declare expected files before capture rather than only received files. Source app and artifact labels SHALL retain existing filename-safe validation. Different app labels resolving to the same PID SHALL remain distinct.
 
-#### Scenario: Benchmark output is initialized
-- **WHEN** the benchmark starts with a validated flow and output directory
-- **THEN** the system atomically reserves the output directory once, creates `snapshots/`, `screenshots/`, `breakdowns/`, and writes `flow.json` as canonical validated flow JSON before device actions
+#### Scenario: Flow has no snapshot or screenshot commands
+- **WHEN** execution succeeds without either artifact type
+- **THEN** both category directories and metadata files exist with empty artifact arrays
 
-#### Scenario: Benchmark output preserves flow description
-- **WHEN** the benchmark starts with a validated flow containing `"$desc"` metadata
-- **THEN** output `flow.json` contains the same `"$desc"` metadata in the canonical validated flow JSON
+#### Scenario: Snapshot captures multiple eligible apps
+- **WHEN** a snapshot event starts with eligible labels App and Other
+- **THEN** its ordered expected files are `<label>/App.smaps` and `<label>/Other.smaps` before capture, and one event timestamp applies to both
 
-#### Scenario: Benchmark output is initialized with hilog enabled
-- **WHEN** the benchmark starts with hilog collection enabled
-- **THEN** the system creates `hilog/` before device actions
+#### Scenario: Screenshot capture fails
+- **WHEN** capture of a declared screenshot fails
+- **THEN** execution fails and its expected PNG declaration remains in partial evidence rather than being removed
 
-#### Scenario: Remote output is initialized
-- **WHEN** the benchmark creates remote output storage with hilog collection enabled
-- **THEN** the remote output directory name under `/data/local/tmp` is a host-timestamped `memmem-out-YYYYMMDD_HHMMSS_microseconds` name generated independently of the local output directory path, is unique per run, and contains remote snapshot, screenshot, and hilog directories
+#### Scenario: Logs are disabled
+- **WHEN** execution uses device_log false
+- **THEN** no device-log setup, stream or receive is performed and no log directory is required
 
-#### Scenario: App metadata is written
-- **WHEN** app-flow command execution finishes or fails after launching any apps and before artifact receive
-- **THEN** the system writes `app_metadata.json` containing an `apps` array of PID, label, bundle, and ability records in app launch order
+### Requirement: Evidence finalization preserves acquired resources and errors
+Execution SHALL finalize only resources acquired by that invocation. Successful captures SHALL be queued immediately, independently of expected declarations. Finalization SHALL stop started streams, write available metadata including empty categories after successful local initialization, attempt every queued receive, and clean an acquired remote root. A later capture or transfer failure SHALL NOT prevent receiving a successful prefix. Primary failures SHALL be preserved with secondary failure context. Existing local destinations SHALL never be modified; newly created local partial evidence SHALL remain on failure. Remote roots SHALL remain independently host-timestamped under `/data/local/tmp`, with snapshot/screenshot roots and an enabled logs root. Successful execution SHALL pass local structural validation before returning; cleanup failures SHALL still fail execution. Structural validation SHALL not perform report analysis.
 
-#### Scenario: Snapshot metadata is written
-- **WHEN** app-flow command execution finishes or fails after staging any snapshots and before artifact receive
-- **THEN** the system writes `snapshots/metadata.json` containing an `artifacts` array of snapshot labels and timestamps in snapshot command order
+#### Scenario: Destination already exists
+- **WHEN** exclusive evidence creation fails because dst exists
+- **THEN** no device action, metadata write, artifact receive or remote cleanup for that execution changes the existing destination
 
-#### Scenario: Screenshot metadata is written
-- **WHEN** app-flow command execution finishes or fails after staging any screenshots and before artifact receive
-- **THEN** the system writes `screenshots/metadata.json` containing an `artifacts` array of screenshot labels and timestamps in screenshot command order
+#### Scenario: A later app capture fails
+- **WHEN** one file was captured successfully before a subsequent file fails
+- **THEN** finalization still attempts to receive the successful file and leaves the expected failed file declared
 
-### Requirement: Finalization follows initialized lifecycle phases
-The system SHALL stop and finalize only resources acquired by the current run. Metadata writing SHALL require successful local output initialization, artifact receiving SHALL require successful local output initialization and pending artifacts, and remote cleanup SHALL require successful creation of the remote run root. A failure while creating remote subdirectories SHALL still clean up an already-created remote root.
+#### Scenario: Receiving one artifact fails
+- **WHEN** a queued receive fails
+- **THEN** all other queued receives are attempted and execution raises while preserving partial local evidence
 
-#### Scenario: Local output initialization fails
-- **WHEN** local output initialization fails before completion
-- **THEN** the system does not write metadata, receive artifacts, invoke remote cleanup, or perform device actions for that run
+#### Scenario: Pre-flow remote setup fails
+- **WHEN** a remote root was created but a subdirectory fails
+- **THEN** the acquired remote root is cleaned and unacquired lifecycle phases are not finalized
 
-#### Scenario: Failure occurs before remote root creation
-- **WHEN** local output initialization succeeds but a later pre-flow phase fails before the remote root is created
-- **THEN** the system may write metadata into the new local output but does not invoke remote cleanup
+#### Scenario: Collection returns success
+- **WHEN** execution returns normally
+- **THEN** all required local structure and declared snapshot/screenshot files pass the same structural checks used by view loading, without statistics or plots being generated
 
-#### Scenario: Remote subdirectory initialization fails
-- **WHEN** the remote root is created and creation of a required remote subdirectory fails
-- **THEN** the system cleans up the created remote root and skips finalizer phases without acquired resources
+### Requirement: Evidence validity and equivalence are separate contracts
+Evidence readers SHALL require `apps.json`, both eager artifact directories and their metadata files, valid unique app/category-event identities, required nonempty ordered file arrays, correct relative path structures/extensions, and all declared files as readable files. Snapshot paths SHALL be exactly `<artifact.label>/<known-app-label>.smaps`; screenshot paths SHALL be exactly `<artifact.label>.png`. Absolute/traversing paths and duplicate file identities SHALL be rejected. Undeclared extra files and all log contents/availability SHALL be ignored. Evidence equivalence SHALL compare app label-to-bundle/ability mappings ignoring PIDs and app-array ordering, then ordered snapshot labels and ordered file arrays ignoring timestamps. Screenshots and logs SHALL NOT affect equivalence. Invalid sources SHALL fail rather than be silently skipped. Legacy structures SHALL be rejected. Documentation and code contracts SHALL explicitly state that structural validity does not prove whole-flow completion or file-content integrity; those remain caller responsibility/out of scope.
 
-#### Scenario: Raw snapshot is received
-- **WHEN** a pending device-local snapshot artifact is received for an app label and snapshot label
-- **THEN** the system stores the received smaps file at `snapshots/<snapshot_label>/<app_label>-<snapshot_label>.smaps`
+#### Scenario: Declared snapshot is absent
+- **WHEN** snapshot metadata declares a file that is missing
+- **THEN** the reader fails with the affected path rather than treating it as an absent measurement
 
-#### Scenario: Raw screenshot is received
-- **WHEN** a pending device-local screenshot artifact is received for a screenshot label
-- **THEN** the system stores the received PNG file at `screenshots/<screenshot_label>.png`
+#### Scenario: Extra files are present
+- **WHEN** otherwise valid evidence contains undeclared files
+- **THEN** analysis ignores them and uses only declared files
 
-#### Scenario: Run-wide hilog is received
-- **WHEN** the pending run-wide device-local hilog artifact is received
-- **THEN** the system stores the received hilog file at `hilog/hilog.log`
+#### Scenario: Metadata differs only in PID and timestamps
+- **WHEN** app identities and ordered snapshot declarations match but PID or timestamps differ
+- **THEN** the sources are equivalent
 
-#### Scenario: Plot artifact is written
-- **WHEN** report generation produces plots for an app label
-- **THEN** the system stores generated SVG plot artifacts under `plots/<app_label>/`
+#### Scenario: Ordered file arrays differ
+- **WHEN** two sources declare the same file members in a different order
+- **THEN** they are not equivalent
 
-#### Scenario: CLI input flow is canonicalized
-- **WHEN** benchmark execution is started from `python run.py --flow flow.json`
-- **THEN** output `flow.json` contains the canonical validated flow model and need not be byte-for-byte identical to the input file
+#### Scenario: Non-memory evidence differs
+- **WHEN** two individually valid sources have equivalent memory declarations but different screenshots or log settings
+- **THEN** they remain equivalent
 
-#### Scenario: CLI macro input flow is expanded in evidence
-- **WHEN** benchmark execution is started from `python run.py --flow flow.json` and the input uses repeat macros
-- **THEN** output `flow.json` contains the expanded canonical validated flow model without macro entries
+### Requirement: New views record parameters and final ordered coverage
+A view SHALL exclusively create its exact destination and contain root `metadata.json`, retained `summary.csv`, `outliers.csv`, eager `plots/`, and eager `breakdowns/metadata.json` plus declared CSVs. Root metadata SHALL contain ordered nonempty duplicate-free normalized absolute source `dirs`, `smaps_filter` string and integer `smaps_filter_flags` equal to the compiled pattern's effective flags. No app metadata SHALL be embedded. Breakdown metadata SHALL use the artifact schema with final `<snapshot>/<app>.csv` paths, timestamps from the first retained source, and ordered event/file subsequences from reference evidence. Only pairs with retained contributions SHALL be declared; empty events SHALL be omitted. Empty views SHALL have empty artifact arrays and header-only summary, while outlier audit follows normal selection. No `summary_filtered.csv`, pretrim summary, raw-summary variant or log plot SHALL be written. New partial view output SHALL remain on failure; existing destinations SHALL be untouched. View creation SHALL not modify evidence or reopen generated per-source reports.
 
-#### Scenario: Programmatic preprocessed flow is persisted
-- **WHEN** benchmark execution is started by preprocessing an unprocessed flow with `lib.preprocess_flow` and passing the resulting canonical flow to the public programmatic API
-- **THEN** output `flow.json` contains the expanded canonical validated flow model without macro entries
+#### Scenario: One source is supplied
+- **WHEN** a view is created from one valid evidence directory
+- **THEN** it uses the same aggregate schema as multiple sources and emits a header-only discarded audit
 
-#### Scenario: Programmatic flow is persisted
-- **WHEN** benchmark execution is started through the public programmatic API
-- **THEN** output `flow.json` contains the canonical validated flow model passed to execution
+#### Scenario: Filter excludes one app at an event
+- **WHEN** retained sources contribute no matching mappings for one declared app/snapshot pair
+- **THEN** that pair is absent from summary, breakdown files, breakdown manifest and plots without being replaced by zeros
 
-### Requirement: Result paths use label metadata as storage identity
-The system SHALL use snapshot-label, screenshot-label, app-label, metric-name, and fixed run-wide hilog-name keyed paths so repeated bundle/ability flows can be represented even when they resolve to the same PID, generated plots can be associated with one app label and one metric, and the run-wide hilog artifact has stable identity. Snapshot and breakdown file names SHALL embed both the app label and the snapshot label, and plot file names SHALL embed both the app label and the metric name, so artifact base names are unique across the output directory tree.
+#### Scenario: All pairs are excluded
+- **WHEN** no retained pair contributes data
+- **THEN** required directories and metadata still exist, breakdown artifacts are empty, summary is header-only, and no plots are written
 
-#### Scenario: Unique labels are stored
-- **WHEN** two tracked app-flow entries have different labels
-- **THEN** their snapshots are stored under distinct `snapshots/<snapshot_label>/<app_label>-<snapshot_label>.smaps` paths
+#### Scenario: Rendering fails
+- **WHEN** output writing or plotting fails after the new destination was created
+- **THEN** the operation raises and leaves the new partial view without staging cleanup, backup or restoration
 
-#### Scenario: Same PID is stored for multiple labels
-- **WHEN** two tracked app-flow entries resolve to the same PID with different labels
-- **THEN** their metadata records preserve the shared PID under separate app labels
+### Requirement: View statistics preserve whole-source outlier policy
+Views SHALL parse declared raw smaps with the requested compiled pattern and aggregate retained sources directly. Metric order SHALL be size_kb, rss_kb, pss_kb, referenced_kb, shared_kb, private_kb, swap_kb, swap_pss_kb, anonymous_kb; statistic order SHALL be mean, geomean, median, std, min, max. Summary header SHALL be `app_label,snapshot_label,n_samples` then metric-major/statistic-minor columns; breakdown header SHALL be `tag,n_samples` then the same columns. Pair sample counts SHALL count contributing retained sources; tag counts SHALL count sources containing that tag, without zero-filling absence. Std SHALL be sample deviation and zero for one value; geomean SHALL be zero if any contribution is zero. Counts/min/max SHALL be integers and other written statistics SHALL have two decimal places. Tags SHALL sort by descending mean size then ascending tag.
 
-#### Scenario: Screenshot label path is generated
-- **WHEN** a screenshot command has label `after_login`
-- **THEN** its screenshot artifact path is `screenshots/after_login.png`
+Outlier discard count for N inputs SHALL be `max(0,min(floor(0.20*N),N-2,N-ceil(0.60*N)))`. Score SHALL be the median of absolute relative deviations of present cells from their cross-source cell medians; missing cells SHALL be ignored, zero-median cells SHALL contribute zero, and empty sources SHALL score zero while still counting in N. Select descending scores, breaking ties by ascending source order, and discard entire sources. Final pair order SHALL follow reference evidence's ordered snapshot/file declarations restricted to retained contributions, NOT first-seen contributing rows. `outliers.csv` SHALL have header `discarded` and normalized full source paths in input order. No summary of discarded-inclusive values SHALL be emitted.
 
-#### Scenario: Plot path is generated
-- **WHEN** a plot is generated for app label `gallery` and metric `rss`
-- **THEN** its linear plot path is `plots/gallery/gallery-rss.svg` and its log-transformed plot path is `plots/gallery/gallery-rss_log.svg`
+#### Scenario: First source lacks an early filtered row
+- **WHEN** a later retained source contributes an earlier declared snapshot missing from the first source's filtered data
+- **THEN** summary and breakdown metadata still use declaration order rather than first-seen row order
 
-#### Scenario: Run-wide hilog path is generated
-- **WHEN** hilog collection is enabled
-- **THEN** its local artifact path is `hilog/hilog.log` and its remote artifact path is `<remote_out_dir>/hilog/hilog.log`
+#### Scenario: Empty sources participate in scoring
+- **WHEN** valid evidence parses to no matching measurements
+- **THEN** it remains in the population with score zero and can be discarded under the deterministic tie/quota policy
 
-#### Scenario: Label-derived path components are generated
-- **WHEN** the system creates paths containing app labels, snapshot labels, or screenshot labels
-- **THEN** it uses labels already validated as filename-safe path components
+#### Scenario: A tag has fewer contributors than its pair
+- **WHEN** a tag is absent in some retained sources but the pair has other matching tags
+- **THEN** its sample count includes only sources containing that tag and no zero is inserted for absence
 
-### Requirement: Pending artifacts are received before cleanup
-The system SHALL track pending snapshot, screenshot, and enabled hilog artifacts in the benchmark execution context as a flat list of remote base, local base, and relative artifact path records. It SHALL receive all pending device-local artifacts into the output directory before removing the remote run directory. Artifact receive SHALL attempt every pending artifact before reporting receive failure.
+#### Scenario: Matching zero-valued mapping exists
+- **WHEN** a mapping matches but all supported values are zero
+- **THEN** it contributes a zero-valued measurement rather than an absent row
 
-#### Scenario: Pending hilog artifact is received successfully
-- **WHEN** a pending run-wide hilog artifact exists on the device
-- **THEN** the system receives it into `hilog/hilog.log`
+### Requirement: View readers validate declarations before equivalence
+A view reader SHALL require plots/ and breakdowns/ as directories, root and breakdown metadata, and aggregate summary/audit CSVs, derive ordered pair identities from artifact labels and declared file stems, read only declared breakdown CSVs, and verify that summary identities exactly match that ordered sequence. It SHALL reject duplicate labels/files/pairs/tags, missing declared files, wrong headers/row widths, legacy schemas, non-finite/negative numeric values, nonpositive or noninteger sample counts, and noninteger min/max. Declared breakdowns SHALL contain at least one tag. Audit paths SHALL be unique members of root source dirs. Extra undeclared files SHALL be ignored. The reader SHALL NOT validate plot contents/completeness, reopen source evidence or recompute statistics, and SHALL NOT require sums of tag means to equal summary means. View equivalence SHALL compare regex source, effective flags, ordered breakdown labels and ordered file arrays only; it SHALL ignore timestamps, values, source count/paths, sample counts, and outliers. Matching labels across views SHALL be documented as caller assertions of semantic comparability.
 
-#### Scenario: Pending screenshot artifact is received successfully
-- **WHEN** a pending screenshot artifact exists on the device
-- **THEN** the system receives it into `screenshots/<screenshot_label>.png`
+#### Scenario: Source evidence has moved
+- **WHEN** valid view files exist but source paths in metadata are unavailable
+- **THEN** reading and comparing the view succeed without accessing those paths
 
-#### Scenario: Pending snapshot, screenshot, and hilog artifacts are received together
-- **WHEN** pending snapshot, screenshot, and run-wide hilog artifacts exist on the device
-- **THEN** the system receives all pending artifacts before removing the remote run directory
+#### Scenario: Summary order disagrees with metadata
+- **WHEN** summary has the correct pair members in a different order
+- **THEN** the reader rejects the view before equivalence or numerical comparison
 
-#### Scenario: One artifact fails during receive
-- **WHEN** one pending artifact cannot be received from the device
-- **THEN** the system still attempts every other pending artifact before failing the benchmark
+#### Scenario: Regex flags differ
+- **WHEN** two validated views have the same pattern text and declarations but different effective flags
+- **THEN** they are not equivalent
 
-#### Scenario: Hilog collection is disabled
-- **WHEN** hilog collection is disabled
-- **THEN** the system skips pending hilog artifact tracking and receives other pending artifacts
+#### Scenario: Non-median statistic is malformed
+- **WHEN** a CSV median is valid but another required statistic is non-finite or malformed
+- **THEN** the reader rejects the view rather than validating only comparison-selected columns
 
-#### Scenario: Remote cleanup fails
-- **WHEN** the remote run directory cannot be removed after artifact receive
-- **THEN** the system fails the benchmark
+#### Scenario: Mandatory view directory is missing
+- **WHEN** even an otherwise empty view lacks plots/ or breakdowns/, or has a file in place of either directory
+- **THEN** the reader rejects its structural layout without attempting to verify individual plot files
 
-### Requirement: Summary CSV contains total snapshot metrics
-The system SHALL generate `summary.csv` from raw snapshots with one row per received snapshot containing app label, snapshot label, Size, Rss, Pss, Referenced, Shared, Private, Swap, SwapPss, and Anonymous totals. Row totals SHALL reflect the configured smaps tag filter: without a filter, every mapping contributes; with a filter, only mappings whose tags match the pattern contribute. The CSV SHALL NOT contain PID or timestamp columns; consumers that need those values SHALL join by app label against `app_metadata.json` and by snapshot label against `snapshots/metadata.json`. Snapshot row ordering SHALL follow `snapshots/metadata.json` array order, then `app_metadata.json` array order. Internal report rows used to write the CSV SHALL NOT carry runtime PID or snapshot timestamp fields; those values remain available only in the respective metadata files.
+### Requirement: All views use aggregate linear SVG plots
+Every nonempty view SHALL generate per-app per-metric SVGs at `plots/<app>/<app>-<metric>.svg` from retained aggregate rows, plotting geomean with std error bars even for a single source. Timestamps SHALL come from the already loaded first retained source. Points SHALL sort by timestamp with stable ties; each app's origin SHALL be its first plotted timestamp. Missing timestamps for plotted labels SHALL be errors, not skipped points. Empty results SHALL be valid without plots. Rendering SHALL retain headless output, dotted lines, rotated unwrapped labels, adaptive spacing for dense labels, grids behind data, and dense y ticks. Log-transformed and cross-app plots SHALL NOT be generated.
 
-#### Scenario: Raw snapshots exist
-- **WHEN** report generation runs over an output directory with app metadata, snapshot metadata, and raw smaps snapshots
-- **THEN** the system parses each existing expected snapshot and writes a corresponding total row to `summary.csv`
+#### Scenario: First supplied source is discarded
+- **WHEN** outlier selection discards the first supplied source
+- **THEN** plots and breakdown metadata use timestamps of the first retained source
 
-#### Scenario: Summary row is written
-- **WHEN** report generation writes a row for a received snapshot
-- **THEN** the row contains app label, snapshot label, and metric totals without PID or timestamp fields
+#### Scenario: Early snapshot has no matching data
+- **WHEN** filtering omits an app's earlier event
+- **THEN** its first remaining plotted event defines time zero
 
-#### Scenario: Metadata remains joinable
-- **WHEN** a consumer needs PID or timestamp for a summary row
-- **THEN** it can join by app label against `app_metadata.json` and by snapshot label against `snapshots/metadata.json`
+#### Scenario: Plotted timestamp is missing
+- **WHEN** a final row has no timestamp in the reference map
+- **THEN** view generation raises and preserves partial output
 
-#### Scenario: App metadata exists
-- **WHEN** a summary row is generated for an app label
-- **THEN** the system uses `app_metadata.json` to order and identify app rows without including runtime PID in internal report rows, and `summary.csv` contains no PID column
+### Requirement: No-aggregation warnings are scoped to view creation
+For each declared smaps file whose parse returns no aggregated mappings, the system SHALL emit one warning per view-creation call containing the file path and pattern, formatted `smaps file {path} has no mappings aggregated for pattern {pattern}`. This SHALL apply to empty parsed input and no-match filtering, including default `.*`, without treating either as a structural missing-file error. The parser SHALL remain logging-free. Warnings SHALL obey the caller's logger configuration.
 
-#### Scenario: Snapshot metadata exists
-- **WHEN** a summary row is generated for a snapshot label
-- **THEN** the system uses `snapshots/metadata.json` to order snapshot rows without including the snapshot timestamp in internal report rows, and `summary.csv` contains no timestamp column
+#### Scenario: Individual and combined views parse the same file
+- **WHEN** separate view calls encounter the same no-aggregation file
+- **THEN** each call can emit its own one-per-file warning
 
-#### Scenario: Expected raw snapshot is missing
-- **WHEN** metadata references a snapshot label and app label whose expected smaps file is absent
-- **THEN** the system skips that summary row without failing report generation
-
-#### Scenario: Filtered snapshot contributes match-only totals
-- **WHEN** report generation parses a snapshot with a configured tag filter and at least one mapping tag matches
-- **THEN** the summary row totals reflect only the matching mappings
-
-#### Scenario: Filtered-empty snapshot writes no summary row
-- **WHEN** report generation parses a snapshot with a configured tag filter and no mapping tag matches
-- **THEN** the system writes no summary row for that snapshot and continues report generation
-
-### Requirement: Memory trend plots are generated
-The system SHALL generate per-app SVG memory trend plots for Size, Rss, Pss, Referenced, Shared, Private, Swap, SwapPss, and Anonymous metrics using the same in-memory report rows used to write `summary.csv`. Plot x-axis timestamps SHALL be read from `snapshots/metadata.json` keyed by snapshot label. When `snapshots/metadata.json` is absent, the system SHALL emit a memmem warning log and skip plot generation without failing report generation.
-
-#### Scenario: Linear metric plot is generated
-- **WHEN** report generation has rows for an app
-- **THEN** the system writes one dotted-line SVG plot per metric under `plots/<app_label>/<app_label>-<metric>.svg`
-
-#### Scenario: Log-transformed metric plot is generated
-- **WHEN** report generation has rows for an app
-- **THEN** the system writes one log-transformed SVG plot per metric under `plots/<app_label>/<app_label>-<metric>_log.svg`
-
-#### Scenario: Zero appears in log-transformed plot
-- **WHEN** a metric value is zero
-- **THEN** the log-transformed plot shows that point at y = -1
-
-#### Scenario: Negative metric value is encountered
-- **WHEN** a metric value is negative
-- **THEN** report generation fails because memory metrics must be non-negative
-
-#### Scenario: Plot x-axis uses relative time
-- **WHEN** plotting metric rows for an app
-- **THEN** the x-axis uses seconds elapsed since that app's first plotted snapshot timestamp
-
-#### Scenario: Plot timestamps are read from snapshot metadata
-- **WHEN** plotting metric rows for an app
-- **THEN** the system reads each snapshot's timestamp from `snapshots/metadata.json` keyed by snapshot label
-
-#### Scenario: Plot points identify snapshots
-- **WHEN** plotting metric rows
-- **THEN** each point is associated with its snapshot label using unwrapped rotated x-axis tick labels and connected with a dotted line
-
-#### Scenario: Dense snapshot labels avoid plotted data
-- **WHEN** plotting metric rows for a flow with many snapshot labels
-- **THEN** snapshot labels are rendered outside the plotted data region using rotation and layout sizing so labels do not cover the trend line or markers
-
-#### Scenario: Plot grid lines are shown
-- **WHEN** plotting metric rows
-- **THEN** the system renders both x-axis and y-axis grid lines behind the plotted data
-
-#### Scenario: Y-axis has denser tick marks
-- **WHEN** plotting metric rows
-- **THEN** the y-axis uses at least 10 target tick positions when possible
-
-#### Scenario: Plotting runs without a display server
-- **WHEN** reports are generated in a headless environment
-- **THEN** plotting writes SVG files without requiring a GUI display
-
-#### Scenario: No aggregate plots are generated
-- **WHEN** report generation writes plot artifacts
-- **THEN** it writes per-app per-metric plots only and does not write cross-app aggregate plot files
-
-#### Scenario: Snapshot metadata is absent
-- **WHEN** report generation has rows for an app but `snapshots/metadata.json` is absent
-- **THEN** the system emits a memmem warning log and skips plot generation without failing report generation
-
-#### Scenario: Filtered-empty snapshot contributes no plot point
-- **WHEN** report generation has a configured tag filter and a snapshot file whose tags do not match the pattern
-- **THEN** the system writes no summary row and therefore no plot point for that snapshot
-
-### Requirement: Averaged summary CSV contains per-snapshot statistics
-When repeats is greater than `1`, the system SHALL generate raw and filtered aggregate reports under `out_dir/summary/`. The system SHALL generate `out_dir/summary/summary.csv` with one row per `(app_label, snapshot_label)` pair present in any iteration's per-iteration `summary.csv` using all usable iterations. The system SHALL generate `out_dir/summary/summary_filtered.csv` with the same schema after discarding default-selected outlier iterations. Each row SHALL contain `app_label`, `snapshot_label`, `n_samples`, and for each memory metric the mean, geomean, median, std, min, and max across the iterations that produced that row. Column names SHALL follow `<metric>_mean`, `<metric>_geomean`, `<metric>_median`, `<metric>_std`, `<metric>_min`, and `<metric>_max`. The system SHALL generate `out_dir/summary/outliers.csv` with one column, `discarded_iteration`, listing discarded iteration directory names. Rows present only in discarded iterations SHALL be omitted from `summary_filtered.csv`. Averaged plots and averaged breakdowns SHALL be generated under `out_dir/summary/` as described by the averaged plot and averaged breakdown requirements.
-
-#### Scenario: Raw averaged summary row is written
-- **WHEN** multiple iterations each produce a row for the same app label and snapshot label
-- **THEN** raw `summary.csv` contains one row for that pair with `n_samples` equal to the number of contributing usable iterations and the six statistics computed over the corresponding per-iteration values
-
-#### Scenario: Filtered averaged summary row is written
-- **WHEN** repeated-run averaging discards one or more outlier iterations
-- **THEN** `summary_filtered.csv` contains rows computed from the retained iterations only and uses the same header and statistic semantics as `summary.csv`
-
-#### Scenario: Filtered summary is written when no iteration is discarded
-- **WHEN** the filtering policy retains every usable iteration
-- **THEN** `summary_filtered.csv` is still written with the same aggregate values as `summary.csv`
-
-#### Scenario: Filtered summary omits rows present only in discarded iterations
-- **WHEN** a row appears only in discarded iterations and not in any retained iteration
-- **THEN** `summary_filtered.csv` omits that row
-
-#### Scenario: Discarded iterations are audited
-- **WHEN** repeated-run averaging completes
-- **THEN** `outliers.csv` contains the header `discarded_iteration` and one data row for each discarded iteration directory name
-
-#### Scenario: Whole iterations are discarded
-- **WHEN** an iteration is selected as an outlier
-- **THEN** every row and metric in `summary_filtered.csv` excludes that iteration while `summary.csv` still includes it
-
-#### Scenario: Iteration outlier score uses median relative deviation
-- **WHEN** repeated-run averaging scores iterations for filtering
-- **THEN** each iteration score is the median of per-cell relative deviations from the median value for each comparable `(app_label, snapshot_label, metric)` cell present in that iteration
-
-#### Scenario: Missing cells are ignored for iteration scoring
-- **WHEN** an iteration lacks a row or metric cell present in another iteration
-- **THEN** the missing cell does not contribute to that iteration's outlier score
-
-#### Scenario: Zero median cell does not affect iteration score
-- **WHEN** a comparable metric cell has median value `0`
-- **THEN** the deviation for that cell is `0` for iteration scoring
-
-#### Scenario: Internal filtering policy limits discarded iterations
-- **WHEN** repeated-run averaging computes how many outlier iterations to discard
-- **THEN** it uses the internal trim fraction, minimum retained iteration count, and minimum retained fraction to choose a deterministic discard count
-
-#### Scenario: Iteration score ties use run order
-- **WHEN** two or more candidate iterations have equal outlier scores at the discard boundary
-- **THEN** the system discards tied iterations by ascending run order until the deterministic discard count is reached
-
-#### Scenario: Geomean collapses on zero
-- **WHEN** any contributing value for a metric is zero
-- **THEN** the geomean for that metric is reported as zero
-
-#### Scenario: Standard deviation and variance are undefined for a single sample
-- **WHEN** an `(app_label, snapshot_label)` pair appears in exactly one retained iteration for the report being written
-- **THEN** the averaged report reports `n_samples` equal to `1` and reports `std` as `0.00` while still reporting mean, geomean, median, min, and max
-
-#### Scenario: Missing iteration summary file is skipped
-- **WHEN** an iteration directory has no `summary.csv`
-- **THEN** the system emits a memmem warning log and averages over the remaining iterations without failing
-
-#### Scenario: Iteration summary files differ in snapshot rows
-- **WHEN** one iteration's `summary.csv` contains a snapshot row that another iteration lacks
-- **THEN** each averaged report includes the pair with `n_samples` reflecting only the retained iterations that produced that row, without failing
-
-#### Scenario: No iteration summary files exist
-- **WHEN** no iteration directory contains a `summary.csv`
-- **THEN** the system fails report averaging
-
-#### Scenario: Iteration summary row has invalid width
-- **WHEN** an iteration `summary.csv` row does not contain exactly `app_label`, `snapshot_label`, and all expected metric cells
-- **THEN** the system fails report averaging
-
-#### Scenario: Averaged row order
-- **WHEN** an averaged summary report is generated
-- **THEN** rows are ordered by first appearance of each `(app_label, snapshot_label)` pair across retained iterations in run order
-
-#### Scenario: Column values are typed
-- **WHEN** an averaged summary report is generated
-- **THEN** `n_samples`, `min`, and `max` cells are integers and `mean`, `geomean`, `median`, and `std` cells are floating-point numbers with two decimal places
-
-### Requirement: Averaged memory trend plots are generated from the filtered summary
-When repeats is greater than `1`, the system SHALL generate one averaged SVG plot per app label and memory metric under `out_dir/summary/plots/<app_label>/<app_label>-<metric>.svg` using the retained iterations represented by `summary/summary_filtered.csv`. Each plot SHALL plot the geomean value for that metric at each snapshot and SHALL display the corresponding std as error bars. Plot x-axis timestamps SHALL be read from `snapshots/metadata.json` of the first retained iteration in run order, keyed by snapshot label. When `snapshots/metadata.json` is absent, the system SHALL emit a memmem warning log and skip averaged plot generation without failing report averaging.
-
-#### Scenario: Averaged plot is written per app and metric
-- **WHEN** repeated-run averaging retains iterations that produced a filtered summary
-- **THEN** the system writes one SVG plot under `summary/plots/<app_label>/<app_label>-<metric>.svg` for each memory metric with the geomean as the plotted value
-
-#### Scenario: Averaged plot shows standard deviation error bars
-- **WHEN** an averaged plot is generated for a metric with two or more contributing retained iterations
-- **THEN** each plotted point displays an error bar for the std of that metric
-
-#### Scenario: Averaged plot x-axis uses relative time
-- **WHEN** plotting averaged metric rows for an app
-- **THEN** the x-axis uses seconds elapsed since that app's first plotted snapshot timestamp, read from the first retained iteration's `snapshots/metadata.json`
-
-#### Scenario: Averaged plot uses only retained iterations
-- **WHEN** repeated-run averaging discards one or more outlier iterations
-- **THEN** averaged plots reflect only the retained iterations and omit snapshots present only in discarded iterations
-
-#### Scenario: Averaged plot metadata is absent
-- **WHEN** the first retained iteration has no `snapshots/metadata.json`
-- **THEN** the system emits a memmem warning log and skips averaged plot generation without failing report averaging
-
-### Requirement: Breakdown CSV contains per-tag snapshot metrics
-The system SHALL generate one breakdown CSV per collected snapshot under `breakdowns/<snapshot_label>/<app_label>-<snapshot_label>.csv` containing tag-level Size, Rss, Pss, Referenced, Shared, Private, Swap, SwapPss, and Anonymous totals. When a smaps tag filter is configured, the breakdown SHALL contain data rows only for matching tags. The header SHALL be `tag,size_kb,rss_kb,pss_kb,referenced_kb,shared_kb,private_kb,swap_kb,swap_pss_kb,anonymous_kb`, matching the metric column names used by `summary.csv`. Breakdown data rows SHALL be sorted by `size_kb` descending, with tag ascending as a deterministic tie-breaker.
-
-#### Scenario: Snapshot has tag breakdowns
-- **WHEN** a raw smaps snapshot is parsed
-- **THEN** the system writes a breakdown CSV with header `tag,size_kb,rss_kb,pss_kb,referenced_kb,shared_kb,private_kb,swap_kb,swap_pss_kb,anonymous_kb`
-
-#### Scenario: Breakdown rows are sorted by size
-- **WHEN** a breakdown CSV is written for multiple tags
-- **THEN** the data rows are ordered by `size_kb` from largest to smallest
-
-#### Scenario: Multiple snapshots exist for one app label
-- **WHEN** multiple snapshots exist for the same app label
-- **THEN** the system writes a separate breakdown CSV for each snapshot under that snapshot label directory
-
-#### Scenario: Filtered snapshot writes match-only breakdown
-- **WHEN** a raw smaps snapshot is parsed with a configured tag filter and some mapping tags match
-- **THEN** the breakdown CSV data rows contain only the matching tags with their aggregated metrics
-
-#### Scenario: Filtered-empty snapshot writes no breakdown artifact
-- **WHEN** a raw smaps snapshot is parsed with a configured tag filter and no mapping tag matches
-- **THEN** the system writes no breakdown CSV for that snapshot
-
-### Requirement: Averaged breakdown CSV contains per-tag statistics
-When repeats is greater than `1`, the system SHALL generate one averaged breakdown CSV per `(snapshot_label, app_label)` pair present in any retained iteration under `out_dir/summary/breakdowns/<snapshot_label>/<app_label>-<snapshot_label>.csv`. Each row SHALL describe one tag and SHALL contain the tag name, `n_samples`, and for each memory metric the mean, geomean, median, std, min, and max across the retained iterations that contained that tag. `n_samples` SHALL count the retained iterations whose per-iteration breakdown contained the tag. Column names SHALL follow `tag,n_samples,` followed by `<metric>_mean`, `<metric>_geomean`, `<metric>_median`, `<metric>_std`, `<metric>_min`, and `<metric>_max` for each memory metric. Data rows SHALL be sorted by `size_kb_mean` descending, with tag ascending as a deterministic tie-breaker. A retained iteration whose per-iteration breakdown file is missing SHALL be skipped without failing. Rows present only in discarded iterations SHALL be omitted. Output file creation order is not specified.
-
-#### Scenario: Averaged breakdown row is written per tag
-- **WHEN** repeated-run averaging retains iterations that produced per-iteration breakdowns
-- **THEN** `summary/breakdowns/<snapshot_label>/<app_label>-<snapshot_label>.csv` contains one row per tag present in any retained iteration with `n_samples` equal to the number of retained iterations containing that tag
-
-#### Scenario: Averaged breakdown header mirrors the averaged summary
-- **WHEN** an averaged breakdown CSV is generated
-- **THEN** its header is `tag,n_samples,` followed by `<metric>_mean,<metric>_geomean,<metric>_median,<metric>_std,<metric>_min,<metric>_max` for each memory metric in the `summary.csv` metric order
-
-#### Scenario: Tag missing in some retained iterations is still reported
-- **WHEN** a tag appears in some but not all retained iterations
-- **THEN** the averaged breakdown reports that tag with `n_samples` reflecting only the retained iterations that contained it
-
-#### Scenario: Iteration without a breakdown file is skipped
-- **WHEN** a retained iteration has no breakdown file for a `(snapshot_label, app_label)` pair present in another retained iteration
-- **THEN** the system averages over the remaining retained iterations for that pair without failing
-
-#### Scenario: Averaged breakdown omits pairs present only in discarded iterations
-- **WHEN** a `(snapshot_label, app_label)` pair appears only in discarded iterations
-- **THEN** `summary/breakdowns/` omits that pair
-
-#### Scenario: Averaged breakdown rows are sorted by mean size
-- **WHEN** an averaged breakdown CSV is written for multiple tags
-- **THEN** the data rows are ordered by `size_kb_mean` from largest to smallest, with tag ascending for ties
-
-#### Scenario: Averaged breakdown geomean collapses on zero
-- **WHEN** any contributing value for a metric in a tag is zero
-- **THEN** the geomean for that metric is reported as zero
-
-#### Scenario: Averaged breakdown std is zero for a single sample
-- **WHEN** a tag appears in exactly one retained iteration
-- **THEN** the averaged breakdown reports `n_samples` equal to `1` and reports `std` as `0.00` while still reporting mean, geomean, median, min, and max
-
-### Requirement: Report generation warns when filtered snapshot has no matching tags
-The system SHALL emit one memmem warning log per filtered snapshot file when a smaps tag filter is configured, the snapshot file exists, and parsing it with the filter aggregates no mappings (the parser returns `None`). The warning SHALL state the smaps file path and the filter pattern. Report generation SHALL continue without failing.
-
-#### Scenario: No tag matches the filter
-- **WHEN** report generation parses an existing snapshot with a configured tag filter and no mapping tag matches the pattern
-- **THEN** the system emits exactly one memmem warning per such file containing the smaps file path and the pattern, formatted as `smaps file {path} has no tags matching the pattern {pattern}`, and continues report generation
-
-#### Scenario: At least one tag matches the filter
-- **WHEN** report generation parses an existing snapshot with a configured tag filter and at least one mapping tag matches the pattern
-- **THEN** the system emits no empty-filter warning for that file
-
-#### Scenario: No filter is configured
-- **WHEN** report generation parses snapshots without a configured tag filter
-- **THEN** the system emits no empty-filter warnings
-
-### Requirement: Interrupted repeated runs can recover aggregate evidence
-The system SHALL provide a host-side recovery CLI that accepts a repeated-run output directory, aggregates iteration directories that contain `summary.csv`, and writes the same standard aggregate reports under its `summary/` directory as a completed repeated run. Iteration directories without `summary.csv` SHALL be excluded with a warning, and the recovery CLI SHALL fail when no iteration summary is available.
-
-#### Scenario: Completed iteration has a summary report
-- **WHEN** a repeated-run iteration finishes benchmark execution and per-iteration report generation successfully
-- **THEN** its iteration directory contains `summary.csv` for aggregate recovery
-
-#### Scenario: Interrupted final iteration is excluded
-- **WHEN** a repeated run stops after creating an iteration directory without `summary.csv` and one or more earlier iterations have summary reports
-- **THEN** recovery aggregates only the iterations with summary reports without requiring the user to delete the incomplete directory
-
-#### Scenario: Recovery writes standard aggregate reports
-- **WHEN** recovery finds one or more complete iteration directories
-- **THEN** it writes `summary.csv`, `summary_filtered.csv`, `outliers.csv`, averaged plots, and averaged breakdowns under `<out-dir>/summary/` with the same semantics as normal repeated-run aggregation
-
-#### Scenario: No complete iteration is available
-- **WHEN** recovery finds no iteration directory with `summary.csv`
-- **THEN** it fails without publishing a new or partial aggregate summary
-
-#### Scenario: Recovery replaces a prior summary safely
-- **WHEN** recovery is rerun for an output directory that already contains `summary/`
-- **THEN** it either replaces the complete summary as one result set or leaves the prior summary unchanged when recovery fails
+#### Scenario: Matching zero profile is parsed
+- **WHEN** at least one mapping is aggregated with zero values
+- **THEN** no no-aggregation warning is emitted for that file

@@ -14,311 +14,92 @@
 # limitations under the License.
 
 import pathlib
+import tempfile
 import unittest
-import contextlib
-import io
+
 from test.mock.device import FakeDevice
 
 from src.commands import ExecutionContext, execute_command
 from src.device import ScreenBounds
-from src.log import configure_logger, reset_logger
 from src.metadata import AppMetadata
-from src.result import ResultStore
+from src.store import EvidenceStore
 from src.schema import Flow
 
 
-_OUT_DIR = pathlib.Path.cwd().joinpath("out")
-
-
-def _local(path: str) -> pathlib.Path:
-    return _OUT_DIR.joinpath(path)
-
-
-def _context(
-    device: FakeDevice,
-    store: ResultStore,
-    processes: list[AppMetadata] | None = None,
-) -> ExecutionContext:
-    launched_processes = processes or []
-    return ExecutionContext(
-        device=device,
-        store=store,
-        flow=Flow(flow=[]),
-        launched_processes=launched_processes,
-        active_processes=list(launched_processes),
-        pending_artifacts=[],
-        artifact_metadata={},
-        child_processes=[],
-        screen_bounds=ScreenBounds(0, 0, 1000, 2000),
-    )
-
-
 class CommandsTest(unittest.TestCase):
-    def test_ui_commands_convert_and_delegate(self) -> None:
-        device = FakeDevice(screen=ScreenBounds(0, 0, 1000, 2000))
-        context = _context(
-            device,
-            ResultStore(_OUT_DIR, pathlib.PurePosixPath("/remote")),
-        )
-        commands = Flow.model_validate(
-            {
-                "flow": [
-                    {
-                        "label": "app",
-                        "bundle": "com.example",
-                        "ability": "EntryAbility",
-                        "terminate": False,
-                        "commands": [
-                            {"action": "tap", "payload": {
-                                "x_pct": 50, "y_pct": 50}},
-                            {"action": "double_tap", "payload": {
-                                "x_pct": 10, "y_pct": 20}},
-                            {"action": "long_tap", "payload": {
-                                "x_pct": 30, "y_pct": 40}},
-                            {
-                                "action": "swipe",
-                                "payload": {"x1_pct": 50, "y1_pct": 80, "x2_pct": 50, "y2_pct": 20, "velocity": 800},
-                            },
-                            {
-                                "action": "drag",
-                                "payload": {"x1_pct": 10, "y1_pct": 20, "x2_pct": 90, "y2_pct": 80, "velocity": 900},
-                            },
-                            {
-                                "action": "fling",
-                                "payload": {
-                                    "x1_pct": 10,
-                                    "y1_pct": 20,
-                                    "x2_pct": 90,
-                                    "y2_pct": 80,
-                                    "velocity": 1000,
-                                    "step_length": 20,
-                                },
-                            },
-                            {
-                                "action": "directional_fling",
-                                "payload": {"direction": "up", "velocity": 1100, "step_length": 30},
-                            },
-                            {"action": "input_text", "payload": {
-                                "x_pct": 40, "y_pct": 60, "text": "hello"}},
-                            {"action": "text", "payload": "world"},
-                            {"action": "key", "payload": {"key": "Home"}},
-                        ],
-                    }
-                ]
-            }
-        ).flow[0].commands
+    def test_snapshot_declaration_survives_failed_capture(self) -> None:
+        class PartiallyFailingDevice(FakeDevice):
+            def capture_smaps(self, pid: int, path: pathlib.PurePosixPath) -> bool:
+                if pid == 2:
+                    return False
+                return super().capture_smaps(pid, path)
 
-        for command in commands:
-            execute_command(command, context)
+        with tempfile.TemporaryDirectory() as directory:
+            store = EvidenceStore(
+                pathlib.Path(directory), pathlib.PurePosixPath("/remote"))
+            device = PartiallyFailingDevice(processes={"com.example": 1,
+                                                       "com.failed": 2})
+            active = [
+                AppMetadata(pid=1, label="App", bundle="com.example",
+                            ability="EntryAbility"),
+                AppMetadata(pid=2, label="Failed", bundle="com.failed",
+                            ability="EntryAbility"),
+            ]
+            context = ExecutionContext(
+                device=device,
+                store=store,
+                flow=Flow(flow=[]),
+                launched_apps=active,
+                active_apps=active.copy(),
+                pending_artifacts=[],
+                artifact_metadata={store.local_snapshots_dir(): [],
+                                   store.local_screenshots_dir(): []},
+                child_processes=[],
+                screen_bounds=ScreenBounds(0, 0, 100, 200),
+            )
+            command = Flow.model_validate({"flow": [{
+                "label": "app", "bundle": "com.example",
+                "ability": "EntryAbility", "terminate": False,
+                "commands": [{"action": "snapshot", "payload": "start"}],
+            }]}).flow[0].commands[0]
 
-    def test_snapshot_records_metadata_and_mirrored_artifact_paths(self) -> None:
-        device = FakeDevice(
-            processes={"com.example": 123, "com.example.dead": 456})
-        context = _context(
-            device,
-            ResultStore(_OUT_DIR, pathlib.PurePosixPath("/remote")),
-            processes=[
-                AppMetadata(
-                    pid=123,
-                    label="App",
-                    bundle="com.example",
-                    ability="EntryAbility",
-                ),
-                AppMetadata(
-                    pid=456,
-                    label="DeadApp",
-                    bundle="com.example.dead",
-                    ability="EntryAbility",
-                ),
-            ],
-        )
-        command = Flow.model_validate(
-            {
-                "flow": [
-                    {
-                        "label": "app",
-                        "bundle": "com.example",
-                        "ability": "EntryAbility",
-                        "terminate": False,
-                        "commands": [{"action": "snapshot", "payload": "after_start"}],
-                    }
-                ]
-            }
-        ).flow[0].commands[0]
-
-        execute_command(command, context)
-
-        remote_path = pathlib.PurePosixPath(
-            "/remote/snapshots/after_start/App-after_start.smaps")
-        self.assertEqual(len(context.pending_artifacts), 2)
-        self.assertEqual(
-            len(context.artifact_metadata[_local("snapshots")]), 1)
-        metadata = context.artifact_metadata[_local("snapshots")][0]
-        self.assertEqual(metadata.label, "after_start")
-        self.assertTrue(metadata.timestamp.isdigit())
-        self.assertEqual(context.pending_artifacts[0].remote_base,
-                         pathlib.PurePosixPath("/remote/snapshots"))
-        self.assertEqual(context.pending_artifacts[0].local_base,
-                         _local("snapshots"))
-        self.assertEqual(context.pending_artifacts[0].artifact,
-                         ["after_start", "App-after_start.smaps"])
-        self.assertEqual(context.pending_artifacts[1].artifact,
-                         ["after_start", "DeadApp-after_start.smaps"])
-        self.assertIn(pathlib.PurePosixPath(
-            "/remote/snapshots/after_start"), device.dirs)
-        self.assertIn(remote_path, device.files)
-        self.assertIn(pathlib.PurePosixPath(
-            "/remote/snapshots/after_start/DeadApp-after_start.smaps"),
-            device.files)
-
-    def test_screenshot_records_metadata_and_artifact_path(self) -> None:
-        device = FakeDevice(processes={"com.example": 123}, dirs={
-                            pathlib.PurePosixPath("/remote/screenshots")})
-        context = _context(
-            device,
-            ResultStore(_OUT_DIR, pathlib.PurePosixPath("/remote")),
-        )
-        command = Flow.model_validate(
-            {
-                "flow": [
-                    {
-                        "label": "app",
-                        "bundle": "com.example",
-                        "ability": "EntryAbility",
-                        "terminate": False,
-                        "commands": [{"action": "screenshot", "payload": "after_start"}],
-                    }
-                ]
-            }
-        ).flow[0].commands[0]
-
-        execute_command(command, context)
-
-        self.assertEqual(len(context.pending_artifacts), 1)
-        metadata = context.artifact_metadata[_local(
-            "screenshots")][0]
-        self.assertEqual(metadata.label, "after_start")
-        self.assertTrue(metadata.timestamp.isdigit())
-        self.assertEqual(context.pending_artifacts[0].remote_base,
-                         pathlib.PurePosixPath("/remote/screenshots"))
-        self.assertEqual(context.pending_artifacts[0].local_base,
-                         _local("screenshots"))
-        self.assertEqual(context.pending_artifacts[0].artifact,
-                         ["after_start.png"])
-        self.assertIn(pathlib.PurePosixPath(
-            "/remote/screenshots/after_start.png"), device.files)
-
-    def test_screenshot_failure_reports_label(self) -> None:
-        device = FakeDevice(fail_capture_screenshot=True)
-        context = _context(
-            device,
-            ResultStore(_OUT_DIR, pathlib.PurePosixPath("/remote")),
-        )
-        command = Flow.model_validate(
-            {
-                "flow": [
-                    {
-                        "label": "app",
-                        "bundle": "com.example",
-                        "ability": "EntryAbility",
-                        "terminate": False,
-                        "commands": [{"action": "screenshot", "payload": "after_start"}],
-                    }
-                ]
-            }
-        ).flow[0].commands[0]
-
-        with self.assertRaisesRegex(RuntimeError, "after_start"):
-            execute_command(command, context)
-
-        self.assertEqual(context.artifact_metadata, {})
-        self.assertEqual(context.pending_artifacts, [])
-
-    def test_snapshot_removes_missing_process_and_warns_once(self) -> None:
-        device = FakeDevice(processes={"com.example": 123})
-        context = _context(
-            device,
-            ResultStore(_OUT_DIR, pathlib.PurePosixPath("/remote")),
-            processes=[
-                AppMetadata(
-                    pid=123,
-                    label="App",
-                    bundle="com.example",
-                    ability="EntryAbility",
-                ),
-                AppMetadata(
-                    pid=456,
-                    label="DeadApp",
-                    bundle="com.example.dead",
-                    ability="EntryAbility",
-                ),
-            ],
-        )
-        commands = Flow.model_validate(
-            {
-                "flow": [
-                    {
-                        "label": "app",
-                        "bundle": "com.example",
-                        "ability": "EntryAbility",
-                        "terminate": False,
-                        "commands": [
-                            {"action": "snapshot", "payload": "first"},
-                            {"action": "snapshot", "payload": "second"},
-                        ],
-                    }
-                ]
-            }
-        ).flow[0].commands
-
-        stdout = io.StringIO()
-        with contextlib.redirect_stdout(stdout):
-            configure_logger("warn")
-            for command in commands:
+            with self.assertRaisesRegex(RuntimeError, "PID 2"):
                 execute_command(command, context)
-            reset_logger()
 
-        self.assertEqual(
-            [process.label for process in context.active_processes], ["App"])
-        self.assertEqual(len(context.pending_artifacts), 2)
-        self.assertEqual(
-            stdout.getvalue().count("label=DeadApp pid=456"), 1)
-        self.assertFalse(any("DeadApp" in str(path) for path in device.files))
+            self.assertEqual(context.artifact_metadata[store.local_snapshots_dir()][0].files,
+                             ["start/App.smaps", "start/Failed.smaps"])
+            self.assertEqual(context.pending_artifacts[0].artifact,
+                             ["start", "App.smaps"])
 
-    def test_snapshot_failure_does_not_record_metadata(self) -> None:
-        device = FakeDevice(
-            processes={"com.example": 123}, fail_capture_smaps=True)
-        context = _context(
-            device,
-            ResultStore(_OUT_DIR, pathlib.PurePosixPath("/remote")),
-            processes=[AppMetadata(
-                pid=123,
-                label="App",
-                bundle="com.example",
-                ability="EntryAbility",
-            )],
-        )
-        command = Flow.model_validate(
-            {
-                "flow": [
-                    {
-                        "label": "app",
-                        "bundle": "com.example",
-                        "ability": "EntryAbility",
-                        "terminate": False,
-                        "commands": [{"action": "snapshot", "payload": "after_start"}],
-                    }
-                ]
-            }
-        ).flow[0].commands[0]
+    def test_snapshot_missing_pid_keeps_declaration_and_successful_prefix(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = EvidenceStore(pathlib.Path(directory),
+                                  pathlib.PurePosixPath("/remote"))
+            device = FakeDevice(processes={"com.example": 1})
+            active = [
+                AppMetadata(pid=1, label="App", bundle="com.example",
+                            ability="EntryAbility"),
+                AppMetadata(pid=2, label="Gone", bundle="com.gone",
+                            ability="EntryAbility"),
+            ]
+            context = ExecutionContext(
+                device=device, store=store, flow=Flow(flow=[]), launched_apps=active,
+                active_apps=active.copy(), pending_artifacts=[],
+                artifact_metadata={store.local_snapshots_dir(): [],
+                                   store.local_screenshots_dir(): []},
+                child_processes=[], screen_bounds=ScreenBounds(0, 0, 100, 200))
+            command = Flow.model_validate({"flow": [{
+                "label": "app", "bundle": "com.example", "ability": "EntryAbility",
+                "terminate": False, "commands": [{"action": "snapshot", "payload": "start"}],
+            }]}).flow[0].commands[0]
 
-        with self.assertRaisesRegex(RuntimeError, "123"):
-            execute_command(command, context)
+            with self.assertRaisesRegex(RuntimeError, "label=Gone pid=2"):
+                execute_command(command, context)
 
-        self.assertEqual(context.artifact_metadata, {})
-        self.assertEqual(context.pending_artifacts, [])
-        self.assertEqual(
-            [process.label for process in context.active_processes], ["App"])
+            self.assertEqual(context.artifact_metadata[store.local_snapshots_dir()][0].files,
+                             ["start/App.smaps", "start/Gone.smaps"])
+            self.assertEqual([item.artifact for item in context.pending_artifacts],
+                             [["start", "App.smaps"]])
 
 
 if __name__ == "__main__":

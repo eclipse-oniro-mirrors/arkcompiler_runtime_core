@@ -25,10 +25,11 @@ import pydantic
 
 from src.commands import ExecutionContext, PendingArtifact, execute_command
 from src.device import Device, DeviceHealth, ScreenBounds
+from src.evidence import validate_evidence
 from src.errors import CombinedError
 from src.log import get_logger
-from src.metadata import AppMetadataFile, AppMetadata, ArtifactMetadata, ArtifactMetadataFile
-from src.result import ResultStore
+from src.metadata import AppMetadataFile, AppMetadata, ArtifactMetadataFile
+from src.store import EvidenceStore
 from src.schema import AppFlow, Flow
 
 
@@ -46,19 +47,16 @@ _MIN_BATTERY_CAPACITY_PCT = 30
 _MAX_THERMAL_TEMP_MILLIS_C = 90000
 
 
-def create_result_store(options: BenchmarkOptions) -> ResultStore:
+def create_evidence_store(options: BenchmarkOptions) -> EvidenceStore:
     remote_root = pathlib.PurePosixPath("/data/local/tmp")
     remote_name = f"memmem-out-{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
-    return ResultStore(
-        local_out_dir=options.out_dir,
-        remote_out_dir=remote_root.joinpath(remote_name),
-    )
+    return EvidenceStore(options.out_dir, remote_root.joinpath(remote_name))
 
 
 def run_benchmark(
     flow: Flow,
     options: BenchmarkOptions,
-    store: ResultStore,
+    store: EvidenceStore,
     device: Device,
 ) -> None:
     context = _create_execution_context(flow, store, device)
@@ -88,24 +86,25 @@ def run_benchmark(
     finally:
         os.chdir(oldpwd)
     errors.raise_if_any()
+    validate_evidence(store)
 
 
 def _pre_flow(
     flow: Flow,
     options: BenchmarkOptions,
-    store: ResultStore,
+    store: EvidenceStore,
     device: Device,
     context: ExecutionContext,
 ) -> None:
     logger = get_logger()
-    logger.info(f"initializing local output: {store.local_out_dir()}")
-    _initialize_local_output(flow, store, options)
+    logger.info(f"initializing local output: {store.local_root()}")
+    _initialize_local_output(store, options)
     try:
         logger.info("preparing device")
         _prepare_device(device, options)
         logger.info("start device verification")
         _verify_device_ok(device.device_health())
-        logger.info(f"initializing remote output: {store.remote_out_dir()}")
+        logger.info(f"initializing remote output: {store.remote_root()}")
         _initialize_remote_output(device, store, options)
     except Exception as error:
         errors = CombinedError()
@@ -121,11 +120,11 @@ def _pre_flow(
         if options.device_log:
             logger.info("starting device log capture")
             context.child_processes.append(
-                device.start_log_capture(store.remote_hilog_path()))
+                device.start_log_capture(store.remote_log_path()))
             context.pending_artifacts.append(PendingArtifact(
-                remote_base=store.remote_hilog_dir(),
-                local_base=store.local_hilog_dir(),
-                artifact=store.hilog_relative_parts(),
+                remote_base=store.remote_logs_dir(),
+                local_base=store.local_logs_dir(),
+                artifact=store.log_relative_parts(),
             ))
     except Exception as error:
         errors = CombinedError()
@@ -143,17 +142,20 @@ def _pre_flow(
 
 def _create_execution_context(
     flow: Flow,
-    store: ResultStore,
+    store: EvidenceStore,
     device: Device,
 ) -> ExecutionContext:
     return ExecutionContext(
         device=device,
         store=store,
         flow=flow,
-        launched_processes=[],
-        active_processes=[],
+        launched_apps=[],
+        active_apps=[],
         pending_artifacts=[],
-        artifact_metadata={},
+        artifact_metadata={
+            store.local_snapshots_dir(): [],
+            store.local_screenshots_dir(): [],
+        },
         child_processes=[],
         screen_bounds=ScreenBounds(0, 0, 0, 0),
     )
@@ -232,8 +234,8 @@ def _pre_app_flow(
         bundle=app_flow.bundle,
         ability=app_flow.ability,
     )
-    context.launched_processes.append(process)
-    context.active_processes.append(process)
+    context.launched_apps.append(process)
+    context.active_apps.append(process)
 
 
 def _app_flow(
@@ -255,43 +257,45 @@ def _post_app_flow(
     if app_flow.terminate:
         get_logger().info(
             f"terminating app: label={app_flow.label} bundle={app_flow.bundle}")
-        context.active_processes = [
-            process for process in context.active_processes
-            if process.label != app_flow.label
+        context.active_apps = [
+            app for app in context.active_apps
+            if app.label != app_flow.label
         ]
         context.device.terminate_app(app_flow.bundle)
 
 
 def _initialize_local_output(
-    flow: Flow,
-    store: ResultStore,
+    store: EvidenceStore,
     options: BenchmarkOptions,
 ) -> None:
-    store.local_out_dir().mkdir(parents=True, exist_ok=False)
+    store.local_root().mkdir(parents=True, exist_ok=False)
     store.local_snapshots_dir().mkdir()
     store.local_screenshots_dir().mkdir()
-    store.local_breakdowns_dir().mkdir()
     if options.device_log:
-        store.local_hilog_dir().mkdir()
-    _dump_model_to_json(flow, store.local_flow_path())
+        store.local_logs_dir().mkdir()
+    _dump_model_to_json(AppMetadataFile(apps=[]),
+                        store.local_app_metadata_path())
+    for category in (store.local_snapshots_dir(), store.local_screenshots_dir()):
+        _dump_model_to_json(ArtifactMetadataFile(artifacts=[]),
+                            store.local_artifact_metadata_path(category))
 
 
 def _initialize_remote_output(
     device: Device,
-    store: ResultStore,
+    store: EvidenceStore,
     options: BenchmarkOptions,
 ) -> None:
-    if not device.make_dir(store.remote_out_dir()):
+    if not device.make_dir(store.remote_root()):
         raise RuntimeError(
-            f"failed to create remote run directory: {store.remote_out_dir()}")
+            f"failed to create remote run directory: {store.remote_root()}")
     errors = CombinedError()
     try:
         if not device.make_dir(store.remote_snapshots_dir()):
             raise RuntimeError("failed to create remote snapshots directory")
         if not device.make_dir(store.remote_screenshots_dir()):
             raise RuntimeError("failed to create remote screenshots directory")
-        if options.device_log and not device.make_dir(store.remote_hilog_dir()):
-            raise RuntimeError("failed to create remote hilog directory")
+        if options.device_log and not device.make_dir(store.remote_logs_dir()):
+            raise RuntimeError("failed to create remote logs directory")
     except Exception as error:
         errors.add(error, None)
         try:
@@ -305,9 +309,9 @@ def _dump_model_to_json(model: pydantic.BaseModel, path: pathlib.Path) -> None:
     path.write_text(model.model_dump_json(indent=2) + "\n", encoding="utf-8")
 
 
-def _write_metadata(store: ResultStore, context: ExecutionContext) -> None:
+def _write_metadata(store: EvidenceStore, context: ExecutionContext) -> None:
     _dump_model_to_json(
-        AppMetadataFile(apps=context.launched_processes),
+        AppMetadataFile(apps=context.launched_apps),
         store.local_app_metadata_path(),
     )
     for local_base, metadata in context.artifact_metadata.items():
@@ -324,7 +328,7 @@ def _stop_process(
     returncode = process.poll()
     if returncode is not None:
         raise RuntimeError(
-            "hilog stream exited before requested shutdown "
+            "device log stream exited before requested shutdown "
             f"with host code {returncode}; partial log will be preserved"
         )
     process.terminate()
@@ -346,7 +350,7 @@ def _stop_child_processes(processes: list[subprocess.Popen[typing.Any]]) -> None
 
 
 def _post_flow(
-    store: ResultStore,
+    store: EvidenceStore,
     context: ExecutionContext,
 ) -> None:
     errors = CombinedError()
@@ -374,12 +378,12 @@ def _post_flow(
 
 
 def _post_run_cleanup(
-    store: ResultStore,
+    store: EvidenceStore,
     context: ExecutionContext,
 ) -> None:
     errors = CombinedError()
     try:
-        get_logger().info(f"start remote cleanup: {store.remote_out_dir()}")
+        get_logger().info(f"start remote cleanup: {store.remote_root()}")
         _cleanup_remote(context.device, store)
     except Exception as error:
         errors.add(error, "failed to clean up remote run directory")
@@ -418,16 +422,8 @@ def _receive_pending_artifact(
         )
 
 
-def _cleanup_remote(device: Device, store: ResultStore) -> None:
-    if device.remove_dir(store.remote_out_dir()):
+def _cleanup_remote(device: Device, store: EvidenceStore) -> None:
+    if device.remove_dir(store.remote_root()):
         return None
     raise RuntimeError(
-        f"failed to clean up remote run directory: {store.remote_out_dir()}")
-
-
-def _combine_errors(
-    primary: Exception,
-    secondary: Exception,
-    secondary_context: str,
-) -> RuntimeError:
-    return RuntimeError(f"{primary}; additionally {secondary_context}: {secondary}")
+        f"failed to clean up remote run directory: {store.remote_root()}")

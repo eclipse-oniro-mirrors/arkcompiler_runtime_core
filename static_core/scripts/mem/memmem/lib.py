@@ -28,6 +28,7 @@ __all__ = [
     "KeyCommand",
     "LongTapCommand",
     "Macro",
+    "MultiTouchInputCommand",
     "RepeatMacro",
     "ScreenshotCommand",
     "SnapshotCommand",
@@ -54,10 +55,12 @@ __all__ = [
     "input_text",
     "key",
     "long_tap",
+    "multi_touch_input",
     "preprocess_flow",
     "repeat",
     "reset_logger",
-    "run",
+    "execute_flow",
+    "create_view",
     "screenshot",
     "snapshot",
     "swipe",
@@ -81,11 +84,13 @@ from src.platform.ohos.hdc import Hdc
 from src.platform.ohos.hdc_device import HdcDevice
 from src.log import configure_logger, get_logger, reset_logger
 from src.preprocess import preprocess_flow as _preprocess_flow
-from src.types import positive_int
 from src.path import absolutize
-from src.report import generate_reports, average_reports
-from src.result import ResultStore
-from src.runner import BenchmarkOptions, create_result_store, run_benchmark
+from src.evidence import ParsedEvidence, is_evidence_equivalent, parse_evidence
+from src.metadata import AppSnapshotLabelPair
+from src.report import write_view
+from src.store import EvidenceStore, ViewStore
+from src.smaps import MATCH_ALL
+from src.runner import BenchmarkOptions, create_evidence_store, run_benchmark
 from src.schema import (
     AppFlow,
     Command,
@@ -101,6 +106,8 @@ from src.schema import (
     KeyCommand,
     LongTapCommand,
     Macro,
+    MultiTouchInputCommand,
+    MultiTouchInputPayload,
     NamedKeyPayload,
     RepeatMacro,
     RepeatMacroPayload,
@@ -136,46 +143,90 @@ def get_abd_device(abd: Abd) -> Device:
     return AbdDevice(abd)
 
 
-def run(
+def _validate_command_support(f: Flow, d: Device) -> None:
+    for af in f.flow:
+        for command in af.commands:
+            if not d.is_command_supported(command):
+                raise RuntimeError(
+                    "device does not support command: "
+                    f"app={af.label} action={command.action}"
+                )
+
+
+def execute_flow(
     f: Flow,
     d: Device,
+    dst: pathlib.Path,
     *,
-    out_dir: str | pathlib.Path,
     reboot: bool = False,
     device_log: bool = True,
-    repeats: int = 1,
-    smaps_filter: re.Pattern[str] | None = None,
-) -> None:
-    validated_repeats = positive_int(repeats)
+) -> pathlib.Path:
     validated_flow = Flow.model_validate(f.model_dump())
+    _validate_command_support(validated_flow, d)
+    resolved_dst = absolutize(dst)
+    options = BenchmarkOptions(
+        out_dir=resolved_dst,
+        reboot=reboot,
+        device_log=device_log,
+    )
+    run_benchmark(validated_flow, options,
+                  create_evidence_store(options), d)
+    return resolved_dst
 
-    resolved_out_dir = absolutize(pathlib.Path(out_dir))
 
-    def run_single(out: pathlib.Path) -> ResultStore:
-        options = BenchmarkOptions(
-            out_dir=out,
-            reboot=reboot,
-            device_log=device_log,
-        )
-        store = create_result_store(options)
-        run_benchmark(
-            validated_flow,
-            options,
-            store,
-            d,
-        )
-        generate_reports(store, smaps_filter)
-        return store
+def create_view(
+    dirs: list[pathlib.Path],
+    dst: pathlib.Path,
+    smaps_filter: re.Pattern[str] = MATCH_ALL,
+) -> pathlib.Path:
+    if not dirs:
+        raise ValueError("at least one evidence directory is required")
+    if not isinstance(smaps_filter, re.Pattern) or not isinstance(smaps_filter.pattern, str):
+        raise TypeError("smaps_filter must be a compiled string pattern")
+    sources = [absolutize(path) for path in dirs]
+    if len(sources) != len(set(sources)):
+        raise ValueError("duplicate evidence directory")
+    parsed = [parse_evidence(EvidenceStore(source), smaps_filter)
+              for source in sources]
+    _warn_unmatched_smaps(parsed, smaps_filter)
+    if any(not is_evidence_equivalent(parsed[0], item) for item in parsed[1:]):
+        raise ValueError("incompatible evidence directories")
+    destination = absolutize(dst)
+    write_view(parsed, ViewStore(destination),
+               smaps_filter.pattern, smaps_filter.flags)
+    return destination
 
-    if validated_repeats == 1:
-        run_single(resolved_out_dir)
-    else:
-        resolved_out_dir.mkdir(parents=True, exist_ok=False)
-        out_dirs: list[ResultStore] = []
-        for i in range(validated_repeats):
-            out_dirs.append(run_single(resolved_out_dir.joinpath(
-                f"iteration_{i}")))
-        average_reports(resolved_out_dir, out_dirs)
+
+def _warn_unmatched_smaps(evidence: list[ParsedEvidence],
+                          smaps_filter: re.Pattern[str]) -> None:
+    for item in evidence:
+        _warn_unmatched_smaps_for_evidence(item, smaps_filter)
+
+
+def _warn_unmatched_smaps_for_evidence(
+    item: ParsedEvidence,
+    smaps_filter: re.Pattern[str],
+) -> None:
+    snapshots_dir = EvidenceStore(item.source).local_snapshots_dir()
+    for artifact in item.snapshots.artifacts:
+        for file in artifact.files:
+            _warn_if_smaps_unmatched(item, artifact.label, file,
+                                     snapshots_dir, smaps_filter)
+
+
+def _warn_if_smaps_unmatched(
+    item: ParsedEvidence,
+    snapshot_label: str,
+    file: str,
+    snapshots_dir: pathlib.Path,
+    smaps_filter: re.Pattern[str],
+) -> None:
+    relative_path = pathlib.PurePosixPath(file)
+    pair = AppSnapshotLabelPair(relative_path.stem, snapshot_label)
+    if pair not in item.measurements:
+        path = snapshots_dir.joinpath(*relative_path.parts)
+        get_logger().warn(
+            f"smaps file {path} has no mappings aggregated for pattern {smaps_filter.pattern}")
 
 
 def flow(apps: list[AppFlow], desc: str | None = None) -> Flow:
@@ -300,6 +351,18 @@ def directional_fling(
             direction=direction,
             velocity=velocity,
             step_length=step_length,
+        ),
+    )
+
+
+def multi_touch_input(
+    finger_list: list[dict[str, int]], duration_ms: int
+) -> MultiTouchInputCommand:
+    return MultiTouchInputCommand(
+        action="multi_touch_input",
+        payload=MultiTouchInputPayload(
+            finger_list=finger_list,
+            duration_ms=duration_ms,
         ),
     )
 

@@ -13,858 +13,241 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import contextlib
-import io
-import json
 import os
 import pathlib
 import subprocess
-import sys
 import tempfile
 import typing
 import unittest
-from unittest import mock
 
 from test.mock.device import FakeDevice
-from test.mock.hdc import FakeHdc
-from src.device import CommandResult as HdcResult, Device, DeviceHealth, ScreenBounds, ThermalZoneHealth
-from src.platform.ohos.hdc_device import HdcDevice
-from src.log import configure_logger, reset_logger
-from src.runner import BenchmarkOptions, run_benchmark, create_result_store, _create_execution_context, _post_app_flow, _pre_app_flow, _stop_process, _MAX_THERMAL_TEMP_MILLIS_C, _MIN_BATTERY_CAPACITY_PCT
-from src.report import generate_reports
+
+from src.commands import PendingArtifact
+from src.device import CommandResult, ScreenBounds
+from src.evidence import validate_evidence
+from src.runner import (BenchmarkOptions, _receive_pending_artifact,
+                        create_evidence_store, run_benchmark)
 from src.schema import Flow
 
 
-DEFAULT_FLOW = '{"flow":[{"label":"app","bundle":"com.example","ability":"EntryAbility","terminate":false,"commands":[]}]}'
-
-
-def _options(out_dir: pathlib.Path, reboot: bool = False, device_log: bool = True) -> BenchmarkOptions:
-    return BenchmarkOptions(out_dir=out_dir, reboot=reboot, device_log=device_log)
-
-
-def _load_flow(content: str) -> Flow:
-    return Flow.model_validate(json.loads(content))
-
-
-def _write_flow(_root: pathlib.Path, content: str = DEFAULT_FLOW) -> Flow:
-    return _load_flow(content)
-
-
-def _sleep_process() -> subprocess.Popen[bytes]:
-    return subprocess.Popen(
-        [sys.executable, "-c", "import time; time.sleep(3600)"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
-
-def _stubborn_process() -> subprocess.Popen[bytes]:
-    process = _sleep_process()
-    setattr(process, "terminate", lambda: None)
-    return process
-
-
-class _RecvCapturingDevice(FakeDevice):
-    def __init__(self, **kwargs: typing.Any) -> None:
-        super().__init__(**kwargs)
-        self.recv_local_paths: list[pathlib.Path] = []
-
-    def recv_file(
-        self,
-        remote_path: pathlib.PurePosixPath,
-        local_path: pathlib.Path,
-    ) -> HdcResult:
-        self.recv_local_paths.append(local_path)
-        return super().recv_file(remote_path, local_path)
-
-
-class _EarlyExitHilogDevice(FakeDevice):
-    def __init__(self, exit_code: int = 0, **kwargs: typing.Any) -> None:
-        super().__init__(**kwargs)
-        self.exit_code = exit_code
-
-    def start_log_capture(self, path: pathlib.PurePosixPath) -> subprocess.Popen[typing.Any]:
-        if path.parent not in self.dirs:
-            raise RuntimeError("missing remote log directory")
-        self.hilog_paths.append(path)
-        self.files[path] = self.default_log_content
-        process = subprocess.Popen(
-            [sys.executable, "-c", f"raise SystemExit({self.exit_code})"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        process.wait(5)
-        self.hilog_processes.append(process)
-        return process
-
-
 class RunnerTest(unittest.TestCase):
-    def test_result_store_remote_name_is_host_timestamped(self) -> None:
-        store = create_result_store(
-            _options(pathlib.Path("/tmp/memmem out/iteration:0")))
-
-        self.assertRegex(
-            str(store.remote_out_dir()),
-            r"^/data/local/tmp/memmem-out-\d{8}_\d{6}_\d{6}$")
-
-    def test_runner_restores_working_directory(self) -> None:
+    def test_successful_empty_flow_writes_valid_evidence_lifecycle(self) -> None:
+        flow = Flow.model_validate({"flow": []})
         device = FakeDevice(screen=ScreenBounds(0, 0, 100, 200))
         with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            original_cwd = pathlib.Path.cwd()
-            try:
-                options = _options(root.joinpath("out"))
-                store = create_result_store(options)
-                run_benchmark(_write_flow(root), options, store,
-                              device)
-                generate_reports(store)
+            destination = pathlib.Path(directory).joinpath("evidence")
+            options = BenchmarkOptions(destination, device_log=False)
+            store = create_evidence_store(options)
 
-                self.assertEqual(pathlib.Path.cwd(), original_cwd)
-            finally:
-                os.chdir(original_cwd)
+            run_benchmark(flow, options, store, device)
 
-    def test_runner_restores_working_directory_on_failure(self) -> None:
-        device = FakeDevice(
-            screen=ScreenBounds(0, 0, 100, 200),
-            invalid_bundles={"com.example"},
-        )
+            self.assertTrue(store.local_app_metadata_path().is_file())
+            self.assertTrue(store.local_artifact_metadata_path(
+                store.local_snapshots_dir()).is_file())
+            self.assertTrue(store.local_artifact_metadata_path(
+                store.local_screenshots_dir()).is_file())
+            validate_evidence(store)
+            self.assertFalse(device.dirs)
+
+    def test_existing_destination_is_not_changed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            original_cwd = pathlib.Path.cwd()
-            try:
-                options = _options(root.joinpath("out"))
-                store = create_result_store(options)
-                with self.assertRaises(RuntimeError):
-                    run_benchmark(_write_flow(root), options, store,
-                                  device)
-
-                self.assertEqual(pathlib.Path.cwd(), original_cwd)
-            finally:
-                os.chdir(original_cwd)
-
-    def test_existing_output_skips_all_finalizers_and_device_calls(self) -> None:
-        device = mock.create_autospec(Device, instance=True)
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            out_dir = root.joinpath("out")
-            out_dir.mkdir()
-            metadata = out_dir.joinpath("app_metadata.json")
-            metadata.write_bytes(b"SENTINEL\n")
-            options = _options(out_dir, device_log=False)
-            store = create_result_store(options)
+            destination = pathlib.Path(directory).joinpath("evidence")
+            destination.mkdir()
+            sentinel = destination.joinpath("sentinel")
+            sentinel.write_text("keep", encoding="utf-8")
+            options = BenchmarkOptions(destination, device_log=False)
 
             with self.assertRaises(FileExistsError):
-                run_benchmark(_write_flow(root), options, store, device)
+                run_benchmark(Flow(flow=[]), options,
+                              create_evidence_store(options), FakeDevice())
 
-            self.assertEqual(metadata.read_bytes(), b"SENTINEL\n")
-            self.assertEqual(device.mock_calls, [])
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "keep")
 
-    def test_failure_before_remote_creation_skips_remote_cleanup(self) -> None:
-        wrapped_device = FakeDevice(
-            health_error=RuntimeError("health failed"))
-        device = mock.Mock(wraps=wrapped_device, spec=FakeDevice)
+    def test_failure_receives_successful_prefix_restores_cwd_and_cleans_remote(self) -> None:
+        class TrackingDevice(FakeDevice):
+            def __init__(self) -> None:
+                super().__init__(processes={"com.example": 1, "com.failed": 2})
+                self.received: list[pathlib.PurePosixPath] = []
+
+            def capture_smaps(self, pid: int, path: pathlib.PurePosixPath) -> bool:
+                return pid != 2 and super().capture_smaps(pid, path)
+
+            def recv_file(self, remote_path: pathlib.PurePosixPath,
+                          local_path: pathlib.Path) -> CommandResult:
+                self.received.append(remote_path)
+                return super().recv_file(remote_path, local_path)
+
+        flow = Flow.model_validate({"flow": [
+            {"label": "App", "bundle": "com.example", "ability": "EntryAbility",
+             "terminate": False, "commands": []},
+            {"label": "Failed", "bundle": "com.failed", "ability": "EntryAbility",
+             "terminate": False, "commands": [{"action": "snapshot", "payload": "start"}]},
+        ]})
+        device = TrackingDevice()
+        original_cwd = pathlib.Path.cwd()
         with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            out_dir = root.joinpath("out")
-            options = _options(out_dir, device_log=False)
-            store = create_result_store(options)
+            destination = pathlib.Path(directory).joinpath("evidence")
+            options = BenchmarkOptions(destination, device_log=False)
 
-            with self.assertRaisesRegex(RuntimeError, "health failed"):
+            with self.assertRaisesRegex(RuntimeError, "failed to capture smaps"):
                 run_benchmark(
-                    _write_flow(root),
-                    options,
-                    store,
-                    typing.cast(Device, device),
-                )
+                    flow, options, create_evidence_store(options), device)
 
-            self.assertTrue(out_dir.joinpath("app_metadata.json").is_file())
-            device.remove_dir.assert_not_called()
+            self.assertEqual(pathlib.Path.cwd(), original_cwd)
+            self.assertEqual(len(device.received), 1)
+            self.assertFalse(device.dirs)
+            self.assertTrue(destination.joinpath(
+                "snapshots", "start", "App.smaps").is_file())
 
-    def test_partial_remote_initialization_cleans_created_root(self) -> None:
-        device = mock.create_autospec(Device, instance=True)
-        device.device_health.return_value = DeviceHealth(
-            battery_capacity_pct=100,
-            thermal_zones=[ThermalZoneHealth("soc_thermal", 30000)],
-        )
-        device.make_dir.side_effect = [True, False]
-        device.remove_dir.return_value = True
+    def test_success_validates_structure_without_rendering_a_view(self) -> None:
+        flow = Flow(flow=[])
+        device = FakeDevice()
+        with tempfile.TemporaryDirectory() as directory:
+            destination = pathlib.Path(directory).joinpath("evidence")
+            options = BenchmarkOptions(destination, device_log=False)
+            store = create_evidence_store(options)
+            run_benchmark(flow, options, store, device)
+
+            validate_evidence(store)
+
+    def test_explicit_termination_excludes_only_its_label_when_pids_are_shared(self) -> None:
+        flow = Flow.model_validate({"flow": [
+            {"label": "First", "bundle": "com.first", "ability": "EntryAbility",
+             "terminate": True, "commands": []},
+            {"label": "Second", "bundle": "com.second", "ability": "EntryAbility",
+             "terminate": False, "commands": [{"action": "snapshot", "payload": "after"}]},
+        ]})
+        device = FakeDevice(processes={"com.first": 7, "com.second": 7})
+        with tempfile.TemporaryDirectory() as directory:
+            destination = pathlib.Path(directory).joinpath("evidence")
+            options = BenchmarkOptions(destination, device_log=False)
+            run_benchmark(
+                flow, options, create_evidence_store(options), device)
+
+            metadata = destination.joinpath("snapshots", "metadata.json").read_text(
+                encoding="utf-8")
+            self.assertIn("after/Second.smaps", metadata)
+            self.assertNotIn("after/First.smaps", metadata)
+
+    def test_early_log_exit_preserves_partial_log_and_cleans_remote(self) -> None:
+        class ExitingLogDevice(FakeDevice):
+            def start_log_capture(
+                self, path: pathlib.PurePosixPath
+            ) -> subprocess.Popen[typing.Any]:
+                process = super().start_log_capture(path)
+                process.terminate()
+                process.wait()
+                return process
+
+        with tempfile.TemporaryDirectory() as directory:
+            destination = pathlib.Path(directory).joinpath("evidence")
+            options = BenchmarkOptions(destination)
+            device = ExitingLogDevice()
+            with self.assertRaisesRegex(RuntimeError, "exited before requested shutdown"):
+                run_benchmark(Flow(flow=[]), options,
+                              create_evidence_store(options), device)
+
+            self.assertTrue(destination.joinpath("logs", "log.log").is_file())
+            self.assertFalse(device.dirs)
+
+    def test_receive_uses_cwd_relative_local_path(self) -> None:
+        class ReceivingDevice(FakeDevice):
+            def __init__(self) -> None:
+                super().__init__()
+                self.local_path: pathlib.Path | None = None
+
+            def recv_file(self, remote_path: pathlib.PurePosixPath,
+                          local_path: pathlib.Path) -> CommandResult:
+                self.local_path = local_path
+                self.files[remote_path] = "smaps"
+                return super().recv_file(remote_path, local_path)
+
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
-            out_dir = root.joinpath("out")
-            options = _options(out_dir, device_log=False)
-            store = create_result_store(options)
-
-            with self.assertRaisesRegex(
-                    RuntimeError, "failed to create remote snapshots directory"):
-                run_benchmark(_write_flow(root), options, store, device)
-
-            self.assertTrue(out_dir.joinpath("app_metadata.json").is_file())
-            device.remove_dir.assert_called_once_with(store.remote_out_dir())
-            device.recv_file.assert_not_called()
-            device.screen_bounds.assert_not_called()
-
-    def test_runner_passes_relative_local_paths_to_recv(self) -> None:
-        device = _RecvCapturingDevice(screen=ScreenBounds(0, 0, 100, 200))
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            out_dir = root.joinpath("out")
-            original_cwd = pathlib.Path.cwd()
+            device = ReceivingDevice()
+            pending = PendingArtifact(pathlib.PurePosixPath("/remote"), root,
+                                      ["snapshots", "start", "App.smaps"])
+            old_cwd = pathlib.Path.cwd()
             try:
-                options = _options(out_dir)
-                store = create_result_store(options)
-                run_benchmark(_write_flow(root), options, store,
-                              device)
-
-                self.assertTrue(device.recv_local_paths)
-                for path in device.recv_local_paths:
-                    self.assertFalse(path.is_absolute())
-                    self.assertNotIn("..", str(path))
-                    self.assertTrue(out_dir.joinpath(path).is_file())
+                os.chdir(root)
+                _receive_pending_artifact(device, pending)
             finally:
-                os.chdir(original_cwd)
+                os.chdir(old_cwd)
 
-    def test_hilog_process_stop_terminates_running_process(self) -> None:
-        process = _sleep_process()
+            self.assertIsNotNone(device.local_path)
+            assert device.local_path is not None
+            self.assertFalse(device.local_path.is_absolute())
 
-        _stop_process(process)
-
-        self.assertIsNotNone(process.poll())
-
-    def test_hilog_process_stop_uses_kill_fallback(self) -> None:
-        process = _stubborn_process()
-
-        _stop_process(process, timeout_seconds=0.01)
-
-        self.assertIsNotNone(process.poll())
-
-    def test_hilog_process_reports_early_failure(self) -> None:
-        process = subprocess.Popen(
-            [sys.executable, "-c", "import sys; sys.exit(1)"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        process.wait(5)
-
-        with self.assertRaisesRegex(RuntimeError, "hilog stream exited"):
-            _stop_process(process)
-
-    def test_hilog_process_reports_early_clean_exit_without_terminating_again(self) -> None:
-        process = mock.create_autospec(subprocess.Popen, instance=True)
-        process.poll.return_value = 0
-
-        with self.assertRaisesRegex(
-            RuntimeError,
-            "exited before requested shutdown with host code 0",
-        ):
-            _stop_process(process)
-
-        process.terminate.assert_not_called()
-
-    def test_early_clean_hilog_exit_fails_after_preserving_partial_artifact(self) -> None:
-        partial_hilog = "partial hilog before early exit\n"
-        device = _EarlyExitHilogDevice(
-            screen=ScreenBounds(0, 0, 100, 200),
-            default_log_content=partial_hilog,
-        )
+    def test_failure_phases_preserve_primary_error_and_restore_cwd(self) -> None:
+        snapshot_flow = Flow.model_validate({"flow": [{
+            "label": "App", "bundle": "com.example", "ability": "EntryAbility",
+            "terminate": False, "commands": [{"action": "snapshot", "payload": "start"}],
+        }]})
+        cases = [
+            ("remote", snapshot_flow, False, FakeDevice(fail_make_dir=True)),
+            ("stream", snapshot_flow, True, FakeDevice(fail_device_log=True)),
+            ("capture", snapshot_flow, False, FakeDevice(fail_capture_smaps=True)),
+            ("receive", snapshot_flow, False, FakeDevice(fail_recv_file=True)),
+            ("cleanup", Flow(flow=[]), False, FakeDevice(fail_remove_dir=True)),
+        ]
+        original_cwd = pathlib.Path.cwd()
         with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            out_dir = root.joinpath("out")
-            options = _options(out_dir)
-            store = create_result_store(options)
+            for name, flow, device_log, device in cases:
+                destination = pathlib.Path(directory).joinpath(name)
+                options = BenchmarkOptions(destination, device_log=device_log)
+                with self.assertRaises(RuntimeError):
+                    run_benchmark(
+                        flow, options, create_evidence_store(options), device)
+                self.assertEqual(pathlib.Path.cwd(), original_cwd)
+                self.assertTrue(destination.exists())
 
-            with self.assertRaisesRegex(
-                RuntimeError,
-                "exited before requested shutdown with host code 0",
-            ):
+    def test_receiving_failure_does_not_skip_later_artifacts(self) -> None:
+        class TrackingDevice(FakeDevice):
+            def __init__(self) -> None:
+                super().__init__(processes={"com.first": 1, "com.second": 2},
+                                 fail_recv_names={"First.smaps"})
+                self.received: list[pathlib.PurePosixPath] = []
+
+            def recv_file(self, remote_path: pathlib.PurePosixPath,
+                          local_path: pathlib.Path) -> CommandResult:
+                self.received.append(remote_path)
+                return super().recv_file(remote_path, local_path)
+
+        flow = Flow.model_validate({"flow": [
+            {"label": "First", "bundle": "com.first", "ability": "EntryAbility",
+             "terminate": False, "commands": []},
+            {"label": "Second", "bundle": "com.second", "ability": "EntryAbility",
+             "terminate": False, "commands": [{"action": "snapshot", "payload": "start"}]},
+        ]})
+        with tempfile.TemporaryDirectory() as directory:
+            options = BenchmarkOptions(pathlib.Path(directory).joinpath("evidence"),
+                                       device_log=False)
+            device = TrackingDevice()
+            with self.assertRaisesRegex(RuntimeError, "missing remote file"):
                 run_benchmark(
-                    _write_flow(root),
-                    options,
-                    store,
-                    device,
-                )
+                    flow, options, create_evidence_store(options), device)
 
-            self.assertEqual(
-                out_dir.joinpath("hilog", "hilog.log").read_text(
-                    encoding="utf-8"),
-                partial_hilog,
-            )
-            self.assertTrue(out_dir.joinpath("app_metadata.json").is_file())
-            self.assertFalse(device.files)
-            self.assertFalse(device.dirs)
+            self.assertEqual([path.name for path in device.received],
+                             ["First.smaps", "Second.smaps"])
 
-    def test_flow_failure_remains_primary_when_hilog_exits_cleanly_early(self) -> None:
-        device = _EarlyExitHilogDevice(
-            screen=ScreenBounds(0, 0, 100, 200),
-            invalid_bundles={"com.example"},
-        )
+    def test_enabled_logging_receives_log_log_and_disabled_logging_skips_it(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            out_dir = root.joinpath("out")
-            options = _options(out_dir)
-            store = create_result_store(options)
-
-            with self.assertRaisesRegex(
-                RuntimeError,
-                "could not resolve PID for bundle com.example",
-            ) as raised:
-                run_benchmark(
-                    _write_flow(root),
-                    options,
-                    store,
-                    device,
-                )
-
-            self.assertIn(
-                "additionally failed _post_flow step: hilog stream exited "
-                "before requested shutdown with host code 0",
-                str(raised.exception),
-            )
-            self.assertTrue(out_dir.joinpath("hilog", "hilog.log").is_file())
-            self.assertFalse(device.files)
-            self.assertFalse(device.dirs)
-
-    def test_invalid_flow_fails_before_device_actions(self) -> None:
-        device = FakeDevice(health_error=RuntimeError("health failed"))
-
-        with self.assertRaises(Exception):
-            _load_flow('{"flow": "invalid"}')
-
-        self.assertFalse(device.screen_timeout_disabled)
-        self.assertFalse(device.hilog_configured)
-        self.assertEqual(device.processes, {})
-
-    def test_runner_uses_options_and_writes_metadata(self) -> None:
-        device = FakeDevice(screen=ScreenBounds(0, 0, 100, 200))
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow_path = _write_flow(root)
-            out_dir = root.joinpath("out")
-
-            options = _options(out_dir)
-            store = create_result_store(options)
-            run_benchmark(flow_path, options, store,
-                          device)
-            generate_reports(store)
-
-            self.assertEqual(device.processes, {"com.example": 1000})
-            self.assertTrue(device.screen_timeout_disabled)
-            self.assertTrue(device.hilog_configured)
-            self.assertEqual(len(device.hilog_processes), 1)
-            self.assertIsNotNone(device.hilog_processes[0].poll())
-            self.assertTrue(out_dir.joinpath("app_metadata.json").is_file())
-            self.assertTrue(out_dir.joinpath("hilog", "hilog.log").is_file())
-            self.assertEqual(
-                list(out_dir.joinpath("breakdowns").iterdir()), [])
-            self.assertTrue(out_dir.joinpath("summary.csv").is_file())
-
-    def test_info_logs_transitions_and_command_execution_with_text_payload(self) -> None:
-        device = FakeDevice(screen=ScreenBounds(0, 0, 100, 200))
-        stdout = io.StringIO()
-        with contextlib.redirect_stdout(stdout):
-            configure_logger("info")
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow = _load_flow(
-                '{"flow":[{"label":"app","bundle":"com.example","ability":"EntryAbility","terminate":false,"commands":[{"action":"text","payload":"secret"}]}]}'
-            )
-            out_dir = root.joinpath("out")
-
-            options = _options(out_dir, device_log=False)
-            store = create_result_store(options)
-            run_benchmark(flow, options, store, typing.cast(Device, device))
-
-        content = stdout.getvalue()
-        self.assertIn("info: start benchmark pre flow", content)
-        self.assertIn("info: start device verification", content)
-        self.assertIn("info: start benchmark flow", content)
-        self.assertIn("info: start application pre flow", content)
-        self.assertIn("info: start application flow", content)
-        self.assertIn("info: executing command: app=app action=text", content)
-        self.assertIn("info: start benchmark post flow", content)
-        self.assertIn("secret", content)
-        reset_logger()
-
-    def test_reboot_option_prepares_device_before_flow(self) -> None:
-        device = FakeDevice(screen=ScreenBounds(0, 0, 100, 200))
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow_path = _write_flow(root)
-            out_dir = root.joinpath("out")
-
-            options = _options(out_dir, reboot=True)
-            store = create_result_store(options)
-            with mock.patch("src.runner.time.sleep") as sleep:
-                run_benchmark(flow_path, options, store,
-                              device)
-            generate_reports(store)
-
-            self.assertIn(mock.call(5), sleep.call_args_list)
-            self.assertTrue(device.rebooted)
-            self.assertTrue(device.waited_available)
-            self.assertTrue(device.waited_boot_completed)
-            self.assertTrue(device.woken)
-            self.assertTrue(device.screen_timeout_disabled)
-
-    def test_no_reboot_skips_wakeup_routine(self) -> None:
-        device = FakeDevice(screen=ScreenBounds(0, 0, 100, 200))
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow_path = _write_flow(root)
-            out_dir = root.joinpath("out")
-
-            options = _options(out_dir, reboot=False)
-            store = create_result_store(options)
-            run_benchmark(flow_path, options, store,
-                          device)
-            generate_reports(store)
-
-            self.assertFalse(device.rebooted)
-            self.assertFalse(device.waited_available)
-            self.assertFalse(device.waited_boot_completed)
-            self.assertFalse(device.woken)
-            self.assertTrue(device.screen_timeout_disabled)
-
-    def test_low_battery_rejects_startup_before_app_flows(self) -> None:
-        device = FakeDevice(
-            health=DeviceHealth(
-                battery_capacity_pct=_MIN_BATTERY_CAPACITY_PCT - 1,
-                thermal_zones=[ThermalZoneHealth(
-                    "soc_thermal", _MAX_THERMAL_TEMP_MILLIS_C - 1)],
-            )
-        )
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow_path = _write_flow(root)
-            out_dir = root.joinpath("out")
-
-            with self.assertRaisesRegex(RuntimeError, "battery too low"):
-                options = _options(out_dir)
-                store = create_result_store(options)
-                run_benchmark(flow_path, options, store,
-                              device)
-
-            self.assertEqual(device.processes, {})
-            self.assertTrue(device.screen_timeout_disabled)
-            self.assertTrue(device.hilog_configured)
-
-    def test_hot_thermal_zone_rejects_startup_before_app_flows(self) -> None:
-        device = FakeDevice(
-            health=DeviceHealth(
-                battery_capacity_pct=_MIN_BATTERY_CAPACITY_PCT,
-                thermal_zones=[ThermalZoneHealth(
-                    "soc_thermal", _MAX_THERMAL_TEMP_MILLIS_C + 1)],
-            )
-        )
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow_path = _write_flow(root)
-            out_dir = root.joinpath("out")
-
-            with self.assertRaisesRegex(RuntimeError, "device too hot"):
-                options = _options(out_dir)
-                store = create_result_store(options)
-                run_benchmark(flow_path, options, store,
-                              device)
-
-            self.assertEqual(device.processes, {})
-            self.assertTrue(device.screen_timeout_disabled)
-            self.assertTrue(device.hilog_configured)
-
-    def test_zero_thermal_zone_does_not_reject_startup(self) -> None:
-        device = FakeDevice(
-            health=DeviceHealth(
-                battery_capacity_pct=_MIN_BATTERY_CAPACITY_PCT,
-                thermal_zones=[ThermalZoneHealth("inactive", 0)],
-            )
-        )
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow_path = _write_flow(root)
-            out_dir = root.joinpath("out")
-
-            options = _options(out_dir)
-            store = create_result_store(options)
-            run_benchmark(flow_path, options, store,
-                          device)
-            generate_reports(store)
-
-            self.assertEqual(device.processes, {"com.example": 1000})
-            self.assertTrue(device.screen_timeout_disabled)
-
-    def test_health_failure_rejects_startup_before_app_flows(self) -> None:
-        device = FakeDevice(health_error=RuntimeError("health failed"))
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow_path = _write_flow(root)
-            out_dir = root.joinpath("out")
-
-            with self.assertRaisesRegex(RuntimeError, "health failed"):
-                options = _options(out_dir)
-                store = create_result_store(options)
-                run_benchmark(flow_path, options, store,
-                              device)
-
-            self.assertEqual(device.processes, {})
-            self.assertTrue(device.screen_timeout_disabled)
-            self.assertTrue(device.hilog_configured)
-
-    def test_health_verification_runs_after_prepare_device(self) -> None:
-        hdc = FakeHdc(
-            responses={
-                "shell param get bootevent.boot.completed": HdcResult(0, "true\n", ""),
-                f"shell cat {pathlib.PurePosixPath('/', 'sys', 'class', 'power_supply', 'Battery', 'capacity')}": HdcResult(0, "80\n", ""),
-                f"shell for z in {pathlib.PurePosixPath('/', 'sys', 'class', 'thermal', 'thermal_zone*')}; do [ -f $z/type ] && [ -f $z/temp ] && printf '%s %s\\n' \"$(cat $z/type)\" \"$(cat $z/temp)\"; done": HdcResult(0, "soc_thermal 30000\n", ""),
-            },
-            prefix_responses={
-                "shell uitest dumpLayout -p ": HdcResult(0, "DumpLayout saved", ""),
-                f"shell cat {pathlib.PurePosixPath('/', 'data', 'local', 'tmp', 'memmem-layout.json')}": HdcResult(0, '{"attributes": {"bounds": "[0,0][100,200]"}}', ""),
-            },
-        )
-        device = HdcDevice(hdc)  # type: ignore[arg-type]
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow_path = _write_flow(root, '{"flow":[]}')
-            out_dir = root.joinpath("out")
-
-            options = _options(out_dir, reboot=True, device_log=False)
-            store = create_result_store(options)
-            run_benchmark(flow_path, options, store, device)
-            generate_reports(store)
-
-            self.assertEqual(
-                hdc.calls[:15],
-                [
-                    ["target", "boot"],
-                    ["wait"],
-                    ["shell", "param", "get", "bootevent.boot.completed"],
-                    ["shell", "power-shell", "wakeup"],
-                    ["shell", "uitest", "uiInput", "dircFling", "2", "20000", "20"],
-                    ["shell", "uitest", "uiInput", "keyEvent", "Back"],
-                    ["shell", "power-shell", "timeout", "-o", "60000000"],
-                    ["shell", "cat", str(pathlib.PurePosixPath(
-                        "/", "sys", "class", "power_supply", "Battery", "capacity"))],
-                    [
-                        "shell",
-                        f"for z in {pathlib.PurePosixPath('/', 'sys', 'class', 'thermal', 'thermal_zone*')}; do [ -f $z/type ] && [ -f $z/temp ] && printf '%s %s\\n' \"$(cat $z/type)\" \"$(cat $z/temp)\"; done",
-                    ],
-                    ["shell", "mkdir", "-p", str(store.remote_out_dir())],
-                    ["shell", "mkdir", "-p",
-                        str(store.remote_snapshots_dir())],
-                    ["shell", "mkdir", "-p",
-                        str(store.remote_screenshots_dir())],
-                    ['shell', 'uitest', 'dumpLayout', '-p',
-                        str(pathlib.PurePosixPath("/", "data", "local", "tmp", "memmem-layout.json"))],
-                    ['shell', 'cat', str(pathlib.PurePosixPath(
-                        "/", "data", "local", "tmp", "memmem-layout.json"))],
-                    ['shell', 'rm', '-f',
-                        str(pathlib.PurePosixPath("/", "data", "local", "tmp", "memmem-layout.json"))],
-                ],
-            )
-
-    def test_hilog_can_be_disabled(self) -> None:
-        device = FakeDevice(screen=ScreenBounds(0, 0, 100, 200))
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow_path = _write_flow(root)
-            out_dir = root.joinpath("out")
-
-            options = _options(out_dir, device_log=False)
-            store = create_result_store(options)
-            run_benchmark(flow_path, options, store,
-                          device)
-            generate_reports(store)
-
-            self.assertTrue(device.screen_timeout_disabled)
-            self.assertFalse(device.hilog_configured)
-            self.assertEqual(
-                list(out_dir.joinpath("breakdowns").iterdir()), [])
-            self.assertFalse(out_dir.joinpath("hilog").exists())
-
-    def test_repeated_bundle_flow_writes_metadata_and_mirrored_artifacts(self) -> None:
-        device = FakeDevice(screen=ScreenBounds(0, 0, 100, 200))
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow_path = _load_flow(
-                """
-                {
-                  "flow": [
-                    {"label":"app_1","bundle":"com.example","ability":"EntryAbility","terminate":false,"commands":[{"action":"snapshot","payload":"before1"}]},
-                    {"label":"app_2","bundle":"com.other","ability":"EntryAbility","terminate":false,"commands":[{"action":"snapshot","payload":"before2"}]},
-                    {"label":"app_1_again","bundle":"com.example","ability":"EntryAbility","terminate":false,"commands":[]}
-                  ]
-                }
-                """
-            )
-            out_dir = root.joinpath("out")
-
-            options = _options(out_dir)
-            store = create_result_store(options)
-            run_benchmark(flow_path, options, store,
-                          device)
-            generate_reports(store)
-
-            app_metadata = out_dir.joinpath(
-                "app_metadata.json").read_text(encoding="utf-8")
-            snapshot_metadata = out_dir.joinpath(
-                "snapshots", "metadata.json").read_text(encoding="utf-8")
-            self.assertEqual(device.processes, {
-                             "com.example": 1000, "com.other": 1001})
-            self.assertIn('"label": "app_1_again"', app_metadata)
-            self.assertIn('"pid": 1000', app_metadata)
-            self.assertIn('"label": "before1"', snapshot_metadata)
-            expected_local_paths = {
-                out_dir.joinpath(
-                    "snapshots", "before1", "app_1-before1.smaps"),
-                out_dir.joinpath(
-                    "snapshots", "before2", "app_1-before2.smaps"),
-                out_dir.joinpath(
-                    "snapshots", "before2", "app_2-before2.smaps"),
-            }
-            for path in expected_local_paths:
-                self.assertTrue(path.is_file())
-            self.assertTrue(out_dir.joinpath("hilog", "hilog.log").is_file())
-            self.assertFalse(device.files)
-            self.assertFalse(device.dirs)
-
-    def test_invalid_bundle_collects_hilog_and_preserves_failure(self) -> None:
-        device = FakeDevice(screen=ScreenBounds(
-            0, 0, 100, 200), invalid_bundles={"com.invalid.bundle"})
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow_path = _write_flow(
-                root,
-                '{"flow":[{"label":"app","bundle":"com.invalid.bundle","ability":"EntryAbility","terminate":false,"commands":[]}]}',
-            )
-            out_dir = root.joinpath("out")
-
-            with self.assertRaisesRegex(RuntimeError, "could not resolve PID"):
-                options = _options(out_dir)
-                store = create_result_store(options)
-                run_benchmark(flow_path, options, store,
-                              device)
-                generate_reports(store)
-
-            self.assertEqual(device.processes, {})
-            self.assertTrue(out_dir.joinpath("hilog", "hilog.log").is_file())
-
-    def test_log_receive_failure_fails_benchmark(self) -> None:
-        device = FakeDevice(screen=ScreenBounds(
-            0, 0, 100, 200), fail_recv_file=True)
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow_path = _write_flow(root)
-            out_dir = root.joinpath("out")
-
-            with self.assertRaisesRegex(RuntimeError, "missing remote file"):
-                options = _options(out_dir)
-                store = create_result_store(options)
-                run_benchmark(flow_path, options, store,
-                              device)
-                generate_reports(store)
-
-            self.assertTrue(out_dir.joinpath("app_metadata.json").is_file())
-            self.assertFalse(device.files)
-            self.assertFalse(device.dirs)
-
-    def test_receive_attempts_hilog_when_snapshot_receive_fails(self) -> None:
-        device = FakeDevice(screen=ScreenBounds(
-            0, 0, 100, 200),
-            fail_recv_names={"app-snap.smaps"})
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow_path = _write_flow(
-                root,
-                '{"flow":[{"label":"app","bundle":"com.example","ability":"EntryAbility","terminate":false,"commands":[{"action":"snapshot","payload":"snap"}]}]}',
-            )
-            out_dir = root.joinpath("out")
-
-            with self.assertRaisesRegex(RuntimeError, "missing remote file"):
-                options = _options(out_dir)
-                store = create_result_store(options)
-                run_benchmark(flow_path, options, store,
-                              device)
-                generate_reports(store)
-
-            self.assertTrue(out_dir.joinpath("hilog", "hilog.log").is_file())
-            self.assertFalse(device.files)
-            self.assertFalse(device.dirs)
-
-    def test_requested_termination_removes_process_after_hilog(self) -> None:
-        device = FakeDevice(screen=ScreenBounds(0, 0, 100, 200))
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow_path = _write_flow(
-                root,
-                '{"flow":[{"label":"app","bundle":"com.example","ability":"EntryAbility","terminate":true,"commands":[]}]}',
-            )
-            out_dir = root.joinpath("out")
-
-            options = _options(out_dir)
-            store = create_result_store(options)
-            run_benchmark(flow_path, options, store,
-                          device)
-
-            self.assertEqual(device.terminated_bundles, ["com.example"])
-            self.assertEqual(device.processes, {})
-            self.assertTrue(out_dir.joinpath("hilog", "hilog.log").is_file())
-            self.assertIn(
-                '"label": "app"',
-                out_dir.joinpath("app_metadata.json").read_text(
-                    encoding="utf-8"),
-            )
-
-    def test_requested_termination_removes_only_active_process(self) -> None:
-        device = FakeDevice(screen=ScreenBounds(0, 0, 100, 200))
-        flow = _load_flow(
-            '{"flow":[{"label":"app","bundle":"com.example","ability":"EntryAbility","terminate":true,"commands":[]}]}'
-        )
-        options = _options(pathlib.Path("out"), device_log=False)
-        context = _create_execution_context(
-            flow,
-            create_result_store(options),
-            device,
-        )
-
-        _pre_app_flow(context, flow.flow[0])
-        _post_app_flow(context, flow.flow[0])
-
-        self.assertEqual(
-            [process.label for process in context.launched_processes], ["app"])
-        self.assertEqual(context.active_processes, [])
-
-    def test_termination_failure_fails_benchmark(self) -> None:
-        device = FakeDevice(screen=ScreenBounds(
-            0, 0, 100, 200), fail_terminate_app=True)
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow_path = _write_flow(
-                root,
-                '{"flow":[{"label":"app","bundle":"com.example","ability":"EntryAbility","terminate":true,"commands":[]}]}',
-            )
-            out_dir = root.joinpath("out")
-
-            with self.assertRaisesRegex(RuntimeError, "app termination failed"):
-                options = _options(out_dir)
-                store = create_result_store(options)
-                run_benchmark(flow_path, options, store,
-                              device)
-
-    def test_termination_failure_combines_with_app_failure(self) -> None:
-        device = FakeDevice(screen=ScreenBounds(0, 0, 100, 200), invalid_bundles={
-                            "com.invalid"}, fail_terminate_app=True)
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow_path = _write_flow(
-                root,
-                '{"flow":[{"label":"app","bundle":"com.invalid","ability":"EntryAbility","terminate":true,"commands":[]}]}',
-            )
-            out_dir = root.joinpath("out")
-
-            with self.assertRaisesRegex(RuntimeError, "additionally failed post_app_flow step"):
-                options = _options(out_dir)
-                store = create_result_store(options)
-                run_benchmark(flow_path, options, store,
-                              device)
-
-    def test_no_termination_when_not_requested(self) -> None:
-        device = FakeDevice(screen=ScreenBounds(0, 0, 100, 200))
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow_path = _write_flow(root)
-            out_dir = root.joinpath("out")
-
-            options = _options(out_dir)
-            store = create_result_store(options)
-            run_benchmark(flow_path, options, store,
-                          device)
-
-            self.assertEqual(device.terminated_bundles, [])
-            self.assertEqual(device.processes, {"com.example": 1000})
-
-    def test_screenshot_artifact_is_received(self) -> None:
-        device = FakeDevice(screen=ScreenBounds(0, 0, 100, 200))
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow_path = _write_flow(
-                root,
-                '{"flow":[{"label":"app","bundle":"com.example","ability":"EntryAbility","terminate":false,"commands":[{"action":"screenshot","payload":"shot"}]}]}',
-            )
-            out_dir = root.joinpath("out")
-
-            options = _options(out_dir)
-            store = create_result_store(options)
-            run_benchmark(flow_path, options, store,
-                          device)
-            generate_reports(store)
-
-            self.assertTrue(out_dir.joinpath(
-                "screenshots", "shot.png").is_file())
-            self.assertIn('"label": "shot"', out_dir.joinpath(
-                "screenshots", "metadata.json").read_text(encoding="utf-8"))
-            self.assertTrue(out_dir.joinpath("summary.csv").is_file())
-
-    def test_receive_attempts_screenshot_when_snapshot_receive_fails(self) -> None:
-        device = FakeDevice(screen=ScreenBounds(
-            0, 0, 100, 200),
-            fail_recv_names={"app-snap.smaps"})
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow_path = _write_flow(
-                root,
-                '{"flow":[{"label":"app","bundle":"com.example","ability":"EntryAbility","terminate":false,"commands":[{"action":"snapshot","payload":"snap"},{"action":"screenshot","payload":"shot"}]}]}',
-            )
-            out_dir = root.joinpath("out")
-
-            with self.assertRaisesRegex(RuntimeError, "missing remote file"):
-                options = _options(out_dir)
-                store = create_result_store(options)
-                run_benchmark(flow_path, options, store,
-                              device)
-                generate_reports(store)
-
-            self.assertTrue(out_dir.joinpath(
-                "screenshots", "shot.png").is_file())
-            self.assertFalse(device.files)
-            self.assertFalse(device.dirs)
-
-    def test_cleanup_failure_combines_with_app_failure(self) -> None:
-        device = FakeDevice(
-            screen=ScreenBounds(0, 0, 100, 200),
-            invalid_bundles={"com.invalid.bundle"},
-            fail_remove_dir=True,
-        )
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow_path = _write_flow(
-                root,
-                '{"flow":[{"label":"app","bundle":"com.invalid.bundle","ability":"EntryAbility","terminate":false,"commands":[]}]}',
-            )
-            out_dir = root.joinpath("out")
-
-            with self.assertRaisesRegex(RuntimeError, "failed to clean up remote run directory"):
-                options = _options(out_dir)
-                store = create_result_store(options)
-                run_benchmark(flow_path, options, store,
-                              device)
-                generate_reports(store)
-
-    def test_screen_bounds_failure_prevents_app_launch(self) -> None:
-        device = FakeDevice(screen_error=RuntimeError("bounds failed"))
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            flow_path = _write_flow(root)
-            out_dir = root.joinpath("out")
-
-            with self.assertRaises(RuntimeError):
-                options = _options(out_dir)
-                store = create_result_store(options)
-                run_benchmark(flow_path, options, store,
-                              device)
-                generate_reports(store)
-
-            self.assertTrue(device.screen_timeout_disabled)
-            self.assertTrue(device.hilog_configured)
-            self.assertEqual(device.processes, {})
+            destination = pathlib.Path(directory).joinpath("enabled")
+            options = BenchmarkOptions(destination)
+            device = FakeDevice()
+            run_benchmark(Flow(flow=[]), options,
+                          create_evidence_store(options), device)
+            self.assertEqual(device.log_paths[-1].name, "log.log")
+            self.assertTrue(destination.joinpath("logs", "log.log").is_file())
+
+            disabled_destination = pathlib.Path(directory).joinpath("disabled")
+            disabled_options = BenchmarkOptions(
+                disabled_destination, device_log=False)
+            disabled_device = FakeDevice()
+            run_benchmark(Flow(flow=[]), disabled_options,
+                          create_evidence_store(disabled_options), disabled_device)
+            self.assertFalse(disabled_device.log_paths)
+            self.assertFalse(disabled_destination.joinpath("logs").exists())
 
 
 if __name__ == "__main__":
