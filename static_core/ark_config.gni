@@ -120,7 +120,7 @@ declare_args() {
 
   runtime_core_enable_ffrt = false
   if (is_ohos && is_standard_system &&
-    (current_cpu == "arm" || current_cpu == "arm64")) {
+      (current_cpu == "arm" || current_cpu == "arm64")) {
     runtime_core_enable_ffrt = true
   }
 
@@ -186,15 +186,13 @@ declare_args() {
 
 linux_x64_panda_runtime_codegen_disabled =
     panda_runtime_sdk_build &&
-    (current_cpu == "amd64" || current_cpu == "x64" ||
-     current_cpu == "x86_64")
+    (current_cpu == "amd64" || current_cpu == "x64" || current_cpu == "x86_64")
 
 enable_irtoc = true
 enable_codegen = true
 if (is_host_product || is_mingw || current_os == "win" ||
-    current_os == "mingw" || current_os == "winuwp" ||
-    current_os == "mac" || host_os == "mac" ||
-    !runtime_core_enable_codegen ||
+    current_os == "mingw" || current_os == "winuwp" || current_os == "mac" ||
+    host_os == "mac" || !runtime_core_enable_codegen ||
     linux_x64_panda_runtime_codegen_disabled) {
   # Disable irtoc and codegen for:
   # - mingw and similar configurations
@@ -209,9 +207,9 @@ if (panda_runtime_sdk_build) {
   enable_irtoc = false
 }
 
-if (ark_is_host_product || current_os == "win" ||
-    current_os == "mingw" || current_os == "winuwp" || current_os == "mac" ||
-    is_emulator || ark_use_common_runtime) {
+if (ark_is_host_product || current_os == "win" || current_os == "mingw" ||
+    current_os == "winuwp" || current_os == "mac" || is_emulator ||
+    ark_use_common_runtime) {
   is_llvmbackend = false
   is_llvm_interpreter = false
   is_llvm_fastpath = false
