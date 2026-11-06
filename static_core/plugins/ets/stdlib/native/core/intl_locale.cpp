@@ -28,6 +28,7 @@
 #include <sstream>
 #include <vector>
 #include <algorithm>
+#include <atomic>
 #include "libarkbase/os/mutex.h"
 
 namespace ark::ets::stdlib::intl {
@@ -43,7 +44,7 @@ struct LocaleCheckInfo {
     std::string langsList;
     std::string regionsList;
     std::string scriptsList;
-    bool isPopulated = false;
+    std::atomic<bool> isPopulated {false};
 };
 
 static LocaleCheckInfo &GetLocaleCheckInfo()
@@ -54,13 +55,6 @@ static LocaleCheckInfo &GetLocaleCheckInfo()
 
 // NOLINTNEXTLINE(fuchsia-statically-constructed-objects)
 static os::memory::Mutex g_localeCheckInfoMutex;
-
-static std::vector<std::string> &GetLocaleInfo()
-{
-    static std::vector<std::string> gLocaleInfo(LocaleInfo::COUNT, "");
-    std::fill(gLocaleInfo.begin(), gLocaleInfo.end(), "");
-    return gLocaleInfo;
-}
 
 ParsedLocale HandleLocale(const std::string &localeString)
 {
@@ -120,8 +114,8 @@ void StdCoreIntlLocaleFillCheckInfo()
     // Cache reference to avoid repeated calls
     LocaleCheckInfo &checkInfo = GetLocaleCheckInfo();
 
-    // First check: Fast path without lock - avoids lock overhead after initialization
-    if (checkInfo.isPopulated) {
+    // Atomic with acquire order reason: check if already initialized without lock
+    if (checkInfo.isPopulated.load(std::memory_order_acquire)) {
         return;
     }
 
@@ -129,7 +123,8 @@ void StdCoreIntlLocaleFillCheckInfo()
     os::memory::LockHolder lock(g_localeCheckInfoMutex);
 
     // Second check: Verify again after acquiring lock - prevents multiple initializations
-    if (checkInfo.isPopulated) {
+    // Atomic with acquire order reason: double check under lock
+    if (checkInfo.isPopulated.load(std::memory_order_acquire)) {
         return;
     }
 
@@ -157,7 +152,8 @@ void StdCoreIntlLocaleFillCheckInfo()
     checkInfo.langsList = Set2String(checkInfo.langs);
     checkInfo.regionsList = Set2String(checkInfo.regions);
     checkInfo.scriptsList = Set2String(checkInfo.scripts);
-    checkInfo.isPopulated = true;
+    // Atomic with release order reason: publish cached data to other threads
+    checkInfo.isPopulated.store(true, std::memory_order_release);
 }
 
 std::string Set2String(std::set<std::string> &inSet)
@@ -198,23 +194,50 @@ ani_string StdCoreIntlLocaleScriptList(ani_env *env, [[maybe_unused]] ani_class 
     return StdStrToAni(env, scriptsList);
 }
 
-ani_string StdCoreIntlLocaleNumberingSystemList(ani_env *env, [[maybe_unused]] ani_class klass)
+static std::string EnumerateNumberingSystems()
 {
     UErrorCode success = U_ZERO_ERROR;
     std::unique_ptr<icu::StringEnumeration> numberingSystemList(icu::NumberingSystem::getAvailableNames(success));
-    if (UNLIKELY(U_FAILURE(success))) {
-        ASSERT(true);
-    }
     std::string nsList;
+    if (UNLIKELY(U_FAILURE(success))) {
+        return nsList;
+    }
     while (const icu::UnicodeString *ns = numberingSystemList->snext(success)) {
         if (UNLIKELY(U_FAILURE(success))) {
-            ASSERT(true);
+            nsList.clear();
+            break;
         }
         std::string str;
         ns->toUTF8String(str);
+        if (!nsList.empty()) {
+            nsList += ",";
+        }
         nsList += str;
     }
+    return nsList;
+}
 
+ani_string StdCoreIntlLocaleNumberingSystemList(ani_env *env, [[maybe_unused]] ani_class klass)
+{
+    // NOLINTNEXTLINE(fuchsia-statically-constructed-objects)
+    static os::memory::Mutex mutex;
+    // NOLINTNEXTLINE(fuchsia-statically-constructed-objects)
+    static std::string nsList;
+    // NOLINTNEXTLINE(fuchsia-statically-constructed-objects)
+    static std::atomic<bool> populated {false};
+
+    // Atomic with acquire order reason: synchronize with release store of populated flag
+    if (!populated.load(std::memory_order_acquire)) {
+        os::memory::LockHolder lock(mutex);
+        // Atomic with acquire order reason: double check under lock
+        if (!populated.load(std::memory_order_acquire)) {
+            nsList = EnumerateNumberingSystems();
+            if (!nsList.empty()) {
+                // Atomic with release order reason: publish nsList to other threads
+                populated.store(true, std::memory_order_release);
+            }
+        }
+    }
     return StdStrToAni(env, nsList);
 }
 
@@ -240,18 +263,6 @@ ani_string StdCoreIntlLocaleInfo(ani_env *env, [[maybe_unused]] ani_class klass,
     return StdStrToAni(env, result);
 }
 
-ani_int StdCoreIntlLocaleIsTagValid(ani_env *env, [[maybe_unused]] ani_class klass, ani_string tag)
-{
-    std::string tagKey = ConvertFromAniString(env, tag);
-
-    UErrorCode success = U_ZERO_ERROR;
-    icu::Locale::forLanguageTag(tagKey, success);
-    if (UNLIKELY(U_FAILURE(success))) {
-        return 1;
-    }
-    return 0;
-}
-
 static int UnicodeKeyToLocaleInfo(const std::string &unicodeKey)
 {
     int keyIndex = -1;
@@ -273,15 +284,13 @@ static int UnicodeKeyToLocaleInfo(const std::string &unicodeKey)
 
 ani_ref StdCoreIntlLocaleParseTag(ani_env *env, [[maybe_unused]] ani_class klass, ani_string tag)
 {
-    std::vector<std::string> data = GetLocaleInfo();
+    std::vector<std::string> data(LocaleInfo::COUNT, "");
     std::string tagKey = ConvertFromAniString(env, tag);
     UErrorCode success = U_ZERO_ERROR;
 
     auto l = icu::Locale::forLanguageTag(tagKey, success);
     if (UNLIKELY(U_FAILURE(success))) {
-        std::string message = "Failed to find locale from tag";
-        ThrowNewError(env, "std.core.RuntimeError", message.c_str(), ark::ets::stdlib::ERROR_CTOR_SIGNATURE);
-        return nullptr;
+        return StdStrToAni(env, "");
     }
 
     data[LocaleInfo::LANG] = l.getLanguage();
@@ -295,9 +304,10 @@ ani_ref StdCoreIntlLocaleParseTag(ani_env *env, [[maybe_unused]] ani_class klass
     for (auto &unicodeKey : keyWordsSet) {
         auto unicodeKeywordValue = l.getUnicodeKeywordValue<std::string>(unicodeKey, success);
         if (UNLIKELY(U_FAILURE(success))) {
-            std::string message = "Failed to getUnicodeKeywordValue";
-            ThrowNewError(env, "std.core.RuntimeError", message.c_str(), ark::ets::stdlib::ERROR_CTOR_SIGNATURE);
-            return nullptr;
+            return StdStrToAni(env, "");
+        }
+        if (unicodeKeywordValue == "yes") {
+            unicodeKeywordValue = "true";
         }
         int keyIndex = UnicodeKeyToLocaleInfo(unicodeKey);
         if (keyIndex >= LocaleInfo::U_CA && keyIndex < LocaleInfo::COUNT) {
@@ -350,8 +360,6 @@ ani_status RegisterIntlLocaleNativeMethods(ani_env *env)
                              reinterpret_cast<void *>(StdCoreIntlLocaleNumberingSystemList)},
         ani_native_function {"defaultLang", ":C{std.core.String}",
                              reinterpret_cast<void *>(StdCoreIntlLocaleDefaultLang)},
-        ani_native_function {"isTagValid", "C{std.core.String}:i",
-                             reinterpret_cast<void *>(StdCoreIntlLocaleIsTagValid)},
         ani_native_function {"parseTagImpl", "C{std.core.String}:C{std.core.String}",
                              reinterpret_cast<void *>(StdCoreIntlLocaleParseTag)},
     };
