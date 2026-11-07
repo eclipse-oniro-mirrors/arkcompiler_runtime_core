@@ -51,6 +51,13 @@ struct ModuleIterateData {
     libabckit::ModuleUpdateData updateData {};
 };
 
+// Opcodes whose imm0 addresses an entry of the module regular import section:
+// the LDEXTERNALMODULEVAR family together with its CALLRUNTIME sendable and lazy counterparts.
+bool HasRegularImportIndexOperand(panda::pandasm::Opcode op);
+// Opcodes whose imm0 addresses an entry of the module local export section:
+// the LDLOCALMODULEVAR/STMODULEVAR family together with the CALLRUNTIME sendable local load.
+bool HasLocalExportIndexOperand(panda::pandasm::Opcode op);
+
 const panda::panda_file::File *EmitDynamicProgram(AbckitFile *file, panda::pandasm::Program *program,
                                                   panda::pandasm::AsmEmitter::PandaFileToPandaAsmMaps *mapsp,
                                                   bool getFile, std::string_view path = {});

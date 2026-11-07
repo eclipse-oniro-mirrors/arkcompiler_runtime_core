@@ -129,11 +129,10 @@ size_t IterateRequestIdxSectionBeforeUpdate(ModuleIterateData *data)
     return idx;
 }
 
-bool CheckRegularImport(ModuleUpdateData *updateData, panda::pandasm::InsPtr &inst)
+bool CheckRegularImport(ModuleUpdateData *updateData, panda::pandasm::InsPtr &inst, bool &modified)
 {
     if (updateData->isRegularImportsChange) {
-        if (inst->GetOpcode() == pandasm::Opcode::LDEXTERNALMODULEVAR ||
-            inst->GetOpcode() == pandasm::Opcode::WIDE_LDEXTERNALMODULEVAR) {
+        if (HasRegularImportIndexOperand(inst->GetOpcode())) {
             auto imm = static_cast<uint32_t>(std::get<int64_t>(inst->GetImm(0)));
             auto foundIdx = updateData->regularImportsIdxMap.find(imm);
             if (foundIdx == updateData->regularImportsIdxMap.end()) {
@@ -143,18 +142,20 @@ bool CheckRegularImport(ModuleUpdateData *updateData, panda::pandasm::InsPtr &in
                 return false;
             }
             auto idx = (int64_t)foundIdx->second;
-            inst->SetImm(0, idx);
+            if (imm != foundIdx->second) {
+                inst->SetImm(0, idx);
+                modified = true;
+            }
         }
     }
     return true;
 }
 
-bool CheckLocalExports(ModuleUpdateData *updateData, panda::pandasm::InsPtr &inst)
+bool CheckLocalExports(ModuleUpdateData *updateData, panda::pandasm::InsPtr &inst, bool &modified)
 {
     if (updateData->isLocalExportsChange) {
         auto op = inst->GetOpcode();
-        if (op == pandasm::Opcode::LDLOCALMODULEVAR || op == pandasm::Opcode::WIDE_LDLOCALMODULEVAR ||
-            op == pandasm::Opcode::STMODULEVAR || op == pandasm::Opcode::WIDE_STMODULEVAR) {
+        if (HasLocalExportIndexOperand(op)) {
             auto imm = static_cast<uint32_t>(std::get<int64_t>(inst->GetImm(0)));
             auto foundIdx = updateData->localExportsIdxMap.find(imm);
             if (foundIdx == updateData->localExportsIdxMap.end()) {
@@ -164,26 +165,44 @@ bool CheckLocalExports(ModuleUpdateData *updateData, panda::pandasm::InsPtr &ins
                 return false;
             }
             auto idx = (int64_t)foundIdx->second;
-            inst->SetImm(0, idx);
+            if (imm != foundIdx->second) {
+                inst->SetImm(0, idx);
+                modified = true;
+            }
         }
     }
     return true;
 }
 
-bool UpdateInsImms(pandasm::Program *program, ModuleUpdateData *updateData, const std::string &mainRecordName)
+bool UpdateFunctionInsImms(pandasm::Function &function, ModuleUpdateData *updateData, bool &modified)
 {
-    for (auto &[name, func] : program->function_table) {
+    for (auto &inst : function.ins) {
+        if (!CheckRegularImport(updateData, inst, modified) || !CheckLocalExports(updateData, inst, modified)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool UpdateInsImms(AbckitFile *file, ModuleUpdateData *updateData, const std::string &mainRecordName)
+{
+    for (auto &[name, func] : file->GetDynamicProgram()->function_table) {
         if (pandasm::GetOwnerName(name) != mainRecordName) {
             continue;
         }
-        for (auto &inst : func.ins) {
-            if (!CheckRegularImport(updateData, inst)) {
-                return false;
+        bool modified = false;
+        bool success = UpdateFunctionInsImms(func, updateData, modified);
+        if (modified) {
+            // Index compaction changes the function body, including on a partially failed update.
+            // Its older Graphs must not overwrite the remapped indices even on the owning thread.
+            auto &functions = func.IsStatic() ? file->nameToFunctionStatic : file->nameToFunctionInstance;
+            auto function = functions.find(name);
+            if (function != functions.end()) {
+                MarkDynamicGraphCacheFunctionDirty(file, function->second);
             }
-
-            if (!CheckLocalExports(updateData, inst)) {
-                return false;
-            }
+        }
+        if (!success) {
+            return false;
         }
     }
     return true;
@@ -204,7 +223,6 @@ AbckitModulePayloadDyn *GetModulePayload(AbckitCoreModule *module)
 
 bool UpdateModuleLiteralArray(AbckitFile *file, const std::string &recName)
 {
-    auto program = file->GetDynamicProgram();
     auto module = file->localModules.find(recName);
     if (module == file->localModules.end()) {
         LIBABCKIT_LOG(DEBUG) << "Can not find module with name '" << recName << "'\n";
@@ -246,7 +264,10 @@ bool UpdateModuleLiteralArray(AbckitFile *file, const std::string &recName)
     }
 
     if (iterData.updateData.isRegularImportsChange || iterData.updateData.isLocalExportsChange) {
-        if (!UpdateInsImms(program, &iterData.updateData, recName)) {
+        // Pending Graphs can introduce references absent from the stored function body.
+        // Invalidate their module indices even if no existing instruction needs rewriting.
+        ++module->second->dynamicModuleIndexGeneration;
+        if (!UpdateInsImms(file, &iterData.updateData, recName)) {
             return false;
         }
     }
@@ -260,6 +281,38 @@ bool UpdateModuleLiteralArray(AbckitFile *file, const std::string &recName)
 }  // namespace
 
 namespace libabckit {
+
+bool HasRegularImportIndexOperand(panda::pandasm::Opcode op)
+{
+    switch (op) {
+        case panda::pandasm::Opcode::LDEXTERNALMODULEVAR:
+        case panda::pandasm::Opcode::WIDE_LDEXTERNALMODULEVAR:
+        case panda::pandasm::Opcode::CALLRUNTIME_LDSENDABLEEXTERNALMODULEVAR:
+        case panda::pandasm::Opcode::CALLRUNTIME_WIDELDSENDABLEEXTERNALMODULEVAR:
+        case panda::pandasm::Opcode::CALLRUNTIME_LDLAZYMODULEVAR:
+        case panda::pandasm::Opcode::CALLRUNTIME_WIDELDLAZYMODULEVAR:
+        case panda::pandasm::Opcode::CALLRUNTIME_LDLAZYSENDABLEMODULEVAR:
+        case panda::pandasm::Opcode::CALLRUNTIME_WIDELDLAZYSENDABLEMODULEVAR:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool HasLocalExportIndexOperand(panda::pandasm::Opcode op)
+{
+    switch (op) {
+        case panda::pandasm::Opcode::LDLOCALMODULEVAR:
+        case panda::pandasm::Opcode::WIDE_LDLOCALMODULEVAR:
+        case panda::pandasm::Opcode::STMODULEVAR:
+        case panda::pandasm::Opcode::WIDE_STMODULEVAR:
+        case panda::pandasm::Opcode::CALLRUNTIME_LDSENDABLELOCALMODULEVAR:
+        case panda::pandasm::Opcode::CALLRUNTIME_WIDELDSENDABLELOCALMODULEVAR:
+            return true;
+        default:
+            return false;
+    }
+}
 
 void InvalidateDynamicGraphCache(AbckitFile *file)
 {

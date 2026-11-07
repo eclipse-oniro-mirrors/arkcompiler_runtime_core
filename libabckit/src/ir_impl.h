@@ -105,6 +105,8 @@ struct AbckitGraph {
     uint64_t baseStructuralGeneration = 0;
     uint64_t baseOwnerStructuralGeneration = 0;
     uint64_t baseFunctionVersion = 0;
+    uint64_t baseModuleIndexGeneration = 0;
+    bool dynamicDebugInfoInitialized = false;
 };
 // NOLINTEND(misc-non-private-member-variables-in-classes)
 

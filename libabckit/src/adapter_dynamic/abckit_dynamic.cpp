@@ -787,61 +787,79 @@ void SetImpl(std::unique_ptr<AbckitCoreFunction> &function, panda::pandasm::Func
 constexpr int REGULAR_IMPORT_SPAN = 3;
 constexpr int NOT_REGULAR_IMPORT_SPAN = 2;
 
-void CollectAnnotationModuleMap(AbckitCoreFunction *function,
-                                std::unordered_map<std::string, std::string> &importModules)
+struct AnnotationImport {
+    AbckitCoreModule *module;
+    // An empty name denotes a namespace import; otherwise this is the exported name, not its local alias.
+    std::string name;
+};
+
+using AnnotationImports = std::unordered_map<std::string, AnnotationImport>;
+
+AnnotationImports CollectAnnotationImports(AbckitCoreModule *module)
 {
-    for (auto &id : function->owningModule->id) {
-        if (id->importingModule->GetArkTSImpl() == nullptr) {
-            continue;
-        }
-        std::string_view mName = id->importedModule->moduleName->impl;
-        auto mPayload = &id->importingModule->GetArkTSImpl()->impl.GetDynModule();
-        auto idPayload = &id->GetArkTSImpl()->payload.GetDynId();
-        const auto *moduleLitArr = mPayload->moduleLiteralArray;
-        auto sectionOffset =
-            idPayload->isRegularImport ? mPayload->regularImportsOffset : mPayload->namespaceImportsOffset;
-        if (idPayload->isRegularImport) {
-            sectionOffset = sectionOffset + idPayload->moduleRecordIndexOff * REGULAR_IMPORT_SPAN;
-        } else {
-            sectionOffset = sectionOffset + idPayload->moduleRecordIndexOff * NOT_REGULAR_IMPORT_SPAN;
-        }
-        std::string iName = std::get<std::string>(moduleLitArr->GetDynamicImpl()->literals_[sectionOffset].value_);
-        importModules[iName] = mName;
+    AnnotationImports imports;
+    for (const auto &id : module->id) {
+        const auto &modulePayload = module->GetArkTSImpl()->impl.GetDynModule();
+        const auto &idPayload = id->GetArkTSImpl()->payload.GetDynId();
+        const auto &literals = modulePayload.moduleLiteralArray->GetDynamicImpl()->literals_;
+        auto offset =
+            idPayload.isRegularImport
+                ? modulePayload.regularImportsOffset + idPayload.moduleRecordIndexOff * REGULAR_IMPORT_SPAN
+                : modulePayload.namespaceImportsOffset + idPayload.moduleRecordIndexOff * NOT_REGULAR_IMPORT_SPAN;
+        const auto &alias = std::get<std::string>(literals[offset].value_);
+        auto name = idPayload.isRegularImport ? std::get<std::string>(literals[offset + 1].value_) : std::string {};
+        imports.emplace(alias, AnnotationImport {id->importedModule, std::move(name)});
     }
+    return imports;
 }
 
-AbckitCoreAnnotationInterface *CollectAnnotationCorrectInfo(AbckitFile *file,
-                                                            const panda::pandasm::AnnotationData &annoImpl,
-                                                            std::unordered_map<std::string, std::string> &importModules,
-                                                            std::vector<std::string> &removes,
-                                                            std::vector<panda::pandasm::AnnotationData> &inserts)
+AbckitCoreAnnotationInterface *FindAnnotationInterface(AbckitCoreModule *module, const std::string &name)
 {
-    std::string aiModuleName = pandasm::GetOwnerName(annoImpl.GetName());
-    std::string aiName = pandasm::GetItemName(annoImpl.GetName());
-    std::string mName;
-    if (importModules.find(aiName) != importModules.end() && (mName = importModules[aiName]) != aiModuleName) {
-        auto &localModule = file->localModules[mName];
-        if (localModule.get() == nullptr) {
-            return nullptr;
-        }
-        auto &annotationInterface = localModule->at[aiName];
-        if (annotationInterface.get() != nullptr &&
-            libabckit::IsAnnotationInterfaceRecord(*(annotationInterface->GetArkTSImpl()->GetDynamicImpl()))) {
-            inserts.emplace_back(mName + "." + aiName, annoImpl.GetElements());
-            removes.emplace_back(annoImpl.GetName());
-            return annotationInterface.get();
+    if (module == nullptr) {
+        return nullptr;
+    }
+    auto iter = module->at.find(name);
+    return iter == module->at.end() ? nullptr : iter->second.get();
+}
+
+AbckitCoreAnnotationInterface *ResolveAnnotationInterface(AbckitCoreModule *module, const std::string &annotationName,
+                                                          const AnnotationImports &imports)
+{
+    auto ownerName = pandasm::GetOwnerName(annotationName);
+    auto name = pandasm::GetItemName(annotationName);
+    auto &modules = module->file->localModules;
+    auto owner = modules.find(ownerName);
+    if (owner != modules.end()) {
+        if (auto *interface = FindAnnotationInterface(owner->second.get(), name)) {
+            return interface;
         }
     }
-    return nullptr;
+
+    const auto &moduleName = module->moduleName->impl;
+    bool isNamespace = ownerName != moduleName;
+    std::string importName = name;
+    if (isNamespace) {
+        const auto prefix = std::string(moduleName) + ".";
+        if (ownerName.compare(0, prefix.size(), prefix) != 0) {
+            return nullptr;
+        }
+        importName = ownerName.substr(prefix.size());
+    }
+    auto imported = imports.find(importName);
+    if (imported == imports.end() || isNamespace != imported->second.name.empty()) {
+        return nullptr;
+    }
+    // A qualified reference must use its namespace's module, never an unrelated same-name named import.
+    return FindAnnotationInterface(imported->second.module, isNamespace ? name : imported->second.name);
 }
 
 void CreateFunctionAnnotations(AbckitFile *file, panda::pandasm::Function &functionImpl, AbckitCoreFunction *function)
 {
     std::vector<std::string> removes;
     std::vector<panda::pandasm::AnnotationData> inserts;
-    std::unordered_map<std::string, std::string> importModules;
+    AnnotationImports imports;
     if (function->owningModule->target == ABCKIT_TARGET_ARK_TS_V1) {
-        CollectAnnotationModuleMap(function, importModules);
+        imports = CollectAnnotationImports(function->owningModule);
     }
 
     for (auto &annoImpl : functionImpl.metadata->GetAnnotations()) {
@@ -850,12 +868,15 @@ void CreateFunctionAnnotations(AbckitFile *file, panda::pandasm::Function &funct
         }
         ASSERT(function->owningModule->target == ABCKIT_TARGET_ARK_TS_V1);
         auto anno = std::make_unique<AbckitCoreAnnotation>();
-        std::string aiModuleName = pandasm::GetOwnerName(annoImpl.GetName());
         std::string aiName = pandasm::GetItemName(annoImpl.GetName());
         anno->name = CreateNameString(aiName, file);
-        anno->ai = file->localModules[aiModuleName]->at[aiName].get();
-        if (anno->ai == nullptr) {
-            anno->ai = CollectAnnotationCorrectInfo(file, annoImpl, importModules, removes, inserts);
+        anno->ai = ResolveAnnotationInterface(function->owningModule, annoImpl.GetName(), imports);
+        if (anno->ai != nullptr) {
+            const auto &resolvedName = anno->ai->GetArkTSImpl()->GetDynamicImpl()->name;
+            if (resolvedName != annoImpl.GetName()) {
+                inserts.emplace_back(resolvedName, annoImpl.GetElements());
+                removes.emplace_back(annoImpl.GetName());
+            }
         }
         anno->impl = std::make_unique<AbckitArktsAnnotation>();
         anno->GetArkTSImpl()->core = anno.get();

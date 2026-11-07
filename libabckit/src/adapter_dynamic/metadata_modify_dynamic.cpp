@@ -31,6 +31,7 @@
 #include "src/adapter_dynamic/helpers_dynamic.h"
 #include "src/statuses_impl.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -55,6 +56,8 @@ struct AbckitPreparedDynamicFunction {
     std::shared_ptr<AbckitFileThreadState> threadState;
     uint64_t baseStructuralGeneration = 0;
     uint64_t baseFunctionVersion = 0;
+    uint64_t baseModuleIndexGeneration = 0;
+    bool hasModuleIndices = false;
 };
 
 // CC-OFFNXT(WordsTool.95) sensitive word conflict
@@ -89,6 +92,13 @@ private:
     AbckitFileApiWriteLock writeLock_;
     bool conflict_;
 };
+
+bool HasModuleIndexInstructions(const pandasm::Function &function)
+{
+    return std::any_of(function.ins.begin(), function.ins.end(), [](const auto &ins) {
+        return HasRegularImportIndexOperand(ins->GetOpcode()) || HasLocalExportIndexOperand(ins->GetOpcode());
+    });
+}
 
 AbckitFile *GetDynamicAnnotationOwnerFile(AbckitCoreAnnotation *anno)
 {
@@ -166,7 +176,7 @@ AbckitPreparedDynamicFunction *PrepareFunctionSetGraphDynamic(AbckitCoreFunction
     LIBABCKIT_LOG_DUMP(func->DebugDump(), DEBUG);
 
     std::unordered_map<size_t, GraphWrapper::LineColumnPair> pcToLineColumn;
-    if (graph->irInterface != nullptr && !func->ins.empty()) {
+    if (!graph->dynamicDebugInfoInitialized && graph->irInterface != nullptr && !func->ins.empty()) {
         std::vector<GraphWrapper::LineColumnPair> lineColumnPerIns;
         lineColumnPerIns.reserve(func->ins.size());
         for (const auto &ins : func->ins) {
@@ -175,7 +185,10 @@ AbckitPreparedDynamicFunction *PrepareFunctionSetGraphDynamic(AbckitCoreFunction
         }
         GraphWrapper::BuildPcToLineColumnMap(graph, lineColumnPerIns, pcToLineColumn);
     }
-    auto res = GraphWrapper::BuildCodeDynamic(graph, func->name, &pcToLineColumn);
+    // BuildCodeDynamic moves the map into this Graph's private irInterface. Its PCs always
+    // refer to the initial bytecode, so later submissions must retain that original map.
+    auto *debugMap = graph->dynamicDebugInfoInitialized ? nullptr : &pcToLineColumn;
+    auto res = GraphWrapper::BuildCodeDynamic(graph, func->name, debugMap);
     auto status = statuses::GetLastError();
     if (status != AbckitStatus::ABCKIT_STATUS_NO_ERROR || res == nullptr) {
         if (status == AbckitStatus::ABCKIT_STATUS_NO_ERROR) {
@@ -184,12 +197,20 @@ AbckitPreparedDynamicFunction *PrepareFunctionSetGraphDynamic(AbckitCoreFunction
         return nullptr;
     }
 
+    graph->dynamicDebugInfoInitialized = true;
+
     LIBABCKIT_LOG(DEBUG) << "============================================ AFTER CODEGEN: " << func->name << '\n';
     LIBABCKIT_LOG_DUMP((reinterpret_cast<pandasm::Function *>(res))->DebugDump(), DEBUG);
 
     auto prepared = std::make_unique<AbckitPreparedDynamicFunction>();
     prepared->function = function;
     prepared->implementation.reset(reinterpret_cast<pandasm::Function *>(res));
+    prepared->hasModuleIndices = HasModuleIndexInstructions(*prepared->implementation);
+    prepared->baseModuleIndexGeneration = function->owningModule->dynamicModuleIndexGeneration;
+    if (prepared->hasModuleIndices && graph->baseModuleIndexGeneration != prepared->baseModuleIndexGeneration) {
+        statuses::SetLastError(ABCKIT_STATUS_WRONG_STATE);
+        return nullptr;
+    }
     if (!file->threadState->TryBeginOperation()) {
         statuses::SetLastError(ABCKIT_STATUS_WRONG_STATE);
         return nullptr;
@@ -221,7 +242,9 @@ void CommitPreparedFunctionDynamic(AbckitPreparedDynamicFunction *prepared)
         return;
     }
     if (prepared->baseStructuralGeneration != file->dynamicStructuralGeneration.load(std::memory_order_acquire) ||
-        prepared->baseFunctionVersion != GetDynamicGraphFunctionVersion(file, function)) {
+        prepared->baseFunctionVersion != GetDynamicGraphFunctionVersion(file, function) ||
+        (prepared->hasModuleIndices &&
+         prepared->baseModuleIndexGeneration != function->owningModule->dynamicModuleIndexGeneration)) {
         LIBABCKIT_LOG(DEBUG) << "Rejecting stale prepared dynamic function\n";
         statuses::SetLastError(ABCKIT_STATUS_WRONG_STATE);
         ownedPrepared.reset();
@@ -282,7 +305,14 @@ void FunctionSetGraphDynamic(AbckitCoreFunction *function, AbckitGraph *graph)
     if (prepared == nullptr) {
         return;
     }
+    const auto committedVersion = prepared->baseFunctionVersion + 1;
     CommitPreparedFunctionDynamic(prepared);
+    if (statuses::GetLastError() == ABCKIT_STATUS_NO_ERROR) {
+        // Capture only this submission's version; another Graph may already have committed afterward.
+        graph->baseFunctionVersion = committedVersion;
+        // Keep the initial module generation: codegen may discard index-bearing instructions
+        // that remain in this Graph and could become reachable after a later edit.
+    }
 }
 
 AbckitJsModule *FileAddExternalJsModule(AbckitFile *file, const struct AbckitJsExternalModuleCreateParams *params)

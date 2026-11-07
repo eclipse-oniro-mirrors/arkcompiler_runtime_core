@@ -2024,6 +2024,9 @@ struct CAPI_EXPORT AbckitModifyApi {
      * @note For Dynamic files, set `ABCKIT_STATUS_WRONG_STATE` if the Graph's function or required metadata state
      * is stale, or the file lifecycle does not permit submission. A rejected submission does not replace the
      * current function body. Recreate the Graph from current state before retrying a stale transformation.
+     * @note A successful Dynamic submission updates this Graph's function version, allowing further edits and
+     * submissions of the same Graph. Other Graphs for that function remain stale; intervening function or metadata
+     * changes can invalidate the submitted Graph again.
      * @note Allocates
      */
     void (*functionSetGraph)(AbckitCoreFunction *function, AbckitGraph *graph);
