@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -18,51 +18,188 @@
 
 void SubclassesScanner::Run()
 {
+    // Preserve the original helper behavior: repeated full-file runs append
+    // subclasses instead of clearing earlier results.
+    Reset(false);
     visitor_.EnumerateModules([&](AbckitCoreModule *mod) {
-        std::vector<std::pair<AbckitCoreImportDescriptor *, size_t>> impDescriptors;
-        GetImportDescriptors(mod, impDescriptors);
-        if (impDescriptors.empty()) {
+        if (status_ == ABCKIT_STATUS_NO_ERROR) {
+            ScanModule(mod);
+        }
+    });
+    RecordLastError();
+}
+
+void SubclassesScanner::RunForModules(const std::vector<AbckitCoreModule *> &modules)
+{
+    Reset(true);
+    for (auto *module : modules) {
+        if (module == nullptr) {
+            SetFirstError(ABCKIT_STATUS_BAD_ARGUMENT);
+            break;
+        }
+        ScanModule(module);
+        if (status_ != ABCKIT_STATUS_NO_ERROR) {
+            break;
+        }
+    }
+}
+
+void SubclassesScanner::ScanModule(AbckitCoreModule *module)
+{
+    std::vector<std::pair<AbckitCoreImportDescriptor *, size_t>> impDescriptors;
+    GetImportDescriptors(module, impDescriptors);
+    if (status_ != ABCKIT_STATUS_NO_ERROR || impDescriptors.empty()) {
+        return;
+    }
+
+    visitor_.EnumerateModuleTopLevelFunctions(module, [&](AbckitCoreFunction *method) {
+        if (status_ == ABCKIT_STATUS_NO_ERROR) {
+            CollectSubClasses(method, impDescriptors);
+        }
+    });
+    RecordLastError();
+    if (status_ != ABCKIT_STATUS_NO_ERROR) {
+        return;
+    }
+
+    visitor_.EnumerateModuleClasses(module, [&](AbckitCoreClass *klass) {
+        if (status_ != ABCKIT_STATUS_NO_ERROR) {
             return;
         }
-        visitor_.EnumerateModuleFunctions(
-            mod, [&](AbckitCoreFunction *method) { CollectSubClasses(method, impDescriptors); });
+        visitor_.EnumerateClassMethods(klass, [&](AbckitCoreFunction *method) {
+            if (status_ == ABCKIT_STATUS_NO_ERROR) {
+                CollectSubClasses(method, impDescriptors);
+            }
+        });
+        RecordLastError();
     });
+    RecordLastError();
+}
+
+void SubclassesScanner::Reset(bool clearSubclasses)
+{
+    status_ = ABCKIT_STATUS_NO_ERROR;
+    if (clearSubclasses) {
+        subClasses_.clear();
+    }
+}
+
+void SubclassesScanner::SetFirstError(AbckitStatus status)
+{
+    if (status_ == ABCKIT_STATUS_NO_ERROR && status != ABCKIT_STATUS_NO_ERROR) {
+        status_ = status;
+    }
+}
+
+bool SubclassesScanner::RecordLastError()
+{
+    SetFirstError(impl_->getLastError());
+    return status_ == ABCKIT_STATUS_NO_ERROR;
+}
+
+std::string SubclassesScanner::GetString(AbckitString *value)
+{
+    if (value == nullptr) {
+        RecordLastError();
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return {};
+    }
+    const char *data = implI_->abckitStringToString(value);
+    if (!RecordLastError() || data == nullptr) {
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return {};
+    }
+    return data;
 }
 
 void SubclassesScanner::CollectSubClasses(AbckitCoreFunction *method,
                                           const std::vector<std::pair<AbckitCoreImportDescriptor *, size_t>> &impDescrs)
 {
-    visitor_.EnumerateFunctionInsts(method, [&](AbckitInst *inst) {
-        for (const auto &[impDescr, idx] : impDescrs) {
-            ClassInfo classInfo;
-            if (IsLoadApi(impDescr, inst, classInfo)) {
-                subClasses_.emplace_back(classInfo);
+    auto *graph = implI_->createGraphFromFunction(method);
+    if (!RecordLastError() || graph == nullptr) {
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return;
+    }
+
+    struct GraphVisitContext {
+        SubclassesScanner *scanner;
+        const std::vector<std::pair<AbckitCoreImportDescriptor *, size_t>> *importDescriptors;
+    } context {this, &impDescrs};
+
+    bool visitResult = implG_->gVisitBlocksRpo(graph, &context, [](AbckitBasicBlock *basicBlock, void *data) {
+        auto &ctx = *static_cast<GraphVisitContext *>(data);
+        auto *inst = ctx.scanner->implG_->bbGetFirstInst(basicBlock);
+        if (!ctx.scanner->RecordLastError()) {
+            return false;
+        }
+        while (inst != nullptr) {
+            for (const auto &[importDescriptor, index] : *ctx.importDescriptors) {
+                static_cast<void>(index);
+                ClassInfo classInfo;
+                if (ctx.scanner->IsLoadApi(importDescriptor, inst, classInfo)) {
+                    ctx.scanner->subClasses_.emplace_back(std::move(classInfo));
+                }
+                if (ctx.scanner->status_ != ABCKIT_STATUS_NO_ERROR) {
+                    return false;
+                }
+            }
+            inst = ctx.scanner->implG_->iGetNext(inst);
+            if (!ctx.scanner->RecordLastError()) {
+                return false;
             }
         }
+        return true;
     });
+    bool visitStatusOk = RecordLastError();
+    if (!visitResult && visitStatusOk) {
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+    }
+
+    impl_->destroyGraph(graph);
+    RecordLastError();
 }
 
 bool SubclassesScanner::IsLoadApi(AbckitCoreImportDescriptor *id, AbckitInst *inst, ClassInfo &subclassInfo)
 {
-    if (dynG_->iGetOpcode(inst) != ABCKIT_ISA_API_DYNAMIC_OPCODE_LDEXTERNALMODULEVAR) {
+    auto opcode = dynG_->iGetOpcode(inst);
+    if (!RecordLastError() || opcode != ABCKIT_ISA_API_DYNAMIC_OPCODE_LDEXTERNALMODULEVAR) {
         return false;
     }
 
-    if (dynG_->iGetImportDescriptor(inst) != id) {
+    auto *descriptor = dynG_->iGetImportDescriptor(inst);
+    if (!RecordLastError() || descriptor != id) {
         return false;
     }
 
     bool found = false;
     visitor_.EnumerateInstUsers(inst, [&](AbckitInst *user) {
-        if (dynG_->iGetOpcode(user) == ABCKIT_ISA_API_DYNAMIC_OPCODE_DEFINECLASSWITHBUFFER) {
-            auto method = implG_->iGetFunction(user);
-            auto klass = implI_->functionGetParentClass(method);
-            auto module = implI_->classGetModule(klass);
-            subclassInfo.className = visitor_.GetString(implI_->classGetName(klass));
-            subclassInfo.path = visitor_.GetString(implI_->moduleGetName(module));
-            found = true;
+        if (found || status_ != ABCKIT_STATUS_NO_ERROR) {
+            return;
         }
+        auto userOpcode = dynG_->iGetOpcode(user);
+        if (!RecordLastError() || userOpcode != ABCKIT_ISA_API_DYNAMIC_OPCODE_DEFINECLASSWITHBUFFER) {
+            return;
+        }
+        auto *method = implG_->iGetFunction(user);
+        if (!RecordLastError() || method == nullptr) {
+            SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+            return;
+        }
+        auto *klass = implI_->functionGetParentClass(method);
+        if (!RecordLastError() || klass == nullptr) {
+            SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+            return;
+        }
+        auto *module = implI_->classGetModule(klass);
+        if (!RecordLastError() || module == nullptr) {
+            SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+            return;
+        }
+        subclassInfo.className = GetString(implI_->classGetName(klass));
+        subclassInfo.path = GetString(implI_->moduleGetName(module));
+        found = status_ == ABCKIT_STATUS_NO_ERROR;
     });
+    RecordLastError();
 
     return found;
 }
@@ -72,11 +209,21 @@ void SubclassesScanner::GetImportDescriptors(
     AbckitCoreModule *mod, std::vector<std::pair<AbckitCoreImportDescriptor *, size_t>> &importDescriptors)
 {
     visitor_.EnumerateModuleImports(mod, [&](AbckitCoreImportDescriptor *id) {
-        auto importName = visitor_.GetString(implI_->importDescriptorGetName(id));
+        auto importName = GetString(implI_->importDescriptorGetName(id));
+        if (!RecordLastError()) {
+            return;
+        }
         auto *importedModule = implI_->importDescriptorGetImportedModule(id);
-        auto source = visitor_.GetString(implI_->moduleGetName(importedModule));
+        if (!RecordLastError() || importedModule == nullptr) {
+            SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+            return;
+        }
+        auto source = GetString(implI_->moduleGetName(importedModule));
+        if (!RecordLastError()) {
+            return;
+        }
         for (size_t i = 0; i < baseClasses_.size(); ++i) {
-            const auto baseClass = baseClasses_[i];
+            const auto &baseClass = baseClasses_[i];
             if (source != baseClass.path) {
                 continue;
             }
@@ -85,6 +232,7 @@ void SubclassesScanner::GetImportDescriptors(
             }
         }
     });
+    RecordLastError();
 }
 
 bool SubclassesScanner::IsEqualsSubClasses(const std::vector<ClassInfo> &otherSubClasses)

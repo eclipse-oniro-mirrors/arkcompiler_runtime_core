@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -46,10 +46,13 @@ class ApiScanner {
 public:
     ApiScanner(enum AbckitApiVersion version, AbckitFile *file, std::vector<ApiInfo> apiList);
 
-    const ApiUsageMap &GetApiUsages()
+    const ApiUsageMap &GetApiUsages();
+
+    const ApiUsageMap &GetApiUsagesForModules(const std::vector<AbckitCoreModule *> &modules);
+
+    AbckitStatus GetStatus() const
     {
-        CollectApiUsages();
-        return apiUsages_;
+        return status_;
     }
 
     std::string ApiUsageMapGetString() const;
@@ -59,9 +62,17 @@ public:
 private:
     void CollectApiUsages();
 
+    void CollectApiUsagesInModule(AbckitCoreModule *module);
+
+    void Reset(bool clearUsages);
+
+    bool RecordLastError();
+
+    void SetFirstError(AbckitStatus status);
+
     void CollectUsageInMethod(AbckitCoreFunction *method, SuspectsMap &suspects);
 
-    std::string GetString(AbckitString *str) const;
+    std::string GetString(AbckitString *str);
 
     void AddApiUsage(size_t apiIndex, const UsageInfo &usage)
     {
@@ -87,6 +98,7 @@ private:
     VisitHelper vh_;
     std::vector<ApiInfo> apiList_;
     ApiUsageMap apiUsages_;
+    AbckitStatus status_ = ABCKIT_STATUS_NO_ERROR;
 };
 
 #endif /* API_SCANNER_H */

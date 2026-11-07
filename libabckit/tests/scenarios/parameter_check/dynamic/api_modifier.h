@@ -16,6 +16,9 @@
 #ifndef ABCKIT_API_MODIFIER_H
 #define ABCKIT_API_MODIFIER_H
 
+#include <cstddef>
+#include <string>
+#include <utility>
 #include <vector>
 #include "libabckit/c/abckit.h"
 #include "helpers/visit_helper/visit_helper.h"
@@ -24,6 +27,13 @@ struct MethodInfo {
     std::string path;
     std::string className;
     std::string methodName;
+};
+
+struct ParameterCheckTransformResult {
+    AbckitStatus status = ABCKIT_STATUS_NO_ERROR;
+    size_t createdCheckBlocks = 0;
+    size_t createdFailureBlocks = 0;
+    size_t committedFunctions = 0;
 };
 
 class ApiModifier {
@@ -39,13 +49,9 @@ public:
     }
 
     void Run();
-
-    // 20260807927972 Task 02-07: per-function entry points for parallel scheduling. CollectCheckerTasks
-    // runs the (read-only) subclass-method discovery on the main thread; workers call RunCheckerTask
-    // on distinct methods (createGraphFromFunction D1 single-builder snapshot + per-graph bounds-check
-    // surgery + functionSetGraph D4 prepare/commit + destroyGraph on different methods -> thread-safe).
     void CollectCheckerTasks(std::vector<AbckitCoreFunction *> &tasks);
-    void RunCheckerTask(AbckitCoreFunction *method);
+
+    ParameterCheckTransformResult AddParamChecker(AbckitCoreFunction *method);
 
     AbckitFile *GetFile()
     {
@@ -57,7 +63,6 @@ private:
     void ModifyFunction(AbckitCoreFunction *method, AbckitCoreImportDescriptor *id);
     void CollectCheckerTasksForMethod(AbckitCoreImportDescriptor *impDescriptor, AbckitCoreFunction *method,
                                       std::vector<AbckitCoreFunction *> &tasks);
-    void AddParamChecker(AbckitCoreFunction *method);
     AbckitCoreFunction *GetSubclassMethod(AbckitCoreImportDescriptor *id, AbckitInst *inst);
     AbckitCoreFunction *GetMethodToModify(AbckitCoreClass *klass);
 

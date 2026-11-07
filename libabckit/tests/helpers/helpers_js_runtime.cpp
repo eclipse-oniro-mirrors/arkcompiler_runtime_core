@@ -16,6 +16,9 @@
 #include "helpers_runtime.h"
 #include "logger.h"
 #include "ecmascript/napi/include/jsnapi.h"
+#include "libpandafile/debug_info_extractor.h"
+#include "libpandafile/file-inl.h"
+#include "libpandafile/method_data_accessor-inl.h"
 
 #include <cstdint>
 #include <iostream>
@@ -23,6 +26,31 @@
 #include <sstream>
 
 namespace libabckit::test::helpers {
+
+DebugTables ReadDynamicDebugTables(const std::string &abcPath, const std::string &functionName)
+{
+    auto pf = panda::panda_file::OpenPandaFile(abcPath);
+    if (pf == nullptr) {
+        return {};
+    }
+    panda::panda_file::DebugInfoExtractor extractor(pf.get());
+    for (auto id : extractor.GetMethodIdList()) {
+        panda::panda_file::MethodDataAccessor method(*pf, id);
+        std::string name(reinterpret_cast<const char *>(pf->GetStringData(method.GetNameId()).data));
+        if (name.substr(name.find_last_of("#.") + 1) != functionName) {
+            continue;
+        }
+        DebugTables result;
+        for (const auto &entry : extractor.GetLineNumberTable(id)) {
+            result.first.emplace_back(entry.offset, entry.line);
+        }
+        for (const auto &entry : extractor.GetColumnNumberTable(id)) {
+            result.second.emplace_back(entry.offset, entry.column);
+        }
+        return result;
+    }
+    return {};
+}
 
 std::string ExecuteDynamicAbc(const std::string &abcPath, const std::string &entry)
 {

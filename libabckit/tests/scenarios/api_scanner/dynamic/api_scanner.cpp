@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -14,11 +14,9 @@
  */
 
 #include <algorithm>
-#include <cassert>
 #include <sstream>
 #include "libabckit/c/abckit.h"
 #include "api_scanner.h"
-#include "helpers/helpers.h"
 
 ApiScanner::ApiScanner(enum AbckitApiVersion version, AbckitFile *file, std::vector<ApiInfo> apiList)
     : file_(file), apiList_(std::move(apiList))
@@ -32,24 +30,123 @@ ApiScanner::ApiScanner(enum AbckitApiVersion version, AbckitFile *file, std::vec
 
 void ApiScanner::CollectApiUsages()
 {
+    // Preserve the original helper behavior: repeated full-file scans append
+    // usages instead of clearing results collected by earlier calls.
+    Reset(false);
     vh_.EnumerateModules([&](AbckitCoreModule *mod) {
-        SuspectsMap suspects;
-        GetSuspects(mod, suspects);
-        if (suspects.empty()) {
+        if (status_ == ABCKIT_STATUS_NO_ERROR) {
+            CollectApiUsagesInModule(mod);
+        }
+    });
+    RecordLastError();
+}
+
+const ApiUsageMap &ApiScanner::GetApiUsages()
+{
+    CollectApiUsages();
+    return apiUsages_;
+}
+
+const ApiUsageMap &ApiScanner::GetApiUsagesForModules(const std::vector<AbckitCoreModule *> &modules)
+{
+    Reset(true);
+    for (auto *module : modules) {
+        if (module == nullptr) {
+            SetFirstError(ABCKIT_STATUS_BAD_ARGUMENT);
+            break;
+        }
+        CollectApiUsagesInModule(module);
+        if (status_ != ABCKIT_STATUS_NO_ERROR) {
+            break;
+        }
+    }
+    return apiUsages_;
+}
+
+void ApiScanner::CollectApiUsagesInModule(AbckitCoreModule *module)
+{
+    SuspectsMap suspects;
+    GetSuspects(module, suspects);
+    if (status_ != ABCKIT_STATUS_NO_ERROR || suspects.empty()) {
+        return;
+    }
+    vh_.EnumerateModuleTopLevelFunctions(module, [&](AbckitCoreFunction *method) {
+        if (status_ == ABCKIT_STATUS_NO_ERROR) {
+            CollectUsageInMethod(method, suspects);
+        }
+    });
+    RecordLastError();
+    if (status_ != ABCKIT_STATUS_NO_ERROR) {
+        return;
+    }
+    vh_.EnumerateModuleClasses(module, [&](AbckitCoreClass *klass) {
+        if (status_ != ABCKIT_STATUS_NO_ERROR) {
             return;
         }
-        vh_.EnumerateModuleFunctions(mod, [&](AbckitCoreFunction *method) { CollectUsageInMethod(method, suspects); });
+        vh_.EnumerateClassMethods(klass, [&](AbckitCoreFunction *method) {
+            if (status_ == ABCKIT_STATUS_NO_ERROR) {
+                CollectUsageInMethod(method, suspects);
+            }
+        });
+        RecordLastError();
     });
+    RecordLastError();
+}
+
+void ApiScanner::Reset(bool clearUsages)
+{
+    status_ = ABCKIT_STATUS_NO_ERROR;
+    if (clearUsages) {
+        apiUsages_.clear();
+    }
+}
+
+void ApiScanner::SetFirstError(AbckitStatus status)
+{
+    if (status_ == ABCKIT_STATUS_NO_ERROR && status != ABCKIT_STATUS_NO_ERROR) {
+        status_ = status;
+    }
+}
+
+bool ApiScanner::RecordLastError()
+{
+    SetFirstError(impl_->getLastError());
+    return status_ == ABCKIT_STATUS_NO_ERROR;
+}
+
+std::string ApiScanner::GetString(AbckitString *str)
+{
+    if (str == nullptr) {
+        RecordLastError();
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return {};
+    }
+    const char *value = implI_->abckitStringToString(str);
+    if (!RecordLastError() || value == nullptr) {
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return {};
+    }
+    return value;
 }
 
 bool ApiScanner::GetSuspects(AbckitCoreModule *mod, SuspectsMap &suspects)
 {
     vh_.EnumerateModuleImports(mod, [&](AbckitCoreImportDescriptor *id) {
-        auto importName = vh_.GetString(implI_->importDescriptorGetName(id));
+        auto importName = GetString(implI_->importDescriptorGetName(id));
+        if (!RecordLastError()) {
+            return;
+        }
         auto *importedModule = implI_->importDescriptorGetImportedModule(id);
-        auto source = vh_.GetString(implI_->moduleGetName(importedModule));
+        if (!RecordLastError() || importedModule == nullptr) {
+            SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+            return;
+        }
+        auto source = GetString(implI_->moduleGetName(importedModule));
+        if (!RecordLastError()) {
+            return;
+        }
         for (size_t i = 0; i < apiList_.size(); ++i) {
-            const auto api = apiList_[i];
+            const auto &api = apiList_[i];
             if (source != api.source) {
                 continue;
             }
@@ -58,6 +155,7 @@ bool ApiScanner::GetSuspects(AbckitCoreModule *mod, SuspectsMap &suspects)
             }
         }
     });
+    RecordLastError();
     return !suspects.empty();
 }
 
@@ -69,11 +167,13 @@ bool ApiScanner::IsLoadApi(AbckitCoreImportDescriptor *id, size_t apiIndex, Abck
     // or
     // 1. ldExternalModuleVar (import {bar} from "./modules/myApi")
 
-    if (dynG_->iGetOpcode(inst) != ABCKIT_ISA_API_DYNAMIC_OPCODE_LDEXTERNALMODULEVAR) {
+    auto opcode = dynG_->iGetOpcode(inst);
+    if (!RecordLastError() || opcode != ABCKIT_ISA_API_DYNAMIC_OPCODE_LDEXTERNALMODULEVAR) {
         return false;
     }
 
-    if (dynG_->iGetImportDescriptor(inst) != id) {
+    auto *descriptor = dynG_->iGetImportDescriptor(inst);
+    if (!RecordLastError() || descriptor != id) {
         return false;
     }
 
@@ -84,42 +184,100 @@ bool ApiScanner::IsLoadApi(AbckitCoreImportDescriptor *id, size_t apiIndex, Abck
 
     bool found = false;
     vh_.EnumerateInstUsers(inst, [&](AbckitInst *user) {
-        if (!found && dynG_->iGetOpcode(user) == ABCKIT_ISA_API_DYNAMIC_OPCODE_LDOBJBYNAME) {
-            auto str = vh_.GetString(implG_->iGetString(user));
-            found = str == prop;
+        if (found || status_ != ABCKIT_STATUS_NO_ERROR) {
+            return;
         }
+        auto userOpcode = dynG_->iGetOpcode(user);
+        if (!RecordLastError() || userOpcode != ABCKIT_ISA_API_DYNAMIC_OPCODE_LDOBJBYNAME) {
+            return;
+        }
+        auto property = GetString(implG_->iGetString(user));
+        RecordLastError();
+        found = property == prop;
     });
+    RecordLastError();
 
     return found;
 }
 
 std::string ApiScanner::GetMethodName(AbckitCoreFunction *method)
 {
-    auto mname = implI_->functionGetName(method);
-    auto methodName = std::string(libabckit::test::helpers::AbckitStringToString(mname));
+    auto methodName = GetString(implI_->functionGetName(method));
+    if (!RecordLastError()) {
+        return {};
+    }
     auto *cls = implI_->functionGetParentClass(method);
+    if (!RecordLastError()) {
+        return {};
+    }
     if (cls == nullptr) {
         return methodName;
     }
-    auto cname = implI_->classGetName(cls);
-    auto className = std::string(libabckit::test::helpers::AbckitStringToString(cname));
+    auto className = GetString(implI_->classGetName(cls));
+    RecordLastError();
     return className + '.' + methodName;
 }
 
 void ApiScanner::CollectUsageInMethod(AbckitCoreFunction *method, SuspectsMap &suspects)
 {
     auto methodName = GetMethodName(method);
-    auto *sourceRaw = implI_->moduleGetName(implI_->functionGetModule(method));
-    auto source = vh_.GetString(sourceRaw);
+    if (status_ != ABCKIT_STATUS_NO_ERROR) {
+        return;
+    }
+    auto *module = implI_->functionGetModule(method);
+    if (!RecordLastError() || module == nullptr) {
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return;
+    }
+    auto source = GetString(implI_->moduleGetName(module));
+    if (!RecordLastError()) {
+        return;
+    }
     UsageInfo usage = {source.data(), methodName, 0};
-    vh_.EnumerateFunctionInsts(method, [&](AbckitInst *inst) {
-        for (const auto &[id, apiIndex] : suspects) {
-            if (IsLoadApi(id, apiIndex, inst)) {
-                usage.idx = apiIndex;
-                AddApiUsage(apiIndex, usage);
+    auto *graph = implI_->createGraphFromFunction(method);
+    if (!RecordLastError() || graph == nullptr) {
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return;
+    }
+
+    struct GraphVisitContext {
+        ApiScanner *scanner;
+        UsageInfo *usage;
+        SuspectsMap *suspects;
+    } context {this, &usage, &suspects};
+
+    bool visitResult = implG_->gVisitBlocksRpo(graph, &context, [](AbckitBasicBlock *basicBlock, void *data) {
+        auto &ctx = *static_cast<GraphVisitContext *>(data);
+        auto *inst = ctx.scanner->implG_->bbGetFirstInst(basicBlock);
+        if (!ctx.scanner->RecordLastError()) {
+            return false;
+        }
+        while (inst != nullptr) {
+            for (const auto &[id, apiIndex] : *ctx.suspects) {
+                if (ctx.scanner->IsLoadApi(id, apiIndex, inst)) {
+                    ctx.usage->idx = apiIndex;
+                    ctx.scanner->AddApiUsage(apiIndex, *ctx.usage);
+                }
+                if (ctx.scanner->status_ != ABCKIT_STATUS_NO_ERROR) {
+                    return false;
+                }
+            }
+            inst = ctx.scanner->implG_->iGetNext(inst);
+            if (!ctx.scanner->RecordLastError()) {
+                return false;
             }
         }
+        return true;
     });
+    bool visitStatusOk = RecordLastError();
+    if (!visitResult && visitStatusOk) {
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+    }
+
+    // Keep the first traversal error, but always release the Graph in the
+    // worker thread that created it.
+    impl_->destroyGraph(graph);
+    RecordLastError();
 }
 
 static std::string GetQuatatedStr(const std::string &str)

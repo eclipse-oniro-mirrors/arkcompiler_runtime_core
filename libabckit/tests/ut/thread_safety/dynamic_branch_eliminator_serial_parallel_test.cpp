@@ -63,13 +63,13 @@ static std::string GetExpectedOutput(bool value)
 
 // Per-worker body: claim and run the next function task from the shared pool. Extracted to keep the
 // TEST_F nesting depth within the checker limit.
-static void RunNextBranchTask(BranchEliminator &b, std::vector<std::pair<AbckitCoreFunction *, SuspectsType>> &tasks,
+static void RunNextBranchTask(BranchEliminator &b, const std::vector<BranchEliminatorTask> &tasks,
                               std::atomic<size_t> &next)
 {
     size_t idx = next.fetch_add(1, std::memory_order_relaxed);
     while (idx < tasks.size()) {
         // D1 (createGraphFromFunction) + D4 (functionSetGraph) on a distinct function.
-        b.RunFunctionTask(tasks[idx].first, tasks[idx].second);
+        EXPECT_EQ(b.RunTask(tasks[idx]).status, ABCKIT_STATUS_NO_ERROR);
         idx = next.fetch_add(1, std::memory_order_relaxed);
     }
 }
@@ -103,15 +103,18 @@ TEST_F(LibAbcKitDynamicScenarioParallelTest, LibAbcKitTestDynamicBranchEliminato
         AbckitFile *file = g_impl->openAbc(INPUT.c_str(), INPUT.size());
         ASSERT_NE(file, nullptr);
         BranchEliminator b(ABCKIT_VERSION_RELEASE_1_0_0, file, infos);
-        std::vector<std::pair<AbckitCoreFunction *, SuspectsType>> tasks;
-        b.CollectFunctionTasks(tasks);  // main thread: enumeration + suspects (read-only)
+        auto tasks = b.CollectTasks();
+        ASSERT_EQ(b.GetStatus(), ABCKIT_STATUS_NO_ERROR);
         ASSERT_FALSE(tasks.empty());
 
         std::atomic<size_t> next {0};
         std::vector<std::thread> threads;
         threads.reserve(K_WORKER_COUNT);
         for (int i = 0; i < K_WORKER_COUNT; ++i) {
-            threads.emplace_back([&b, &tasks, &next]() { RunNextBranchTask(b, tasks, next); });
+            threads.emplace_back([file, &infos, &tasks, &next]() {
+                BranchEliminator worker(ABCKIT_VERSION_RELEASE_1_0_0, file, infos);
+                RunNextBranchTask(worker, tasks, next);
+            });
         }
         for (auto &t : threads) {
             t.join();

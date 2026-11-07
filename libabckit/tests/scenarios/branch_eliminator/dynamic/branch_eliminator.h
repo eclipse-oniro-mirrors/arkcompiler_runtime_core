@@ -16,10 +16,11 @@
 #ifndef BRANCH_ELIMINATOR_H
 #define BRANCH_ELIMINATOR_H
 
+#include <cstddef>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 #include "helpers/visit_helper/visit_helper-inl.h"
@@ -39,35 +40,55 @@ using ConstantInfoIndexType = uint32_t;
 
 using SuspectsType = std::unordered_map<AbckitCoreImportDescriptor *, std::vector<ConstantInfoIndexType>>;
 
+struct BranchEliminatorTask {
+    std::string moduleName;
+    std::string functionName;
+    AbckitCoreFunction *function = nullptr;
+    SuspectsType suspects;
+};
+
+struct BranchEliminatorResult {
+    AbckitStatus status = ABCKIT_STATUS_NO_ERROR;
+    size_t processedFunctions = 0;
+    size_t replacedConfigLoads = 0;
+    size_t originalTargetBranches = 0;
+    size_t remainingTargetBranches = 0;
+    size_t committedFunctions = 0;
+};
+
+namespace libabckit::test {
+class AbckitBranchEliminatorFailureTest;
+}
+
 class BranchEliminator {
 public:
     BranchEliminator(enum AbckitApiVersion version, AbckitFile *file, std::vector<ConstantInfo> constants);
 
+    std::vector<BranchEliminatorTask> CollectTasks();
+    BranchEliminatorResult RunTask(const BranchEliminatorTask &task);
+    AbckitStatus GetStatus() const;
     void Run();
-
-    // 20260807927972 Task 02-06: per-function entry points for parallel scheduling. The main
-    // thread enumerates modules/functions + computes suspects (read-only) via CollectFunctionTasks;
-    // workers then call RunFunctionTask on distinct functions. createGraphFromFunction (D1 single-
-    // builder snapshot) and functionSetGraph (D4 prepare/commit) run on different functions, so the
-    // shared-file paths are thread-safe; per-function Graph transforms are isolated.
-    void CollectFunctionTasks(std::vector<std::pair<AbckitCoreFunction *, SuspectsType>> &tasks);
-    void RunFunctionTask(AbckitCoreFunction *func, const SuspectsType &suspects);
 
     constexpr static ConstantInfoIndexType INVALID_INDEX = std::numeric_limits<ConstantInfoIndexType>::max();
 
 private:
-    bool GetInstAsBool(AbckitInst *inst) const;
+    friend class libabckit::test::AbckitBranchEliminatorFailureTest;
+
+    bool GetInstAsBool(AbckitInst *inst);
     bool GetSuspects(AbckitCoreModule *mod, SuspectsType &suspects);
-    void EliminateBranchWithSuspect(AbckitCoreFunction *method, const SuspectsType &suspects);
-    ConstantInfoIndexType GetConstantInfoIndex(AbckitInst *inst, const SuspectsType &suspects) const;
+    ConstantInfoIndexType GetConstantInfoIndex(AbckitInst *inst, const SuspectsType &suspects);
     void ReplaceUsers(AbckitInst *oldInst, AbckitInst *newInst);
-    bool ReplaceModuleVarByConstant(AbckitGraph *graph, const SuspectsType &suspects);
+    size_t ReplaceModuleVarByConstant(AbckitGraph *graph, const SuspectsType &suspects);
     void ReplaceLdObjByNameWithBoolean(AbckitInst *ldObjByName, ConstantInfoIndexType constInfoIndex);
-    void DeleteUnreachableBranch(AbckitInst *ifInst) const;
+    bool DeleteUnreachableBranch(AbckitInst *ifInst);
     bool LoweringConstants(AbckitGraph *graph);
     bool RemoveUnusedInsts(AbckitGraph *graph);
     bool CanBeRemoved(AbckitInst *inst);
     bool IsEliminatableIfInst(AbckitInst *ifInst);
+    size_t CountBranches(AbckitGraph *graph);
+    std::string_view GetString(AbckitString *str);
+    void SetFirstError(AbckitStatus error);
+    bool RecordLastError();
 
 private:
     const AbckitApi *impl_ = nullptr;
@@ -79,6 +100,7 @@ private:
     VisitHelper vh_;
 
     std::vector<ConstantInfo> constants_;
+    AbckitStatus status_ = ABCKIT_STATUS_NO_ERROR;
 };
 
 #endif /* BRANCH_ELIMINATOR_H */

@@ -18,8 +18,38 @@
 #include "libabckit/c/metadata_core.h"
 
 #include <algorithm>
-#include <iostream>
 #include <cstring>
+
+namespace {
+
+void SetFirstError(ParameterCheckTransformResult &result, AbckitStatus status)
+{
+    if (result.status == ABCKIT_STATUS_NO_ERROR && status != ABCKIT_STATUS_NO_ERROR) {
+        result.status = status;
+    }
+}
+
+bool CaptureLastError(const AbckitApi *impl, ParameterCheckTransformResult &result)
+{
+    auto status = impl->getLastError();
+    SetFirstError(result, status);
+    return status == ABCKIT_STATUS_NO_ERROR;
+}
+
+template <class T>
+bool CheckPointer(T *value, const AbckitApi *impl, ParameterCheckTransformResult &result)
+{
+    if (!CaptureLastError(impl, result)) {
+        return false;
+    }
+    if (value != nullptr) {
+        return true;
+    }
+    SetFirstError(result, ABCKIT_STATUS_INTERNAL_ERROR);
+    return false;
+}
+
+}  // namespace
 
 void ApiModifier::Run()
 {
@@ -35,10 +65,6 @@ void ApiModifier::Run()
     });
 }
 
-// 20260807927972 Task 02-07: per-function entry points for parallel scheduling. CollectCheckerTasks
-// runs the read-only subclass-method discovery on the main thread (the inspect/enumerate API is
-// not hardened for concurrency); RunCheckerTask is the per-method bounds-check surgery that workers
-// run concurrently on distinct methods (createGraphFromFunction D1 + functionSetGraph D4).
 void ApiModifier::CollectCheckerTasks(std::vector<AbckitCoreFunction *> &tasks)
 {
     visitor_.EnumerateModules([&](AbckitCoreModule *mod) {
@@ -66,11 +92,6 @@ void ApiModifier::CollectCheckerTasksForMethod(AbckitCoreImportDescriptor *impDe
             tasks.push_back(sub);
         }
     });
-}
-
-void ApiModifier::RunCheckerTask(AbckitCoreFunction *method)
-{
-    AddParamChecker(method);
 }
 
 AbckitCoreImportDescriptor *ApiModifier::GetImportDescriptor(AbckitCoreModule *module)
@@ -138,43 +159,129 @@ AbckitCoreFunction *ApiModifier::GetMethodToModify(AbckitCoreClass *klass)
     return foundMethod;
 }
 
-void ApiModifier::AddParamChecker(AbckitCoreFunction *method)
+ParameterCheckTransformResult ApiModifier::AddParamChecker(AbckitCoreFunction *method)
 {
+    ParameterCheckTransformResult result;
     AbckitGraph *graph = implI_->createGraphFromFunction(method);
+    if (!CheckPointer(graph, impl_, result)) {
+        return result;
+    }
 
-    visitor_.TransformMethod(method, [&](AbckitFile *file, AbckitCoreFunction *method) {
+    bool graphReady = [&]() {
+        auto *file = implI_->functionGetFile(method);
+        if (!CheckPointer(file, impl_, result)) {
+            return false;
+        }
         AbckitBasicBlock *startBB = implG_->gGetStartBasicBlock(graph);
+        if (!CheckPointer(startBB, impl_, result)) {
+            return false;
+        }
         AbckitInst *idx = implG_->bbGetLastInst(startBB);
+        if (!CheckPointer(idx, impl_, result)) {
+            return false;
+        }
         AbckitInst *arr = implG_->iGetPrev(idx);
+        if (!CheckPointer(arr, impl_, result)) {
+            return false;
+        }
 
         std::vector<AbckitBasicBlock *> succBBs;
-        implG_->bbVisitSuccBlocks(startBB, &succBBs, [](AbckitBasicBlock *succBasicBlock, void *d) {
+        bool visitResult = implG_->bbVisitSuccBlocks(startBB, &succBBs, [](AbckitBasicBlock *succBasicBlock, void *d) {
             auto *succs = reinterpret_cast<std::vector<AbckitBasicBlock *> *>(d);
             succs->emplace_back(succBasicBlock);
             return true;
         });
+        bool visitStatusOk = CaptureLastError(impl_, result);
+        if (!visitResult || !visitStatusOk || succBBs.empty()) {
+            SetFirstError(result, ABCKIT_STATUS_INTERNAL_ERROR);
+            return false;
+        }
 
         AbckitString *str = implM_->createString(file, "length", strlen("length"));
+        if (!CheckPointer(str, impl_, result)) {
+            return false;
+        }
 
         AbckitInst *constant = implG_->gFindOrCreateConstantI32(graph, -1);
+        if (!CheckPointer(constant, impl_, result)) {
+            return false;
+        }
         AbckitInst *arrLength = dynG_->iCreateLdobjbyname(graph, arr, str);
+        if (!CheckPointer(arrLength, impl_, result)) {
+            return false;
+        }
 
         AbckitBasicBlock *trueBB = succBBs[0];
         implG_->bbDisconnectSuccBlock(startBB, ABCKIT_TRUE_SUCC_IDX);
+        if (!CaptureLastError(impl_, result)) {
+            return false;
+        }
         AbckitBasicBlock *falseBB = implG_->bbCreateEmpty(graph);
-        implG_->bbAppendSuccBlock(falseBB, implG_->gGetEndBasicBlock(graph));
-        implG_->bbAddInstBack(falseBB, dynG_->iCreateReturn(graph, constant));
+        if (!CheckPointer(falseBB, impl_, result)) {
+            return false;
+        }
+        result.createdFailureBlocks++;
+        auto *endBB = implG_->gGetEndBasicBlock(graph);
+        if (!CheckPointer(endBB, impl_, result)) {
+            return false;
+        }
+        implG_->bbAppendSuccBlock(falseBB, endBB);
+        if (!CaptureLastError(impl_, result)) {
+            return false;
+        }
+        auto *returnInst = dynG_->iCreateReturn(graph, constant);
+        if (!CheckPointer(returnInst, impl_, result)) {
+            return false;
+        }
+        implG_->bbAddInstBack(falseBB, returnInst);
+        if (!CaptureLastError(impl_, result)) {
+            return false;
+        }
         AbckitBasicBlock *ifBB = implG_->bbCreateEmpty(graph);
+        if (!CheckPointer(ifBB, impl_, result)) {
+            return false;
+        }
+        result.createdCheckBlocks++;
         AbckitInst *intrinsicGreatereq = dynG_->iCreateGreatereq(graph, arrLength, idx);
+        if (!CheckPointer(intrinsicGreatereq, impl_, result)) {
+            return false;
+        }
         AbckitInst *ifInst = dynG_->iCreateIf(graph, intrinsicGreatereq, ABCKIT_ISA_API_DYNAMIC_CONDITION_CODE_CC_EQ);
+        if (!CheckPointer(ifInst, impl_, result)) {
+            return false;
+        }
         implG_->bbAddInstBack(ifBB, arrLength);
+        if (!CaptureLastError(impl_, result)) {
+            return false;
+        }
         implG_->bbAddInstBack(ifBB, intrinsicGreatereq);
+        if (!CaptureLastError(impl_, result)) {
+            return false;
+        }
         implG_->bbAddInstBack(ifBB, ifInst);
+        if (!CaptureLastError(impl_, result)) {
+            return false;
+        }
         implG_->bbAppendSuccBlock(startBB, ifBB);
+        if (!CaptureLastError(impl_, result)) {
+            return false;
+        }
         implG_->bbAppendSuccBlock(ifBB, trueBB);
+        if (!CaptureLastError(impl_, result)) {
+            return false;
+        }
         implG_->bbAppendSuccBlock(ifBB, falseBB);
+        return CaptureLastError(impl_, result);
+    }();
 
+    if (graphReady) {
         implM_->functionSetGraph(method, graph);
-        impl_->destroyGraph(graph);
-    });
+        if (CaptureLastError(impl_, result)) {
+            result.committedFunctions = 1;
+        }
+    }
+
+    impl_->destroyGraph(graph);
+    CaptureLastError(impl_, result);
+    return result;
 }
