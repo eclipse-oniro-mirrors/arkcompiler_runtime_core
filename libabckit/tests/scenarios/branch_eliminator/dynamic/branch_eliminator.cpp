@@ -17,9 +17,6 @@
 
 #include "branch_eliminator.h"
 
-#include <cassert>
-#include <gtest/gtest.h>
-
 BranchEliminator::BranchEliminator(enum AbckitApiVersion version, AbckitFile *file, std::vector<ConstantInfo> constants)
     : file_(file), constants_(std::move(constants))
 {
@@ -33,47 +30,122 @@ BranchEliminator::BranchEliminator(enum AbckitApiVersion version, AbckitFile *fi
 
 void BranchEliminator::Run()
 {
-    if (constants_.empty()) {
+    auto tasks = CollectTasks();
+    if (status_ != ABCKIT_STATUS_NO_ERROR) {
         return;
     }
-    vh_.EnumerateModules([&](AbckitCoreModule *mod) {
-        SuspectsType suspects;
-        if (!GetSuspects(mod, suspects)) {
+    for (const auto &task : tasks) {
+        if (RunTask(task).status != ABCKIT_STATUS_NO_ERROR) {
             return;
         }
-        vh_.EnumerateModuleFunctions(mod,
-                                     [&](AbckitCoreFunction *func) { EliminateBranchWithSuspect(func, suspects); });
-    });
+    }
 }
 
-// 20260807927972 Task 02-06: per-function entry points for parallel scheduling. CollectFunctionTasks
-// runs on the main thread (module/function enumeration + suspects resolution are read-only but not
-// hardened for concurrency); RunFunctionTask is the per-function eliminate (createGraphFromFunction
-// D1 + functionSetGraph D4 on distinct functions) that workers run concurrently.
-void BranchEliminator::CollectFunctionTasks(std::vector<std::pair<AbckitCoreFunction *, SuspectsType>> &tasks)
+AbckitStatus BranchEliminator::GetStatus() const
 {
+    return status_;
+}
+
+std::vector<BranchEliminatorTask> BranchEliminator::CollectTasks()
+{
+    std::vector<BranchEliminatorTask> tasks;
+    status_ = ABCKIT_STATUS_NO_ERROR;
+    if (constants_.empty()) {
+        return tasks;
+    }
+
     vh_.EnumerateModules([&](AbckitCoreModule *mod) {
         SuspectsType suspects;
         if (!GetSuspects(mod, suspects)) {
             return;
         }
+        auto moduleName = std::string(GetString(implI_->moduleGetName(mod)));
         vh_.EnumerateModuleFunctions(mod, [&](AbckitCoreFunction *func) {
-            tasks.emplace_back(func, suspects);  // copy: suspects is read-only during elimination
+            auto functionName = std::string(GetString(implI_->functionGetName(func)));
+            if (status_ == ABCKIT_STATUS_NO_ERROR) {
+                tasks.push_back({moduleName, functionName, func, suspects});
+            }
         });
     });
+    RecordLastError();
+    return tasks;
 }
 
-void BranchEliminator::RunFunctionTask(AbckitCoreFunction *func, const SuspectsType &suspects)
+BranchEliminatorResult BranchEliminator::RunTask(const BranchEliminatorTask &task)
 {
-    EliminateBranchWithSuspect(func, suspects);
+    BranchEliminatorResult result;
+    status_ = ABCKIT_STATUS_NO_ERROR;
+    if (task.function == nullptr) {
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        result.status = status_;
+        return result;
+    }
+
+    auto *graph = implI_->createGraphFromFunction(task.function);
+    RecordLastError();
+    if (graph == nullptr) {
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        result.status = status_;
+        return result;
+    }
+    if (status_ != ABCKIT_STATUS_NO_ERROR) {
+        impl_->destroyGraph(graph);
+        RecordLastError();
+        result.status = status_;
+        return result;
+    }
+
+    result.originalTargetBranches = CountBranches(graph);
+    if (status_ == ABCKIT_STATUS_NO_ERROR) {
+        result.replacedConfigLoads = ReplaceModuleVarByConstant(graph, task.suspects);
+    }
+    bool hasGraphChanged = result.replacedConfigLoads != 0;
+    while (status_ == ABCKIT_STATUS_NO_ERROR) {
+        hasGraphChanged |= LoweringConstants(graph);
+        if (status_ != ABCKIT_STATUS_NO_ERROR) {
+            break;
+        }
+
+        auto *ifInst = vh_.GraphInstsFindIf(graph, [&](AbckitInst *inst) { return IsEliminatableIfInst(inst); });
+        RecordLastError();
+        if (ifInst == nullptr) {
+            break;
+        }
+        if (!DeleteUnreachableBranch(ifInst)) {
+            break;
+        }
+        hasGraphChanged = true;
+    }
+
+    if (status_ == ABCKIT_STATUS_NO_ERROR) {
+        result.remainingTargetBranches = CountBranches(graph);
+    }
+    if (status_ == ABCKIT_STATUS_NO_ERROR && hasGraphChanged) {
+        implM_->functionSetGraph(task.function, graph);
+        if (RecordLastError()) {
+            result.committedFunctions = 1;
+        }
+    }
+
+    impl_->destroyGraph(graph);
+    RecordLastError();
+    if (status_ == ABCKIT_STATUS_NO_ERROR) {
+        result.processedFunctions = 1;
+    }
+    result.status = status_;
+    return result;
 }
 
 bool BranchEliminator::GetSuspects(AbckitCoreModule *mod, SuspectsType &suspects)
 {
     vh_.EnumerateModuleImports(mod, [&](AbckitCoreImportDescriptor *id) {
-        auto importName = vh_.GetString(implI_->importDescriptorGetName(id));
+        auto importName = GetString(implI_->importDescriptorGetName(id));
         auto *importedModule = implI_->importDescriptorGetImportedModule(id);
-        auto path = vh_.GetString(implI_->moduleGetName(importedModule));
+        if (!RecordLastError() || importedModule == nullptr) {
+            SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+            return;
+        }
+        auto path = GetString(implI_->moduleGetName(importedModule));
         for (ConstantInfoIndexType i = 0; i < constants_.size(); ++i) {
             const auto &constInfo = constants_[i];
             if (constInfo.path != path || constInfo.objName != importName) {
@@ -88,51 +160,40 @@ bool BranchEliminator::GetSuspects(AbckitCoreModule *mod, SuspectsType &suspects
             }
         }
     });
-    return !suspects.empty();
+    RecordLastError();
+    return status_ == ABCKIT_STATUS_NO_ERROR && !suspects.empty();
 }
 
 bool BranchEliminator::IsEliminatableIfInst(AbckitInst *inst)
 {
-    if (dynG_->iGetOpcode(inst) != ABCKIT_ISA_API_DYNAMIC_OPCODE_IF || implG_->iGetInputCount(inst) != 2U) {
+    auto opcode = dynG_->iGetOpcode(inst);
+    if (!RecordLastError() || opcode != ABCKIT_ISA_API_DYNAMIC_OPCODE_IF) {
+        return false;
+    }
+    auto inputCount = implG_->iGetInputCount(inst);
+    if (!RecordLastError() || inputCount != 2U) {
         return false;
     }
     auto *ldBool = implG_->iGetInput(inst, 0);
+    if (!RecordLastError() || ldBool == nullptr) {
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return false;
+    }
     auto op = dynG_->iGetOpcode(ldBool);
-    if (op != ABCKIT_ISA_API_DYNAMIC_OPCODE_LDTRUE && op != ABCKIT_ISA_API_DYNAMIC_OPCODE_LDFALSE) {
+    if (!RecordLastError() ||
+        (op != ABCKIT_ISA_API_DYNAMIC_OPCODE_LDTRUE && op != ABCKIT_ISA_API_DYNAMIC_OPCODE_LDFALSE)) {
         return false;
     }
     auto *constInst = implG_->iGetInput(inst, 1);
-    return dynG_->iGetOpcode(constInst) == ABCKIT_ISA_API_DYNAMIC_OPCODE_CONSTANT;
+    if (!RecordLastError() || constInst == nullptr) {
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return false;
+    }
+    opcode = dynG_->iGetOpcode(constInst);
+    return RecordLastError() && opcode == ABCKIT_ISA_API_DYNAMIC_OPCODE_CONSTANT;
 }
 
-void BranchEliminator::EliminateBranchWithSuspect(AbckitCoreFunction *method, const SuspectsType &suspects)
-{
-    vh_.TransformMethod(method, [&](AbckitFile *, AbckitCoreFunction *method) {
-        AbckitGraph *graph = implI_->createGraphFromFunction(method);
-        bool hasGraphChanged = ReplaceModuleVarByConstant(graph, suspects);
-        // CC-OFFNXT(G.CTL.03) implementation feature
-        do {
-            hasGraphChanged |= LoweringConstants(graph);
-
-            auto *ifInst = vh_.GraphInstsFindIf(graph, [&](AbckitInst *inst) { return IsEliminatableIfInst(inst); });
-
-            if (ifInst == nullptr) {
-                break;
-            }
-
-            DeleteUnreachableBranch(ifInst);
-
-            hasGraphChanged = true;
-        } while (true);  // until no branch can be eliminated, i.e., there is no such If inst
-
-        if (hasGraphChanged) {
-            implM_->functionSetGraph(method, graph);
-        }
-        impl_->destroyGraph(graph);
-    });
-}
-
-bool BranchEliminator::ReplaceModuleVarByConstant(AbckitGraph *graph, const SuspectsType &suspects)
+size_t BranchEliminator::ReplaceModuleVarByConstant(AbckitGraph *graph, const SuspectsType &suspects)
 {
     // find the following patter:
     // ...
@@ -149,34 +210,52 @@ bool BranchEliminator::ReplaceModuleVarByConstant(AbckitGraph *graph, const Susp
             moduleVars.emplace(inst, constInfoIndex);
         }
     });
+    RecordLastError();
+    size_t replaced = 0;
     for (auto &[ldObjByName, constInfoIndex] : moduleVars) {
-        EXPECT_TRUE(ldObjByName != nullptr);
-        EXPECT_TRUE(constInfoIndex != INVALID_INDEX);
+        if (ldObjByName == nullptr || constInfoIndex == INVALID_INDEX || constInfoIndex >= constants_.size()) {
+            SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+            break;
+        }
         ReplaceLdObjByNameWithBoolean(ldObjByName, constInfoIndex);
+        if (status_ != ABCKIT_STATUS_NO_ERROR) {
+            break;
+        }
+        ++replaced;
     }
 
-    return !moduleVars.empty();
+    return replaced;
 }
 
-ConstantInfoIndexType BranchEliminator::GetConstantInfoIndex(AbckitInst *inst, const SuspectsType &suspects) const
+ConstantInfoIndexType BranchEliminator::GetConstantInfoIndex(AbckitInst *inst, const SuspectsType &suspects)
 {
-    if (dynG_->iGetOpcode(inst) != ABCKIT_ISA_API_DYNAMIC_OPCODE_LDOBJBYNAME) {
+    auto opcode = dynG_->iGetOpcode(inst);
+    if (!RecordLastError() || opcode != ABCKIT_ISA_API_DYNAMIC_OPCODE_LDOBJBYNAME) {
         return INVALID_INDEX;
     }
     auto *ldExternalModuleVar = implG_->iGetInput(inst, 0);
-    if (dynG_->iGetOpcode(ldExternalModuleVar) != ABCKIT_ISA_API_DYNAMIC_OPCODE_LDEXTERNALMODULEVAR) {
+    if (!RecordLastError() || ldExternalModuleVar == nullptr) {
+        return INVALID_INDEX;
+    }
+    opcode = dynG_->iGetOpcode(ldExternalModuleVar);
+    if (!RecordLastError() || opcode != ABCKIT_ISA_API_DYNAMIC_OPCODE_LDEXTERNALMODULEVAR) {
         return INVALID_INDEX;
     }
     auto *id = dynG_->iGetImportDescriptor(ldExternalModuleVar);
+    if (!RecordLastError() || id == nullptr) {
+        return INVALID_INDEX;
+    }
     auto iter = suspects.find(id);
     if (iter == suspects.end()) {
         return INVALID_INDEX;
     }
     const auto &constInfoIndexes = iter->second;
-    const auto propName = vh_.GetString(implG_->iGetString(inst));  // "isDebug"
+    const auto propName = GetString(implG_->iGetString(inst));  // "isDebug"
     for (auto index : constInfoIndexes) {
-        EXPECT_TRUE(index >= 0);
-        EXPECT_TRUE(index < constants_.size());
+        if (index >= constants_.size()) {
+            SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+            return INVALID_INDEX;
+        }
         if (constants_[index].fieldName == propName) {
             return index;
         }
@@ -189,50 +268,104 @@ void BranchEliminator::ReplaceLdObjByNameWithBoolean(AbckitInst *ldObjByName, Co
 {
     bool fieldVal = constants_[constInfoIndex].fieldValue;
     auto *bb = implG_->iGetBasicBlock(ldObjByName);
+    if (!RecordLastError() || bb == nullptr) {
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return;
+    }
     auto *graph = implG_->bbGetGraph(bb);
+    if (!RecordLastError() || graph == nullptr) {
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return;
+    }
     auto *value = fieldVal ? dynG_->iCreateLdtrue(graph) : dynG_->iCreateLdfalse(graph);
+    if (!RecordLastError() || value == nullptr) {
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return;
+    }
     implG_->iInsertAfter(value, ldObjByName);
+    if (!RecordLastError()) {
+        return;
+    }
     ReplaceUsers(ldObjByName, value);
+    if (status_ != ABCKIT_STATUS_NO_ERROR) {
+        return;
+    }
 
     auto *ldExternalModuleVar = implG_->iGetInput(ldObjByName, 0);
+    if (!RecordLastError() || ldExternalModuleVar == nullptr) {
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return;
+    }
     bool isRemovable = true;
     std::vector<AbckitInst *> checks;
     vh_.EnumerateInstUsers(ldExternalModuleVar, [&](AbckitInst *inst) {
         if (inst != ldObjByName) {
-            if (dynG_->iGetOpcode(inst) != ABCKIT_ISA_API_DYNAMIC_OPCODE_THROW_UNDEFINEDIFHOLEWITHNAME) {
+            auto opcode = dynG_->iGetOpcode(inst);
+            if (!RecordLastError()) {
+                return;
+            }
+            if (opcode != ABCKIT_ISA_API_DYNAMIC_OPCODE_THROW_UNDEFINEDIFHOLEWITHNAME) {
                 isRemovable = false;
             } else {
                 checks.emplace_back(inst);
             }
         }
     });
+    if (!RecordLastError()) {
+        return;
+    }
 
     if (isRemovable) {
         for (auto *check : checks) {
             implG_->iRemove(check);
+            if (!RecordLastError()) {
+                return;
+            }
         }
         implG_->iRemove(ldExternalModuleVar);
+        if (!RecordLastError()) {
+            return;
+        }
     }
     implG_->iRemove(ldObjByName);
+    RecordLastError();
 }
 
 void BranchEliminator::ReplaceUsers(AbckitInst *oldInst, AbckitInst *newInst)
 {
     vh_.EnumerateInstUsers(oldInst, [&](AbckitInst *user) {
         auto inputCount = implG_->iGetInputCount(user);
+        if (!RecordLastError()) {
+            return;
+        }
         for (uint64_t i = 0; i < inputCount; ++i) {
-            if (implG_->iGetInput(user, i) == oldInst) {
+            auto *input = implG_->iGetInput(user, i);
+            if (!RecordLastError()) {
+                return;
+            }
+            if (input == oldInst) {
                 implG_->iSetInput(user, newInst, i);
+                if (!RecordLastError()) {
+                    return;
+                }
             }
         }
     });
+    RecordLastError();
 }
 
-bool BranchEliminator::GetInstAsBool(AbckitInst *inst) const
+bool BranchEliminator::GetInstAsBool(AbckitInst *inst)
 {
-    switch (dynG_->iGetOpcode(inst)) {
-        case ABCKIT_ISA_API_DYNAMIC_OPCODE_CONSTANT:
-            return implG_->iGetConstantValueI64(inst) != 0;
+    auto opcode = dynG_->iGetOpcode(inst);
+    if (!RecordLastError()) {
+        return false;
+    }
+    switch (opcode) {
+        case ABCKIT_ISA_API_DYNAMIC_OPCODE_CONSTANT: {
+            auto value = implG_->iGetConstantValueI64(inst);
+            RecordLastError();
+            return value != 0;
+        }
         case ABCKIT_ISA_API_DYNAMIC_OPCODE_LDTRUE:
         case ABCKIT_ISA_API_DYNAMIC_OPCODE_ISTRUE:
         case ABCKIT_ISA_API_DYNAMIC_OPCODE_CALLRUNTIME_ISTRUE:
@@ -242,31 +375,64 @@ bool BranchEliminator::GetInstAsBool(AbckitInst *inst) const
         case ABCKIT_ISA_API_DYNAMIC_OPCODE_CALLRUNTIME_ISFALSE:
             return false;
         default:
-            EXPECT_TRUE(false);  // UNREACHABLE
+            SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+            return false;
     }
-    return false;
 }
 
-void BranchEliminator::DeleteUnreachableBranch(AbckitInst *ifInst) const
+bool BranchEliminator::DeleteUnreachableBranch(AbckitInst *ifInst)
 {
     // compute result of If compare
-    auto *ldBool = implG_->iGetInput(ifInst, 0);     // 0: ldtrue or ldfalse
+    auto *ldBool = implG_->iGetInput(ifInst, 0);  // 0: ldtrue or ldfalse
+    if (!RecordLastError() || ldBool == nullptr) {
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return false;
+    }
     auto *constInst = implG_->iGetInput(ifInst, 1);  // 1: ConstantInst
+    if (!RecordLastError() || constInst == nullptr) {
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return false;
+    }
     auto valLeft = GetInstAsBool(ldBool);
     auto valRight = GetInstAsBool(constInst);
+    if (status_ != ABCKIT_STATUS_NO_ERROR) {
+        return false;
+    }
     auto conditionCode = dynG_->iGetConditionCode(ifInst);
+    if (!RecordLastError()) {
+        return false;
+    }
 
-    EXPECT_TRUE(conditionCode == ABCKIT_ISA_API_DYNAMIC_CONDITION_CODE_CC_EQ ||
-                conditionCode == ABCKIT_ISA_API_DYNAMIC_CONDITION_CODE_CC_NE);
+    if (conditionCode != ABCKIT_ISA_API_DYNAMIC_CONDITION_CODE_CC_EQ &&
+        conditionCode != ABCKIT_ISA_API_DYNAMIC_CONDITION_CODE_CC_NE) {
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return false;
+    }
     bool result = (conditionCode == ABCKIT_ISA_API_DYNAMIC_CONDITION_CODE_CC_EQ && valLeft == valRight) ||
                   (conditionCode == ABCKIT_ISA_API_DYNAMIC_CONDITION_CODE_CC_NE && valLeft != valRight);
 
     auto *bb = implG_->iGetBasicBlock(ifInst);
+    if (!RecordLastError() || bb == nullptr) {
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return false;
+    }
+    auto *graph = implG_->bbGetGraph(bb);
+    if (!RecordLastError() || graph == nullptr) {
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return false;
+    }
     // if true ==> delete false branch
     implG_->iRemove(ifInst);
+    if (!RecordLastError()) {
+        return false;
+    }
 
     implG_->bbDisconnectSuccBlock(bb, result ? 1 : 0);
-    implG_->gRunPassRemoveUnreachableBlocks(implG_->bbGetGraph(bb));
+    if (!RecordLastError()) {
+        return false;
+    }
+    implG_->gRunPassRemoveUnreachableBlocks(graph);
+    return RecordLastError();
 }
 
 bool BranchEliminator::LoweringConstants(AbckitGraph *graph)
@@ -277,6 +443,9 @@ bool BranchEliminator::LoweringConstants(AbckitGraph *graph)
 
         auto instFindUsers = [this, &users](AbckitInst *user) {
             auto userOp = dynG_->iGetOpcode(user);
+            if (!RecordLastError()) {
+                return;
+            }
             if (userOp == ABCKIT_ISA_API_DYNAMIC_OPCODE_ISTRUE || userOp == ABCKIT_ISA_API_DYNAMIC_OPCODE_ISFALSE ||
                 userOp == ABCKIT_ISA_API_DYNAMIC_OPCODE_CALLRUNTIME_ISTRUE ||
                 userOp == ABCKIT_ISA_API_DYNAMIC_OPCODE_CALLRUNTIME_ISFALSE) {
@@ -286,6 +455,9 @@ bool BranchEliminator::LoweringConstants(AbckitGraph *graph)
 
         AbckitInst *ldBool = vh_.GraphInstsFindIf(graph, [&](AbckitInst *inst) {
             auto op = dynG_->iGetOpcode(inst);
+            if (!RecordLastError()) {
+                return false;
+            }
             if (op != ABCKIT_ISA_API_DYNAMIC_OPCODE_LDTRUE && op != ABCKIT_ISA_API_DYNAMIC_OPCODE_LDFALSE) {
                 return false;
             }
@@ -294,18 +466,35 @@ bool BranchEliminator::LoweringConstants(AbckitGraph *graph)
 
             return !users.empty();
         });
+        RecordLastError();
 
-        if (ldBool == nullptr) {
+        if (ldBool == nullptr || status_ != ABCKIT_STATUS_NO_ERROR) {
             return false;
         }
 
         auto ldBoolVal = GetInstAsBool(ldBool);
         for (auto *isBool : users) {
             auto isBoolVal = GetInstAsBool(isBool);
+            if (status_ != ABCKIT_STATUS_NO_ERROR) {
+                return false;
+            }
             auto *ldBool = ldBoolVal == isBoolVal ? dynG_->iCreateLdtrue(graph) : dynG_->iCreateLdfalse(graph);
+            if (!RecordLastError() || ldBool == nullptr) {
+                SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+                return false;
+            }
             implG_->iInsertAfter(ldBool, isBool);
+            if (!RecordLastError()) {
+                return false;
+            }
             ReplaceUsers(isBool, ldBool);
+            if (status_ != ABCKIT_STATUS_NO_ERROR) {
+                return false;
+            }
             implG_->iRemove(isBool);
+            if (!RecordLastError()) {
+                return false;
+            }
         }
 
         hasGraphChanged = true;
@@ -316,7 +505,9 @@ bool BranchEliminator::LoweringConstants(AbckitGraph *graph)
     while (doCb()) {
     }
 
-    hasGraphChanged |= RemoveUnusedInsts(graph);
+    if (status_ == ABCKIT_STATUS_NO_ERROR) {
+        hasGraphChanged |= RemoveUnusedInsts(graph);
+    }
 
     return hasGraphChanged;
 }
@@ -328,18 +519,29 @@ bool BranchEliminator::RemoveUnusedInsts(AbckitGraph *graph)
     do {
         std::vector<AbckitInst *> removableInsts;
         vh_.EnumerateGraphInsts(graph, [&](AbckitInst *inst) {
-            if (implG_->iGetUserCount(inst) == 0 && CanBeRemoved(inst)) {
+            auto userCount = implG_->iGetUserCount(inst);
+            if (!RecordLastError()) {
+                return;
+            }
+            if (userCount == 0 && CanBeRemoved(inst)) {
                 removableInsts.emplace_back(inst);
             }
         });
+        RecordLastError();
 
-        if (removableInsts.empty()) {
+        if (removableInsts.empty() || status_ != ABCKIT_STATUS_NO_ERROR) {
             break;
         }
 
-        EXPECT_TRUE(!removableInsts.empty());
         for (auto *inst : removableInsts) {
             implG_->iRemove(inst);
+            if (!RecordLastError()) {
+                break;
+            }
+        }
+
+        if (status_ != ABCKIT_STATUS_NO_ERROR) {
+            break;
         }
 
         hasGraphChanged = true;
@@ -350,7 +552,11 @@ bool BranchEliminator::RemoveUnusedInsts(AbckitGraph *graph)
 
 bool BranchEliminator::CanBeRemoved(AbckitInst *inst)
 {
-    switch (dynG_->iGetOpcode(inst)) {
+    auto opcode = dynG_->iGetOpcode(inst);
+    if (!RecordLastError()) {
+        return false;
+    }
+    switch (opcode) {
         case ABCKIT_ISA_API_DYNAMIC_OPCODE_CONSTANT:
         case ABCKIT_ISA_API_DYNAMIC_OPCODE_LDTRUE:
         case ABCKIT_ISA_API_DYNAMIC_OPCODE_ISTRUE:
@@ -360,4 +566,49 @@ bool BranchEliminator::CanBeRemoved(AbckitInst *inst)
         default:
             return false;
     }
+}
+
+size_t BranchEliminator::CountBranches(AbckitGraph *graph)
+{
+    size_t branches = 0;
+    vh_.EnumerateGraphInsts(graph, [&](AbckitInst *inst) {
+        auto opcode = dynG_->iGetOpcode(inst);
+        if (!RecordLastError()) {
+            return;
+        }
+        if (opcode == ABCKIT_ISA_API_DYNAMIC_OPCODE_IF) {
+            ++branches;
+        }
+    });
+    RecordLastError();
+    return branches;
+}
+
+std::string_view BranchEliminator::GetString(AbckitString *str)
+{
+    if (str == nullptr) {
+        if (RecordLastError()) {
+            SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        }
+        return {};
+    }
+    auto *value = implI_->abckitStringToString(str);
+    if (!RecordLastError() || value == nullptr) {
+        SetFirstError(ABCKIT_STATUS_INTERNAL_ERROR);
+        return {};
+    }
+    return value;
+}
+
+void BranchEliminator::SetFirstError(AbckitStatus error)
+{
+    if (status_ == ABCKIT_STATUS_NO_ERROR && error != ABCKIT_STATUS_NO_ERROR) {
+        status_ = error;
+    }
+}
+
+bool BranchEliminator::RecordLastError()
+{
+    SetFirstError(impl_->getLastError());
+    return status_ == ABCKIT_STATUS_NO_ERROR;
 }

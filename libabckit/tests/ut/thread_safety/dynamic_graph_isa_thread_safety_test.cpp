@@ -144,7 +144,7 @@ TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicCreateGraphConcurrentFirstSnapsh
     g_impl->closeFile(file);
 }
 
-// 20260807927972-91-2.2: a committed graph cannot overwrite a newer function version.
+// 20260807927972-91-2.2: an older graph cannot overwrite a newer function version.
 TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicRejectsStaleGraphForSameFunction)
 {
     AbckitFile *file = g_impl->openAbc(CONCURRENT_INPUT_PATH, std::strlen(CONCURRENT_INPUT_PATH));
@@ -154,12 +154,15 @@ TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicRejectsStaleGraphForSameFunction
 
     AbckitGraph *graph = g_implI->createGraphFromFunction(func);
     ASSERT_NE(graph, nullptr);
+    AbckitGraph *staleGraph = g_implI->createGraphFromFunction(func);
+    ASSERT_NE(staleGraph, nullptr);
     // First writeback succeeds (Graph's captured version == current).
     g_implM->functionSetGraph(func, graph);
     ASSERT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
-    // Setting the SAME (now-stale) Graph again -> WRONG_STATE (version advanced on the first set).
-    g_implM->functionSetGraph(func, graph);
+    // A different Graph captured before the writeback is now stale.
+    g_implM->functionSetGraph(func, staleGraph);
     EXPECT_EQ(g_impl->getLastError(), ABCKIT_STATUS_WRONG_STATE);
+    g_impl->destroyGraph(staleGraph);
     g_impl->destroyGraph(graph);
     g_impl->closeFile(file);
 }
@@ -181,6 +184,11 @@ TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicFunctionSetGraphConcurrentDiffer
     AbckitGraph *graphB = g_implI->createGraphFromFunction(funcB);
     ASSERT_NE(graphB, nullptr);
 
+    AbckitGraph *staleA = g_implI->createGraphFromFunction(funcA);
+    ASSERT_NE(staleA, nullptr);
+    AbckitGraph *staleB = g_implI->createGraphFromFunction(funcB);
+    ASSERT_NE(staleB, nullptr);
+
     std::atomic<bool> failed {false};
     std::thread tA([&failed, funcA, graphA]() {
         g_implM->functionSetGraph(funcA, graphA);
@@ -199,14 +207,18 @@ TEST_F(LibAbcKitGraphIsaIntegrationTest, DynamicFunctionSetGraphConcurrentDiffer
     tB.join();
     EXPECT_FALSE(failed.load());
 
-    // Sequential re-set of each Graph: each is now stale (its function's version advanced during
-    // the concurrent commit), so each must be rejected with WRONG_STATE. Both being stale proves
-    // both writebacks took effect.
+    // Each successful Graph can be reused, while the other pre-commit Graph stays stale.
     g_implM->functionSetGraph(funcA, graphA);
-    EXPECT_EQ(g_impl->getLastError(), ABCKIT_STATUS_WRONG_STATE);
+    EXPECT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
     g_implM->functionSetGraph(funcB, graphB);
+    EXPECT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+    g_implM->functionSetGraph(funcA, staleA);
+    EXPECT_EQ(g_impl->getLastError(), ABCKIT_STATUS_WRONG_STATE);
+    g_implM->functionSetGraph(funcB, staleB);
     EXPECT_EQ(g_impl->getLastError(), ABCKIT_STATUS_WRONG_STATE);
 
+    g_impl->destroyGraph(staleA);
+    g_impl->destroyGraph(staleB);
     g_impl->destroyGraph(graphA);
     g_impl->destroyGraph(graphB);
     g_impl->closeFile(file);

@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -69,6 +69,76 @@ class AbckitScenarioTest : public ::testing::Test {};
 static const std::string DIR = std::string(ABCKIT_ABC_DIR "scenarios/branch_eliminator/dynamic/");
 static const std::string INPUT = DIR + "branch_eliminator.abc";
 static constexpr bool CONFIG_IS_DEBUG_ORIGIN_VALUE = false;
+
+class AbckitBranchEliminatorFailureTest : public ::testing::Test {
+protected:
+    void SetUp() override
+    {
+        graphCalls_ = 0;
+        nameCalls_ = 0;
+        file_ = g_impl->openAbc(INPUT.c_str(), INPUT.size());
+        ASSERT_NE(file_, nullptr);
+    }
+
+    void TearDown() override
+    {
+        if (file_ != nullptr) {
+            g_impl->closeFile(file_);
+            EXPECT_EQ(g_impl->getLastError(), ABCKIT_STATUS_NO_ERROR);
+        }
+    }
+
+    void InjectFailure(BranchEliminator &runner, bool duringCollection)
+    {
+        // Keep the real API table unchanged; only this runner sees the injected failure.
+        inspect_.createGraphFromFunction = [](AbckitCoreFunction *function) {
+            ++graphCalls_;
+            return g_implI->createGraphFromFunction(graphCalls_ == 1 ? nullptr : function);
+        };
+        if (duringCollection) {
+            inspect_.functionGetName = [](AbckitCoreFunction *function) {
+                ++nameCalls_;
+                return g_implI->functionGetName(nameCalls_ > 1 ? nullptr : function);
+            };
+        }
+        runner.implI_ = &inspect_;
+    }
+
+    AbckitFile *file_ = nullptr;
+    inline static size_t graphCalls_ = 0;
+
+private:
+    AbckitInspectApi inspect_ {*g_implI};
+    inline static size_t nameCalls_ = 0;
+};
+
+// Test: test-kind=scenario, abc-kind=ArkTS1, category=negative, extension=c
+TEST_F(AbckitBranchEliminatorFailureTest, RunStopsAfterTaskFailure)
+{
+    BranchEliminator runner(VERSION, file_, {{"modules/config", "Config", "isDebug", true}});
+    ASSERT_GT(runner.CollectTasks().size(), 1U);
+    ASSERT_EQ(runner.GetStatus(), ABCKIT_STATUS_NO_ERROR);
+    InjectFailure(runner, false);
+
+    runner.Run();
+
+    EXPECT_EQ(runner.GetStatus(), ABCKIT_STATUS_BAD_ARGUMENT);
+    EXPECT_EQ(graphCalls_, 1U);
+}
+
+// Test: test-kind=scenario, abc-kind=ArkTS1, category=negative, extension=c
+TEST_F(AbckitBranchEliminatorFailureTest, RunStopsAfterCollectionFailure)
+{
+    BranchEliminator runner(VERSION, file_, {{"modules/config", "Config", "isDebug", true}});
+    ASSERT_GT(runner.CollectTasks().size(), 1U);
+    ASSERT_EQ(runner.GetStatus(), ABCKIT_STATUS_NO_ERROR);
+    InjectFailure(runner, true);
+
+    runner.Run();
+
+    EXPECT_EQ(runner.GetStatus(), ABCKIT_STATUS_BAD_ARGUMENT);
+    EXPECT_EQ(graphCalls_, 0U);
+}
 
 /*
  * @param value: the value of isDebug when we handle, it can be different from configIsDebugOriginValue

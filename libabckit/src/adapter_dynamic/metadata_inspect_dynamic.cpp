@@ -109,6 +109,7 @@ struct AcquiredDynamicGraphSnapshot {
     uint64_t structuralGeneration = 0;
     uint64_t ownerStructuralGeneration = 0;
     uint64_t functionVersion = 0;
+    uint64_t moduleIndexGeneration = 0;
 };
 
 AcquiredDynamicGraphSnapshot AcquireDynamicGraphSnapshot(AbckitFile *file, pandasm::Program *program,
@@ -128,7 +129,8 @@ AcquiredDynamicGraphSnapshot AcquireDynamicGraphSnapshot(AbckitFile *file, panda
                 if (CanUseSnapshot(*cache.entry, file, function)) {
                     return {cache.entry, file->dynamicStructuralGeneration.load(std::memory_order_acquire),
                             GetDynamicStructuralGenerationForThread(file, std::this_thread::get_id()),
-                            GetDynamicGraphFunctionVersion(file, function)};
+                            GetDynamicGraphFunctionVersion(file, function),
+                            function->owningModule->dynamicModuleIndexGeneration};
                 }
                 cache.state = AbckitDynamicGraphSnapshotState::BUILDING;
                 break;
@@ -199,7 +201,7 @@ AcquiredDynamicGraphSnapshot AcquireDynamicGraphSnapshot(AbckitFile *file, panda
     }
     return {entry, file->dynamicStructuralGeneration.load(std::memory_order_acquire),
             GetDynamicStructuralGenerationForThread(file, std::this_thread::get_id()),
-            GetDynamicGraphFunctionVersion(file, function)};
+            GetDynamicGraphFunctionVersion(file, function), function->owningModule->dynamicModuleIndexGeneration};
 }
 }  // namespace
 
@@ -347,6 +349,7 @@ AbckitGraph *CreateGraphFromFunctionDynamic(AbckitCoreFunction *function)
     graph->baseStructuralGeneration = acquiredSnapshot.structuralGeneration;
     graph->baseOwnerStructuralGeneration = acquiredSnapshot.ownerStructuralGeneration;
     graph->baseFunctionVersion = acquiredSnapshot.functionVersion;
+    graph->baseModuleIndexGeneration = acquiredSnapshot.moduleIndexGeneration;
 
     return graph;
 }

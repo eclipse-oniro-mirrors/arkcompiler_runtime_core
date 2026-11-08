@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -16,9 +16,13 @@
 #ifndef LIBABCKIT_TESTS_VM_HELPERS
 #define LIBABCKIT_TESTS_VM_HELPERS
 
+#include <cstddef>
+#include <cstdint>
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace libabckit::test::helpers {
 
@@ -35,6 +39,11 @@ public:
 private:
     std::streambuf *oldBuffer_;
 };
+
+using DebugTable = std::vector<std::pair<uint32_t, size_t>>;
+using DebugTables = std::pair<DebugTable, DebugTable>;
+
+DebugTables ReadDynamicDebugTables(const std::string &abcPath, const std::string &functionName);
 
 std::string ExecuteDynamicAbc(const std::string &abcPath, const std::string &entry);
 std::string ExecuteStaticAbc(const std::string &abcPath, const std::string &moduleName, const std::string &fnName);

@@ -73,7 +73,7 @@ static void RunNextCheckerTask(ApiModifier &mod, std::vector<AbckitCoreFunction 
     size_t idx = next.fetch_add(1, std::memory_order_relaxed);
     while (idx < tasks.size()) {
         // D1 (createGraphFromFunction) + D4 (functionSetGraph) on a distinct method.
-        mod.RunCheckerTask(tasks[idx]);
+        EXPECT_EQ(mod.AddParamChecker(tasks[idx]).status, ABCKIT_STATUS_NO_ERROR);
         idx = next.fetch_add(1, std::memory_order_relaxed);
     }
 }

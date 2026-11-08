@@ -794,6 +794,10 @@ struct AbckitCoreModule {
      * Language-dependent implementation to store module data.
      */
     std::variant<std::unique_ptr<AbckitJsModule>, std::unique_ptr<AbckitArktsModule>> impl;
+
+    // Protected by the file API lock; only removal/compaction invalidates index-bearing Graphs.
+    uint64_t dynamicModuleIndexGeneration = 0;
+
     AbckitArktsModule *GetArkTSImpl()
     {
         return std::get<std::unique_ptr<AbckitArktsModule>>(impl).get();

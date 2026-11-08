@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -15,9 +15,11 @@
 #ifndef ABCKIT_SUBCLASSES_SCANNER_H
 #define ABCKIT_SUBCLASSES_SCANNER_H
 
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "libabckit/c/isa/isa_dynamic.h"
-#include "helpers/helpers.h"
-#include "helpers/helpers_runtime.h"
 #include "helpers/visit_helper/visit_helper.h"
 #include "helpers/visit_helper/visit_helper-inl.h"
 #include "libabckit/c/metadata_core.h"
@@ -33,6 +35,7 @@ public:
                       std::vector<ClassInfo> baseClasses)
         : file_(file), baseClasses_ {std::move(baseClasses)}
     {
+        impl_ = impl;
         implI_ = AbckitGetInspectApiImpl(version);
         implG_ = AbckitGetGraphApiImpl(version);
         dynG_ = AbckitGetIsaApiDynamicImpl(version);
@@ -46,9 +49,26 @@ public:
 
     void Run();
 
+    void RunForModules(const std::vector<AbckitCoreModule *> &modules);
+
+    AbckitStatus GetStatus() const
+    {
+        return status_;
+    }
+
     bool IsEqualsSubClasses(const std::vector<ClassInfo> &otherSubClasses);
 
 private:
+    void ScanModule(AbckitCoreModule *module);
+
+    void Reset(bool clearSubclasses);
+
+    void SetFirstError(AbckitStatus status);
+
+    bool RecordLastError();
+
+    std::string GetString(AbckitString *value);
+
     void CollectSubClasses(AbckitCoreFunction *method,
                            const std::vector<std::pair<AbckitCoreImportDescriptor *, size_t>> &impDescrs);
 
@@ -58,6 +78,7 @@ private:
                               std::vector<std::pair<AbckitCoreImportDescriptor *, size_t>> &importDescriptors);
 
 private:
+    const AbckitApi *impl_ = nullptr;
     const AbckitInspectApi *implI_ = nullptr;
     const AbckitGraphApi *implG_ = nullptr;
     const AbckitIsaApiDynamic *dynG_ = nullptr;
@@ -65,6 +86,7 @@ private:
     VisitHelper visitor_;
     std::vector<ClassInfo> subClasses_;
     std::vector<ClassInfo> baseClasses_;
+    AbckitStatus status_ = ABCKIT_STATUS_NO_ERROR;
 };
 
 #endif  // ABCKIT_SUBCLASSES_SCANNER_H
