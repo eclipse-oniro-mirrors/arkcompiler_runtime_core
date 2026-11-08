@@ -38,6 +38,15 @@ struct EmitterConfig {
     std::string subApi = panda_file::DEFAULT_SUB_API_VERSION;
     bool isDebug = false;
     size_t fileThreadCount = DEFAULT_ITEM_THREAD_COUNT;
+    uint8_t apiMinor = 0;
+    uint8_t apiPatch = 0;
+};
+
+struct TargetApiVersion {
+    uint8_t api = 0;
+    uint8_t apiMinor = 0;
+    uint8_t apiPatch = 0;
+    std::string subApi = panda_file::DEFAULT_SUB_API_VERSION;
 };
 
 class AsmEmitter {
@@ -62,7 +71,8 @@ public:
                                       std::map<std::string, size_t> *stat = nullptr,
                                       PandaFileToPandaAsmMaps *maps = nullptr, bool debug_info = true,
                                       panda::panda_file::pgo::ProfileOptimizer *profile_opt = nullptr, uint8_t api = 0,
-                                      std::string subApi = panda_file::DEFAULT_SUB_API_VERSION);
+                                      std::string subApi = panda_file::DEFAULT_SUB_API_VERSION,
+                                      uint8_t apiMinor = 0, uint8_t apiPatch = 0);
     // CC-OFFNXT(G.FUN.01-CPP) solid logic
     PANDA_PUBLIC_API static bool Emit(panda_file::Writer *writer, const Program &program,
                                       std::map<std::string, size_t> *stat, PandaFileToPandaAsmMaps *maps,
@@ -73,12 +83,19 @@ public:
                                       std::map<std::string, size_t> *stat = nullptr,
                                       PandaFileToPandaAsmMaps *maps = nullptr, bool debug_info = true,
                                       panda::panda_file::pgo::ProfileOptimizer *profile_opt = nullptr, uint8_t api = 0,
-                                      std::string subApi = panda_file::DEFAULT_SUB_API_VERSION);
+                                      std::string subApi = panda_file::DEFAULT_SUB_API_VERSION,
+                                      uint8_t apiMinor = 0, uint8_t apiPatch = 0);
     // CC-OFFNXT(G.FUN.01-CPP) solid logic
     PANDA_PUBLIC_API static bool Emit(const std::string &filename, const Program &program,
                                       std::map<std::string, size_t> *stat, PandaFileToPandaAsmMaps *maps,
                                       bool debug_info, panda::panda_file::pgo::ProfileOptimizer *profile_opt,
                                       std::optional<panda_file::ItemContainer::BytecodeVersion> bytecodeVersion);
+
+    // CC-OFFNXT(G.FUN.01-CPP) solid logic
+    PANDA_PUBLIC_API static bool Emit(const std::string &filename, const Program &program,
+                                      std::map<std::string, size_t> *stat, PandaFileToPandaAsmMaps *maps,
+                                      bool debug_info, panda::panda_file::pgo::ProfileOptimizer *profile_opt,
+                                      const TargetApiVersion &targetApiVersion);
 
     // The function releases the data in progs in advance for the sake of the peak memory at compiler time.
     static bool EmitPrograms(const std::string &filename, const std::vector<Program *> &progs, bool emit_debug_info,
@@ -94,8 +111,8 @@ public:
     static void DeduplicateLiteralArrays(const std::vector<Program *> &progs);
 
     PANDA_PUBLIC_API static std::unique_ptr<const panda_file::File> Emit(
-        const Program &program, PandaFileToPandaAsmMaps *maps = nullptr, uint8_t api = 0,
-        std::string subApi = panda_file::DEFAULT_SUB_API_VERSION);
+        const Program &program, PandaFileToPandaAsmMaps *maps = nullptr,
+        const TargetApiVersion &targetApiVersion = TargetApiVersion {});
 
     static std::string GetLastError()
     {

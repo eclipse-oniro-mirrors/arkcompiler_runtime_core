@@ -395,7 +395,7 @@ const panda_file::File *EmitDynamicProgram(AbckitFile *file, pandasm::Program *p
             }
             return res;
         }
-        return pandasm::AsmEmitter::Emit(*program, mapsp, 1U).release();
+        return pandasm::AsmEmitter::Emit(*program, mapsp, pandasm::TargetApiVersion {1}).release();
     }();
     if (getFile && pf == nullptr) {
         LIBABCKIT_LOG(DEBUG) << "FAILURE: " << pandasm::AsmEmitter::GetLastError() << '\n';

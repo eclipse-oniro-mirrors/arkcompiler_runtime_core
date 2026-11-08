@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -38,10 +38,12 @@ bool Abc2ProgramCompiler::OpenAbcFile(const std::string &file_path)
 }
 
 bool Abc2ProgramCompiler::CheckFileVersionIsSupported(std::array<uint8_t, panda_file::File::VERSION_SIZE> min_version,
-                                                      uint8_t target_api_version,
-                                                      std::string target_api_sub_version) const
+                                                      uint8_t target_api_version, std::string target_api_sub_version,
+                                                      uint8_t target_api_minor_version,
+                                                      uint8_t target_api_patch_version) const
 {
-    auto target_version = panda_file::GetVersionByApi(target_api_version, target_api_sub_version);
+    auto target_version = panda_file::GetVersionByApi(target_api_version, target_api_minor_version,
+                                                      target_api_patch_version, target_api_sub_version);
     if (!target_version.has_value()) {
         return false;
     }

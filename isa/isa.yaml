@@ -107,13 +107,25 @@ chapters:
 
 # File format and ISA versioning
 min_version: 0.0.0.2
-version: 24.0.0.0
+version: 26.0.1.0
 
 # 0 is default value, alaways reflects to the newest version.
 # Due to historical reasons, bytecode version is upgraded to 24.0.0.0 in API24.
-api_version_map: [[0, 24.0.0.0], [9, 9.0.0.0], [10, 9.0.0.0], [11, 11.0.2.0], [12, 12.0.6.0], [13, 12.0.6.0],
+# Keys are dotted api versions; an integer key N means N.0.0. A version between
+# two known keys resolves to the nearest lower known one; a version above the
+# newest known key (or below the oldest one) resolves to the current version.
+# Keys and values follow different numbering schemes: an api minor bump lands
+# in the bytecode patch component (26.1.0 -> 26.0.1.0), because the bytecode
+# minor component (version[1]) doubles as the static-file type flag in
+# File::GetFileType (FILE_TYPE_OFFSET = 1, FILE_TYPE_STATIC_FLAG = 1), so a
+# dynamic bytecode version must keep its minor component at 0.
+# Keep the newest entry in sync with 'version'. API 26.1.0 gates the this-fold
+# (ldthis / ldthisbyname / stthisbyname) and closeiterator opcode emission in
+# es2abc; 26, 25 and 26.0.0 keep the pre-26.1.0 emission and bytecode version.
+api_version_map: [[0, 26.0.1.0], [9, 9.0.0.0], [10, 9.0.0.0], [11, 11.0.2.0], [12, 12.0.6.0], [13, 12.0.6.0],
                   [14, 12.0.6.0], [15, 12.0.6.0], [16, 12.0.6.0], [17, 12.0.6.0], [18, 13.0.1.0], [19, 13.0.1.0],
-                  [20, 13.0.1.0], [21, 13.0.1.0], [22, 13.0.1.0], [23, 13.0.1.0], [24, 24.0.0.0]]
+                  [20, 13.0.1.0], [21, 13.0.1.0], [22, 13.0.1.0], [23, 13.0.1.0], [24, 24.0.0.0], [25, 24.0.0.0],
+                  [26.0.0, 24.0.0.0], [26.1.0, 26.0.1.0]]
 
 # When delete bytecode or having any incompatible modification on bytecode,
 # please add the incompatible version in this list for prompting error message.

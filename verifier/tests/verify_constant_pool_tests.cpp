@@ -158,16 +158,16 @@ HWTEST_F(VerifierConstantPool, verifier_constant_pool_003, TestSize.Level1)
 
     std::vector<unsigned char> buffer(std::istreambuf_iterator<char>(base_file), {});
 
-    std::vector<uint8_t> new_literal_id = method_id_in_test_constant_pool;
-    std::vector<uint8_t> literal_id = literal_id_in_test_constant_pool;
-
-    for (size_t i = 0; i < buffer.size(); ++i) {
-        if (buffer[i] == literal_id[0] && buffer[i + 1] == literal_id[1]) {
-            buffer[i] = static_cast<unsigned char>(new_literal_id[0]);
-            buffer[i + 1] = static_cast<unsigned char>(new_literal_id[1]);
-            break;
-        }
-    }
+    // Tamper the literal-array operand of the emitted `defineclasswithbuffer`
+    // instead of scanning for a hardcoded id: the abc layout produced by the
+    // frontend may shift, and a plain byte-pair scan then hits an unrelated
+    // earlier occurrence.
+    size_t operand_offset = 0;
+    uint32_t method_cp_index = 0;
+    ASSERT_TRUE(FindDefineClassLiteralOperand(base_file_name, buffer, operand_offset, method_cp_index));
+    // Redirect the literal-array reference to a method id.
+    buffer[operand_offset] = static_cast<unsigned char>(method_cp_index & 0xffU);
+    buffer[operand_offset + 1U] = static_cast<unsigned char>((method_cp_index >> 8U) & 0xffU);
 
     const std::string target_file_name = GRAPH_TEST_ABC_DIR "verifier_constant_pool_003.abc";
     GenerateModifiedAbc(buffer, target_file_name);
