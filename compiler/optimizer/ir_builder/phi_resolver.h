@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2022 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -50,7 +50,13 @@ public:
                 if (inst->IsMarked(dead_marker_)) {
                     continue;
                 }
-                if (inst->HasType() || (!inst->GetUsers().Empty() && CheckPhiInputs(inst))) {
+                // A phi with type may still be inconsistent (inputs count != preds count) if some
+                // inputs were skipped during FixInstructions (pred def was nullptr) and the type
+                // was set afterwards by SetTypeRec. Such an inconsistent phi must not be skipped,
+                // otherwise it survives with a broken cfg-preds/phi-inputs invariant and crashes
+                // downstream consumers (GraphChecker, GraphCloner, LivenessAnalyzer).
+                if ((inst->HasType() && inst->GetInputsCount() == inst->GetBasicBlock()->GetPredsBlocks().size()) ||
+                    (!inst->GetUsers().Empty() && CheckPhiInputs(inst))) {
                     continue;
                 }
                 CleanUp();
