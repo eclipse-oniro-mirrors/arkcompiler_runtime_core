@@ -17,6 +17,7 @@
 
 #include "abc2program_compiler.h"
 #include "assembly-emitter.h"
+#include "file_format_version.h"
 #include "program_dump.h"
 #include "utils/logger.h"
 
@@ -54,6 +55,13 @@ void panda::guard::GuardDriver::Run(int argc, const char **argv)
     PANDA_GUARD_ASSERT_PRINT(!status, TAG, ErrorCode::GENERIC_ERROR,
                              "abc to program, open abc file failed" << options->GetAbcFilePath());
 
+    // Obfuscation does not lower instructions to an older bytecode generation.
+    PANDA_GUARD_ASSERT_PRINT(
+        !compiler.CheckFileVersionIsSupported(panda_file::minVersion, options->GetTargetApiVersion(),
+                                              options->GetTargetApiSubVersion(), options->GetTargetApiMinorVersion(),
+                                              options->GetTargetApiPatchVersion()),
+        TAG, ErrorCode::GENERIC_ERROR, "input abc version exceeds the configured targetApiVersion");
+
     auto program = std::move(*compiler.CompileAbcFile());
     LOG(INFO, PANDAGUARD) << TAG << "abc to program success";
 
@@ -73,7 +81,8 @@ void panda::guard::GuardDriver::Run(int argc, const char **argv)
     }
 
     status = pandasm::AsmEmitter::Emit(options->GetObfAbcFilePath(), program, nullptr, nullptr, true, nullptr,
-                                       options->GetTargetApiVersion(), options->GetTargetApiSubVersion());
+                                       options->GetTargetApiVersion(), options->GetTargetApiSubVersion(),
+                                       options->GetTargetApiMinorVersion(), options->GetTargetApiPatchVersion());
     PANDA_GUARD_ASSERT_PRINT(!status, TAG, ErrorCode::GENERIC_ERROR,
                              "program to abc failed" << pandasm::AsmEmitter::GetLastError());
     LOG(INFO, PANDAGUARD) << TAG << "program to abc success";

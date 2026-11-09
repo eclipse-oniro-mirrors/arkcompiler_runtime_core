@@ -30,7 +30,7 @@ constexpr std::string_view STATE_VARIABLE_PREFIX = "__";
 const OpcodeList PROPERTY_TYPE_LIST_NORMAL = {
     panda::pandasm::Opcode::STOBJBYNAME,          panda::pandasm::Opcode::STSUPERBYNAME,
     panda::pandasm::Opcode::DEFINEPROPERTYBYNAME, panda::pandasm::Opcode::STOBJBYVALUE,
-    panda::pandasm::Opcode::STSUPERBYVALUE,
+    panda::pandasm::Opcode::STSUPERBYVALUE,       panda::pandasm::Opcode::STTHISBYNAME,
 };
 
 bool IsGetLdaStrPropertyIns(const panda::guard::InstructionInfo &info)

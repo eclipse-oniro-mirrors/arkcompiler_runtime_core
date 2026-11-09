@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -14,6 +14,9 @@
  */
 
 #include "guard_options.h"
+
+#include <array>
+#include <cmath>
 
 #include <regex>
 #include "utils/logger.h"
@@ -32,6 +35,10 @@ constexpr std::string_view OBF_PA_FILE_PATH = "obfPaFilePath";
 constexpr std::string_view COMPILE_SDK_VERSION = "compileSdkVersion";
 constexpr std::string_view TARGET_API_VERSION = "targetApiVersion";
 constexpr std::string_view TARGET_API_SUB_VERSION = "targetApiSubVersion";
+constexpr size_t API_VERSION_COMPONENT_COUNT = 3;
+constexpr size_t API_VERSION_MAJOR_INDEX = 0;
+constexpr size_t API_VERSION_MINOR_INDEX = 1;
+constexpr size_t API_VERSION_PATCH_INDEX = 2;
 constexpr std::string_view FILES_INFO_PATH = "filesInfoPath";
 constexpr std::string_view SOURCE_MAPS_PATH = "sourceMapsPath";
 constexpr std::string_view ENTRY_PACKAGE_INFO = "entryPackageInfo";
@@ -124,6 +131,52 @@ void ParseKeepOption(const panda::JsonObject *obj, panda::guard::KeepOption &opt
     option.keepPaths = panda::guard::JsonUtil::GetArrayStringValue(innerObj, KEEP_PATHS);
 }
 
+// Keep legacy numeric API levels while preserving dotted minor/patch targets.
+std::array<uint8_t, API_VERSION_COMPONENT_COUNT> ParseTargetApiVersion(const panda::JsonObject &object)
+{
+    constexpr unsigned MAX_COMPONENT = 255;
+    constexpr unsigned DECIMAL_RADIX = 10;
+    std::array<uint8_t, API_VERSION_COMPONENT_COUNT> result {};
+    if (const auto number = object.GetValue<panda::JsonObject::NumT>(TARGET_API_VERSION.data())) {
+        PANDA_GUARD_ASSERT_PRINT(!std::isfinite(*number) || *number < 1 || *number > MAX_COMPONENT ||
+                                     std::floor(*number) != *number,
+                                 TAG, panda::guard::ErrorCode::NOT_CONFIGURED_TARGET_API_VERSION,
+                                 "targetApiVersion must be an integer API level or dotted version");
+        result[API_VERSION_MAJOR_INDEX] = static_cast<uint8_t>(*number);
+        return result;
+    }
+    const auto text = object.GetValue<panda::JsonObject::StringT>(TARGET_API_VERSION.data());
+    PANDA_GUARD_ASSERT_PRINT(!text || text->empty(), TAG, panda::guard::ErrorCode::NOT_CONFIGURED_TARGET_API_VERSION,
+                             "targetApiVersion must be an integer API level or dotted version");
+    size_t part = 0;
+    unsigned value = 0;
+    bool hasDigit = false;
+    for (char ch : *text) {
+        if (ch == '.') {
+            PANDA_GUARD_ASSERT_PRINT(!hasDigit || part >= result.size() - 1, TAG,
+                                     panda::guard::ErrorCode::NOT_CONFIGURED_TARGET_API_VERSION,
+                                     "invalid targetApiVersion");
+            result[part++] = static_cast<uint8_t>(value);
+            value = 0;
+            hasDigit = false;
+            continue;
+        }
+        PANDA_GUARD_ASSERT_PRINT(ch < '0' || ch > '9', TAG, panda::guard::ErrorCode::NOT_CONFIGURED_TARGET_API_VERSION,
+                                 "invalid targetApiVersion");
+        value = value * DECIMAL_RADIX + static_cast<unsigned>(ch - '0');
+        PANDA_GUARD_ASSERT_PRINT(value > MAX_COMPONENT, TAG, panda::guard::ErrorCode::NOT_CONFIGURED_TARGET_API_VERSION,
+                                 "invalid targetApiVersion");
+        hasDigit = true;
+    }
+    PANDA_GUARD_ASSERT_PRINT(!hasDigit, TAG, panda::guard::ErrorCode::NOT_CONFIGURED_TARGET_API_VERSION,
+                             "invalid targetApiVersion");
+    result[part] = static_cast<uint8_t>(value);
+    PANDA_GUARD_ASSERT_PRINT(result[API_VERSION_MAJOR_INDEX] == 0, TAG,
+                             panda::guard::ErrorCode::NOT_CONFIGURED_TARGET_API_VERSION,
+                             "targetApiVersion must have a nonzero major version");
+    return result;
+}
+
 void ParseObfuscationConfigFile(const std::string &content, panda::guard::ObfuscationConfig &obfConfig)
 {
     panda::JsonObject configObj(content);
@@ -134,7 +187,10 @@ void ParseObfuscationConfigFile(const std::string &content, panda::guard::Obfusc
     obfConfig.obfAbcFilePath = panda::guard::JsonUtil::GetStringValue(&configObj, OBF_ABC_FILE_PATH, false);
     obfConfig.obfPaFilePath = panda::guard::JsonUtil::GetStringValue(&configObj, OBF_PA_FILE_PATH);
     obfConfig.compileSdkVersion = panda::guard::JsonUtil::GetStringValue(&configObj, COMPILE_SDK_VERSION, false);
-    obfConfig.targetApiVersion = (uint8_t)panda::guard::JsonUtil::GetDoubleValue(&configObj, TARGET_API_VERSION, false);
+    const auto api = ParseTargetApiVersion(configObj);
+    obfConfig.targetApiVersion = api[API_VERSION_MAJOR_INDEX];
+    obfConfig.targetApiMinorVersion = api[API_VERSION_MINOR_INDEX];
+    obfConfig.targetApiPatchVersion = api[API_VERSION_PATCH_INDEX];
     obfConfig.targetApiSubVersion = panda::guard::JsonUtil::GetStringValue(&configObj, TARGET_API_SUB_VERSION);
     obfConfig.filesInfoPath = panda::guard::JsonUtil::GetStringValue(&configObj, FILES_INFO_PATH);
     obfConfig.sourceMapsPath = panda::guard::JsonUtil::GetStringValue(&configObj, SOURCE_MAPS_PATH);
@@ -301,6 +357,16 @@ const std::string &panda::guard::GuardOptions::GetCompileSdkVersion() const
 uint8_t panda::guard::GuardOptions::GetTargetApiVersion() const
 {
     return obfConfig_.targetApiVersion;
+}
+
+uint8_t panda::guard::GuardOptions::GetTargetApiMinorVersion() const
+{
+    return obfConfig_.targetApiMinorVersion;
+}
+
+uint8_t panda::guard::GuardOptions::GetTargetApiPatchVersion() const
+{
+    return obfConfig_.targetApiPatchVersion;
 }
 
 const std::string &panda::guard::GuardOptions::GetTargetApiSubVersion() const

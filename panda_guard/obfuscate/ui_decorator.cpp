@@ -127,8 +127,9 @@ bool IsParamUiDecoratorValid(const panda::guard::InstructionInfo &info)
 }
 
 const OpcodeList UI_DECORATOR_LIST_IN_FUNCTION = {
-    panda::pandasm::Opcode::STOBJBYNAME, panda::pandasm::Opcode::CALLTHIS1, panda::pandasm::Opcode::CALLTHIS2,
-    panda::pandasm::Opcode::CALLTHIS3,   panda::pandasm::Opcode::CALLARGS2, panda::pandasm::Opcode::ISIN};
+    panda::pandasm::Opcode::STOBJBYNAME, panda::pandasm::Opcode::STTHISBYNAME, panda::pandasm::Opcode::CALLTHIS1,
+    panda::pandasm::Opcode::CALLTHIS2,   panda::pandasm::Opcode::CALLTHIS3,    panda::pandasm::Opcode::CALLARGS2,
+    panda::pandasm::Opcode::ISIN};
 
 const OpcodeList UI_DECORATOR_LIST_IN_FUNC_MAIN0 = {
     panda::pandasm::Opcode::CALLARG1,  panda::pandasm::Opcode::CALLARGS2, panda::pandasm::Opcode::CALLARGS3,
@@ -230,6 +231,7 @@ void panda::guard::UiDecorator::HandleInstInFunction()
 {
     switch (baseInst_.ins_->GetOpcode()) {
         case pandasm::Opcode::STOBJBYNAME:
+        case pandasm::Opcode::STTHISBYNAME:
             HandleStObjByNameIns();
             break;
         case pandasm::Opcode::CALLTHIS1:

@@ -230,6 +230,7 @@ abckit_gtests_sources = [
   "ut/isa/isa_dynamic/import/dynamicimport_dynamic.cpp",
   "ut/isa/isa_dynamic/instanceof/instanceof_dynamic.cpp",
   "ut/isa/isa_dynamic/isin/isin_dynamic.cpp",
+  "ut/isa/isa_dynamic/iterators/closeiterator_dynamic.cpp",
   "ut/isa/isa_dynamic/iterators/createiterresultobj_dynamic.cpp",
   "ut/isa/isa_dynamic/iterators/getiterator_dynamic.cpp",
   "ut/isa/isa_dynamic/iterators/getpropiterator_dynamic.cpp",
@@ -344,6 +345,7 @@ test_js_path = "//arkcompiler/runtime_core/libabckit/tests/"
 
 test_js_files = [
   "ut/thread_safety/graph_versions/graph_versions",
+  "ut/isa/isa_dynamic/iterators/closeiterator_dynamic",
   "ut/metadata_core/inspect_api/modules/targets/JS_target",
   "ut/extensions/js/inspect_api/api_casts/JSapi_casts",
   "ut/extensions/js/inspect_api/modules/JSmodules_dynamic",

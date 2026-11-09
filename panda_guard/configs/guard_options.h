@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -62,7 +62,9 @@ struct ObfuscationConfig {
     std::string obfAbcFilePath;
     std::string obfPaFilePath;
     std::string compileSdkVersion;
-    uint8_t targetApiVersion;
+    uint8_t targetApiVersion {};
+    uint8_t targetApiMinorVersion {};
+    uint8_t targetApiPatchVersion {};
     std::string targetApiSubVersion;  // This field represents compatibleSdkVersions Stage
     std::string filesInfoPath;
     std::string sourceMapsPath;
@@ -86,6 +88,10 @@ public:
     [[nodiscard]] const std::string &GetCompileSdkVersion() const;
 
     [[nodiscard]] uint8_t GetTargetApiVersion() const;
+
+    [[nodiscard]] uint8_t GetTargetApiMinorVersion() const;
+
+    [[nodiscard]] uint8_t GetTargetApiPatchVersion() const;
 
     [[nodiscard]] const std::string &GetTargetApiSubVersion() const;
 

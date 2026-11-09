@@ -246,6 +246,8 @@ enum AbckitIsaApiDynamicOpcode {
     ABCKIT_ISA_API_DYNAMIC_OPCODE_WIDE_STPATCHVAR,
     ABCKIT_ISA_API_DYNAMIC_OPCODE_WIDE_SUPERCALLARROWRANGE,
     ABCKIT_ISA_API_DYNAMIC_OPCODE_WIDE_SUPERCALLTHISRANGE,
+    // Append new opcodes to preserve the numeric values of existing API opcodes.
+    ABCKIT_ISA_API_DYNAMIC_OPCODE_CLOSEITERATOR,
 };
 
 enum AbckitIsaApiDynamicConditionCode {
