@@ -46,6 +46,7 @@ constexpr auto PROCESSOR_FILE_PATH_LDA_STR = [](InstructionInfo &inst) {
 
 const ProcessorMap INST_PROCESSOR_MAP = {
     {panda::pandasm::Opcode::LDOBJBYNAME, PROCESSOR_DEFAULT},
+    {panda::pandasm::Opcode::LDTHISBYNAME, PROCESSOR_DEFAULT},
     {panda::pandasm::Opcode::THROW_UNDEFINEDIFHOLEWITHNAME, PROCESSOR_DEFAULT},
     {panda::pandasm::Opcode::LDSUPERBYNAME, PROCESSOR_DEFAULT},
     {panda::pandasm::Opcode::LDOBJBYVALUE, PROCESSOR_DEFAULT_LDA_STR},

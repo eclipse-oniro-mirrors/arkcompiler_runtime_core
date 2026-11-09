@@ -19,6 +19,10 @@
 
 bool panda::guard::InstructionInfo::IsInnerReg() const
 {
+    // this-by-name stores have an implicit parameter receiver and no vreg operand.
+    if (equalToOpcode(pandasm::Opcode::STTHISBYNAME)) {
+        return false;
+    }
     // if regs[0] is less than regsNum, the register is v, otherwise, the register is a
     return this->ins_->GetReg(0) < this->function_->regsNum_;
 }

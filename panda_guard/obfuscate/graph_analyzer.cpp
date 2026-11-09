@@ -120,6 +120,14 @@ const InstIdFilterList INST_ID_LIST_STOBJBYNAME = {
     IntrinsicId::STOBJBYNAME_IMM8_ID16_V8,
     IntrinsicId::STOBJBYNAME_IMM16_ID16_V8,
 };
+const InstIdFilterList INST_ID_LIST_STTHISBYNAME = {
+    IntrinsicId::STTHISBYNAME_IMM8_ID16,
+    IntrinsicId::STTHISBYNAME_IMM16_ID16,
+};
+const InstIdFilterList INST_ID_LIST_LDTHISBYNAME = {
+    IntrinsicId::LDTHISBYNAME_IMM8_ID16,
+    IntrinsicId::LDTHISBYNAME_IMM16_ID16,
+};
 const InstIdFilterList INST_ID_LIST_NEWOBJRANGE = {
     IntrinsicId::NEWOBJRANGE_IMM8_IMM8_V8,
     IntrinsicId::NEWOBJRANGE_IMM16_IMM8_V8,
@@ -462,9 +470,11 @@ void GraphAnalyzer::GetStObjByNameDefineIns(const InstructionInfo &inIns, Instru
 void GraphAnalyzer::GetStObjByNameInput(const InstructionInfo &inIns, InstructionInfo &out)
 {
     const compiler::Inst *inst;
-    VisitGraph(inIns, INST_ID_LIST_STOBJBYNAME, inst);
+    const bool implicitThis = inIns.equalToOpcode(pandasm::Opcode::STTHISBYNAME);
+    VisitGraph(inIns, implicitThis ? INST_ID_LIST_STTHISBYNAME : INST_ID_LIST_STOBJBYNAME, inst);
 
-    const compiler::Inst *target = inst->GetInput(INDEX_1).GetInst();
+    // stthisbyname has only the accumulator value; stobjbyname also has a receiver input.
+    const compiler::Inst *target = inst->GetInput(implicitThis ? INDEX_0 : INDEX_1).GetInst();
     if (!IsInstIdMatched(target, {INST_ID_LIST_NEWOBJRANGE, INST_ID_LIST_CALLTHIS2, INST_ID_LIST_CALLTHIS3})) {
         return;
     }
@@ -510,7 +520,8 @@ std::string GraphAnalyzer::GetCallName(const InstructionInfo &inIns)
                                  "unexpected call args param count scene: " << inIns.ins_->ToString());
         callNameInst = callNameInst->GetInput(inputCnt - PARAM_COUNT_THRESHOLD).GetInst();
     }
-    if (!IsInstIdMatched(callNameInst, {INST_ID_LIST_LDOBJBYNAME, INST_ID_LIST_TRYLDGLOBALBYNAME})) {
+    if (!IsInstIdMatched(callNameInst,
+                         {INST_ID_LIST_LDOBJBYNAME, INST_ID_LIST_LDTHISBYNAME, INST_ID_LIST_TRYLDGLOBALBYNAME})) {
         return "";
     }
 
@@ -557,7 +568,7 @@ void GraphAnalyzer::GetCallLdObjByNameParam(const InstructionInfo &inIns, uint32
     VisitGraph(inIns, it->second, callInst);
 
     const compiler::Inst *target = callInst->GetInput(paramIndex).GetInst();
-    if (!IsInstIdMatched(target, INST_ID_LIST_LDOBJBYNAME)) {
+    if (!IsInstIdMatched(target, {INST_ID_LIST_LDOBJBYNAME, INST_ID_LIST_LDTHISBYNAME})) {
         return;
     }
     FillInstInfo(inIns, target, out);
@@ -582,7 +593,7 @@ void GraphAnalyzer::GetIsInInfo(const InstructionInfo &inIns, std::vector<Instru
     const compiler::Inst *ldInst = nullptr;
     auto falseBlock = isinInst->GetBasicBlock()->GetFalseSuccessor();
     for (const compiler::Inst *inst : falseBlock->AllInsts()) {
-        if (!IsInstIdMatched(inst, INST_ID_LIST_LDOBJBYNAME)) {
+        if (!IsInstIdMatched(inst, {INST_ID_LIST_LDOBJBYNAME, INST_ID_LIST_LDTHISBYNAME})) {
             ldInst = inst;
             break;
         }
@@ -602,7 +613,7 @@ void GraphAnalyzer::GetIsInInfo(const InstructionInfo &inIns, std::vector<Instru
     }
 
     const compiler::Inst *stInst = phiInst->GetUsers().Front().GetInst();
-    if (!IsInstIdMatched(stInst, INST_ID_LIST_STOBJBYNAME)) {
+    if (!IsInstIdMatched(stInst, {INST_ID_LIST_STOBJBYNAME, INST_ID_LIST_STTHISBYNAME})) {
         return;
     }
     InstructionInfo stInstInfo;

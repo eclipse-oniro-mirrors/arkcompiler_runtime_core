@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -36,6 +36,10 @@ bool ICSlotAllocator::RunImpl()
     if (!Allocate16BitIcSlots()) {
         return false;
     }
+
+    // The 16-bit range starts at 0x100, leaving unused slots below it. The profile
+    // array must cover the highest allocated slot, including those gaps.
+    *icSlotNumber_ = nextFree16BitSlot_ > INIT_16BIT_SLOT_VALE ? nextFree16BitSlot_ : nextFree8BitSlot_;
 
     return true;
 }

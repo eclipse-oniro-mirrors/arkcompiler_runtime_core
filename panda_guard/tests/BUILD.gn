@@ -40,6 +40,7 @@ host_unittest_action("PandaGuardUnitTest") {
     "unittest/name_generator_test.cpp",
     "unittest/remove_console_log_test.cpp",
     "unittest/string_util_test.cpp",
+    "unittest/this_property_test.cpp",
     "util/test_util.cpp",
   ]
   include_dirs = panda_guard_include_dirs

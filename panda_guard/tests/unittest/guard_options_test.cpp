@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -196,4 +196,36 @@ HWTEST(GuardOptionsUnitTest, guard_options_test_005, TestSize.Level4)
     EXPECT_EQ(options.IsReservedFileNames("zzA"), true);
     EXPECT_EQ(options.IsReservedFileNames("abczz"), false);
     EXPECT_EQ(options.IsReservedFileNames("zz"), false);
+}
+
+HWTEST(GuardOptionsUnitTest, dotted_target_api_version, TestSize.Level1)
+{
+    constexpr uint8_t TARGET_API_MAJOR_VERSION = 26;
+    constexpr uint8_t DEFAULT_API_COMPONENT = 0;
+    constexpr uint8_t UPDATED_API_COMPONENT = 1;
+    const std::string prefix = R"({
+        "abcFilePath": "in.abc",
+        "obfAbcFilePath": "out.abc",
+        "compileSdkVersion": "",
+        "entryPackageInfo": "",
+        "defaultNameCachePath": "",
+        "obfuscationRules": {},
+        "targetApiVersion":)";
+    for (const std::string value : {"26", "\"26\"", "\"26.0.0\"", "\"26.0.1\"", "\"26.1.0\""}) {
+        guard::FileUtil::WriteFile(TEMP_OPTIONS_TEST_JSON_FILE, prefix + value + "}");
+        guard::GuardOptions options;
+        options.Load(TEMP_OPTIONS_TEST_JSON_FILE);
+        EXPECT_EQ(options.GetTargetApiVersion(), TARGET_API_MAJOR_VERSION);
+        EXPECT_EQ(options.GetTargetApiMinorVersion(),
+                  value == "\"26.1.0\"" ? UPDATED_API_COMPONENT : DEFAULT_API_COMPONENT);
+        EXPECT_EQ(options.GetTargetApiPatchVersion(),
+                  value == "\"26.0.1\"" ? UPDATED_API_COMPONENT : DEFAULT_API_COMPONENT);
+    }
+    for (const std::string value : {"26.1", "256", "-1", "0", "true", "\"\"", "\"26..1\"", "\"26.0.1.0\"",
+                                    "\"26.0.256\"", "\"26.0.\"", "\"26.x\""}) {
+        guard::FileUtil::WriteFile(TEMP_OPTIONS_TEST_JSON_FILE, prefix + value + "}");
+        guard::GuardOptions options;
+        EXPECT_DEATH(options.Load(TEMP_OPTIONS_TEST_JSON_FILE), "targetApiVersion");
+    }
+    guard::TestUtil::RemoveFile(TEMP_OPTIONS_TEST_JSON_FILE);
 }
