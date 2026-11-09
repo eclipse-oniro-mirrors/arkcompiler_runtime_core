@@ -638,4 +638,66 @@ TEST_F(ConstantProgagationTest, LatticeDistinguishesSignedZeros)
     EXPECT_TRUE(negative.Meet(&negative)->IsConstantElement());
 }
 
+TEST_F(ConstantProgagationTest, MixedNumericLiterals)
+{
+    EXPECT_TRUE(CheckFunctionConstantValues(GRAPH_TEST_ABC_DIR "constantProgagation.abc", "sccpMixedNumericLiterals",
+                                            {103.0, 10.0, 149.5, 30.0, 60.0, 15.25, 0.0, 125.0}));
+}
+
+TEST_F(ConstantProgagationTest, MixedNumericOperandOrderAndChaining)
+{
+    EXPECT_TRUE(CheckFunctionConstantValues(GRAPH_TEST_ABC_DIR "constantProgagation.abc", "sccpMixedNumericOperands",
+                                            {6.5, 6.5, 1.5, -1.5, 10.0, 10.0, 1.6, 0.625, 1.5, 2.5,
+                                             12.5, 2147483647.0}));
+}
+
+TEST_F(ConstantProgagationTest, MixedNumericPreservesSignedZeroAndWideResults)
+{
+    EXPECT_TRUE(CheckFunctionConstantValues(GRAPH_TEST_ABC_DIR "constantProgagation.abc", "sccpMixedNumericBoundaries",
+                                            {-0.0, -0.0, -0.0, -0.0, -0.5, 2147483647.5, -2147483648.5}));
+}
+
+TEST_F(ConstantProgagationTest, MixedNumericRetainsUnsupportedOperations)
+{
+    EXPECT_TRUE(CheckFunction(GRAPH_TEST_ABC_DIR "constantProgagation.abc", "sccpMixedNumericNoFold",
+                              ExpectType::EXPECT_OTHER, ExpectType::EXPECT_OTHER));
+}
+
+TEST_F(ConstantProgagationTest, MixedNumericRejectsUnsafeInt64Inputs)
+{
+    // Source Number literals outside int32 are doubles. Inject INT64 constants to exercise the IR guard.
+    for (int64_t value : {1LL << 53U, -(1LL << 53U)}) {
+        bool found = false;
+        graph_test_.TestBuildGraphFromFile(GRAPH_TEST_ABC_DIR "constantProgagation.abc",
+            [value, &found](compiler::Graph *graph, std::string &method_name) {
+                if (method_name != "sccpMixedIntegerLimit") {
+                    return;
+                }
+                found = true;
+                graph->RunPass<compiler::Cleanup>();
+                bool replaced = false;
+                for (auto inst : graph->GetStartBlock()->Insts()) {
+                    if (inst->IsConst() &&
+                        (inst->GetType() == compiler::DataType::INT32 || inst->GetType() == compiler::DataType::INT64) &&
+                        inst->CastToConstant()->GetIntValue() == 1) {
+                        auto replacement = graph->FindOrCreateConstant(static_cast<uint64_t>(value));
+                        ASSERT_EQ(replacement->GetType(), compiler::DataType::INT64);
+                        inst->ReplaceUsers(replacement);
+                        replaced = true;
+                        break;
+                    }
+                }
+                ASSERT_TRUE(replaced);
+                pandasm::AsmEmitter::PandaFileToPandaAsmMaps maps;
+                BytecodeOptIrInterface interface(&maps, nullptr);
+                EXPECT_TRUE(graph->RunPass<ConstantPropagation>(&interface));
+                graph->RunPass<compiler::Cleanup>();
+                for (auto bb : graph->GetVectorBlocks()) {
+                    VisitBlock(bb, ExpectType::EXPECT_OTHER);
+                }
+            });
+        EXPECT_TRUE(found);
+    }
+}
+
 }  // namespace panda::bytecodeopt

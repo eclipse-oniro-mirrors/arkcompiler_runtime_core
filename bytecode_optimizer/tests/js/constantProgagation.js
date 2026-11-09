@@ -576,6 +576,73 @@ function sccpNumericBoundaries() {
     print(-min);
 }
 
+function sccpMixedNumericLiterals() {
+    print(1e2 + 3);
+    print(2.5 * 4);
+    print(1.5e2 - 0.5);
+    print(300 / 1e1);
+    print(2e1 * 3e0);
+    print(0.25 + 1.5e1);
+    print(10 % 2.5);
+    print((1e1 + 2.5) * 1e1);
+}
+
+function sccpMixedNumericOperands() {
+    let integer = 4;
+    let fraction = 2.5;
+    print(integer + fraction);
+    print(fraction + integer);
+    print(integer - fraction);
+    print(fraction - integer);
+    print(integer * fraction);
+    print(fraction * integer);
+    print(integer / fraction);
+    print(fraction / integer);
+    print(integer % fraction);
+    print(fraction % integer);
+    // A folded intermediate can change representation from double to integer and vice versa.
+    print((fraction * integer) + fraction);
+    print((2147483647 + integer) - integer);
+}
+
+function sccpMixedNumericBoundaries() {
+    let zero = 0;
+    let negative = -2.5;
+    print(zero * negative);
+    print(negative * zero);
+    print(zero / negative);
+    print(-10 % 2.5);
+    print(-2.5 % 2);
+    print(2147483647 + 0.5);
+    print(-2147483648 - 0.5);
+}
+
+function sccpMixedNumericNoFold() {
+    print(2.5 / 0);
+    print(2.5 % 0);
+    print(2.5 / -0);
+    print(2.5 % -0);
+    print(true + 2.5);
+    print(2.5 + true);
+    print(false * 2.5);
+    print(2.5 * false);
+    let infinity = 1e308 * 2;
+    print(infinity / 2);
+    print(2 / infinity);
+    print(infinity % 2);
+    print(2 % infinity);
+    let nan = infinity - infinity;
+    print(nan / 2);
+    print(2 % nan);
+}
+
+function sccpMixedIntegerLimit() {
+    // The IR test replaces this integer with values outside the safe conversion range.
+    let integer = 1;
+    print(integer + 0.5);
+    print(0.5 + integer);
+}
+
 function sccpIfCheck() {
     if (true) {
         print(true);

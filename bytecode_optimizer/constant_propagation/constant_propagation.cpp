@@ -491,38 +491,41 @@ LatticeElement *ConstantPropagation::FoldingConstant(ConstantElement *lattice, R
     }
 }
 
+static bool GetNumericValue(const ConstantElement *constant, double &value)
+{
+    if (constant == nullptr) {
+        return false;
+    }
+    switch (constant->GetType()) {
+        case ConstantValue::CONSTANT_INT32:
+            value = constant->GetValue<int32_t>();
+            return true;
+        case ConstantValue::CONSTANT_INT64: {
+            constexpr int64_t MAX_SAFE_INTEGER = (1LL << 53U) - 1;
+            auto integer = constant->GetValue<int64_t>();
+            if (integer < -MAX_SAFE_INTEGER || integer > MAX_SAFE_INTEGER) {
+                return false;
+            }
+            value = static_cast<double>(integer);
+            return true;
+        }
+        case ConstantValue::CONSTANT_DOUBLE:
+            value = constant->GetValue<double>();
+            return true;
+        default:
+            return false;
+    }
+}
+
 LatticeElement *ConstantPropagation::FoldingNumeric(ConstantElement *left, ConstantElement *right,
                                                     RuntimeInterface::IntrinsicId id)
 {
-    if (left == nullptr || right == nullptr || left->GetType() != right->GetType()) {
-        return BottomElement::GetInstance();
-    }
-
+    // Number constants may have different IR representations, including after an earlier fold.
+    // Convert each operand independently without coercing strings, booleans or other values.
     double lhs;
     double rhs;
-    switch (left->GetType()) {
-        case ConstantValue::CONSTANT_INT32:
-            lhs = left->GetValue<int32_t>();
-            rhs = right->GetValue<int32_t>();
-            break;
-        case ConstantValue::CONSTANT_INT64: {
-            constexpr int64_t MAX_SAFE_INTEGER = (1LL << 53U) - 1;
-            auto left_value = left->GetValue<int64_t>();
-            auto right_value = right->GetValue<int64_t>();
-            if (left_value < -MAX_SAFE_INTEGER || left_value > MAX_SAFE_INTEGER || right_value < -MAX_SAFE_INTEGER ||
-                right_value > MAX_SAFE_INTEGER) {
-                return BottomElement::GetInstance();
-            }
-            lhs = static_cast<double>(left_value);
-            rhs = static_cast<double>(right_value);
-            break;
-        }
-        case ConstantValue::CONSTANT_DOUBLE:
-            lhs = left->GetValue<double>();
-            rhs = right->GetValue<double>();
-            break;
-        default:
-            return BottomElement::GetInstance();
+    if (!GetNumericValue(left, lhs) || !GetNumericValue(right, rhs)) {
+        return BottomElement::GetInstance();
     }
 
     double result;
