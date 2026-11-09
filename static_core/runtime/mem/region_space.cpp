@@ -33,6 +33,16 @@ uint32_t Region::GetAllocatedBytes() const
     return allocatedBytes;
 }
 
+size_t Region::GetAndResetNewAllocatedBytesInTLABs()
+{
+    ASSERT(IsTLAB());
+    size_t newAllocatedBytes = 0;
+    for (auto *tlab : *tlabVector_) {
+        newAllocatedBytes += tlab->GetAndResetNewAllocatedBytes();
+    }
+    return newAllocatedBytes;
+}
+
 double Region::GetFragmentation() const
 {
     ASSERT(Size() >= GetAllocatedBytes());

@@ -21,8 +21,8 @@
 #include "compiler/optimizer/ir/runtime_interface.h"
 #include "plugins/ets/runtime/ets_execution_context.h"
 #include "plugins/ets/runtime/ets_execution_context_wrapper.h"
-#include "include/mem/panda_smart_pointers.h"
-#include "include/mem/panda_string.h"
+#include "runtime/include/mem/panda_smart_pointers.h"
+#include "runtime/include/mem/panda_string.h"
 #include "jit/profile_saver_worker.h"
 #include "libarkbase/macros.h"
 #include "libarkbase/utils/logger.h"
@@ -402,6 +402,7 @@ static mem::Reference *PreallocSpecialReference(PandaEtsVM *vm, EtsClass *cls, b
 static mem::Reference *PreallocOOMError(EtsExecutionContext *executionCtx, PandaEtsVM *vm)
 {
     ASSERT(executionCtx != nullptr);
+    ScopedManagedCodeThread managedScope(executionCtx->GetMT());
     auto *oom = EtsOutOfMemoryError::Create(executionCtx);
     if (oom == nullptr) {
         LOG(FATAL, RUNTIME) << "Cannot preallocate OOM error";

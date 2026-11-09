@@ -262,7 +262,7 @@ TEST_F(RegionAllocatorTest, AllocateAndMoveYoungObjectsToTenured)
             return ObjectStatus::ALIVE_OBJECT;
         },
         []([[maybe_unused]] ObjectHeader *src, [[maybe_unused]] ObjectHeader *dst) {});
-    allocator.ResetAllYoungRegions([](uintptr_t, uintptr_t) {});
+    allocator.ResetAllYoungRegionsAndRegisterTLABs([](uintptr_t, uintptr_t) {});
     size_t objectFound = 0;
     allocator.IterateOverObjects([&objectFound](ObjectHeader *object) {
         (void)object;
@@ -396,7 +396,7 @@ TEST_F(RegionAllocatorTest, AsanTest)
             return ObjectStatus::ALIVE_OBJECT;
         },
         []([[maybe_unused]] ObjectHeader *src, [[maybe_unused]] ObjectHeader *dst) {});
-    allocator.ResetAllYoungRegions([](uintptr_t, uintptr_t) {});
+    allocator.ResetAllYoungRegionsAndRegisterTLABs([](uintptr_t, uintptr_t) {});
     for (auto i : youngObjects) {
 #ifdef PANDA_ASAN_ON
         EXPECT_DEATH(DeathWriteUint64(i), "") << "Write " << sizeof(uint64_t) << " bytes at address " << std::hex << i;

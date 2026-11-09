@@ -14,7 +14,7 @@
  */
 
 #include "runtime/include/runtime.h"
-#include "include/class_helper.h"
+#include "runtime/include/class_helper.h"
 
 #include "compiler_options.h"
 
@@ -1027,7 +1027,7 @@ bool Runtime::LoadVerificationConfig()
 
 bool Runtime::CreatePandaVM(std::string_view runtimeType)
 {
-    ManagedThread::Initialize();
+    Mutator::Initialize();
 
     pandaVm_ = PandaVM::Create(this, options_, runtimeType);
     if (pandaVm_ == nullptr) {
@@ -1575,7 +1575,7 @@ bool Runtime::Shutdown()
         internalAllocator_->Delete(memAllocDumper_);
     }
     SAFEPOINT_TIME_CHECKER(SafepointTimerTable::Destroy());
-    ManagedThread::Shutdown();
+    Mutator::Shutdown();
     return true;
 }
 

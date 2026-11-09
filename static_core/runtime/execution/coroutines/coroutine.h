@@ -166,7 +166,7 @@ public:
     virtual void HandleUncaughtException() {};
 
     /* event handlers */
-    virtual void OnHostWorkerChanged() {};
+    virtual void OnHostWorkerChanged(JobWorkerThread *oldWorker, JobWorkerThread *newWorker);
     virtual void OnStatusChanged(Status oldStatus, Status newStatus);
     virtual void OnContextSwitchedTo();
     virtual void OnChildCoroutineCreated([[maybe_unused]] Coroutine *child) {};

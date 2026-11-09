@@ -319,11 +319,11 @@ public:
                                            RegionAllocator<AllocConfigT, LockConfigT> *targetAllocator);
 
     /**
-     * Reset all regions with type /param regions_type.
+     * Reset all young regions and register their tlabs if not PANDA_TRACK_TLAB_ALLOCATIONS.
      * @tparam F - the calls the callback it it decide to release region's memory.
      */
     template <typename F>
-    void ResetAllYoungRegions(const F &onRegionDestroy);
+    void ResetAllYoungRegionsAndRegisterTLABs(const F &onRegionDestroy);
 
     /**
      * Reset regions from vector.

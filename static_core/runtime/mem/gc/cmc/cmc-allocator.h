@@ -55,6 +55,8 @@ public:
 
     TLAB *CreateNewTLAB(size_t tlabSize) override;
 
+    void CollectTLAB(TLAB *tlab);
+
     bool IsTLABSupported() override
     {
         return true;

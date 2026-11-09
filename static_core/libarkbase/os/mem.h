@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -358,7 +358,7 @@ static constexpr uint64_t MMAP_FIXED_MAGIC_ADDR_FOR_SANITIZERS = 0x7fff8000ULL;
  * @note returned memory will be poisoned in ASAN targets,
  * if you need other behavior - consider to change interface, or use manual unpoisoning
  */
-void *MapRWAnonymousInFirst4GB(void *minMem, size_t size, size_t iterativeStep = 4_KB);
+PANDA_PUBLIC_API void *MapRWAnonymousInFirst4GB(void *minMem, size_t size, size_t iterativeStep = 4_KB);
 
 /**
  * Anonymous mmap with fixed address and READ | WRITE protection for pages

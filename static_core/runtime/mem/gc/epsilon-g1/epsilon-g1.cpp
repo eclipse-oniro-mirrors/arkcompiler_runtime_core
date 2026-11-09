@@ -83,6 +83,7 @@ void EpsilonG1GC<LanguageConfig>::OnMutatorTerminate(Mutator *mutator, mem::Buff
         mutator->ResetG1PostBarrierBuffer();
         ASSERT(localBuffer != nullptr);
         allocator->Delete(localBuffer);
+        this->RegisterTLABOfTerminatingMutator(mutator);
         return true;
     });
 }

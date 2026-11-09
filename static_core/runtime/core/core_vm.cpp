@@ -113,6 +113,7 @@ bool PandaCoreVM::Initialize()
 
     auto runtime = Runtime::GetCurrent();
     if (runtime->GetOptions().ShouldLoadBootPandaFiles()) {
+        ScopedManagedCodeThread scope(ManagedThread::GetCurrent());
         PreAllocOOMErrorObject();
     }
 

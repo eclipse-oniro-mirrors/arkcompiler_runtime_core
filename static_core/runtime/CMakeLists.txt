@@ -98,6 +98,7 @@ set(SOURCES
     mem/refstorage/global_object_storage.cpp
     mem/allocator.cpp
     mem/tlab.cpp
+    mem/tlab_keeper.cpp
     mem/heap_manager.cpp
     mem/heap_verifier.cpp
     mem/rendezvous.cpp

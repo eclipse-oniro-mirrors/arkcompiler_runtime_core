@@ -154,6 +154,8 @@ public:
     void SetExtensionData(GCExtensionData *data) override;
 
 protected:
+    void RegisterTLABOfTerminatingMutator(Mutator *mutator);
+
     ALWAYS_INLINE ObjectAllocatorG1<LanguageConfig::MT_MODE> *GetG1ObjectAllocator() const
     {
         return static_cast<ObjectAllocatorG1<LanguageConfig::MT_MODE> *>(this->GetObjectAllocator());

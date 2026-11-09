@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 
-# Copyright (c) 2021-2024 Huawei Device Co., Ltd.
+# Copyright (c) 2021-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -58,10 +58,10 @@ function(:AllocateObjectTlab,
   tlab_ptr := LoadI(%tr).Imm(Constants::TLAB_OFFSET).ptr
 
   # Load pointer to the start address of free memory in the TLAB
-  start := LoadI(tlab_ptr).Imm(Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr
+  start := Cast(LoadI(tlab_ptr).Imm(Constants::TLAB_CUR_FREE_POSITION_OFFSET).ref_uint).ptr
 
   # Load pointer to the end address of free memory in the TLAB
-  tls_end := LoadI(tlab_ptr).Imm(Constants::TLAB_MEMORY_END_ADDR_OFFSET).ptr
+  tls_end := Cast(LoadI(tlab_ptr).Imm(Constants::TLAB_MEMORY_END_ADDR_OFFSET).ref_uint).ptr
 
   tls_size := Sub(tls_end, start).word
 
@@ -74,10 +74,10 @@ function(:AllocateObjectTlab,
     if defines.__SANITIZE_ADDRESS__ || defines.__SANITIZE_THREAD__
       call_runtime_save_all(Constants::ANNOTATE_SANITIZERS_NO_BRIDGE, start, size).void
     end
-    new_start := Add(start, size).ptr
+    new_start := Bitcast(Add(start, size).ptr).word
     store_class(start, klass)
     addr := Add(tlab_ptr, Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr
-    StoreI(addr, new_start).Imm(0).ptr
+    StoreI(addr, new_start).Imm(0).ref_uint
     # Memory barrier is encoded in codegen, see VisitNewObject
     Return(start).ptr
   }
@@ -117,10 +117,10 @@ def AllocateArrayTlab(element_size)
     tlab_ptr := LoadI(%tr).Imm(Constants::TLAB_OFFSET).ptr
 
     # Load pointer to the start address of free memory in the TLAB
-    start := LoadI(tlab_ptr).Imm(Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr
+    start := Cast(LoadI(tlab_ptr).Imm(Constants::TLAB_CUR_FREE_POSITION_OFFSET).ref_uint).ptr
 
     # Load pointer to the end address of free memory in the TLAB
-    tls_end := LoadI(tlab_ptr).Imm(Constants::TLAB_MEMORY_END_ADDR_OFFSET).ptr
+    tls_end := Cast(LoadI(tlab_ptr).Imm(Constants::TLAB_MEMORY_END_ADDR_OFFSET).ref_uint).ptr
 
     tls_size := Sub(tls_end, start).word
 
@@ -133,11 +133,11 @@ def AllocateArrayTlab(element_size)
       if defines.__SANITIZE_ADDRESS__ || defines.__SANITIZE_THREAD__
         call_runtime_save_all(Constants::ANNOTATE_SANITIZERS_NO_BRIDGE, start, size).void
       end
-      new_start := Add(start, size).ptr
+      new_start := Bitcast(Add(start, size).ptr).word
       store_class(start, klass)
       StoreI(start, elements_num).Imm(Constants::ARRAY_LENGTH_OFFSET).word
       addr := Add(tlab_ptr, Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr
-      StoreI(addr, new_start).Imm(0).ptr
+      StoreI(addr, new_start).Imm(0).ref_uint
       # Memory barrier is encoded in codegen, see VisitNewArray
       Return(start).ptr
     }

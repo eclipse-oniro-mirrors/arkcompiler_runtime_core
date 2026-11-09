@@ -126,9 +126,7 @@ bool StacklessJobManager::TerminateExecutionContext(JobExecutionContext *executi
         os::memory::LockHolder lList(jobCtxListLock_);
         jobExecCtxs_.erase(executionCtx);
 
-        executionCtx->CollectTLABMetrics();
         executionCtx->ClearTLAB();
-
         executionCtx->DestroyInternalResources();
         executionCtx->UpdateStatus(MutatorStatus::FINISHED);
     }

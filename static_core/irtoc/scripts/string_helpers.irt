@@ -208,9 +208,9 @@ macro(:allocate_string_tlab) do |string_klass, data_size, cgmode|
   # Load pointer to the TLAB from TLS
   _tlab := LoadI(%tr).Imm(Constants::TLAB_OFFSET).ptr
   # Load pointer to the start address of free memory in the TLAB
-  _start := LoadI(_tlab).Imm(Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr
+  _start := Cast(LoadI(_tlab).Imm(Constants::TLAB_CUR_FREE_POSITION_OFFSET).ref_uint).ptr
   # Load pointer to the end address of free memory in the TLAB
-  _end := LoadI(_tlab).Imm(Constants::TLAB_MEMORY_END_ADDR_OFFSET).ptr
+  _end := Cast(LoadI(_tlab).Imm(Constants::TLAB_MEMORY_END_ADDR_OFFSET).ref_uint).ptr
   # Check if there is enough space
   If(Sub(_end, _start).word, _size).B.Unlikely.b {
     Goto(:SlowPathEntrypoint)
@@ -232,7 +232,7 @@ macro(:allocate_string_tlab) do |string_klass, data_size, cgmode|
   # Store class of the object
   store_class(_start, string_klass)
   # Update the TLAB state
-  StoreI(Add(_tlab, Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr, Add(_start, _size).ptr).Imm(0).ptr
+  StoreI(Add(_tlab, Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr, Bitcast(Add(_start, _size).ptr).word).Imm(0).ref_uint
   # Return a pointer to the newly allocated string
   _allocated_string := _start
 end  # allocate_string_tlab
@@ -250,9 +250,9 @@ macro(:allocate_tree_string_tlab) do |tree_string_klass|
   # Load pointer to the TLAB from TLS
   _tlab := LoadI(%tr).Imm(Constants::TLAB_OFFSET).ptr
   # Load pointer to the start address of free memory in the TLAB
-  _start := LoadI(_tlab).Imm(Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr
+  _start := Cast(LoadI(_tlab).Imm(Constants::TLAB_CUR_FREE_POSITION_OFFSET).ref_uint).ptr
   # Load pointer to the end address of free memory in the TLAB
-  _end := LoadI(_tlab).Imm(Constants::TLAB_MEMORY_END_ADDR_OFFSET).ptr
+  _end := Cast(LoadI(_tlab).Imm(Constants::TLAB_MEMORY_END_ADDR_OFFSET).ref_uint).ptr
   # Check if there is enough space
   If(Sub(_end, _start).word, _size).B.Unlikely.b {
     Goto(:SlowPathEntrypoint)
@@ -264,7 +264,7 @@ macro(:allocate_tree_string_tlab) do |tree_string_klass|
   # Store class of the object
   store_class(_start, tree_string_klass)
   # Update the TLAB state
-  StoreI(Add(_tlab, Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr, Add(_start, _size).ptr).Imm(0).ptr
+  StoreI(Add(_tlab, Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr, Bitcast(Add(_start, _size).ptr).word).Imm(0).ref_uint
   # Return a pointer to the newly allocated string
   _allocated_string := _start
 end
@@ -282,9 +282,9 @@ macro(:allocate_sliced_string_tlab) do |sliced_string_klass|
   # Load pointer to the TLAB from TLS
   _tlab := LoadI(%tr).Imm(Constants::TLAB_OFFSET).ptr
   # Load pointer to the start address of free memory in the TLAB
-  _start := LoadI(_tlab).Imm(Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr
+  _start := Cast(LoadI(_tlab).Imm(Constants::TLAB_CUR_FREE_POSITION_OFFSET).ref_uint).ptr
   # Load pointer to the end address of free memory in the TLAB
-  _end := LoadI(_tlab).Imm(Constants::TLAB_MEMORY_END_ADDR_OFFSET).ptr
+  _end := Cast(LoadI(_tlab).Imm(Constants::TLAB_MEMORY_END_ADDR_OFFSET).ref_uint).ptr
   # Check if there is enough space
   If(Sub(_end, _start).word, _size).B.Unlikely.b {
     Goto(:SlowPathEntrypoint)
@@ -296,7 +296,7 @@ macro(:allocate_sliced_string_tlab) do |sliced_string_klass|
   # Store class of the object
   store_class(_start, sliced_string_klass)
   # Update the TLAB state
-  StoreI(Add(_tlab, Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr, Add(_start, _size).ptr).Imm(0).ptr
+  StoreI(Add(_tlab, Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr, Bitcast(Add(_start, _size).ptr).word).Imm(0).ref_uint
   # Return a pointer to the newly allocated string
   _allocated_string := _start
 end  # allocate_sliced_string_tlab
@@ -317,9 +317,9 @@ macro(:allocate_string_tlab_no_debug) do |string_klass, data_size|
   # Load pointer to the TLAB from TLS
   _tlab := LoadI(%tr).Imm(Constants::TLAB_OFFSET).ptr
   # Load pointer to the start address of free memory in the TLAB
-  _start := LoadI(_tlab).Imm(Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr
+  _start := Cast(LoadI(_tlab).Imm(Constants::TLAB_CUR_FREE_POSITION_OFFSET).ref_uint).ptr
   # Load pointer to the end address of free memory in the TLAB
-  _end := LoadI(_tlab).Imm(Constants::TLAB_MEMORY_END_ADDR_OFFSET).ptr
+  _end := Cast(LoadI(_tlab).Imm(Constants::TLAB_MEMORY_END_ADDR_OFFSET).ref_uint).ptr
   # Check if there is enough space
   If(Sub(_end, _start).word, _size).B.Unlikely.b {
     Goto(:SlowPathEntrypoint)
@@ -330,7 +330,7 @@ macro(:allocate_string_tlab_no_debug) do |string_klass, data_size|
   # Store class of the object
   StoreI(_start, string_klass).Imm(Constants::OBJECT_CLASS_OFFSET).ref
   # Update the TLAB state
-  StoreI(Add(_tlab, Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr, Add(_start, _size).ptr).Imm(0).Volatile.ptr
+  StoreI(Add(_tlab, Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr, Bitcast(Add(_start, _size).ptr).word).Imm(0).Volatile.ref_uint
   # Return a pointer to the newly allocated string
   _allocated_string := _start
 end  # allocate_string_tlab_no_debug
@@ -353,9 +353,9 @@ macro(:allocate_array_of_bytes_tlab) do |array_klass_dummy, char_count, cgmode|
   # Load pointer to the TLAB from TLS
   _tlab := LoadI(%tr).Imm(Constants::TLAB_OFFSET).ptr
   # Load pointer to the start address of free memory in the TLAB
-  _start := LoadI(_tlab).Imm(Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr
+  _start := Cast(LoadI(_tlab).Imm(Constants::TLAB_CUR_FREE_POSITION_OFFSET).ref_uint).ptr
   # Load pointer to the end address of free memory in the TLAB
-  _end := LoadI(_tlab).Imm(Constants::TLAB_MEMORY_END_ADDR_OFFSET).ptr
+  _end := Cast(LoadI(_tlab).Imm(Constants::TLAB_MEMORY_END_ADDR_OFFSET).ref_uint).ptr
   # Check if there is enough space
   If(Sub(_end, _start).word, _size).B.Unlikely.b {
     Goto(:SlowPathEntrypoint)
@@ -377,7 +377,7 @@ macro(:allocate_array_of_bytes_tlab) do |array_klass_dummy, char_count, cgmode|
   # Store array length
   StoreI(_start, elements_num).Imm(Constants::ARRAY_LENGTH_OFFSET).word
   # Update the TLAB state
-  StoreI(Add(_tlab, Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr, Add(_start, _size).ptr).Imm(0).Volatile.ptr
+  StoreI(Add(_tlab, Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr, Bitcast(Add(_start, _size).ptr).word).Imm(0).Volatile.ref_uint
   # Return a pointer to the newly allocated array
   _allocated_array := _start
 end  # allocate_array_of_bytes_tlab
@@ -401,9 +401,9 @@ macro(:allocate_array_of_chars_tlab) do |array_klass_dummy, char_count, cgmode|
   # Load pointer to the TLAB from TLS
   _tlab := LoadI(%tr).Imm(Constants::TLAB_OFFSET).ptr
   # Load pointer to the start address of free memory in the TLAB
-  _start := LoadI(_tlab).Imm(Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr
+  _start := Cast(LoadI(_tlab).Imm(Constants::TLAB_CUR_FREE_POSITION_OFFSET).ref_uint).ptr
   # Load pointer to the end address of free memory in the TLAB
-  _end := LoadI(_tlab).Imm(Constants::TLAB_MEMORY_END_ADDR_OFFSET).ptr
+  _end := Cast(LoadI(_tlab).Imm(Constants::TLAB_MEMORY_END_ADDR_OFFSET).ref_uint).ptr
   # Check if there is enough space
   If(Sub(_end, _start).word, _size).B.Unlikely.b {
     Goto(:SlowPathEntrypoint)
@@ -425,7 +425,7 @@ macro(:allocate_array_of_chars_tlab) do |array_klass_dummy, char_count, cgmode|
   # Store array length
   StoreI(_start, elements_num).Imm(Constants::ARRAY_LENGTH_OFFSET).word
   # Update the TLAB state
-  StoreI(Add(_tlab, Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr, Add(_start, _size).ptr).Imm(0).ptr
+  StoreI(Add(_tlab, Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr, Bitcast(Add(_start, _size).ptr).word).Imm(0).ref_uint
   # Return a pointer to the newly allocated array
   _allocated_array := _start
 end  # allocate_array_of_chars_tlab

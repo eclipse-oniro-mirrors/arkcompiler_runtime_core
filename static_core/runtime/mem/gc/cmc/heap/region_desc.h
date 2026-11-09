@@ -834,6 +834,11 @@ public:
         return metadata.tlab != nullptr;
     }
 
+    TLAB *GetTLAB()
+    {
+        return metadata.tlab;
+    }
+
     void DetachTLAB()
     {
         ASSERT_PRINT(metadata.tlab != nullptr, "TLAB in RegionDesc is already nullptr");

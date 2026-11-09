@@ -26,14 +26,12 @@
 #include "runtime/include/panda_vm.h"
 #include "runtime/include/runtime.h"
 #include "runtime/include/runtime_notification.h"
-#include "runtime/include/stack_walker.h"
 #include "runtime/include/thread.h"
-#include "runtime/include/thread_scopes.h"
 #include "runtime/include/safepoint_timer.h"
-#include "runtime/interpreter/runtime_interface.h"
 #include "runtime/handle_scope-inl.h"
 #include "runtime/mem/object_helpers.h"
 #include "tooling/pt_thread_info.h"
+#include "runtime/include/mem/tlab_keeper.h"
 #include "runtime/mem/runslots_allocator-inl.h"
 #include <sys/time.h>
 
@@ -48,7 +46,6 @@ static_assert(static_cast<uint8_t>(CurrentFrameKind::INTERPRETER) == 0);
 static_assert(static_cast<uint8_t>(CurrentFrameKind::COMPILER) == 1);
 static_assert(static_cast<uint8_t>(CurrentFrameKind::NATIVE) == 2);
 
-mem::TLAB *ManagedThread::zeroTlab_ = nullptr;
 static const int MIN_PRIORITY = os::thread::LOWEST_PRIORITY;
 static constexpr int MICROSEC_CONVERSION = 1000000;
 
@@ -94,29 +91,6 @@ void ManagedThread::InitThreadRandomState()
     struct timeval tv = {0, 0};
     gettimeofday(&tv, nullptr);
     threadRandomState_ = static_cast<uint64_t>(tv.tv_sec * MICROSEC_CONVERSION + tv.tv_usec);
-}
-
-/* static */
-void ManagedThread::Initialize()
-{
-    ASSERT(!Mutator::GetCurrent());
-    ASSERT(!zeroTlab_);
-    mem::InternalAllocatorPtr allocator = Runtime::GetCurrent()->GetInternalAllocator();
-    zeroTlab_ = allocator->New<mem::TLAB>(nullptr, 0U);
-    InitializeInitMutatorFlag();
-}
-
-/* static */
-void ManagedThread::Shutdown()
-{
-    ASSERT(zeroTlab_);
-    ManagedThread::SetCurrent(nullptr);
-    mem::InternalAllocatorPtr allocator = Runtime::GetCurrent()->GetInternalAllocator();
-    allocator->Delete(zeroTlab_);
-    zeroTlab_ = nullptr;
-    /* @sync 1
-     * @description: Runtime is terminated at this point and we cannot create new threads
-     * */
 }
 
 /* static */
@@ -172,21 +146,6 @@ ManagedThread::ManagedThread(ThreadId id, mem::InternalAllocatorPtr allocator, P
     taggedHandleStorage_ = allocator->New<HandleStorage<TaggedType>>(allocator);
     taggedGlobalHandleStorage_ = allocator->New<GlobalHandleStorage<TaggedType>>(allocator);
     objectHeaderHandleStorage_ = allocator->New<HandleStorage<ObjectHeader *>>(allocator);
-    if (Runtime::GetOptions().IsAdaptiveTlabSize()) {
-        constexpr size_t MAX_GROW_RATIO = 2;
-        constexpr float WEIGHT = 0.5;
-        constexpr float DESIRED_FILL_FRACTION = 0.9;
-        size_t initTlabSize = Runtime::GetOptions().GetInitTlabSize();
-        size_t maxTlabSize = Runtime::GetOptions().GetMaxTlabSize();
-        if (initTlabSize < 4_KB) {
-            LOG(FATAL, RUNTIME) << "Initial TLAB size must be greater than 4Kb";
-        }
-        if (initTlabSize > maxTlabSize) {
-            LOG(FATAL, RUNTIME) << "Initial TLAB size must be less or equal to max TLAB size";
-        }
-        weightedAdaptiveTlabAverage_ = allocator->New<WeightedAdaptiveTlabAverage>(
-            initTlabSize, maxTlabSize, MAX_GROW_RATIO, WEIGHT, DESIRED_FILL_FRACTION);
-    }
 }
 
 ManagedThread::~ManagedThread()
@@ -194,17 +153,11 @@ ManagedThread::~ManagedThread()
     // ManagedThread::ShutDown() may not be called when exiting js_thread, so need set current_thread = nullptr
     // NB! ThreadManager is expected to store finished threads in separate list and GC destroys them,
     // current_thread should be nullified in Destroy()
-    // We should register TLAB size for MemStats during thread destroy.
-    // (zero_tlab == nullptr means that we destroyed Runtime and do not need to register TLAB)
-    if (zeroTlab_ != nullptr) {
-        ASSERT(tlab_ == zeroTlab_);
-    }
 
     mem::InternalAllocatorPtr allocator = GetInternalAllocator(this);
     allocator->Delete(objectHeaderHandleStorage_);
     allocator->Delete(taggedGlobalHandleStorage_);
     allocator->Delete(taggedHandleStorage_);
-    allocator->Delete(weightedAdaptiveTlabAverage_);
     mem::InternalAllocator<>::FinalizeLocalInternalAllocator(internalLocalAllocator_,
                                                              static_cast<mem::Allocator *>(allocator));
     internalLocalAllocator_ = nullptr;
@@ -527,19 +480,6 @@ Span<LockedObjectInfo> MTManagedThread::GetLockedObjectInfos()
     return localObjectsLocked_.Data();
 }
 
-void ManagedThread::UpdateTLAB(mem::TLAB *tlab)
-{
-    ASSERT(tlab_ != nullptr);
-    ASSERT(tlab != nullptr);
-    tlab_ = tlab;
-}
-
-void ManagedThread::ClearTLAB()
-{
-    ASSERT(zeroTlab_ != nullptr);
-    tlab_ = zeroTlab_;
-}
-
 /* Common actions for creation of the thread. */
 void MTManagedThread::ProcessCreatedThread()
 {
@@ -772,13 +712,6 @@ void MTManagedThread::FreeInternalMemory()
     ManagedThread::FreeInternalMemory();
 }
 
-void ManagedThread::CollectTLABMetrics()
-{
-    if (zeroTlab_ != nullptr) {
-        GetVM()->GetHeapManager()->RegisterTLAB(GetTLAB());
-    }
-}
-
 void ManagedThread::DestroyInternalResources()
 {
     GetVM()->GetGC()->OnMutatorTerminate(this, mem::BuffersKeepingFlag::DELETE);
@@ -810,7 +743,6 @@ void ManagedThread::FreeInternalMemory()
     allocator->Delete(internalLocalAllocator_);
 
     allocator->Delete(ptThreadInfo_.release());
-    allocator->Delete(weightedAdaptiveTlabAverage_);
 
     taggedHandleScopes_.~PandaVector<HandleScope<coretypes::TaggedType> *>();
     allocator->Delete(taggedHandleStorage_);
@@ -845,6 +777,10 @@ void ManagedThread::CleanUp()
     // Cleanup Exception, TLAB, cache interpreter, HandleStorage
     ClearException();
     ClearTLAB();
+    auto *keeper = this->MoveTLABKeeper();
+    if (keeper != nullptr) {
+        keeper->DecreaseRefCounter();
+    }
 
 #if defined(VERBOSE_THREAD_STATE_LOG)
     while (!threadFrameStates_.empty()) {
