@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2022 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -226,9 +226,11 @@ void InstBuilder::FixInstructions()
                 }
                 auto pred = defs_[pred_bb->GetId()][inst->GetLinearNumber()];
                 if (pred == nullptr) {
-                    // If any input of phi instruction is not defined then we assume that phi is dead. DCE should
-                    // remove it.
-                    continue;
+                    // If any input of phi instruction is not defined then we append a zero constant instead.
+                    // Skipping the input breaks the cfg-preds/phi-inputs one-to-one invariant: if the phi is
+                    // later typed by SetTypeRec, PhiResolver skips its removal (HasType) and the inconsistent
+                    // phi crashes downstream consumers (GraphChecker, GraphCloner, LivenessAnalyzer).
+                    pred = FindOrCreate32BitConstant(0);
                 }
                 inst->AppendInput(pred);
             }

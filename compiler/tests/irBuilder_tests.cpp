@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2023 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2023-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -29,6 +29,7 @@
 #include "optimizer/ir/inst.h"
 #include "optimizer/ir/runtime_interface.h"
 #include "optimizer/ir_builder/ir_builder.h"
+#include "optimizer/ir_builder/phi_resolver.h"
 
 namespace panda::compiler {
 class IrBuilderTest : public testing::Test {
@@ -691,5 +692,50 @@ HWTEST_F(IrBuilderTest, nestedTryCatchAbc, testing::ext::TestSize.Level1)
 
         EXPECT_EQ(numOfTry, 2);
     });
+}
+
+HWTEST_F(IrBuilderTest, phiResolverRemovesTypedPhiWithInconsistentInputs, testing::ext::TestSize.Level1)
+{
+    ArenaAllocator allocator {SpaceType::SPACE_TYPE_COMPILER};
+    ArenaAllocator local_allocator {SpaceType::SPACE_TYPE_COMPILER, nullptr, true};
+    auto *graph = allocator.New<Graph>(&allocator, &local_allocator, Arch::AARCH64, true);
+
+    auto *start = graph->CreateStartBlock();
+    auto *end = graph->CreateEndBlock();
+    auto *bb1 = graph->CreateEmptyBlock();
+    auto *bb2 = graph->CreateEmptyBlock();
+    auto *bb3 = graph->CreateEmptyBlock();
+
+    auto *c0 = graph->FindOrCreateConstant(0U);
+
+    start->AddSucc(bb1);
+    start->AddSucc(bb2);
+    bb1->AddSucc(bb3);
+    bb2->AddSucc(bb3);
+    bb3->AddSucc(end);
+
+    auto *phi = graph->CreateInstPhi();
+    phi->SetType(DataType::INT32);
+    bb3->AppendPhi(phi);
+    phi->AppendInput(c0);  // only ONE input for TWO preds - the inconsistency to be resolved
+    
+    // The phi's only user is a SaveState - exactly the shape produced by
+    // IrBuilder when a register is only live in the stack-map.
+    auto *ss = graph->CreateInstSaveState();
+    ss->SetMethod(0U);
+    ss->SetPc(0U);
+    bb3->AppendInst(ss);
+    ss->AppendInput(phi);
+
+    PhiResolver resolver(graph);
+    resolver.Run();
+
+    // The inconsistent typed Phi must not survive PhiResolver: it has to be
+    // removed (its only user is a SaveState, so cleanup is legal).
+    for (auto bb : graph->GetBlocksRPO()) {
+        for (auto inst : bb->AllInsts()) {
+            ASSERT_FALSE(inst->IsPhi());
+        }
+    }
 }
 } // namespace panda::compiler
