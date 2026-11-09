@@ -53,10 +53,11 @@ group("ark_packages") {
   if (ark_ets_interop_js) {
     deps += [ "runtime/interop_js:ets_interop_js_napi" ]
   }
-  if (!is_host_product &&
-      !(ark_standalone_build ||
-        (defined(ohos_indep_compiler_enable) && ohos_indep_compiler_enable) ||
-        (defined(ark_static_standalone_build) && ark_static_standalone_build))) {
+  if (!is_host_product && !(ark_standalone_build ||
+                            (defined(ohos_indep_compiler_enable) &&
+                             ohos_indep_compiler_enable) ||
+                            (defined(ark_static_standalone_build) &&
+                             ark_static_standalone_build))) {
     deps += [
       ":commonsdk_packages",
       ":etsstdlib_bootabc",
@@ -176,13 +177,13 @@ if (!is_host_product &&
       "$ark_root/plugins/ets/stdlib/native/core/stdlib_ani_helpers.cpp",
     ]
     if (path_exists("//third_party/libxml2")) {
-      defines = ["IMPORT_LIBXML2"]
-      sources += ["$ark_root/plugins/ets/sdk/native/api/ani_xmlsaxparser.cpp"]
+      defines = [ "IMPORT_LIBXML2" ]
+      sources += [ "$ark_root/plugins/ets/sdk/native/api/ani_xmlsaxparser.cpp" ]
     }
     external_deps = ets_sdk_native_external_deps
     deps = [
       "$ark_root/libarkbase:libarktsbase_static",
-      "$ark_root/plugins/ets/runtime/ani:ani",
+      "$ark_root/plugins/ets/runtime/ani",
       "$ark_root/plugins/ets/runtime/libani_helpers:ani_helpers",
     ]
     subsystem_name = "arkcompiler"
@@ -302,6 +303,14 @@ if (with_stdlib) {
   }
   es2panda_gen("etsstdlib") {
     inputs = [ "stdlib" ]
+    if (!ark_static_standalone_build && !ark_standalone_build) {
+      dependency_roots = [
+        "stdlib/std",
+        "stdlib/escompat",
+        "stdlib/arkruntime",
+        "stdlib/stdconfig.json",
+      ]
+    }
     if (ark_static_standalone_build) {
       outputs = [ "$root_build_dir/plugins/ets/etsstdlib.abc" ]
     } else {
@@ -314,7 +323,8 @@ if (with_stdlib) {
         delim = "/"
       }
       sdk_src_dir = rebase_path("./sdk")
-      etsgen_relative_path = "./gen/arkcompiler/runtime_core/static_core/plugins/ets"
+      etsgen_relative_path =
+          "./gen/arkcompiler/runtime_core/static_core/plugins/ets"
       json_array = [
         "{",
         "  \"compilerOptions\": {",
@@ -343,7 +353,9 @@ if (with_stdlib) {
         "      \"@ohos.base\": [\"${sdk_src_dir}${delim}api${delim}@ohos.base.ets\"],",
         "      \"@arkts.math.Decimal\": [\"${sdk_src_dir}${delim}arkts${delim}@arkts.math.Decimal.ets\"],",
         "      \"@arkts.collections\": [\"${sdk_src_dir}${delim}arkts${delim}@arkts.collections.ets\"],",
-        "      \"import_tests\": [\"" + rebase_path("${ark_es2panda_root}/test/parser/ets/import_tests") + "\"]",
+        "      \"import_tests\": [\"" +
+            rebase_path("${ark_es2panda_root}/test/parser/ets/import_tests") +
+            "\"]",
         "    },",
         "    \"dependencies\": {",
         "      \"std/core\": { \"path\": \"${etsgen_relative_path}/etsstdlib.abc\" },",
@@ -386,7 +398,8 @@ if (with_stdlib) {
         "    \"baseUrl\": \"$abs_ark_root\",",
         "    \"paths\": {",
         "      \"std\": [\"$abs_ark_root" + "/plugins/ets/stdlib/std\"],",
-        "      \"escompat\": [\"$abs_ark_root" + "/plugins/ets/stdlib/escompat\"],",
+        "      \"escompat\": [\"$abs_ark_root" +
+            "/plugins/ets/stdlib/escompat\"],",
         "      \"api\": [\"$abs_ark_root" + "/plugins/ets/sdk/api\"],",
         "      \"arkts\": [\"$abs_ark_root" + "/plugins/ets/sdk/arkts\"],",
         "      \"import_tests\": [\"$abs_ark_root" +
