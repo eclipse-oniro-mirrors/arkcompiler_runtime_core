@@ -33,6 +33,46 @@ function RunTasksTest(): void {
     arktest.assertEQ(runId1, runId2);
 }
 
+// Regression test for the data race between InteropWorker.start consuming
+// pendingTasks and EAWorker.run enqueueing into it :
+// tasks submitted while interop initialization is still in progress must not be lost.
+function RunTasksImmediatelyAfterStartTest(): void {
+    const iterations = 50;
+    for (let i = 0; i < iterations; i++) {
+        let w = new EAWorker(true);
+        w.start();
+        let p1 = w.run<int>(():int => { return 1; });
+        let p2 = w.run<int>(():int => { return 2; });
+        let p3 = w.run<int>(():int => { return 3; });
+        arktest.assertEQ(p1.Await(), 1);
+        arktest.assertEQ(p2.Await(), 2);
+        arktest.assertEQ(p3.Await(), 3);
+        w.quit();
+    }
+}
+
+function RunTasksRaceWithInteropInitTest(): void {
+    const iterations = 10;
+    const tasksPerWorker = 64;
+    for (let i = 0; i < iterations; i++) {
+        let w = new EAWorker(true);
+        w.start();
+        let done = new CompletableJob<void>();
+        let executed = new AtomicInt(0);
+        let task = ():int => {
+            if (executed.fetchAdd(1) == tasksPerWorker - 1) {
+                done.finish();
+            }
+            return 0;
+        };
+        for (let k = 0; k < tasksPerWorker; k++) {
+            w.run<int>(task);
+        }
+        done.Await();
+        w.quit();
+    }
+}
+
 function RunTasksWithJsCallTest(): void {
     let mainId = CoroutineExtras.getWorkerId();
     let w = new EAWorker(true);

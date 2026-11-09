@@ -31,6 +31,12 @@ function runTest() {
 
     let RunTasksTest = etsVm.getFunction('Leaworker_test/ETSGLOBAL;', 'RunTasksTest');
     RunTasksTest();
+    let RunTasksImmediatelyAfterStartTest = etsVm.getFunction('Leaworker_test/ETSGLOBAL;',
+                                                              'RunTasksImmediatelyAfterStartTest');
+    RunTasksImmediatelyAfterStartTest();
+    let RunTasksRaceWithInteropInitTest = etsVm.getFunction('Leaworker_test/ETSGLOBAL;',
+                                                            'RunTasksRaceWithInteropInitTest');
+    RunTasksRaceWithInteropInitTest();
     let RunTasksWithJsCallTest = etsVm.getFunction('Leaworker_test/ETSGLOBAL;', 'RunTasksWithJsCallTest');
     RunTasksWithJsCallTest();
     let RunTasksWithJsAsyncCallTest = etsVm.getFunction('Leaworker_test/ETSGLOBAL;', 'RunTasksWithJsAsyncCallTest');
