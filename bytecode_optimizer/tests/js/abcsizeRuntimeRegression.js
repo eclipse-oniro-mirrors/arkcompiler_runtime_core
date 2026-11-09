@@ -41,6 +41,47 @@ function numeric() {
     equal((huge * huge) - (huge * huge), NaN, 'NaN');
 }
 
+function mixedNumeric() {
+    equal(1e2 + 3, 103, 'scientific plus integer');
+    equal(2.5 * 4, 10, 'fraction times integer');
+    equal(1.5e2 - 0.5, 149.5, 'scientific minus fraction');
+    equal(300 / 1e1, 30, 'integer divided by scientific');
+    equal(2e1 * 3e0, 60, 'scientific times scientific');
+    equal(0.25 + 1.5e1, 15.25, 'fraction plus scientific');
+    equal(10 % 2.5, 0, 'integer modulo fraction');
+    equal((1e1 + 2.5) * 1e1, 125, 'mixed chain');
+    equal((2.5 * 4) + 0.5, 10.5, 'integer intermediate');
+    equal((2147483647 + 4) - 4, 2147483647, 'double intermediate');
+    equal(4 - 2.5, 1.5, 'mixed subtract');
+    equal(2.5 - 4, -1.5, 'mixed subtract reversed');
+    equal(4 / 2.5, 1.6, 'mixed divide');
+    equal(2.5 / 4, 0.625, 'mixed divide reversed');
+    equal(4 % 2.5, 1.5, 'mixed modulo');
+    equal(2.5 % 4, 2.5, 'mixed modulo reversed');
+    equal(0 * -2.5, -0, 'mixed zero multiply');
+    equal(-2.5 * 0, -0, 'mixed zero multiply reversed');
+    equal(0 / -2.5, -0, 'mixed zero divide');
+    equal(-10 % 2.5, -0, 'mixed zero modulo');
+    equal(-2.5 % 2, -0.5, 'mixed negative modulo');
+    equal(2147483647 + 0.5, 2147483647.5, 'mixed wide positive');
+    equal(-2147483648 - 0.5, -2147483648.5, 'mixed wide negative');
+    equal(2.5 / 0, Infinity, 'mixed divide by zero');
+    equal(2.5 / -0, -Infinity, 'mixed divide by negative zero');
+    equal(2.5 % 0, NaN, 'mixed modulo zero');
+    equal(2.5 % -0, NaN, 'mixed modulo negative zero');
+    equal(true + 2.5, 3.5, 'boolean conversion');
+    equal('2' + 0.5, '20.5', 'string concatenation');
+    equal(0.5 + '2', '0.52', 'string concatenation reversed');
+    let infinity = 1e308 * 2;
+    equal(infinity / 2, Infinity, 'mixed infinite numerator');
+    equal(2 / infinity, 0, 'mixed infinite denominator');
+    equal(infinity % 2, NaN, 'mixed infinite dividend');
+    equal(2 % infinity, 2, 'mixed infinite divisor');
+    let nan = infinity - infinity;
+    equal(nan / 2, NaN, 'mixed NaN numerator');
+    equal(2 % nan, NaN, 'mixed NaN divisor');
+}
+
 function mergeZero(flag) {
     let value;
     if (flag) { value = 0.0 / -2.0; } else { value = 0.0 / 2.0; }
@@ -148,6 +189,7 @@ function rangeAndRest() {
 }
 
 numeric();
+mixedNumeric();
 equal(mergeZero(true), -Infinity, 'negative zero merge');
 equal(mergeZero(false), Infinity, 'positive zero merge');
 dynamicSemantics();
