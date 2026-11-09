@@ -308,6 +308,115 @@ HWTEST_F(CrossModuleHoleCheckTest, acyclic_import_removes_throw, TestSize.Level1
     EXPECT_EQ(CountThrows(it->second), 0U) << "acyclic import should let Rule 1 remove the redundant throw";
 }
 
+/*
+ * Build the standard fixture used by the concurrency test: importers "A",
+ * "A1", "A2", ... (importers count) import B from acyclic "SRC"; module
+ * "CYC" imports from "FIX" which re-exports back to CYC (cyclic — the throw
+ * must be kept on every path).
+ */
+void BuildConcurrencyFixture(Program &prog, size_t importers)
+{
+    prog.lang = LANG;
+    // SRC must be ATTACHED: an absent non-SDK record is conservatively cyclic.
+    prog.literalarray_table["SRC_mod"] = BuildModuleLiteral({}, {}, {});
+    AttachModuleLiteral(AddRecord(prog, "SRC"), "SRC_mod");
+    prog.literalarray_table["FIX_mod"] = BuildModuleLiteral({"./CYC.js"}, {}, {{"B", "A", 0}});
+    for (size_t i = 0U; i < importers; ++i) {
+        std::string name = "A" + (i == 0U ? std::string() : std::to_string(i));
+        prog.literalarray_table[name + "_mod"] = BuildModuleLiteral({"./SRC.js"}, {{"B", "B", 0}}, {});
+        AttachModuleLiteral(AddRecord(prog, name), name + "_mod");
+        AddHoleCheckFunction(prog, name + ".func_main_0:(any,any,any)", name + ".func_main_0");
+    }
+    prog.literalarray_table["CYC_mod"] = BuildModuleLiteral({"./FIX.js"}, {{"B", "B", 0}}, {});
+    AttachModuleLiteral(AddRecord(prog, "CYC"), "CYC_mod");
+    AttachModuleLiteral(AddRecord(prog, "FIX"), "FIX_mod");
+    AddHoleCheckFunction(prog, "CYC.func_main_0:(any,any,any)", "CYC.func_main_0");
+}
+
+/**
+ * @tc.name: parallel_elimination_matches_serial
+ * @tc.desc: With threadCount > 1 the per-function elimination runs on
+ *           WorkerQueue worker threads (EmitPrograms passes the emit thread
+ *           count). Tasks share no mutable state — each mutates exactly its
+ *           own Function and reads the frozen cycle-analysis results — so the
+ *           result must be identical to the serial path: acyclic throws
+ *           removed, cyclic throws kept, on every function.
+ * @tc.type: FUNC
+ * @tc.require: issueNumber
+ */
+HWTEST_F(CrossModuleHoleCheckTest, parallel_elimination_matches_serial, TestSize.Level1)
+{
+    constexpr size_t importers = 16U;  // enough tasks to spread over workers
+
+    Program serialProg;
+    BuildConcurrencyFixture(serialProg, importers);
+    std::vector<Program *> serialProgs {&serialProg};
+    EliminateCrossModuleHoleChecks(serialProgs);  // serial path (default)
+
+    Program parallelProg;
+    BuildConcurrencyFixture(parallelProg, importers);
+    std::vector<Program *> parallelProgs {&parallelProg};
+    EliminateCrossModuleHoleChecks(parallelProgs, 4U);  // worker-queue path
+
+    for (size_t i = 0U; i < importers; ++i) {
+        std::string name = "A" + (i == 0U ? std::string() : std::to_string(i));
+        auto serialIt = serialProg.function_table.find(name + ".func_main_0:(any,any,any)");
+        auto parallelIt = parallelProg.function_table.find(name + ".func_main_0:(any,any,any)");
+        ASSERT_NE(serialIt, serialProg.function_table.end());
+        ASSERT_NE(parallelIt, parallelProg.function_table.end());
+        EXPECT_EQ(CountThrows(serialIt->second), 0U) << name << ": serial must remove the acyclic throw";
+        EXPECT_EQ(CountThrows(parallelIt->second), 0U)
+            << name << ": parallel path must match serial on the acyclic import";
+    }
+    auto serialCyc = serialProg.function_table.find("CYC.func_main_0:(any,any,any)");
+    auto parallelCyc = parallelProg.function_table.find("CYC.func_main_0:(any,any,any)");
+    ASSERT_NE(serialCyc, serialProg.function_table.end());
+    ASSERT_NE(parallelCyc, parallelProg.function_table.end());
+    EXPECT_EQ(CountThrows(serialCyc->second), 1U) << "serial: cyclic import must keep the throw";
+    EXPECT_EQ(CountThrows(parallelCyc->second), 1U) << "parallel: cyclic import must keep the throw";
+}
+
+/**
+ * @tc.name: malformed_module_literal_disables_fallback
+ * @tc.desc: The single-module fallback counts every resolvable module
+ *           literal, INCLUDING one whose layout fails to parse. With a
+ *           parseable A (SDK import, mangled function) and a malformed B
+ *           (truncated literal, unmangled function), the fallback must stay
+ *           disabled: B's function is NOT attributed to A and its TDZ throw
+ *           stays conservative, while A's own throw is still removed via its
+ *           trie attribution.
+ * @tc.type: FUNC
+ * @tc.require: issueNumber
+ */
+HWTEST_F(CrossModuleHoleCheckTest, malformed_module_literal_disables_fallback, TestSize.Level1)
+{
+    Program prog;
+    prog.lang = LANG;
+
+    // A: parseable module importing B from an SDK record (acyclic chain).
+    prog.literalarray_table["A_mod"] = BuildModuleLiteral({"@ohos:svc"}, {{"B", "B", 0}}, {});
+    AttachModuleLiteral(AddRecord(prog, "A"), "A_mod");
+    AddHoleCheckFunction(prog, "A.func_main_0:(any,any,any)", "A.func_main_0");
+
+    // B: literal present but truncated (claims 1 request, none follows) —
+    // unparseable, so B contributes no import-graph node.
+    std::vector<Literal> truncated;
+    truncated.push_back(LitInt(1U));  // nReq = 1, then cut off
+    prog.literalarray_table["B_mod"] = LiteralArray(std::move(truncated));
+    AttachModuleLiteral(AddRecord(prog, "B"), "B_mod");
+    AddHoleCheckFunction(prog, "B.func_main_0:(any,any,any)", "B.func_main_0");
+
+    std::vector<Program *> progs {&prog};
+    EliminateCrossModuleHoleChecks(progs);
+
+    auto aIt = prog.function_table.find("A.func_main_0:(any,any,any)");
+    auto bIt = prog.function_table.find("B.func_main_0:(any,any,any)");
+    ASSERT_NE(aIt, prog.function_table.end());
+    ASSERT_NE(bIt, prog.function_table.end());
+    EXPECT_EQ(CountThrows(aIt->second), 0U) << "A: acyclic SDK import should remove the throw";
+    EXPECT_EQ(CountThrows(bIt->second), 1U) << "B: malformed literal must disable the fallback and keep the throw";
+}
+
 /**
  * @tc.name: star_export_cycle_keeps_throw
  * @tc.desc: A star export (`export * from 'mod'`) also creates an import edge.

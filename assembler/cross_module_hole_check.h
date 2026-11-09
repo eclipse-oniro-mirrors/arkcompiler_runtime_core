@@ -45,8 +45,16 @@ namespace panda::pandasm {
  * frontend generates from the lazy pattern above, which reuses the lazy
  * import's request index (CheckImplicitIndirectExport /
  * ConvertLocalExportToIndirect).
+ *
+ * Concurrency contract: import-graph collection and the one-shot cycle
+ * analysis are global and always run serially on the caller thread. The
+ * per-function elimination reads only those frozen results and mutates
+ * exactly one Function per task, so with `threadCount > 1` that stage runs on
+ * `panda::WorkerQueue` worker threads with no shared mutable state — the
+ * produced bytecode is identical to the serial path (`threadCount <= 1`,
+ * also the default) and independent of the scheduling order.
  */
-PANDA_PUBLIC_API void EliminateCrossModuleHoleChecks(const std::vector<Program *> &progs);
+PANDA_PUBLIC_API void EliminateCrossModuleHoleChecks(const std::vector<Program *> &progs, size_t threadCount = 1);
 
 }  // namespace panda::pandasm
 

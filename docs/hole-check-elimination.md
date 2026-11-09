@@ -85,7 +85,8 @@ record, local name}).
 ### Must-definition dataflow on ins
 
 A `CfgBuilder` splits `func.ins` into basic blocks (labels, jumps, returns as
-boundaries; catch entries marked). `SolveDataflow` iterates the fixpoint: per
+boundaries; catch entries marked). `SolveDataflow` drives the fixpoint with a
+worklist (a block is re-evaluated only when a predecessor's OUT changed): per
 block, `FlowState` tracks the accumulator's origin (`ValueOrigin`: known
 external slot, or unknown) and each register's origin, plus a `proven` set of
 slots proven non-hole by a prior throw (Rule T at ins level). Join = field-wise
@@ -95,11 +96,23 @@ pollute handlers.
 ### Elimination
 
 A throw is removable when its acc origin is a known external slot and either:
-1. The import is acyclic (`IsImportAcyclic`: DFS the import graph; all records
-   visible and the source cannot reach back to the importer; unknown records
-   treated as cyclic — conservative).
+1. The import is acyclic (`AnalyzeImportCycles` precomputes, once per merged
+   program in O(V+E), each import edge's verdict and caches it on the
+   `ImportInfo`: "source reaches back to the importer" is same-SCC (Tarjan),
+   lazy-reexport pollution and absent-non-SDK reachability are backward
+   reachability passes; the per-throw check reads the cached flag in O(1).
+   Unknown records are treated as cyclic — conservative).
 2. The slot is in the `proven` set (Rule T: a prior throw of the same slot
    executed without firing).
+
+### Parallel elimination stage
+
+Collection and the cycle analysis are global and serial. The per-function
+elimination reads only those frozen results and mutates exactly one `Function`
+per task, so `EliminateCrossModuleHoleChecks` runs that stage on
+`panda::WorkerQueue` worker threads when `threadCount > 1` (EmitPrograms
+passes `emitterConfig.fileThreadCount`; the default argument is serial).
+Bytecode output is identical to the serial path and scheduling-independent.
 
 Only the throw is removed — it passes the acc value through, which stays live.
 Dead-load cleanup: if the throw's feeding `ldexternalmodulevar` has no spill
@@ -109,8 +122,9 @@ reading it (or the function ends), the load is also removed.
 ### Single-module fallback
 
 For programs with a single module record, unmangled function names (no
-`record.` prefix) are attributed to that record via `OwnerRecord` with a
-`fallback` pointer.
+`record.` prefix) are attributed to that record via the trie-based
+`OwnerRecordResolver` fallback (longest record-name prefix followed by '.',
+one O(name-length) query per function instead of a graph scan).
 
 ## Source layout
 
