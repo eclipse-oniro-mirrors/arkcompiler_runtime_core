@@ -35,26 +35,53 @@ namespace {
 struct ImportInfo {
     std::string sourceRecord;
     std::string localName;
+    uint16_t reqIdx {0};
 };
-// Per-module import information used by the cross-module hole-check elimination.
-// `imports` maps a regular-import ldexternalmodulevar slot to its ImportInfo
-// (used to match a throw's slot/name against the importing binding). `sources`
-// lists every module this module imports from by ANY edge kind (regular
-// import, namespace import, indirect/re-export, star export) and is what cycle
-// detection walks. Re-exports (`export { X } from 'mod'`) and star exports
-// (`export * from 'mod'`) create import edges too, so they must be included or
-// cyclic-via-reexport graphs are misdetected as acyclic and Rule 1 wrongly
-// removes throws that guard TDZ bindings (see test262 instn-iee-bndng-*).
+/*
+ * Per-module import information used by the cross-module hole-check elimination.
+ * `imports` maps a regular-import ldexternalmodulevar slot to its ImportInfo
+ * (used to match a throw's slot/name against the importing binding). `sources`
+ * lists every module this module imports from by ANY edge kind (regular
+ * import, namespace import, indirect/re-export, star export) and is what cycle
+ * detection walks. Re-exports (`export { X } from 'mod'`) and star exports
+ * (`export * from 'mod'`) create import edges too, so they must be included or
+ * cyclic-via-reexport graphs are misdetected as acyclic and Rule 1 wrongly
+ * removes throws that guard TDZ bindings (see test262 instn-iee-bndng-*).
+ */
 struct ModuleNode {
     std::map<uint32_t, ImportInfo> imports;
     std::set<std::string> sources;
+    /*
+     * True when the module re-exports a binding whose source module request is
+     * a lazy import (recorded in the module-request phase literal buffer as
+     * INTEGER_8 = 1), so the re-export does not trigger the lazy load and the
+     * binding may still be hole even in an acyclic chain. Covers bindings only
+     * re-exported (never read, so no ldlazymodulevar is generated) which
+     * bytecode scanning would miss. Two literal forms carry re-exports:
+     *  - local re-export: a regular import whose localName matches a local
+     *    export (`import { x } from 'mod'; export { x };`);
+     *  - indirect re-export: `export { x } from 'mod'`, and — importantly —
+     *    the implicit indirect form the frontend generates from the ArkTS
+     *    lazy pattern `import lazy { x } from 'mod'; export { x };`
+     *    (CheckImplicitIndirectExport / ConvertLocalExportToIndirect moves the
+     *    local export into the indirect section and REUSES the lazy import's
+     *    request index).
+     * Star exports (`export * from 'mod'`) only ever create their own non-lazy
+     * request, so they carry no re-export request index. ModuleRequestRecord
+     * deduplicates by (source, isLazy), so an explicit non-lazy re-export of a
+     * lazily imported path references the non-lazy request — the phase literal
+     * stays the single source of truth for laziness.
+     */
+    bool mightReexportLazy {false};
 };
 using ImportGraph = std::map<std::string, ModuleNode>;
 
-// Record name of a module request path/spec. Mirrors the ohmurl conventions:
-// @bundle:record / @package:record / @normalized:N&...&record keep their tail
-// verbatim; a plain relative path (./b, ../x/b.js) resolves to the file base
-// name without extension — the way es2abc names plain-module records.
+/*
+ * Record name of a module request path/spec. Mirrors the ohmurl conventions:
+ * @bundle:record / @package:record / @normalized:N&...&record keep their tail
+ * verbatim; a plain relative path (./b, ../x/b.js) resolves to the file base
+ * name without extension — the way es2abc names plain-module records.
+ */
 std::string ModulePathToRecordName(const std::string &path)
 {
     constexpr char AND_TOKEN = '&';
@@ -82,20 +109,22 @@ std::string ModulePathToRecordName(const std::string &path)
     return base;
 }
 
-// Literal layout produced by the frontend's ModuleRecordEmitter (and restored
-// by abc2program), in fixed section order:
-//   [INT nReq][STRING spec]*nReq
-//   [INT nRegImp][(STRING local, STRING import, METHODAFFILIATE reqIdx)]*nRegImp
-//   [INT nNsImp][(STRING local, METHODAFFILIATE reqIdx)]*nNsImp
-//   [INT nLocalExp][(STRING local, STRING export)]*nLocalExp
-//   [INT nIndExp][(STRING export, STRING import, METHODAFFILIATE reqIdx)]*nIndExp
-//   [INT nStarExp][(METHODAFFILIATE reqIdx)]*nStarExp
-// Regular imports populate the slot->ImportInfo map (for throw slot/name
-// matching). Every edge kind (regular/namespace import, indirect re-export,
-// star export) contributes its source record to `sources` so cycle detection
-// sees re-export and star cycles, not just regular-import cycles.
-// Read the leading INT count of a section and advance the cursor; false on
-// truncation or tag mismatch.
+/*
+ * Literal layout produced by the frontend's ModuleRecordEmitter (and restored
+ * by abc2program), in fixed section order:
+ *   [INT nReq][STRING spec]*nReq
+ *   [INT nRegImp][(STRING local, STRING import, METHODAFFILIATE reqIdx)]*nRegImp
+ *   [INT nNsImp][(STRING local, METHODAFFILIATE reqIdx)]*nNsImp
+ *   [INT nLocalExp][(STRING local, STRING export)]*nLocalExp
+ *   [INT nIndExp][(STRING export, STRING import, METHODAFFILIATE reqIdx)]*nIndExp
+ *   [INT nStarExp][(METHODAFFILIATE reqIdx)]*nStarExp
+ * Regular imports populate the slot->ImportInfo map (for throw slot/name
+ * matching). Every edge kind (regular/namespace import, indirect re-export,
+ * star export) contributes its source record to `sources` so cycle detection
+ * sees re-export and star cycles, not just regular-import cycles.
+ * Read the leading INT count of a section and advance the cursor; false on
+ * truncation or tag mismatch.
+ */
 bool ReadSectionCount(const LiteralArray &arr, size_t *i, uint32_t *count)
 {
     if (*i >= arr.literals_.size() || arr.literals_[*i].tag_ != panda_file::LiteralTag::INTEGER) {
@@ -115,12 +144,14 @@ bool RecordSource(const std::vector<std::string> &requests, std::set<std::string
     return true;
 }
 
-// Every module request is a dependency edge — including side-effect imports
-// (`import "./mod"`) which carry a ModuleRequest but no regular-import entry.
-// Recording all requests here (not only the ones referenced by import/re-export
-// entries) ensures cyclic-via-side-effect-import graphs are seen as cyclic;
-// otherwise IsImportAcyclic traverses an empty source set and wrongly returns
-// acyclic, and Rule 1 removes a TDZ throw that must fire.
+/*
+ * Every module request is a dependency edge — including side-effect imports
+ * (`import "./mod"`) which carry a ModuleRequest but no regular-import entry.
+ * Recording all requests here (not only the ones referenced by import/re-export
+ * entries) ensures cyclic-via-side-effect-import graphs are seen as cyclic;
+ * otherwise IsImportAcyclic traverses an empty source set and wrongly returns
+ * acyclic, and Rule 1 removes a TDZ throw that must fire.
+ */
 bool ParseRequests(const LiteralArray &arr, size_t *i, std::vector<std::string> *requests,
                    std::set<std::string> *sources)
 {
@@ -157,6 +188,7 @@ bool ParseRegularImports(const LiteralArray &arr, size_t *i, const std::vector<s
         ImportInfo info;
         info.localName = std::get<std::string>(arr.literals_[*i].value_);
         auto reqIdx = std::get<uint16_t>(arr.literals_[*i + 2U].value_);
+        info.reqIdx = reqIdx;
         *i += 3U;
         if (!RecordSource(requests, sources, reqIdx)) {
             return false;
@@ -189,8 +221,12 @@ bool ParseNamespaceImports(const LiteralArray &arr, size_t *i, const std::vector
     return true;
 }
 
-// Local exports: (local, export). No import edge, skip.
-bool ParseLocalExports(const LiteralArray &arr, size_t *i)
+/*
+ * Local exports: (local, export). No import edge, but record the local names
+ * so re-exports (import { x } from 'mod'; export { x };) can be detected by
+ * matching a regular import's localName against this set.
+ */
+bool ParseLocalExports(const LiteralArray &arr, size_t *i, std::set<std::string> *localExportNames)
 {
     uint32_t nLocal = 0;
     if (!ReadSectionCount(arr, i, &nLocal)) {
@@ -201,16 +237,27 @@ bool ParseLocalExports(const LiteralArray &arr, size_t *i)
             arr.literals_[*i + 1U].tag_ != panda_file::LiteralTag::STRING) {
             return false;
         }
+        if (localExportNames != nullptr) {
+            localExportNames->insert(std::get<std::string>(arr.literals_[*i].value_));
+        }
         *i += 2U;
     }
     return true;
 }
 
-// Indirect exports (re-exports `export { X } from 'mod'`): (export, import, reqIdx).
-// These create an import edge to requests[reqIdx] — the edge that was missing
-// and let cyclic re-export graphs be misdetected as acyclic.
+/*
+ * Indirect exports (re-exports `export { X } from 'mod'`): (export, import, reqIdx).
+ * These create an import edge to requests[reqIdx] — the edge that was missing
+ * and let cyclic re-export graphs be misdetected as acyclic. The request index
+ * is also collected in `reexportReqIdxs` for lazy-re-export detection: the
+ * frontend rewrites `import lazy { x } from 'mod'; export { x };` into an
+ * INDIRECT export that reuses the lazy import's request index
+ * (CheckImplicitIndirectExport / ConvertLocalExportToIndirect), so a lazy
+ * request can hide here. Explicit `export { x } from 'mod'` requests are
+ * always non-lazy; checking them against the phase literal is a no-op.
+ */
 bool ParseIndirectExports(const LiteralArray &arr, size_t *i, const std::vector<std::string> &requests,
-                          std::set<std::string> *sources)
+                          std::set<std::string> *sources, std::set<uint16_t> *reexportReqIdxs)
 {
     uint32_t nInd = 0;
     if (!ReadSectionCount(arr, i, &nInd)) {
@@ -226,6 +273,9 @@ bool ParseIndirectExports(const LiteralArray &arr, size_t *i, const std::vector<
         *i += 3U;
         if (!RecordSource(requests, sources, reqIdx)) {
             return false;
+        }
+        if (reexportReqIdxs != nullptr) {
+            reexportReqIdxs->insert(reqIdx);
         }
     }
     return true;
@@ -251,39 +301,165 @@ bool ParseStarExports(const LiteralArray &arr, size_t *i, const std::vector<std:
     return true;
 }
 
-// Parse the module-record literal in fixed section order (see header comment):
-// regular/namespace imports, local/indirect/star exports. Regular imports fill
-// the slot->ImportInfo map (for throw slot/name matching); every edge kind
-// contributes its source record to `sources` so cycle detection sees re-export
-// and star cycles, not just regular-import cycles.
+/*
+ * Parse the module-record literal in fixed section order (see header comment):
+ * regular/namespace imports, local/indirect/star exports. Regular imports fill
+ * the slot->ImportInfo map (for throw slot/name matching); every edge kind
+ * contributes its source record to `sources` so cycle detection sees re-export
+ * and star cycles, not just regular-import cycles. `reexportReqIdxs` collects
+ * the module-request indices of re-exports so the caller can check them
+ * against the phase literal for lazy detection:
+ *  - indirect re-exports (collected in ParseIndirectExports): the frontend
+ *    rewrites the ArkTS lazy pattern `import lazy { x } from 'mod';
+ *    export { x };` into an INDIRECT export that REUSES the lazy import's
+ *    request index (CheckImplicitIndirectExport / ConvertLocalExportToIndirect),
+ *    so a lazy request can hide there;
+ *  - local re-exports (matched below): a regular import whose localName equals
+ *    a local export's localName — hand-written pandasm may still use this
+ *    form even though the frontend emits the implicit-indirect form above.
+ * Star exports (`export * from 'mod'`) only ever create their own non-lazy
+ * request, so they contribute no re-export request index.
+ */
 bool ParseModuleLiteral(const LiteralArray &arr, std::vector<std::string> *requests,
-                        std::map<uint32_t, ImportInfo> *imports, std::set<std::string> *sources)
+                        std::map<uint32_t, ImportInfo> *imports, std::set<std::string> *sources,
+                        std::set<uint16_t> *reexportReqIdxs)
 {
     size_t i = 0;
-    return ParseRequests(arr, &i, requests, sources) && ParseRegularImports(arr, &i, *requests, imports, sources) &&
-           ParseNamespaceImports(arr, &i, *requests, sources) && ParseLocalExports(arr, &i) &&
-           ParseIndirectExports(arr, &i, *requests, sources) && ParseStarExports(arr, &i, *requests, sources);
+    std::set<std::string> localExportNames;
+    bool ok = ParseRequests(arr, &i, requests, sources) && ParseRegularImports(arr, &i, *requests, imports, sources) &&
+              ParseNamespaceImports(arr, &i, *requests, sources) && ParseLocalExports(arr, &i, &localExportNames) &&
+              ParseIndirectExports(arr, &i, *requests, sources, reexportReqIdxs) &&
+              ParseStarExports(arr, &i, *requests, sources);
+    // Local re-exports: a regular import whose localName matches a local
+    // export. Add the import's reqIdx so the caller can check laziness.
+    if (ok && reexportReqIdxs != nullptr) {
+        for (const auto &[slot, info] : *imports) {
+            (void)slot;
+            if (localExportNames.count(info.localName) != 0U) {
+                reexportReqIdxs->insert(info.reqIdx);
+            }
+        }
+    }
+    return ok;
 }
 
-// Enumerate (module record name, module literal) pairs of a program. Two
-// layouts exist: merge-abc, where the module's own record carries a
-// `moduleRecordIdx` static field pointing at the literal; and single-file,
-// where every module literal hangs off the shared `_ESModuleRecord` keyed by
-// the source file path (module record name = its base name w/o extension).
-template <typename Callback>
-void ForEachModuleLiteral(const Program &prog, Callback cb)
+// Resolve the module name for a moduleRecordIdx field, or empty if not a module literal field.
+static std::string ResolveModuleName(const std::string &recName, const pandasm::Field &field)
+{
+    if (field.name == "moduleRecordIdx") {
+        return recName;
+    }
+    if (recName == "_ESModuleRecord" && field.metadata != nullptr) {
+        return ModulePathToRecordName(field.name);
+    }
+    return {};
+}
+
+// Phase literal-array ids keyed by module name, plus the ids collected from
+// the shared _ModuleRequestPhaseRecord (single-file layout, not module-keyed).
+struct PhaseLiteralIds {
+    std::unordered_map<std::string, std::string> perModule;
+    std::vector<std::string> shared;
+};
+
+/*
+ * Extract the phase literal-array id from a `moduleRequestPhaseIdx` field, or
+ * empty when the field is not a literal-array valued phase field.
+ */
+static std::string PhaseLiteralIdOf(const pandasm::Field &field)
+{
+    if (field.name != "moduleRequestPhaseIdx" || field.metadata == nullptr) {
+        return {};
+    }
+    auto value = field.metadata->GetValue();
+    if (!value.has_value() || value->GetType() != Value::Type::LITERALARRAY) {
+        return {};
+    }
+    return value->GetValue<std::string>();
+}
+
+// Fill the per-record and shared phase literal ids of every record in the program.
+static void CollectPhaseIdPerRecord(const Program &prog, PhaseLiteralIds &out)
 {
     for (const auto &[recName, record] : prog.record_table) {
         for (const auto &field : record.field_list) {
-            std::string moduleName;
-            if (field.name == "moduleRecordIdx") {
-                moduleName = recName;
-            } else if (recName == "_ESModuleRecord" && field.metadata != nullptr) {
-                moduleName = ModulePathToRecordName(field.name);
-            } else {
+            auto id = PhaseLiteralIdOf(field);
+            if (id.empty()) {
                 continue;
             }
-            if (field.metadata == nullptr) {
+            if (recName == "_ModuleRequestPhaseRecord") {
+                out.shared.push_back(std::move(id));
+            } else {
+                out.perModule[recName] = std::move(id);
+            }
+        }
+    }
+}
+
+// Collect the module names of every module literal field in the program.
+static std::set<std::string> CollectModuleNames(const Program &prog)
+{
+    std::set<std::string> moduleNames;
+    for (const auto &[recName, record] : prog.record_table) {
+        for (const auto &field : record.field_list) {
+            auto name = ResolveModuleName(recName, field);
+            if (!name.empty()) {
+                moduleNames.insert(std::move(name));
+            }
+        }
+    }
+    return moduleNames;
+}
+
+/*
+ * Collect the phase literal-array ids of a program. The phase literal contains
+ * one INTEGER_8 per module request in the same order as the requests section:
+ * 0 = non-lazy, 1 = lazy. Two layouts exist (see Emitter::AddModuleRequestPhaseRecord):
+ *  - merge-abc: each module's own record carries a `moduleRequestPhaseIdx`
+ *    static field pointing at its phase literal — keyed by the record name;
+ *  - single-file: module literals hang off the shared `_ESModuleRecord` keyed
+ *    by the source file path, while the shared `_ModuleRequestPhaseRecord`
+ *    carries a FIXED field name (`moduleRequestPhaseIdx`) that is NOT a module
+ *    key. The layout has exactly one module record (the compiled file itself),
+ *    so associate the shared phase literal with the sole module when
+ *    unambiguous; otherwise leave it unresolved — the caller then treats every
+ *    re-exporting module as potentially lazy (keeps throws, see
+ *    CheckLazyReexport).
+ */
+static PhaseLiteralIds CollectPhaseLiteralIds(const Program &prog)
+{
+    PhaseLiteralIds out;
+    CollectPhaseIdPerRecord(prog, out);
+    if (out.shared.empty()) {
+        return out;
+    }
+    auto moduleNames = CollectModuleNames(prog);
+    if (out.shared.size() == 1 && moduleNames.size() == 1) {
+        out.perModule[*moduleNames.begin()] = out.shared.front();
+    }
+    return out;
+}
+
+// Look up the phase literal for a module, or nullptr if not present.
+static const LiteralArray *LookupPhaseLiteral(const Program &prog, const std::string &moduleName,
+                                              const std::unordered_map<std::string, std::string> &phaseLiteralIds)
+{
+    auto phaseIt = phaseLiteralIds.find(moduleName);
+    if (phaseIt == phaseLiteralIds.end()) {
+        return nullptr;
+    }
+    auto pLitIt = prog.literalarray_table.find(phaseIt->second);
+    return (pLitIt != prog.literalarray_table.end()) ? &pLitIt->second : nullptr;
+}
+
+template <typename Callback>
+void ForEachModuleLiteral(const Program &prog, Callback cb)
+{
+    auto phaseLiteralIds = CollectPhaseLiteralIds(prog);
+    for (const auto &[recName, record] : prog.record_table) {
+        for (const auto &field : record.field_list) {
+            auto moduleName = ResolveModuleName(recName, field);
+            if (moduleName.empty() || field.metadata == nullptr) {
                 continue;
             }
             auto value = field.metadata->GetValue();
@@ -291,34 +467,94 @@ void ForEachModuleLiteral(const Program &prog, Callback cb)
                 continue;
             }
             auto litIt = prog.literalarray_table.find(value->GetValue<std::string>());
-            if (litIt != prog.literalarray_table.end()) {
-                cb(moduleName, litIt->second);
+            if (litIt == prog.literalarray_table.end()) {
+                continue;
             }
+            cb(moduleName, litIt->second, LookupPhaseLiteral(prog, moduleName, phaseLiteralIds.perModule));
         }
     }
 }
 
-// Collect import edges from every module record of the program.
+/*
+ * Check if any re-export (local or indirect) references a lazy module request.
+ * Returns true if a lazy re-export is found or if laziness cannot be ruled out
+ * (malformed phase entry: out-of-range index or unexpected tag — treating
+ * those as lazy keeps the throw instead of risking a hole leak). When the
+ * phase literal is missing but the program carries a shared
+ * `_ModuleRequestPhaseRecord` (single-file layout whose phase literal could not
+ * be associated with the module), laziness is undeterminable and any re-export
+ * conservatively keeps the throw. Without that record no request in the program
+ * is lazy at all, so re-exports are safely non-lazy.
+ */
+static bool CheckLazyReexport(const std::set<uint16_t> &reexportReqIdxs, const LiteralArray *phaseLiteral,
+                              bool hasSharedPhaseRecord)
+{
+    if (phaseLiteral == nullptr) {
+        return hasSharedPhaseRecord && !reexportReqIdxs.empty();
+    }
+    for (auto reqIdx : reexportReqIdxs) {
+        if (reqIdx >= phaseLiteral->literals_.size()) {
+            return true;  // malformed: cannot rule out lazy
+        }
+        if (phaseLiteral->literals_[reqIdx].tag_ != panda_file::LiteralTag::INTEGER_8) {
+            return true;  // malformed: unexpected tag, cannot rule out lazy
+        }
+        if (std::get<uint8_t>(phaseLiteral->literals_[reqIdx].value_) != 0U) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Collect import edges from every module record of the program. The phase
+// literal (if present) records which module requests are lazy imports.
 void CollectProgramImports(const Program &prog, ImportGraph *graph)
 {
-    ForEachModuleLiteral(prog, [graph](const std::string &moduleName, const LiteralArray &literal) {
+    bool hasSharedPhaseRecord = prog.record_table.find("_ModuleRequestPhaseRecord") != prog.record_table.end();
+    ForEachModuleLiteral(prog, [graph, hasSharedPhaseRecord](const std::string &moduleName, const LiteralArray &literal,
+                                                             const LiteralArray *phaseLiteral) {
         std::vector<std::string> requests;
         std::map<uint32_t, ImportInfo> imports;
         std::set<std::string> sources;
-        if (!ParseModuleLiteral(literal, &requests, &imports, &sources)) {
+        std::set<uint16_t> reexportReqIdxs;
+        if (!ParseModuleLiteral(literal, &requests, &imports, &sources, &reexportReqIdxs)) {
             return;
         }
         ModuleNode node;
         node.imports = std::move(imports);
         node.sources = std::move(sources);
+        node.mightReexportLazy = CheckLazyReexport(reexportReqIdxs, phaseLiteral, hasSharedPhaseRecord);
         (*graph)[moduleName] = std::move(node);
     });
 }
 
-// An import is cyclic iff the source record transitively imports back from
-// the importing record, by ANY edge kind (regular/namespace import, indirect
-// re-export, or star export). Every record on the chain must be present in
-// the graph; anything unknown is treated as cyclic (conservative).
+/*
+ * SDK module record names start with these prefixes. SDK modules are
+ * pre-compiled and shipped with the system; they never import back into
+ * project source, so an import chain that reaches an SDK record cannot be
+ * cyclic — even when the SDK record is absent from the current compilation
+ * (the normal case: the SDK is not part of the project's merge-abc input).
+ */
+bool IsSdkRecord(const std::string &recordName)
+{
+    return recordName.rfind("@ohos:", 0) == 0 || recordName.rfind("@system:", 0) == 0 ||
+           recordName.rfind("@hms:", 0) == 0;
+}
+
+/*
+ * An import is cyclic iff the source record transitively imports back from
+ * the importing record, by ANY edge kind (regular/namespace import, indirect
+ * re-export, or star export). Every record on the chain must be present in
+ * the graph; anything unknown is treated as cyclic (conservative) — EXCEPT
+ * SDK records (identified by the @ohos: / @system: / @hms prefix), which are
+ * guaranteed to never import back into project source, so a chain that
+ * reaches an absent SDK record is acyclic on that branch.
+ *
+ * Additionally, if any module on the chain might re-export a lazy-imported
+ * binding (hasReexport && hasLazyLoad), the import is treated as cyclic:
+ * a lazy re-export does not trigger module loading, so the binding may still
+ * be hole even in an acyclic chain.
+ */
 bool IsImportAcyclic(const ImportGraph &graph, const std::string &record, const ImportInfo &import)
 {
     std::vector<std::string> stack {import.sourceRecord};
@@ -334,7 +570,13 @@ bool IsImportAcyclic(const ImportGraph &graph, const std::string &record, const 
         }
         auto it = graph.find(cur);
         if (it == graph.end()) {
-            return false;  // record not in this compilation -> cannot rule out a cycle
+            if (IsSdkRecord(cur)) {
+                continue;  // SDK record absent from compilation -> cannot cycle back
+            }
+            return false;  // non-SDK record not in this compilation -> cannot rule out a cycle
+        }
+        if (it->second.mightReexportLazy) {
+            return false;  // module might re-export a lazy binding -> binding may be hole
         }
         for (const auto &src : it->second.sources) {
             stack.push_back(src);
@@ -354,10 +596,12 @@ bool OverwritesAccWithoutRead(const Ins &ins)
     return !ins.IsLabel() && ins.HasFlag(InstFlags::ACC_WRITE) && !ins.HasFlag(InstFlags::ACC_READ);
 }
 
-// The record a function belongs to: the longest module-record name that is a
-// name prefix followed by '.' (mangled names keep "record." as the prefix).
-// Single-record programs (plain single-file compiles) emit unmangled names;
-// `fallback` covers those.
+/*
+ * The record a function belongs to: the longest module-record name that is a
+ * name prefix followed by '.' (mangled names keep "record." as the prefix).
+ * Single-record programs (plain single-file compiles) emit unmangled names;
+ * `fallback` covers those.
+ */
 const std::string *OwnerRecord(const std::string &funcName, const ImportGraph &graph, const std::string *fallback)
 {
     const std::string *best = nullptr;
@@ -373,12 +617,14 @@ const std::string *OwnerRecord(const std::string &funcName, const ImportGraph &g
     return (best != nullptr) ? best : fallback;
 }
 
-// --- Must-definition dataflow over the linear ins sequence ---
-// Like the optimizer's must-availability analysis, but on pandasm ins: track,
-// per program point, the unique (must) origin of the accumulator and of each
-// register. Origin is either "external import slot N" (the value was produced
-// by ldexternalmodulevar N) or unknown. At a merge point the origins must
-// agree on every incoming path, otherwise they degrade to unknown.
+/*
+ * --- Must-definition dataflow over the linear ins sequence ---
+ * Like the optimizer's must-availability analysis, but on pandasm ins: track,
+ * per program point, the unique (must) origin of the accumulator and of each
+ * register. Origin is either "external import slot N" (the value was produced
+ * by ldexternalmodulevar N) or unknown. At a merge point the origins must
+ * agree on every incoming path, otherwise they degrade to unknown.
+ */
 
 struct ValueOrigin {
     bool known {false};
@@ -400,10 +646,12 @@ const ValueOrigin UNKNOWN_ORIGIN {};
 struct FlowState {
     ValueOrigin acc;
     std::unordered_map<uint16_t, ValueOrigin> regs;
-    // External slots proven non-hole by a prior throw that executed without
-    // firing on every incoming path (must-set; Rule T). Exception edges are
-    // not modeled — a catch entry starts from all-unknown — so a gen inside
-    // a try region cannot pollute the handler.
+    /*
+     * External slots proven non-hole by a prior throw that executed without
+     * firing on every incoming path (must-set; Rule T). Exception edges are
+     * not modeled — a catch entry starts from all-unknown — so a gen inside
+     * a try region cannot pollute the handler.
+     */
     std::unordered_set<uint32_t> proven;
 
     bool operator==(const FlowState &other) const
@@ -412,9 +660,11 @@ struct FlowState {
     }
 };
 
-// Instruction transfer. Only the register-defining instructions of the ES
-// subset are modeled (sta/mov); every other acc-writing instruction sets the
-// acc origin to unknown, which is the conservative lattice bottom.
+/*
+ * Instruction transfer. Only the register-defining instructions of the ES
+ * subset are modeled (sta/mov); every other acc-writing instruction sets the
+ * acc origin to unknown, which is the conservative lattice bottom.
+ */
 void TransferIns(const Ins &ins, FlowState &state)
 {
     auto opcode = ins.GetOpcode();
@@ -430,9 +680,11 @@ void TransferIns(const Ins &ins, FlowState &state)
             }
             return;
         case Opcode::THROW_UNDEFINEDIFHOLEWITHNAME:
-            // Rule T: reaching here means the throw executed without firing
-            // (a firing throw never continues), so the checked slot is
-            // non-hole from this point on.
+            /*
+             * Rule T: reaching here means the throw executed without firing
+             * (a firing throw never continues), so the checked slot is
+             * non-hole from this point on.
+             */
             if (state.acc.known) {
                 state.proven.insert(state.acc.slot);
             }
@@ -635,10 +887,12 @@ FlowState ComputeBlockIn(const BasicBlock &bb, const std::vector<BasicBlock> &bl
     }
     std::vector<FlowState> outs;
     outs.reserve(bb.preds.size() + (bb.isEntry ? 1U : 0U));
-    // The entry's first iteration has no prior throw executed; model a fresh-start
-    // pred so a back-edge into the entry (e.g. a top-level do-while whose loop
-    // head IS the entry) cannot pollute `proven` with a throw that only executed
-    // on later iterations — otherwise Rule T removes a TDZ throw that must fire.
+    /*
+     * The entry's first iteration has no prior throw executed; model a fresh-start
+     * pred so a back-edge into the entry (e.g. a top-level do-while whose loop
+     * head IS the entry) cannot pollute `proven` with a throw that only executed
+     * on later iterations — otherwise Rule T removes a TDZ throw that must fire.
+     */
     if (bb.isEntry) {
         outs.push_back(FlowState {});
     }
@@ -739,9 +993,11 @@ void RemoveDeadLoads(Function &func, const std::vector<size_t> &toRemove)
             LOG(DEBUG, ASSEMBLER) << "EliminateCrossModuleHoleChecks removes dead external load in " << func.name;
         }
     }
-    // Build old-to-new instruction index mapping so that local_variable_debug
-    // entries (whose start/length reference instruction positions) stay valid
-    // after instructions are erased below.
+    /*
+     * Build old-to-new instruction index mapping so that local_variable_debug
+     * entries (whose start/length reference instruction positions) stay valid
+     * after instructions are erased below.
+     */
     const size_t old_size = func.ins.size();
     std::vector<size_t> old_to_new(old_size + 1);
     size_t new_idx = 0;
@@ -757,10 +1013,12 @@ void RemoveDeadLoads(Function &func, const std::vector<size_t> &toRemove)
             func.ins.erase(func.ins.begin() + static_cast<std::ptrdiff_t>(i));
         }
     }
-    // Update local_variable_debug to reflect the new instruction indices after
-    // erasure. Without this, stale insn_order values in CollectLocalVariable
-    // can exceed ins.size() and cause out-of-bounds access in
-    // BuildLineNumberProgram (assembly-emitter.cpp).
+    /*
+     * Update local_variable_debug to reflect the new instruction indices after
+     * erasure. Without this, stale insn_order values in CollectLocalVariable
+     * can exceed ins.size() and cause out-of-bounds access in
+     * BuildLineNumberProgram (assembly-emitter.cpp).
+     */
     for (auto &v : func.local_variable_debug) {
         size_t old_start = std::min(static_cast<size_t>(v.start), old_size);
         size_t old_end = std::min(static_cast<size_t>(v.start) + static_cast<size_t>(v.length), old_size);
@@ -803,8 +1061,10 @@ void EliminateCrossModuleHoleChecks(const std::vector<Program *> &progs)
         size_t ownModules = 0U;
         // clang-format off
         ForEachModuleLiteral(*prog,
-            [&fallbackName, &ownModules](const std::string &moduleName, const LiteralArray &literal) {
+            [&fallbackName, &ownModules](const std::string &moduleName, const LiteralArray &literal,
+                                          const LiteralArray *phaseLiteral) {
                 (void)literal;
+                (void)phaseLiteral;
                 ++ownModules;
                 fallbackName = moduleName;
             });

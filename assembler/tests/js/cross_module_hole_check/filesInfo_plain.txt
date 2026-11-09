@@ -1,0 +1,3 @@
+/js/cross_module_hole_check/AP.js;AP;esm;js/cross_module_hole_check/AP.js;AP;false
+/js/cross_module_hole_check/BP.js;BP;esm;js/cross_module_hole_check/BP.js;BP;false
+/js/cross_module_hole_check/SRCP.js;SRCP;esm;js/cross_module_hole_check/SRCP.js;SRCP;false

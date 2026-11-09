@@ -91,6 +91,79 @@ function cantTryCatch() {
   }
 }
 
+// === local export (module variable) scenarios ===
+// `export let` binds a module variable accessed via stmodulevar /
+// ldlocalmodulevar. The frontend records the same module-level var_id for
+// these throws/stores (HoleCheckTarget::MODULE_LOCAL), so the optimizer
+// treats them identically to lexical bindings — Rule T and entry seeds both
+// apply. NB: these functions are function declarations (hoisted), so their
+// definefunc precedes the `stmodulevar localExport` declaration in
+// func_main_0 — the entry seed from func_main_0 is empty and the write-side
+// throw (which guards the first write) is kept.
+
+// Rule T, same block: a prior throw for the same module variable proves it
+// non-hole -> the second throw is eliminated.
+function canLocalMultiRead() {
+  let a = localExport;
+  let b = localExport;
+  return a + b;
+}
+
+// Rule T, write-then-read: the write-side throw (before the reassignment
+// store) is kept; the read-side throw (after the store) is eliminated.
+function canLocalStoreThenRead() {
+  localExport = 1;
+  return localExport;
+}
+
+// Cross-block: the reassignment store in the entry block dominates the read
+// in the if-body -> read-side throw eliminated.
+function canLocalCrossBlock(flag) {
+  localExport = 1;
+  if (flag) {
+    return localExport;
+  }
+  return 0;
+}
+
+// Write-only: the throw guards the write target (emitted before the store)
+// and there is no prior proof -> kept.
+function cantLocalWriteOnly() {
+  localExport = 1;
+}
+
+// No intra-function store and the function declaration is hoisted ahead of
+// the `stmodulevar localExport` declaration -> entry seed empty -> kept.
+function cantLocalReadOnly() {
+  return localExport;
+}
+
+// Entry-seed for a module variable: the reassignment store
+// (`stmodulevar localExport`) runs before the nested expression's definefunc,
+// so the snapshot at definefunc seeds `inner` with localExport non-hole ->
+// the nested read-side throw is eliminated.
+function canLocalEntrySeed() {
+  localExport = 1; // stmodulevar before definefunc -> seed
+  let inner = function () {
+    return localExport;
+  };
+  return inner();
+}
+
+// Module variable declaration (local export). Placed after the functions so
+// its stmodulevar declaration store runs after the hoisted definefunc
+// instructions — mirroring how function declarations precede let/const
+// initialization in the func_main_0 emission order.
+export let localExport = 1;
+
+// Rule S (same-function declaration store then read): the stmodulevar
+// declaration store of localExport runs BEFORE this read in func_main_0, so
+// the transfer function gen's localExport at the store — the read-side throw
+// is eliminated. The entry-seed mechanism does NOT cover this (seeds only
+// propagate to nested functions); Rule S in the intra-function dataflow does.
+// `export` prevents the frontend from optimizing away the unused binding.
+export let consumer = localExport;
+
 // === entry-seed (cross-function, Opt 1 entry seeds) ===
 // A nested function's read-side throw is eliminated when the enclosing
 // function stores the captured variable BEFORE the nested function's

@@ -26,35 +26,40 @@
 
 namespace panda::bytecodeopt {
 
-// Opt 1: intra-function redundant `throw.undefinedifholewithname` elimination.
-//
-// A `throw.undefinedifholewithname` reads acc (the value loaded by a preceding
-// `ldlexvar`/`ldlocalmodulevar`) and throws a ReferenceError when that value
-// is the hole sentinel. The throw is redundant when the loaded variable is
-// provably non-hole at the load point.
-//
-// Per ECMA, a lexical binding is hole only until its declaration executes;
-// afterwards it never becomes hole again. In Ark bytecode the hole sentinel
-// is never stored into a lexical slot by the frontend (it exists only as
-// newlexenv's pre-init state), so a catch handler cannot re-hole a variable.
-// The transfer function is a monotone must-availability analysis:
-//   * a hole-check throw of V -> gen V (Rule T: if it executed without
-//     throwing, V was non-hole; if it threw, control left the region);
-//   * stores are NOT gen'd — every reassignment store is preceded by a
-//     write-side throw (Rule T covers it), and declaration stores are in
-//     another function (the entry seed covers it);
-//   * a caught CanThrow -> no effect (the catch cannot re-hole any variable).
-// A throw (incl. one inside a try region / async / generator implicit
-// try-catch) is redundant iff its varId is non-hole at the load point on
-// every path; eliminating it never changes observable behaviour (the throw
-// would not have fired, so the catch would not have run due to this throw).
-//
-// The variable identity of each throw is obtained from the frontend compiler:
-// the frontend records, per method, a table (pandasm::Function::holeCheckVarTable)
-// mapping each throw to its HoleCheckTarget (kind + varId). The pass reads
-// that table through the BytecodeOptIrInterface (pcInsMap ->
-// pandasm::Ins -> table) and falls back to ldexternalmodulevar index-based
-// identity when the table is absent for external imports.
+/*
+ * Opt 1: intra-function redundant `throw.undefinedifholewithname` elimination.
+ *
+ * A `throw.undefinedifholewithname` reads acc (the value loaded by a preceding
+ * `ldlexvar`/`ldlocalmodulevar`) and throws a ReferenceError when that value
+ * is the hole sentinel. The throw is redundant when the loaded variable is
+ * provably non-hole at the load point.
+ *
+ * Per ECMA, a lexical binding is hole only until its declaration executes;
+ * afterwards it never becomes hole again. In Ark bytecode the hole sentinel
+ * is never stored into a lexical slot by the frontend (it exists only as
+ * newlexenv's pre-init state), so a catch handler cannot re-hole a variable.
+ * The transfer function is a monotone must-availability analysis:
+ *   * Rule T: a hole-check throw of V -> gen V (if it executed without
+ *     throwing, V was non-hole; if it threw, control left the region);
+ *   * Rule S: a declaration/reassignment store of V (stlexvar/stmodulevar
+ *     recorded in storeVarTable) -> gen V. The frontend guarantees the stored
+ *     value is non-hole (RHS is evaluated first / write-side throw precedes
+ *     reassignment). Covers same-function declaration-then-read (e.g.
+ *     `export class A {}; let b = new A()` in func_main_0) which the entry
+ *     seed does not cover (seeds only propagate to nested functions);
+ *   * a caught CanThrow -> no effect (the catch cannot re-hole any variable).
+ * A throw (incl. one inside a try region / async / generator implicit
+ * try-catch) is redundant iff its varId is non-hole at the load point on
+ * every path; eliminating it never changes observable behaviour (the throw
+ * would not have fired, so the catch would not have run due to this throw).
+ *
+ * The variable identity of each throw is obtained from the frontend compiler:
+ * the frontend records, per method, a table (pandasm::Function::holeCheckVarTable)
+ * mapping each throw to its HoleCheckTarget (kind + varId). The pass reads
+ * that table through the BytecodeOptIrInterface (pcInsMap ->
+ * pandasm::Ins -> table) and falls back to ldexternalmodulevar index-based
+ * identity when the table is absent for external imports.
+ */
 class HoleCheckElimination : public compiler::Optimization {
 public:
     HoleCheckElimination(compiler::Graph *graph, BytecodeOptIrInterface *iface) : Optimization(graph), iface_(iface) {}
@@ -76,12 +81,14 @@ private:
     void InvalidateAnalyses() override;
 };
 
-// Opt 2 seed cache: per-function set of varIds non-hole at the function's
-// entry. Computed by ComputeEntryNonHoleSeeds as a pre-pass before any function
-// is optimized (so func_main_0's Ins* are still valid). The result is owned by
-// the caller (OptimizePandaFile) as a per-program local and published to the
-// per-function pass via BytecodeOptIrInterface::SetEntryNonHoleSeeds, so there
-// is no global state shared across concurrently-optimized files.
+/*
+ * Opt 2 seed cache: per-function set of varIds non-hole at the function's
+ * entry. Computed by ComputeEntryNonHoleSeeds as a pre-pass before any function
+ * is optimized (so func_main_0's Ins* are still valid). The result is owned by
+ * the caller (OptimizePandaFile) as a per-program local and published to the
+ * per-function pass via BytecodeOptIrInterface::SetEntryNonHoleSeeds, so there
+ * is no global state shared across concurrently-optimized files.
+ */
 void ComputeEntryNonHoleSeeds(pandasm::Program *prog, BytecodeOptIrInterface *iface,
                               std::unordered_map<std::string, std::unordered_set<uint32_t>> *outSeeds);
 
