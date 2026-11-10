@@ -146,6 +146,15 @@ ManagedThread::ManagedThread(ThreadId id, mem::InternalAllocatorPtr allocator, P
     taggedHandleStorage_ = allocator->New<HandleStorage<TaggedType>>(allocator);
     taggedGlobalHandleStorage_ = allocator->New<GlobalHandleStorage<TaggedType>>(allocator);
     objectHeaderHandleStorage_ = allocator->New<HandleStorage<ObjectHeader *>>(allocator);
+
+    auto *heapManager = pandaVm->GetHeapManager();
+    if (heapManager != nullptr) {
+        hasFinalizable_ = heapManager->HasFinalizableFunc();
+        auto *notificationManager = heapManager->GetNotificationManager();
+        if (notificationManager != nullptr) {
+            hasAllocationListeners_ = notificationManager->HasAllocationListeners();
+        }
+    }
 }
 
 ManagedThread::~ManagedThread()

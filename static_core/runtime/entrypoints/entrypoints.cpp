@@ -2234,4 +2234,27 @@ extern "C" void G1GCPostBarrierPushCardToQueue(mem::CardTable::CardPtr card)
     g1BarrierSet->PostCardToQueue(card);
 }
 
+extern "C" ENTRYPOINT_NO_INLINE PANDA_PUBLIC_API ObjectHeader *NotifyAllocationListeners(ObjectHeader *obj,
+                                                                                         BaseClass *cls, size_t size,
+                                                                                         ManagedThread *thread)
+{
+    auto *vm = thread->GetVM();
+    if (UNLIKELY(vm == nullptr)) {
+        return obj;
+    }
+    auto *heapManager = vm->GetHeapManager();
+    if (UNLIKELY(heapManager == nullptr)) {
+        return obj;
+    }
+    auto notificationManager = heapManager->GetNotificationManager();
+    if (UNLIKELY(notificationManager == nullptr)) {
+        return obj;
+    }
+    ASSERT(notificationManager->HasAllocationListeners());
+
+    [[maybe_unused]] HandleScope<ObjectHeader *> scope(thread);
+    VMHandle<ObjectHeader> handle(thread, obj);
+    notificationManager->ObjectAllocEvent(cls, handle.GetPtr(), thread, size);
+    return handle.GetPtr();
+}
 }  // namespace ark

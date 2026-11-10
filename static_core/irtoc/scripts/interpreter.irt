@@ -511,6 +511,10 @@ macro(:type_ptr) do |id, need_restore = false, need_save = true|
   cache_entry(id, need_restore, need_save, :ptr, "ResolveTypeByIdEntrypoint")
 end
 
+macro(:type_ref) do |id, need_restore = false, need_save = true|
+  cache_entry(id, need_restore, need_save, :ref, "ResolveTypeByIdEntrypoint")
+end
+
 macro(:find_catch_block) do
   handler_pc := call_runtime("FindCatchBlockInIFrames", %tr, %frame, pc).ptr
   If(handler_pc, pc).EQ.Unlikely {
@@ -655,6 +659,95 @@ macro(:instrument_branches) do |imm, acc_type, method_ptr|
   Phi(inc_pc, tmp_pc).ptr
 end
 
+# Try to allocate a plain object in TLAB inline, bypassing CreateObjectByClassInterpreter.
+# Returns a pointer to the newly allocated object, or nullptr if the fast path is not applicable
+# (string/array/non-instantiable class, zero object size, class not initialized, arm32, TLAB
+# exhausted, finalizable VM). Caller must fall back to
+# call_runtime("CreateObjectByClassInterpreter") on nullptr.
+scoped_macro(:try_alloc_object_tlab) do |klass|
+  if Options.arch == :arm32
+    # store_class is UNREACHABLE on arm32; keep arm32 on the C++ path.
+    next Cast(0).ptr
+  end
+
+  has_fin := LoadI(%tr).Imm(Constants::MANAGED_THREAD_HAS_FINALIZABLE_OFFSET).u8
+  If(has_fin, 0).NE.Unlikely {
+    Goto(:Fail)
+  }
+
+  class_flags := LoadI(klass).Imm(Constants::BASE_CLASS_FLAGS_OFFSET).u32
+  is_string := AndI(class_flags).Imm("ark::Class::STRING_CLASS").u32
+  If(is_string, 0).NE.Unlikely {
+    Goto(:Fail)
+  }
+
+  component_type := LoadI(klass).SetNeedReadBarrier(true).Imm(Constants::CLASS_COMPONENT_OFFSET).ref
+  If(component_type, 0).NE.Unlikely {
+    Goto(:Fail)
+  }
+
+  # Non-instantiable classes (abstract, interface) must fall back to the C++ path, which throws
+  # InstantiationError, matching RuntimeInterface::CreateObject's IsInstantiable check.
+  access_flags := LoadI(klass).Imm(Constants::CLASS_ACCESS_FLAGS_OFFSET).u32
+  is_non_instantiable := AndI(access_flags).Imm("ACC_ABSTRACT | ACC_INTERFACE").u32
+  If(is_non_instantiable, 0).NE.Unlikely {
+    Goto(:Fail)
+  }
+
+  state := LoadI(klass).Imm(Constants::CLASS_STATE_OFFSET).u32
+  If(state, "CLASS_STATE_INITIALIZED").NE.Unlikely {
+    Goto(:Fail)
+  }
+
+  # objectSize_ is 0 for interfaces and other classes without instance layout; a zero-size TLAB
+  # bump would not reserve memory and the next allocation would overlap this object.
+  raw_size := u32toword(LoadI(klass).Imm(Constants::BASE_CLASS_OBJECT_SIZE_OFFSET).u32)
+  If(raw_size, 0).EQ.Unlikely {
+    Goto(:Fail)
+  }
+  aligned_size := AndI(AddI(raw_size).Imm("TLAB_ALIGNMENT - 1").word).Imm(Constants::ALIGNMENT_MASK).word
+
+  # Load TLAB pointers from TLS.
+  tlab_ptr := LoadI(%tr).Imm(Constants::TLAB_OFFSET).ptr
+  start := Cast(LoadI(tlab_ptr).Imm(Constants::TLAB_CUR_FREE_POSITION_OFFSET).ref_uint).ptr
+  tlab_end := Cast(LoadI(tlab_ptr).Imm(Constants::TLAB_MEMORY_END_ADDR_OFFSET).ref_uint).ptr
+
+  avail := Sub(tlab_end, start).word
+  If(avail, aligned_size).B.Unlikely {
+    Goto(:Fail)
+  }
+
+  # Unpoison the freshly allocated range before writing to it, mirroring the AOT fast path
+  # (AllocateObjectTlab) and TLAB::Alloc: the whole TLAB is poisoned in sanitizer builds and
+  # every allocation must unpoison its own range, otherwise any C++ access to the object
+  # (e.g. ResolveVirtualMethod reading the class from the header) reports use-after-poison.
+  if defines.__SANITIZE_ADDRESS__ || defines.__SANITIZE_THREAD__
+    call_runtime("AnnotateSanitizersEntrypoint", start, aligned_size).void
+  end
+
+  # Bump the free pointer and store the class into the object header.
+  new_start := Bitcast(Add(start, aligned_size).ptr).word
+  store_class(start, klass)
+  StoreI(Add(tlab_ptr, Constants::TLAB_CUR_FREE_POSITION_OFFSET).ptr, new_start).Imm(0).ref_uint
+
+  # If a RuntimeListener is registered for ALLOCATION_EVENTS (e.g. Debugger,
+  # MemoryAllocationDumper), report the freshly bump-allocated object through
+  # NotifyAllocationListeners.
+  has_listeners := LoadI(%tr).Imm(Constants::MANAGED_THREAD_HAS_ALLOCATION_LISTENERS_OFFSET).u8
+  If(has_listeners, 0).NE.Unlikely {
+    notified := call_runtime("NotifyAllocationListeners", start, klass, aligned_size, %tr).ptr
+  }
+  post_notify := Phi(start, notified).ptr
+
+  Goto(:Done)
+
+  Label(:Fail)
+  fast_fail := Cast(0).ptr
+
+  Label(:Done)
+  result := Phi(post_notify, fast_fail).ptr
+end
+
 macro(:initobj_call) do |id, size, callee, nargs, copy_lambda, op_format, first_vreg|
   If(callee, 0).EQ.Unlikely {
     klass_1 := call_runtime("GetMethodClassById", get_method_ptr(), id).ref
@@ -705,7 +798,15 @@ macro(:initobj_call) do |id, size, callee, nargs, copy_lambda, op_format, first_
     move_to_exit(advance_pc_imm(%pc, size), str, Constants::OBJECT_TAG)
   }
 
-  obj := call_runtime("CreateObjectByClassInterpreter", %tr, klass).ptr
+  # Try the inline TLAB fast path first; fall back to the runtime entrypoint when it is
+  # not applicable (class not initialized, TLAB exhausted, arm32, etc.). 
+  fast_obj := try_alloc_object_tlab(klass)
+  If(fast_obj, 0).EQ.Unlikely {
+    obj_slow := call_runtime("CreateObjectByClassInterpreter", %tr, klass).ptr
+  } Else {
+    obj_fast := fast_obj
+  }
+  obj := Phi(obj_slow, obj_fast).ptr
   If(obj, 0).EQ.Unlikely {
     move_to_exception
   }
@@ -1328,16 +1429,22 @@ end
 
 macro(:handle_newobj_v8_id16) do |vd, id|
   save_acc()
-  type := type_ptr(id, false, false)
+  type := type_ref(id, false, false)
   If(type, 0).EQ.Unlikely {
     move_to_exception
   }
-  object := call_runtime("CreateObjectByClassInterpreter", %tr, type).ref
+  fast_obj := try_alloc_object_tlab(type)
+  If(fast_obj, 0).EQ.Unlikely {
+    object_slow := call_runtime("CreateObjectByClassInterpreter", %tr, type).ptr
+  } Else {
+    object_fast := fast_obj
+  }
+  object := Phi(object_slow, object_fast).ptr
   acc := restore_acc().ptr
   If(object, 0).EQ.Unlikely {
     move_to_exception
   }
-  set_object(vd, object).ref
+  set_object(vd, object).ptr
 end
 
 macro(:assert_non_volatile) do |field|

@@ -27,6 +27,7 @@
 #include "runtime/include/mem/panda_containers.h"
 #include "runtime/include/mem/panda_string.h"
 #include "runtime/include/runtime.h"
+#include "runtime/include/panda_vm.h"
 #include "runtime/handle_scope-inl.h"
 
 namespace ark {
@@ -193,6 +194,10 @@ public:
 
         AddListenerIfMatches(listener, eventMask, &garbageCollectorListeners_, Event::GARBAGE_COLLECTOR_EVENTS,
                              &hasGarbageCollectorListeners_, garbageCollectorLock_);
+
+        if ((eventMask & Event::ALLOCATION_EVENTS) != 0) {
+            RefreshAllocationListenersCache();
+        }
     }
 
     void RemoveListener(RuntimeListener *listener, uint32_t eventMask)
@@ -235,6 +240,10 @@ public:
 
         RemoveListenerIfMatches(listener, eventMask, &garbageCollectorListeners_, Event::GARBAGE_COLLECTOR_EVENTS,
                                 &hasGarbageCollectorListeners_, garbageCollectorLock_);
+
+        if ((eventMask & Event::ALLOCATION_EVENTS) != 0) {
+            RefreshAllocationListenersCache();
+        }
     }
 
     void LoadModuleEvent(std::string_view name)
@@ -663,6 +672,31 @@ private:
                 eventFlag->store(false, std::memory_order_relaxed);
             }
         }
+    }
+
+    void RefreshAllocationListenersCache()
+    {
+        auto *runtime = Runtime::GetCurrent();
+        if (runtime == nullptr) {
+            return;
+        }
+        auto *vm = runtime->GetPandaVM();
+        if (vm == nullptr) {
+            return;
+        }
+        auto *mutatorManager = vm->GetMutatorManager();
+        if (mutatorManager == nullptr) {
+            return;
+        }
+        // Atomic with relaxed order reason: sync with adding/removing listeners
+        bool hasListeners = hasAllocationListeners_.load(std::memory_order_relaxed);
+        mutatorManager->ForEachMutator([hasListeners](Mutator *mutator) {
+            if (mutator != nullptr && mutator->GetMutatorType() == Mutator::MutatorType::MANAGED) {
+                auto *thread = static_cast<ManagedThread *>(mutator);
+                thread->SetHasAllocationListeners(hasListeners);
+            }
+            return true;
+        });
     }
     // NOLINTEND(misc-unused-parameters)
 

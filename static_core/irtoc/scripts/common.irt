@@ -78,6 +78,8 @@ end
 
 module Constants
     TLAB_OFFSET = "cross_values::GetManagedThreadTlabOffset(GetArch())"
+    MANAGED_THREAD_HAS_FINALIZABLE_OFFSET = "cross_values::GetManagedThreadHasFinalizableOffset(GetArch())"
+    MANAGED_THREAD_HAS_ALLOCATION_LISTENERS_OFFSET = "cross_values::GetManagedThreadHasAllocationListenersOffset(GetArch())"
     TLAB_CUR_FREE_POSITION_OFFSET = "cross_values::GetTlabCurFreePositionOffset(GetArch())"
     TLAB_MEMORY_END_ADDR_OFFSET = "cross_values::GetTlabMemoryEndAddrOffset(GetArch())"
     OBJECT_CLASS_OFFSET = "cross_values::GetObjectHeaderClassPointerOffset(GetArch())"
@@ -90,6 +92,7 @@ module Constants
     RESOLVE_CLASS = "cross_values::GetEntrypointOffset(GetArch(), EntrypointId::RESOLVE_CLASS_DIRECT)"
     GET_VTABLE_INDEX = "cross_values::GetMethodVTableIndexOffset(GetArch())"
     CLASS_STATE_OFFSET = "cross_values::GetClassStateOffset(GetArch())"
+    CLASS_ACCESS_FLAGS_OFFSET = "cross_values::GetClassAccessFlagsOffset(GetArch())"
     ARRAY_LENGTH_OFFSET = "cross_values::GetCoretypesArrayLengthOffset(GetArch())"
     ARRAY_DATA_OFFSET = "cross_values::GetCoretypesArrayDataOffset(GetArch())"
     ARRAY_CLASS_SIZE = "sizeof(coretypes::Array)"
@@ -138,6 +141,7 @@ module Constants
     MARK_WORD_OFFSET = "cross_values::GetObjectHeaderMarkWordOffset(GetArch())"
     BASE_CLASS_MANAGED_OBJECT_OFFSET = "cross_values::GetBaseClassManagedObjectOffset(GetArch())"
     BASE_CLASS_FLAGS_OFFSET = "cross_values::GetBaseClassFlagsOffset(graph->GetArch())"
+    BASE_CLASS_OBJECT_SIZE_OFFSET = "cross_values::GetBaseClassObjectSizeOffset(GetArch())"
     INTERNAL_THREAD_ID_OFFSET = "cross_values::GetManagedThreadInternalIdOffset(GetArch())"
     LOCAL_OBJECTS_LOCKED_ADDR_OFFSET = "cross_values::GetManagedThreadLocalObjectsLockedAddrOffset(GetArch())"
     LOCKED_OBJECTS_CAPACITY_OFFSET = "cross_values::GetMtManagedThreadLockedObjectCapacityOffset(GetArch())"
