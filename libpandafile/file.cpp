@@ -16,6 +16,7 @@
 #include "data_protect.h"
 #include "file-inl.h"
 #include "file_items.h"
+#include "libpandabase/os/mutex.h"
 #include "panda_cache.h"
 #include "trace/trace.h"
 #include "zip_archive.h"
@@ -68,7 +69,6 @@ static uint32_t GetProt(panda_file::File::OpenMode mode)
 class AnonMemSet {
 public:
     using MemNameSet = std::map<std::string, std::string>;
-    using InsertResult = std::map<std::string, std::string>::iterator;
 
     static AnonMemSet &GetInstance()
     {
@@ -76,20 +76,23 @@ public:
         return anon_mem_set;
     }
 
-    InsertResult Insert(const std::string &file_name, const std::string &anon_mem_name)
+    // Return a copy of the mapped name to avoid holding a map iterator outside the lock:
+    // another thread may erase the same entry (same file opened concurrently) while we
+    // still dereference it for TagAnonymousMemory.
+    std::string Insert(const std::string &file_name, const std::string &anon_mem_name)
     {
-        return mem_name_set_.emplace(file_name, anon_mem_name).first;
+        os::memory::LockHolder<os::memory::Mutex> lock(mutex_);
+        return mem_name_set_.emplace(file_name, anon_mem_name).first->second;
     }
 
     void Remove(const std::string &file_name)
     {
-        auto it = mem_name_set_.find(file_name);
-        if (it != mem_name_set_.end()) {
-            mem_name_set_.erase(it);
-        }
+        os::memory::LockHolder<os::memory::Mutex> lock(mutex_);
+        mem_name_set_.erase(file_name);
     }
 
 private:
+    os::memory::Mutex mutex_;
     MemNameSet mem_name_set_;
 };
 
@@ -131,8 +134,8 @@ std::unique_ptr<const panda_file::File> OpenPandaFileFromZipFile(ZipArchiveHandl
     os::mem::BytePtr ptr(reinterpret_cast<std::byte *>(mem), size_to_mmap, os::mem::MmapDeleter);
     std::stringstream ss;
     ss << ANONMAPNAME_PERFIX << archive_name << " extracted in memory from " << location;
-    auto it = AnonMemSet::GetInstance().Insert(std::string(location), ss.str());
-    auto ret = os::mem::TagAnonymousMemory(reinterpret_cast<void *>(ptr.Get()), size_to_mmap, it->second.c_str());
+    auto anon_mem_name = AnonMemSet::GetInstance().Insert(std::string(location), ss.str());
+    auto ret = os::mem::TagAnonymousMemory(reinterpret_cast<void *>(ptr.Get()), size_to_mmap, anon_mem_name.c_str());
     if (ret.has_value()) {
 #if defined(PANDA_TARGET_OHOS) && defined(PANDA_TARGET_AMD64)
         // The kernel of the x86_64_virt emulator is built without CONFIG_ANON_VMA_NAME, so
