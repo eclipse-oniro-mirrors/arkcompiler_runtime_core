@@ -1,0 +1,57 @@
+# Copyright (c) 2026 Huawei Device Co., Ltd.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Check the TLAB fast path of the NEWOBJ handler: the class is initialized before the
+# first newobj (static field access), so the inline TLAB allocation applies. A small TLAB
+# forces repeated refill cycles, so the fast path falls back to the slow path at the
+# exhausted-TLAB boundary. Every object must be properly allocated (field values intact,
+# no overlapping allocations), and the call.virt resolution reads the object header from
+# C++ (guards the sanitizer unpoisoning of the inline allocation).
+
+.record C
+{
+    i64 f
+    i32 touched <static>
+}
+
+.function i64 C.getf(C a0)
+{
+    ldobj.64 a0, C.f
+    return.64
+}
+
+.function i32 main() {
+    # Touch the class so it becomes INITIALIZED and the inline TLAB fast path applies.
+    ldstatic C.touched
+    sta v0
+    movi v0, 10000
+    movi.64 v1, 42
+    movi v2, 0
+loop:
+    lda v2
+    jge v0, done
+    newobj v3, C
+    ldai.64 42
+    stobj.64 v3, C.f
+    call.virt C.getf, v3
+    cmp.64 v1
+    jnez failed
+    inci v2, 1
+    jmp loop
+done:
+    ldai 0
+    return
+failed:
+    ldai 1
+    return
+}

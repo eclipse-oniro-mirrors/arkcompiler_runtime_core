@@ -242,6 +242,26 @@ public:
         return internalLocalAllocator_;
     }
 
+    bool HasFinalizable() const
+    {
+        return hasFinalizable_;
+    }
+
+    void SetHasFinalizable(bool value)
+    {
+        hasFinalizable_ = value;
+    }
+
+    bool HasAllocationListeners() const
+    {
+        return hasAllocationListeners_;
+    }
+
+    void SetHasAllocationListeners(bool value)
+    {
+        hasAllocationListeners_ = value;
+    }
+
     void SetStringClassPtr(void *p)
     {
         stringClassPtr_ = p;
@@ -348,6 +368,14 @@ public:
     static constexpr uint32_t GetNativePcOffset()
     {
         return MEMBER_OFFSET(ManagedThread, nativePc_);
+    }
+    static constexpr uint32_t GetHasFinalizableOffset()
+    {
+        return MEMBER_OFFSET(ManagedThread, hasFinalizable_);
+    }
+    static constexpr uint32_t GetHasAllocationListenersOffset()
+    {
+        return MEMBER_OFFSET(ManagedThread, hasAllocationListeners_);
     }
     static constexpr uint32_t GetTlsStringClassPointerOffset()
     {
@@ -789,6 +817,12 @@ private:
     ObjectHeader *floatToStringCache_ {nullptr};
     ObjectHeader *longToStringCache_ {nullptr};
 
+    // Cached mirror of HeapManager::HasFinalizableFunc() for the irtoc TLAB fast path.
+    // Keep adjacent to tlab_ so both fit in the same cache line used by the allocator.
+    bool hasFinalizable_ {false};
+    // Cached mirror of RuntimeNotificationManager::HasAllocationListeners() for the irtoc
+    // TLAB fast path. Refreshed by RuntimeNotificationManager on listener add/remove.
+    bool hasAllocationListeners_ {false};
     // Thread local storages to avoid locks in heap manager
     mem::StackFrameAllocator *stackFrameAllocator_;
     mem::InternalAllocator<>::LocalSmallObjectAllocator *internalLocalAllocator_;

@@ -64,6 +64,12 @@ attributes:
     - field
     - function
 
+- name: abstract
+  type: bool
+  flags: [ACC_ABSTRACT]
+  applicable_to:
+    - record
+
 - name: native
   type: bool
   flags: [ACC_NATIVE]

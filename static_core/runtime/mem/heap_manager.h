@@ -150,6 +150,12 @@ public:
     void SetRegisterFinalizeReferenceFunc(RegisterFinalizeReferenceFunc func);
 
     PANDA_PUBLIC_API bool IsObjectFinalized(BaseClass *cls);
+
+    bool HasFinalizableFunc() const
+    {
+        return isObjectFinalizebleFunc_ != nullptr;
+    }
+
     void RegisterFinalizedObject(ObjectHeader *object, BaseClass *cls, bool isObjectFinalizable);
 
     void SetPandaVM(PandaVM *vm);

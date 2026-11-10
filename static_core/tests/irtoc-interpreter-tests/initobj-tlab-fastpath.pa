@@ -1,0 +1,55 @@
+# Copyright (c) 2026 Huawei Device Co., Ltd.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Check the TLAB fast path of the INITOBJ handler (initobj shares try_alloc_object_tlab
+# with the NEWOBJ handler): the class is initialized before the first initobj, so the
+# inline TLAB allocation applies; every object must be properly allocated and the
+# constructor's field writes must be observable.
+
+.record D
+{
+    i64 f
+    i32 touched <static>
+}
+
+.function void D.ctor(D a0) <ctor>
+{
+    ldai.64 7
+    stobj.64 a0, D.f
+    return.void
+}
+
+.function i32 main() {
+    # Touch the class so it becomes INITIALIZED and the inline TLAB fast path applies.
+    ldstatic D.touched
+    sta v0
+    movi v0, 100
+    movi.64 v1, 7
+    movi v2, 0
+loop:
+    lda v2
+    jge v0, done
+    initobj.short D.ctor
+    sta.obj v3
+    ldobj.64 v3, D.f
+    cmp.64 v1
+    jnez failed
+    inci v2, 1
+    jmp loop
+done:
+    ldai 0
+    return
+failed:
+    ldai 1
+    return
+}

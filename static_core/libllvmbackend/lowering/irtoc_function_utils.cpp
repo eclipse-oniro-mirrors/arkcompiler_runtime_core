@@ -69,6 +69,7 @@ constexpr std::array PTR_IGN_IRTOC_FUNC = {
     "AllocFrameStackOverflow"sv,
     "InitializeFrame"sv,
     "memmove"sv,
+    "NotifyAllocationListeners"sv,
 #ifdef PANDA_WITH_ETS
     "EtsAsyncContextGetCurrentEntrypoint"sv,
     "EtsEnsureCapacityForAsyncContextEntrypoint"sv,

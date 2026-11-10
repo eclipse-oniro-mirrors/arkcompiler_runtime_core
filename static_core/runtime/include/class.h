@@ -655,6 +655,10 @@ public:
     {
         return MEMBER_OFFSET(Class, state_);
     }
+    static constexpr uint32_t GetAccessFlagsOffset()
+    {
+        return MEMBER_OFFSET(Class, accessFlags_);
+    }
     static constexpr uint32_t GetITableOffset()
     {
         return MEMBER_OFFSET(Class, itable_);
