@@ -171,21 +171,23 @@ struct JSConvertBase {
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
-#define JSCONVERT_DEFINE_TYPE(type, cpptype_)                                                             \
-    struct JSConvert##type : public JSConvertBase<JSConvert##type, cpptype_> {                            \
-        static constexpr const char *TYPE_NAME = #type;                                                   \
-        static inline napi_value WrapImpl(napi_env env, cpptype etsVal);                                  \
-        static inline std::optional<cpptype> UnwrapImpl(InteropCtx *ctx, napi_env env, napi_value jsVal); \
-        static inline bool MatchTypeImpl(napi_env env, napi_value jsVal);                                 \
+#define JSCONVERT_DEFINE_TYPE(type, cpptype_)                                                                    \
+    struct JSConvert##type : public JSConvertBase<JSConvert##type, cpptype_> {                                   \
+        static constexpr const char *TYPE_NAME = #type;                                                          \
+        static inline napi_value WrapImpl(napi_env env, cpptype etsVal);                                         \
+        static inline std::optional<cpptype> UnwrapImpl(InteropCtx *ctx, napi_env env, napi_value jsVal,         \
+                                                        std::optional<napi_valuetype> knownType = std::nullopt); \
+        static inline bool MatchTypeImpl(napi_env env, napi_value jsVal);                                        \
     }
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define JSCONVERT_WRAP(type) \
     inline napi_value JSConvert##type::WrapImpl([[maybe_unused]] napi_env env, [[maybe_unused]] cpptype etsVal)
 
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
-#define JSCONVERT_UNWRAP(type)                                                  \
-    inline std::optional<JSConvert##type::cpptype> JSConvert##type::UnwrapImpl( \
-        [[maybe_unused]] InteropCtx *ctx, [[maybe_unused]] napi_env env, [[maybe_unused]] napi_value jsVal)
+#define JSCONVERT_UNWRAP(type)                                                                              \
+    inline std::optional<JSConvert##type::cpptype> JSConvert##type::UnwrapImpl(                             \
+        [[maybe_unused]] InteropCtx *ctx, [[maybe_unused]] napi_env env, [[maybe_unused]] napi_value jsVal, \
+        [[maybe_unused]] std::optional<napi_valuetype> knownType)
 
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define JSCONVERT_MATCH_TYPE_IMPL(type) \

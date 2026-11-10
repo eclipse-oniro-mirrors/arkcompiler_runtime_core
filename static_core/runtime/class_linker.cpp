@@ -1749,7 +1749,11 @@ Class *ClassLinker::GetClass(const panda_file::File &pf, panda_file::File::Entit
         return cls;
     }
 
-    return context->LoadClass(descriptor, false, errorHandler);
+    cls = context->LoadClass(descriptor, false, errorHandler);
+    if (cls != nullptr) {
+        pf.GetPandaCache()->SetClassCache(id, cls);
+    }
+    return cls;
 }
 
 Method *ClassLinker::GetMethod(const panda_file::File &pf, panda_file::File::EntityId id,
