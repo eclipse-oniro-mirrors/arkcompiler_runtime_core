@@ -596,6 +596,7 @@ class InteropWorker extends InternalWorker {
     private interopInitialized: AtomicFlag = new AtomicFlag(false);
     private pendingTasks: containers.BlockingQueue<PendingTaskHandler> =
         new containers.LinkedBlockingQueue<PendingTaskHandler>();
+    private pendingTaskMutex: Object = ConcurrencyHelpers.mutexCreate();
 
     constructor(name: string) {
         super(name, INVALID_WORKER_ID);
@@ -614,55 +615,72 @@ class InteropWorker extends InternalWorker {
             try {
                 initialTask();
             } finally {
-                this.interopInitialized.set(true);
-                this.processPendingTasks();
                 if (this.getName() != "taskpool") {
                     Tracer.finishAsyncTrace(tagName, traceId);
+                }
+                let drainedTasks: PendingTaskHandler[] = [];
+                ConcurrencyHelpers.mutexLock(this.pendingTaskMutex);
+                try {
+                    this.interopInitialized.set(true);
+                    while (this.pendingTasks.size > 0) {
+                        let deferredTask = this.pendingTasks.poll();
+                        if (deferredTask !== undefined) {
+                            drainedTasks.push(deferredTask);
+                        }
+                    }
+                } finally {
+                    ConcurrencyHelpers.mutexUnlock(this.pendingTaskMutex);
+                }
+                for (let i = 0; i < drainedTasks.length; i++) {
+                    drainedTasks[i].runTask();
                 }
             }
         }
         super.startImpl(wrappedTask, true);
     }
 
-    private processPendingTasks() {
-        while (this.pendingTasks.size > 0) {
-            let deferredTask = this.pendingTasks.poll();
-            if (deferredTask !== undefined) {
-                deferredTask.runTask();
-            }
-        }
-    }
-
     public override run<R>(task: Function, ...args: FixedArray<Any>): Job<R> {
-        if (this.interopInitialized.get()) {
+        let interopReady = this.interopInitialized.get();
+        if (interopReady) {
             return this.runInternal<R>(task, args);
         }
 
-        let completer = new CompletableJob<R>();
-        let pendingTask: Task = () => {
-            let traceId = InternalWorker.traceIdSeq.fetchAdd(1);
-            let tagName = "EAWorker:run:name:" +
-                this.getName() +
-                ", workerId:" +
-                this.workerId.toString();
-            Tracer.startAsyncTrace(tagName, traceId);
-            hilogDebug(tagName);
-            try {
-                let serializeHelper = new InteropSerializeHelper(args);
-                let res = task.unsafeCall(...serializeHelper.deserialize()) as R;
-                completer.finish(res);
-            } catch (e) {
-                completer.fail(e);
-            } finally {
-                Tracer.finishAsyncTrace(tagName, traceId);
+        // The InteropWorker has not been fully initialized. A double-check is performed to avoid data competition.
+        ConcurrencyHelpers.mutexLock(this.pendingTaskMutex);
+        interopReady = this.interopInitialized.get();
+        try {
+            if (interopReady) {
+                return this.runInternal<R>(task, args);
+            } else {
+                let completer = new CompletableJob<R>();
+                let pendingTask: Task = () => {
+                    let traceId = InternalWorker.traceIdSeq.fetchAdd(1);
+                    let tagName = "EAWorker:run:name:" +
+                        this.getName() +
+                        ", workerId:" +
+                        this.workerId.toString();
+                    Tracer.startAsyncTrace(tagName, traceId);
+                    hilogDebug(tagName);
+                    try {
+                        let serializeHelper = new InteropSerializeHelper(args);
+                        let res = task.unsafeCall(...serializeHelper.deserialize()) as R;
+                        completer.finish(res);
+                    } catch (e) {
+                        completer.fail(e);
+                    } finally {
+                        Tracer.finishAsyncTrace(tagName, traceId);
+                    }
+                }
+                let failJob: ErrorHandlerType = (err: Error) => {
+                    completer.fail(err);
+                }
+                let deferredTask = new PendingTaskHandler(failJob, pendingTask);
+                this.pendingTasks.add(deferredTask);
+                return completer;
             }
+        } finally {
+            ConcurrencyHelpers.mutexUnlock(this.pendingTaskMutex);
         }
-        let failJob: ErrorHandlerType = (err: Error) => {
-            completer.fail(err);
-        }
-        let deferredTask = new PendingTaskHandler(failJob, pendingTask);
-        this.pendingTasks.add(deferredTask);
-        return completer;
     }
 
     private runInternal<R>(task: Function, args: FixedArray<Any>): Job<R> {
@@ -686,11 +704,16 @@ class InteropWorker extends InternalWorker {
 
     handleCreateInteropEnvError() {
         let err = new Error('EAWorker:: Cannot create EAWorker support interop without JsEnv');
-        while (this.pendingTasks.size > 0) {
-            let deferredTask = this.pendingTasks.poll();
-            if (deferredTask !== undefined) {
-                deferredTask.failJob(err);
+        ConcurrencyHelpers.mutexLock(this.pendingTaskMutex);
+        try {
+            while (this.pendingTasks.size > 0) {
+                let deferredTask = this.pendingTasks.poll();
+                if (deferredTask !== undefined) {
+                    deferredTask.failJob(err);
+                }
             }
+        } finally {
+            ConcurrencyHelpers.mutexUnlock(this.pendingTaskMutex);
         }
     }
 }
