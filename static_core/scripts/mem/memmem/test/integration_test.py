@@ -53,7 +53,7 @@ class CollectionViewComparisonIntegrationTest(unittest.TestCase):
             single = lib.create_view([first], root / "single")
             combined = lib.create_view([first, second], root / "combined")
             empty = lib.create_view(
-                [first], root / "empty", re.compile("^nomatch$"))
+                [first], root / "empty", smaps_filter=re.compile("^nomatch$"))
             self.assertEqual(read_view(ViewStore(single)
                                        ).summary_rows[0]["n_samples"], "1")
             self.assertEqual(read_view(ViewStore(combined)
@@ -61,6 +61,7 @@ class CollectionViewComparisonIntegrationTest(unittest.TestCase):
             self.assertEqual(read_view(ViewStore(empty)).summary_rows, [])
             self.assertTrue(empty.joinpath("plots").is_dir())
             self.assertTrue(empty.joinpath("breakdowns").is_dir())
+            self.assertTrue(empty.joinpath("footprint.csv").is_file())
 
             missing = root / "missing"
             shutil.copytree(first, missing)
@@ -71,6 +72,7 @@ class CollectionViewComparisonIntegrationTest(unittest.TestCase):
             comparison = root / "comparison"
             compare_reports(single, [combined], comparison)
             self.assertTrue(comparison.joinpath("summary.csv").is_file())
+            self.assertTrue(comparison.joinpath("footprint.csv").is_file())
             self.assertEqual(self._tree_digest(first), evidence_before)
 
     def _collect(self, flow: lib.Flow, destination: pathlib.Path) -> pathlib.Path:

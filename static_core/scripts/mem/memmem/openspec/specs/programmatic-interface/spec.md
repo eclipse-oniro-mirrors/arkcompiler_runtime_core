@@ -209,7 +209,11 @@ The system SHALL preserve `get_hdc`, `get_hdc_device`, `get_abd`, and `get_abd_d
 - **THEN** the script imports from `lib.py` and does not need to import from `src.*`
 
 ### Requirement: Programmatic API creates independent views
-The facade SHALL expose `create_view(dirs: list[Path], dst: Path, smaps_filter: Pattern[str] = re.compile(".*")) -> Path`. It SHALL reject an empty source list, duplicate normalized absolute source paths, None/bytes/non-pattern filters, invalid evidence, or incompatible evidence. It SHALL preserve source order, parse declared raw evidence directly, and create exactly the new dst using the uniform view contracts. It SHALL return the normalized absolute dst, never access devices or `.env`, never require earlier views, and never overwrite prior destinations or modify evidence files. New partial views SHALL remain on failure. No source/destination ancestry guard or symlink identity resolution SHALL be imposed; callers SHALL choose separate destinations. Library logging configuration SHALL remain caller-owned.
+The facade SHALL expose `create_view(dirs: list[Path], dst: Path, *, smaps_filter: Pattern[str] = re.compile(".*"), plots: bool = True) -> Path`. It SHALL reject an empty source list, duplicate normalized absolute source paths, None/bytes/non-pattern filters, nonboolean plotting values, invalid evidence, or incompatible evidence. It SHALL preserve source order, parse declared raw evidence directly, create exactly the new dst using the uniform view contracts, and record the selected plot policy in root metadata. It SHALL return the normalized absolute dst, never access devices or `.env`, never require earlier views, and never overwrite prior destinations or modify evidence files. New partial views SHALL remain on failure. No source/destination ancestry guard or symlink identity resolution SHALL be imposed; callers SHALL choose separate destinations. Library logging configuration SHALL remain caller-owned.
+
+#### Scenario: Caller disables plots
+- **WHEN** a caller invokes `create_view` with `plots=False`
+- **THEN** it creates a valid view with no SVG plots and metadata `plots` false
 
 #### Scenario: Multiple views use the same evidence
 - **WHEN** a caller supplies the same evidence with different patterns and different new destinations
@@ -226,3 +230,14 @@ The facade SHALL expose `create_view(dirs: list[Path], dst: Path, smaps_filter: 
 #### Scenario: Offline evidence is supplied
 - **WHEN** valid evidence is copied without parent flow provenance and no backend configuration is available
 - **THEN** `create_view` analyzes it without opening a device or requiring parent `flow.json`
+
+### Requirement: Programmatic builders preserve strict builtin types
+Public flow and command builders SHALL validate builtin-typed arguments without coercion and SHALL expose their validated fields as the corresponding builtin Python types. They SHALL reject incompatible builtin values immediately while retaining all existing required fields, defaults, and constraints.
+
+#### Scenario: Builder receives a coercible value
+- **WHEN** a caller supplies an incompatible but coercible builtin value to a public flow or command builder
+- **THEN** the builder raises a validation error during construction
+
+#### Scenario: Builder receives correctly typed values
+- **WHEN** a caller supplies builtin values matching the builder's declared field types
+- **THEN** the builder returns the existing validated model with those builtin field types

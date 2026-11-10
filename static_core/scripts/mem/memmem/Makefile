@@ -18,7 +18,7 @@ autopep8:
 .PHONY: autopep8
 
 pylint:
-	$(PYTHON) -m pylint --disable=all --enable=too-many-nested-blocks,wrong-import-order,protected-access --max-nested-blocks=4 --score=n $(PYTHON_FILES)
+	$(PYTHON) -m pylint --disable=all --enable=too-many-nested-blocks,too-many-statements,wrong-import-order,protected-access,cell-var-from-loop,dangerous-default-value --max-nested-blocks=4 --max-statements=50 --score=n $(PYTHON_FILES)
 .PHONY: pylint
 
 tests_full:

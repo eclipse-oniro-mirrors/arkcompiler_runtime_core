@@ -24,9 +24,9 @@ from collections.abc import Callable
 
 from compare import compare_reports
 from src.metadata import AppMetadata, AppMetadataFile, ArtifactMetadata, ArtifactMetadataFile
+from src.profile import FOOTPRINT_METRICS, SUMMARY_METRICS
 from src.report import SUMMARY_STATISTICS
 from src.store import EvidenceStore, ViewStore
-from src.smaps import SUMMARY_METRICS
 from src.view import is_view_equivalent, read_view
 
 import lib
@@ -37,12 +37,12 @@ class ViewTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             self._write_view(root.joinpath("view"))
-            for name in ("plots", "breakdowns"):
+            for name in ("plots", "breakdowns", "memdumps"):
                 view = root.joinpath("view")
                 target = view.joinpath(name)
                 if target.is_dir():
                     target.rmdir() if name == "plots" else None
-                if name == "breakdowns":
+                if name in {"breakdowns", "memdumps"}:
                     target.joinpath("start", "App.csv").unlink()
                     target.joinpath("start").rmdir()
                     target.joinpath("metadata.json").unlink()
@@ -56,10 +56,10 @@ class ViewTest(unittest.TestCase):
                 else:
                     target.mkdir()
                     target.joinpath("start").mkdir()
-                    self._write_csv(target.joinpath("start", "App.csv"), [
-                        self._header(["tag", "n_samples"]),
-                        ["tag", "1", *self._statistics()],
-                    ])
+                    self._write_csv(target.joinpath("start", "App.csv"), (
+                        [self._header(["tag", "n_samples"]),
+                         ["tag", "1", *self._statistics()]]
+                        if name == "breakdowns" else self._memdump_rows()))
                     target.joinpath("metadata.json").write_text(json.dumps({
                         "artifacts": [{"label": "start", "timestamp": "0",
                                        "files": ["start/App.csv"]}],
@@ -101,6 +101,60 @@ class ViewTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     read_view(ViewStore(view))
 
+    def test_reader_requires_valid_memdump_categories_and_totals(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            missing = root.joinpath("missing")
+            self._write_view(missing)
+            missing.joinpath("memdumps", "metadata.json").unlink()
+            with self.assertRaisesRegex(ValueError, "directory layout"):
+                read_view(ViewStore(missing))
+
+            invalid = root.joinpath("invalid")
+            self._write_view(invalid)
+            path = invalid.joinpath("memdumps", "start", "App.csv")
+            with path.open(encoding="utf-8", newline="") as stream:
+                rows = list(csv.reader(stream))
+            rows[-1][2] = "1"
+            self._write_csv(path, rows)
+            with self.assertRaisesRegex(ValueError, "total mean"):
+                read_view(ViewStore(invalid))
+
+            legacy = root.joinpath("legacy")
+            self._write_view(legacy)
+            legacy.joinpath("memdump.csv").write_text(
+                "legacy\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "directory layout"):
+                read_view(ViewStore(legacy))
+
+    def test_reader_requires_footprint_matching_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            missing = root.joinpath("missing")
+            self._write_view(missing)
+            missing.joinpath("footprint.csv").unlink()
+            with self.assertRaisesRegex(ValueError, "directory layout"):
+                read_view(ViewStore(missing))
+
+            invalid = root.joinpath("invalid")
+            self._write_view(invalid)
+            self._write_csv(invalid.joinpath("footprint.csv"), [
+                self._footprint_header(),
+                ["Other", "start", "1", *self._footprint_statistics()],
+            ])
+            with self.assertRaisesRegex(ValueError, "footprint identities"):
+                read_view(ViewStore(invalid))
+
+            legacy = root.joinpath("legacy")
+            self._write_view(legacy)
+            self._write_csv(legacy.joinpath("footprint.csv"), [
+                self._header(["app_label", "snapshot_label", "n_samples"],
+                             ["footprint", "private_clean_kb"]),
+                ["App", "start", "1", *(["1"] * 12)],
+            ])
+            with self.assertRaisesRegex(ValueError, "CSV header"):
+                read_view(ViewStore(legacy))
+
     def test_reader_rejects_legacy_and_invalid_breakdown_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
@@ -138,6 +192,11 @@ class ViewTest(unittest.TestCase):
             self.assertTrue(is_view_equivalent(left, right))
             data = json.loads(root.joinpath(
                 "right", "metadata.json").read_text())
+            data["plots"] = False
+            root.joinpath("right", "metadata.json").write_text(
+                json.dumps(data), encoding="utf-8")
+            self.assertTrue(is_view_equivalent(
+                left, read_view(ViewStore(root / "right"))))
             data["smaps_filter_flags"] = re.IGNORECASE
             root.joinpath("right", "metadata.json").write_text(
                 json.dumps(data), encoding="utf-8")
@@ -185,20 +244,41 @@ class ViewTest(unittest.TestCase):
             self._write_evidence(root.joinpath("right-evidence"), "[other]")
             pattern = re.compile(r"^\[match\]$")
             left = lib.create_view(
-                [root / "left-evidence"], root / "left-view", pattern)
+                [root / "left-evidence"], root / "left-view",
+                smaps_filter=pattern)
             right = lib.create_view(
-                [root / "right-evidence"], root / "right-view", pattern)
+                [root / "right-evidence"], root / "right-view",
+                smaps_filter=pattern)
             self.assertFalse(is_view_equivalent(read_view(ViewStore(left)),
                                                 read_view(ViewStore(right))))
             with self.assertRaisesRegex(ValueError, "incompatible"):
                 compare_reports(left, [right], root / "comparison")
 
-    def _header(self, identity: list[str]) -> list[str]:
-        return identity + [f"{metric}_{statistic}" for metric in SUMMARY_METRICS
+    def _header(self, identity: list[str], metrics: list[str] = SUMMARY_METRICS) -> list[str]:
+        return identity + [f"{metric}_{statistic}" for metric in metrics
                            for statistic in SUMMARY_STATISTICS]
 
     def _statistics(self) -> list[str]:
         return ["1" for _ in SUMMARY_METRICS for _ in SUMMARY_STATISTICS]
+
+    def _zero_statistics(self) -> list[str]:
+        return ["0" for _ in SUMMARY_METRICS for _ in SUMMARY_STATISTICS]
+
+    def _memdump_rows(self) -> list[list[str]]:
+        return [
+            self._header(["category", "n_samples"]),
+            *[[category, "1", *self._zero_statistics()]
+              for category in ("arkts-dyn-heap", "arkts-sta-heap", "native-heap",
+                               ".hap", ".so", "jsvm-heap", "other")],
+            ["total", "1", *self._zero_statistics()],
+        ]
+
+    def _footprint_header(self) -> list[str]:
+        return self._header(["app_label", "snapshot_label", "n_samples"],
+                            FOOTPRINT_METRICS)
+
+    def _footprint_statistics(self) -> list[str]:
+        return ["1" for _ in FOOTPRINT_METRICS for _ in SUMMARY_STATISTICS]
 
     def _write_csv(self, path: pathlib.Path, rows: list[list[str]]) -> None:
         with path.open("w", encoding="utf-8", newline="") as stream:
@@ -208,9 +288,10 @@ class ViewTest(unittest.TestCase):
         root.mkdir()
         root.joinpath("plots").mkdir()
         root.joinpath("breakdowns", "start").mkdir(parents=True)
+        root.joinpath("memdumps", "start").mkdir(parents=True)
         root.joinpath("metadata.json").write_text(json.dumps({
             "dirs": ["/unavailable/evidence"], "smaps_filter": ".*",
-            "smaps_filter_flags": re.UNICODE,
+            "smaps_filter_flags": re.UNICODE, "plots": True,
         }), encoding="utf-8")
         root.joinpath("outliers.csv").write_text(
             "discarded\n", encoding="utf-8")
@@ -218,10 +299,20 @@ class ViewTest(unittest.TestCase):
             "artifacts": [{"label": "start", "timestamp": "0",
                            "files": ["start/App.csv"]}],
         }), encoding="utf-8")
+        root.joinpath("memdumps", "metadata.json").write_text(json.dumps({
+            "artifacts": [{"label": "start", "timestamp": "0",
+                           "files": ["start/App.csv"]}],
+        }), encoding="utf-8")
         self._write_csv(root.joinpath("summary.csv"), [
             self._header(["app_label", "snapshot_label", "n_samples"]),
             ["App", "start", "1", *self._statistics()],
         ])
+        self._write_csv(root.joinpath("footprint.csv"), [
+            self._footprint_header(),
+            ["App", "start", "1", *self._footprint_statistics()],
+        ])
+        self._write_csv(root.joinpath("memdumps", "start", "App.csv"),
+                        self._memdump_rows())
         self._write_csv(root.joinpath("breakdowns", "start", "App.csv"), [
             self._header(["tag", "n_samples"]),
             ["tag", "1", *self._statistics()],
@@ -230,6 +321,11 @@ class ViewTest(unittest.TestCase):
     def _write_evidence(self, root: pathlib.Path, tag: str) -> None:
         store = EvidenceStore(root)
         root.mkdir()
+        store.local_flow_path().write_text(
+            lib.flow([]).model_dump_json(), encoding="utf-8")
+        store.local_metadata_path().write_text(json.dumps({
+            "flow": "flow.json", "reboot": False, "device_log": False,
+        }), encoding="utf-8")
         store.local_snapshots_dir().mkdir()
         store.local_screenshots_dir().mkdir()
         store.local_app_metadata_path().write_text(AppMetadataFile(apps=[AppMetadata(

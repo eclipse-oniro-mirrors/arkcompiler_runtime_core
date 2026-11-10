@@ -17,4 +17,4 @@ import pydantic
 
 
 class PydanticModel(pydantic.BaseModel):
-    model_config = pydantic.ConfigDict(extra="forbid")
+    model_config = pydantic.ConfigDict(extra="forbid", strict=True)

@@ -14,20 +14,60 @@
 # limitations under the License.
 
 import pathlib
+import re
 import tempfile
+import typing
 import unittest
 from unittest import mock
-from types import SimpleNamespace
 
 from test.mock.device import FakeDevice
 
+import pydantic
+
 from src.device import ScreenBounds
+from src.evidence import validate_evidence
+from src.metadata import EvidenceMetadata
+from src.store import EvidenceStore
 from src.log import configure_logger, get_logger, reset_logger
 
 import lib
 
 
 class LibTest(unittest.TestCase):
+    def test_execution_writes_canonical_provenance_before_preparation(self) -> None:
+        flow = lib.preprocess_flow(lib.UnprocessedFlow.model_validate({
+            "$desc": "expanded", "flow": [{
+                "label": "app", "bundle": "com.example", "ability": "EntryAbility",
+                "terminate": False, "commands": [{"macro": "repeat", "payload": {
+                    "iter_var": "i", "n_iter": 2,
+                    "commands": [{"action": "snapshot", "payload": "s_{i}"}],
+                }}],
+            }],
+        }))
+        with tempfile.TemporaryDirectory() as directory:
+            destination = pathlib.Path(directory) / "evidence"
+            store = EvidenceStore(destination)
+
+            class FailingPreparation(FakeDevice):
+                def reboot(self) -> None:
+                    # Provenance is already readable before any reboot work.
+                    validate_evidence(store)
+                    raise RuntimeError("preparation stopped")
+
+            with self.assertRaisesRegex(RuntimeError, "preparation stopped"):
+                lib.execute_flow(flow, FailingPreparation(), destination,
+                                 reboot=True, device_log=True)
+            parsed = validate_evidence(store)
+            self.assertEqual(parsed.flow, flow)
+            self.assertEqual(parsed.metadata, EvidenceMetadata(
+                flow="flow.json", reboot=True, device_log=True))
+            self.assertFalse(destination.parent.joinpath("flow.json").exists())
+
+    def test_builder_rejects_coercible_builtin_value(self) -> None:
+        with self.assertRaises(pydantic.ValidationError):
+            lib.app_flow("app", "com.example", "EntryAbility",
+                         typing.cast(bool, 1), [])
+
     def test_execute_flow_returns_evidence_destination(self) -> None:
         flow = lib.flow([lib.app_flow("app", "com.example", "EntryAbility",
                                       False, [])])
@@ -66,32 +106,38 @@ class LibTest(unittest.TestCase):
                 lib.create_view([evidence, evidence], pathlib.Path(
                     directory).joinpath("view"))
 
-    def test_create_view_rejects_invalid_filter_before_creating_destination(self) -> None:
+    def test_create_view_rejects_invalid_smaps_filters_before_reading_evidence(self) -> None:
+        class PseudoPattern:
+            pattern = ".*"
+            flags = 0
+
+            def match(self, _value: str) -> bool:
+                return True
+
+        invalid_filters: list[object] = [
+            None, ".*", re.compile(b".*"), PseudoPattern()]
         with tempfile.TemporaryDirectory() as directory:
-            destination = pathlib.Path(directory).joinpath("view")
-
-            with self.assertRaisesRegex(TypeError, "compiled string pattern"):
-                lib.create_view([pathlib.Path(directory).joinpath(
-                    "evidence")], destination, None)  # type: ignore[arg-type]
-
-            self.assertFalse(destination.exists())
+            root = pathlib.Path(directory)
+            for smaps_filter in invalid_filters:
+                destination = root / str(len(str(smaps_filter)))
+                with self.assertRaisesRegex(TypeError, "compiled string pattern"):
+                    lib.create_view([root / "missing"], destination,
+                                    smaps_filter=typing.cast(re.Pattern[str], smaps_filter))
+                self.assertFalse(destination.exists())
 
     def test_create_view_keeps_new_partial_destination_on_write_failure(self) -> None:
-        parsed = SimpleNamespace(
-            source=pathlib.Path("/evidence"),
-            snapshots=SimpleNamespace(artifacts=[]),
-        )
         with tempfile.TemporaryDirectory() as directory:
             destination = pathlib.Path(directory).joinpath("view")
+            evidence = lib.execute_flow(lib.flow([]), FakeDevice(),
+                                        pathlib.Path(directory) / "evidence", device_log=False)
 
-            def fail_after_creation(*args: object) -> None:
+            def fail_after_creation(*args: object, **kwargs: object) -> None:
                 destination.mkdir()
                 raise RuntimeError("write failed")
 
-            with mock.patch("lib.parse_evidence", return_value=parsed), \
-                    mock.patch("lib.write_view", side_effect=fail_after_creation):
+            with mock.patch("lib.write_view", side_effect=fail_after_creation):
                 with self.assertRaisesRegex(RuntimeError, "write failed"):
-                    lib.create_view([pathlib.Path("/evidence")], destination)
+                    lib.create_view([evidence], destination)
 
             self.assertTrue(destination.is_dir())
 

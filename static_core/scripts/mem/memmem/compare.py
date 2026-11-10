@@ -22,8 +22,8 @@ import sys
 
 from src.cli_helpers import add_logging_arguments
 from src.path import absolutize
+from src.profile import FOOTPRINT_METRICS, SUMMARY_METRICS
 from src.store import ViewStore
-from src.smaps import SUMMARY_METRICS
 from src.view import ParsedView, is_view_equivalent, read_view
 
 import lib
@@ -72,9 +72,10 @@ def _percent(base: Value, change: Value) -> str:
     return f"{((change.number - base.number) / base.number * 100):.2f}"
 
 
-def _comparison_header(identity: list[str], count: int) -> list[str]:
+def _comparison_header(identity: list[str], count: int,
+                       metrics: list[str] = SUMMARY_METRICS) -> list[str]:
     header = identity.copy()
-    for metric in SUMMARY_METRICS:
+    for metric in metrics:
         header.append(f"{metric}_base")
         for index in range(count):
             header.extend([
@@ -90,9 +91,10 @@ def _comparison_row(
     change_rows: list[dict[str, str] | None],
     base_path: pathlib.Path,
     change_paths: list[pathlib.Path],
+    metrics: list[str] = SUMMARY_METRICS,
 ) -> list[str]:
     row = identity.copy()
-    for metric in SUMMARY_METRICS:
+    for metric in metrics:
         column = f"{metric}_median"
         base = (None if base_row is None else _read_value(
             base_row, column, base_path))
@@ -133,7 +135,8 @@ def _write_csv(path: pathlib.Path, rows: list[list[str]]) -> None:
 
 
 def _comparison_rows(base: ParsedView, changes: list[ParsedView]) -> tuple[
-        list[list[str]], dict[tuple[str, str], list[list[str]]]]:
+        list[list[str]], dict[tuple[str, str], list[list[str]]],
+        dict[tuple[str, str], list[list[str]]], list[list[str]]]:
     change_summary_paths = [view.store.local_summary_path()
                             for view in changes]
     summary_rows = [_comparison_header(
@@ -143,6 +146,29 @@ def _comparison_rows(base: ParsedView, changes: list[ParsedView]) -> tuple[
             [base_row["app_label"], base_row["snapshot_label"]], base_row,
             [view.summary_rows[index] for view in changes],
             base.store.local_summary_path(), change_summary_paths))
+
+    change_footprint_paths = [view.store.local_footprint_path()
+                              for view in changes]
+    footprint_rows = [_comparison_header(
+        ["app_label", "snapshot_label"], len(changes), FOOTPRINT_METRICS)]
+    for index, base_row in enumerate(base.footprint_rows):
+        footprint_rows.append(_comparison_row(
+            [base_row["app_label"], base_row["snapshot_label"]], base_row,
+            [view.footprint_rows[index] for view in changes],
+            base.store.local_footprint_path(), change_footprint_paths,
+            FOOTPRINT_METRICS))
+
+    memdumps: dict[tuple[str, str], list[list[str]]] = {}
+    for identity, base_rows in base.memdump_rows.items():
+        change_rows = [view.memdump_rows[identity] for view in changes]
+        memdumps[identity] = [_comparison_header(["category"], len(changes))]
+        for index, base_row in enumerate(base_rows):
+            memdumps[identity].append(_comparison_row(
+                [base_row["category"]], base_row,
+                [rows[index] for rows in change_rows],
+                base.store.local_memdump_path(identity[1], identity[0]),
+                [view.store.local_memdump_path(identity[1], identity[0])
+                 for view in changes]))
 
     breakdowns: dict[tuple[str, str], list[list[str]]] = {}
     for identity, base_rows in base.breakdown_rows.items():
@@ -159,7 +185,7 @@ def _comparison_rows(base: ParsedView, changes: list[ParsedView]) -> tuple[
                 base.store.local_breakdown_path(identity[1], identity[0]),
                 change_paths))
         breakdowns[identity] = rows
-    return summary_rows, breakdowns
+    return summary_rows, memdumps, breakdowns, footprint_rows
 
 
 def compare_reports(
@@ -177,16 +203,20 @@ def compare_reports(
 
     # Build every row before reserving the destination, so invalid numeric input
     # never leaves an output directory behind.
-    summary_rows, breakdowns = _comparison_rows(base, changes)
+    summary_rows, memdumps, breakdowns, footprint_rows = _comparison_rows(
+        base, changes)
     out_dir.mkdir(parents=True, exist_ok=False)
     _write_csv(out_dir.joinpath("summary.csv"), summary_rows)
+    _write_csv(out_dir.joinpath("footprint.csv"), footprint_rows)
+    for (app, snapshot), rows in memdumps.items():
+        _write_csv(out_dir.joinpath("memdumps", snapshot, f"{app}.csv"), rows)
     for (app, snapshot), rows in breakdowns.items():
         _write_csv(out_dir.joinpath(
             "breakdowns", snapshot, f"{app}.csv"), rows)
 
 
-def main() -> int:
-    args = build_parser().parse_args()
+def main(argv: list[str]) -> int:
+    args = build_parser().parse_args(argv)
     log_file = (absolutize(args.memmem_log_file)
                 if args.memmem_log_file is not None else None)
     try:
@@ -205,4 +235,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))

@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import csv
 import pathlib
 import re
 import tempfile
@@ -21,10 +22,13 @@ from unittest import mock
 
 from src.evidence import ParsedEvidence
 from src.metadata import (AppMetadata, AppMetadataFile, ArtifactMetadata,
-                          AppSnapshotLabelPair, ArtifactMetadataFile)
-from src.report import SUMMARY_STATISTICS, write_view
+                          AppSnapshotLabelPair, ArtifactMetadataFile, EvidenceMetadata)
+from src.schema import Flow
+from src.profile import MemProfile, SUMMARY_METRICS
+from src.report import (MEMDUMP_CATEGORIES, MEMDUMP_CATEGORY_PATTERNS, MEMDUMP_TOTAL, SUMMARY_STATISTICS,
+                        classify_memdump_tag, write_view)
 from src.store import ViewStore
-from src.smaps import SUMMARY_METRICS, MemProfile, SmapsSummary
+from src.smaps import SmapsSummary
 from src.view import read_view
 
 
@@ -36,6 +40,9 @@ class ReportTest(unittest.TestCase):
         artifacts: list[ArtifactMetadata] | None = None,
     ) -> ParsedEvidence:
         return ParsedEvidence(
+            metadata=EvidenceMetadata(
+                flow="flow.json", reboot=False, device_log=False),
+            flow=Flow(flow=[]),
             source=pathlib.Path(source),
             apps=AppMetadataFile(apps=[AppMetadata(
                 pid=1, label="App", bundle="com.example", ability="EntryAbility")]),
@@ -49,8 +56,11 @@ class ReportTest(unittest.TestCase):
             label="start", timestamp="1", files=["start/App.smaps"])])
         apps = AppMetadataFile(apps=[AppMetadata(
             pid=1, label="App", bundle="com.example", ability="EntryAbility")])
-        profile = MemProfile(1, 2, 3, 4, 5, 6, 7, 8, 9)
+        profile = MemProfile(*range(1, len(SUMMARY_METRICS) + 1))
         evidence = [ParsedEvidence(
+            metadata=EvidenceMetadata(
+                flow="flow.json", reboot=False, device_log=False),
+            flow=Flow(flow=[]),
             source=pathlib.Path(f"/evidence-{index}"), apps=apps,
             snapshots=snapshots,
             measurements={AppSnapshotLabelPair("App", "start"):
@@ -63,18 +73,87 @@ class ReportTest(unittest.TestCase):
 
             view = read_view(store)
             self.assertEqual(view.summary_rows[0]["n_samples"], "2")
+            self.assertEqual(view.footprint_rows[0]["footprint_mean"], "27.00")
+            self.assertEqual(
+                view.footprint_rows[0]["pss_plus_swap_pss_mean"], "15.00")
+            self.assertEqual(
+                view.footprint_rows[0]["private_clean_kb_mean"], "8.00")
             self.assertEqual(view.breakdowns.artifacts[0].files, [
                              "start/App.csv"])
             self.assertEqual(view.breakdown_rows[(
                 "App", "start")][0]["tag"], "[anon]")
+
+    def test_memdump_classifier_uses_ordered_first_match_rules(self) -> None:
+        cases = {
+            "[anon:ArkTS Heap space]": "arkts-dyn-heap",
+            "[anon:ArkTs Static Object Space]": "arkts-sta-heap",
+            "[anon:ArkTs Static Humongous Object Space]": "arkts-sta-heap",
+            "[anon:ArkTs Static Non Movable Space]": "arkts-sta-heap",
+            "[heap]": "native-heap",
+            "[anon:native_heap:foo]": "native-heap",
+            "[anon:libc_malloc]": "native-heap",
+            "/data/storage/app": ".hap",
+            "/system/app.hap": ".hap",
+            "/system/app.hsp": ".hap",
+            "/system/libfoo.so": ".so",
+            "/system/libfoo.so.1": ".so",
+            "/data/storage/libfoo.so": ".hap",
+            "[anon:JSVM heap]": "jsvm-heap",
+            "[anonymous]": "other",
+        }
+        self.assertEqual(MEMDUMP_CATEGORIES, list(MEMDUMP_CATEGORY_PATTERNS))
+        self.assertEqual({tag: classify_memdump_tag(tag)
+                          for tag in cases}, cases)
+
+    def test_write_view_skips_plots_when_disabled(self) -> None:
+        pair = AppSnapshotLabelPair("App", "start")
+        profile = MemProfile(*([1] * len(SUMMARY_METRICS)))
+        with tempfile.TemporaryDirectory() as directory:
+            store = ViewStore(pathlib.Path(directory).joinpath("view"))
+            write_view([self._evidence("/evidence", {pair: SmapsSummary(
+                profile, {"tag": profile})})], store, ".*", 0, False)
+
+            self.assertEqual(read_view(store).metadata.plots, False)
+            self.assertEqual(list(store.local_plots_dir().iterdir()), [])
+
+    def test_memdump_zero_fills_categories_and_writes_total_last(self) -> None:
+        pair = AppSnapshotLabelPair("App", "start")
+
+        def profile(value: int) -> MemProfile:
+            return MemProfile(value, value, value, value, value, value, value * 2,
+                              value, value, value * 2, value, value, value)
+
+        evidence = [
+            self._evidence("/evidence-0", {pair: SmapsSummary(
+                profile(5), {"[anon:ArkTS Heap]": profile(2), "lib.so": profile(3)})}),
+            self._evidence("/evidence-1", {pair: SmapsSummary(
+                profile(4), {"[anon:ArkTS Heap]": profile(4)})}),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            store = ViewStore(pathlib.Path(directory).joinpath("view"))
+            write_view(evidence, store, ".*", re.UNICODE)
+            with store.local_memdump_path("start", "App").open(
+                    encoding="utf-8", newline="") as stream:
+                rows = list(csv.DictReader(stream))
+
+        self.assertEqual([row["category"] for row in rows],
+                         [*MEMDUMP_CATEGORIES, MEMDUMP_TOTAL])
+        self.assertTrue(all(row["n_samples"] == "2" for row in rows))
+        self.assertEqual(rows[0]["size_kb_mean"], "3.00")
+        self.assertEqual(rows[4]["size_kb_mean"], "1.50")
+        self.assertEqual(rows[-1]["size_kb_mean"], "4.50")
+        self.assertFalse(store.local_root().joinpath("memdump.csv").exists())
 
     def test_write_view_discards_whole_outlier_and_uses_first_retained_timestamp(self) -> None:
         apps = AppMetadataFile(apps=[AppMetadata(
             pid=1, label="App", bundle="com.example", ability="EntryAbility")])
         evidence = []
         for index, value in enumerate([100, 10, 10, 10, 10]):
-            profile = MemProfile(*([value] * 9))
+            profile = MemProfile(*([value] * len(SUMMARY_METRICS)))
             evidence.append(ParsedEvidence(
+                metadata=EvidenceMetadata(
+                    flow="flow.json", reboot=False, device_log=False),
+                flow=Flow(flow=[]),
                 source=pathlib.Path(f"/evidence-{index}"), apps=apps,
                 snapshots=ArtifactMetadataFile(artifacts=[ArtifactMetadata(
                     label="start", timestamp=str(index + 1), files=["start/App.smaps"])]),
@@ -125,6 +204,9 @@ class ReportTest(unittest.TestCase):
             self.assertEqual(breakdown[2].split(",")[:3], ["a", "2", "2.00"])
             self.assertFalse(store.local_root().joinpath(
                 "summary_filtered.csv").exists())
+            self.assertEqual(store.local_footprint_path().read_text(
+                encoding="utf-8").splitlines()[1].split(",")[:6],
+                ["App", "start", "2", "6.00", "0.00", "6.00"])
 
     def test_write_view_uses_declaration_order_when_first_source_lacks_pair(self) -> None:
         early = AppSnapshotLabelPair("App", "early")
@@ -144,8 +226,7 @@ class ReportTest(unittest.TestCase):
         ]
         with tempfile.TemporaryDirectory() as directory:
             store = ViewStore(pathlib.Path(directory).joinpath("view"))
-            with mock.patch("src.report.generate_averaged_plots"):
-                write_view(evidence, store, ".*", re.UNICODE)
+            write_view(evidence, store, ".*", re.UNICODE, plots=False)
 
             view = read_view(store)
             self.assertEqual(
@@ -183,8 +264,7 @@ class ReportTest(unittest.TestCase):
                 f"/evidence-{index}", {pair: SmapsSummary(profile, {"tag": profile})}))
         with tempfile.TemporaryDirectory() as directory:
             store = ViewStore(pathlib.Path(directory).joinpath("view"))
-            with mock.patch("src.report.generate_averaged_plots"):
-                write_view(evidence, store, ".*", re.UNICODE)
+            write_view(evidence, store, ".*", re.UNICODE, plots=False)
 
             self.assertEqual(store.local_outliers_path().read_text(
                 encoding="utf-8").splitlines(), ["discarded", "/evidence-0"])

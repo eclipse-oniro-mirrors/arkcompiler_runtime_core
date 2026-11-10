@@ -158,7 +158,7 @@ Single-execution code SHALL accept canonical flow, execution options, evidence s
 - **THEN** it uses them for commands, evidence paths, reboot and `device_log` behavior, and existing logger messages without repeats or report filters
 
 ### Requirement: Repeated runs produce iteration output directories
-Execution CLIs SHALL create a missing parent `--out-dir` or accept a pre-created parent. They SHALL persist one canonical `flow.json` with description and expanded macros at that root and no run metadata, then use exact new `iteration_i/evidence` API destinations for `i` from `0` to `repeats - 1`, including `repeats=1`. Root flow provenance SHALL not be overwritten: an existing `flow.json` or intended evidence destination SHALL cause an error rather than implicit resume. Direct API execution SHALL not write parent `flow.json`. Reboot SHALL apply before each requested execution. `run.py` SHALL collect all iterations before any view, then create individual `iteration_i/view/view-T` views and one combined `view/view-T`, reusing one invocation timestamp `T` even for a single repeat. `execute_flow.py` SHALL create no views. Collection failure SHALL stop subsequent iterations and all rendering; rendering failure SHALL stop subsequent views and leave all existing or partial outputs.
+Execution CLIs SHALL create a missing parent `--out-dir` or accept a pre-created parent, then use exact new `iteration_i/evidence` API destinations for `i` from `0` to `repeats - 1`, including `repeats=1`. They SHALL NOT write run-root `flow.json` or run metadata; each library execution SHALL instead persist its canonical flow and execution metadata inside its evidence destination. An intended evidence destination that already exists SHALL cause an error rather than implicit resume. An unrelated parent `flow.json` SHALL not be overwritten or used as a run marker. Reboot SHALL apply before each requested execution. `run.py` SHALL collect all iterations before any view, then create individual `iteration_i/view/view-T` views and one combined `view/view-T`, reusing one invocation timestamp `T` even for a single repeat. `execute_flow.py` SHALL create no views. Collection or hook failure SHALL stop subsequent iterations and all later rendering; rendering failure SHALL stop subsequent views and leave all existing or partial outputs.
 
 #### Scenario: Repeats equals one
 - **WHEN** `run.py` uses repeats `1`
@@ -169,8 +169,8 @@ Execution CLIs SHALL create a missing parent `--out-dir` or accept a pre-created
 - **THEN** evidence is collected into `iteration_0` through `iteration_{repeats-1}` before `run.py` starts any view
 
 #### Scenario: Existing repeated-run output is rejected
-- **WHEN** an intended evidence destination or canonical flow file already exists in the chosen parent
-- **THEN** collection rejects the conflict without overwriting it; existence of the parent alone is no longer an error
+- **WHEN** an intended evidence destination already exists in the chosen parent
+- **THEN** collection rejects the conflict without overwriting it; existence of the parent or an unrelated parent flow file alone is not an error
 
 #### Scenario: Iteration failure aborts the run
 - **WHEN** an iteration fails
@@ -181,12 +181,16 @@ Execution CLIs SHALL create a missing parent `--out-dir` or accept a pre-created
 - **THEN** it is requested separately for each execution
 
 #### Scenario: Parent exists without conflicting output
-- **WHEN** `--out-dir` is pre-created and flow and evidence targets are available
+- **WHEN** `--out-dir` is pre-created and evidence targets are available
 - **THEN** the CLI accepts the parent and each API exclusively creates its own subdirectory
 
 #### Scenario: Rendering fails
 - **WHEN** a per-iteration view fails after collection completed
 - **THEN** later individual and combined views are not attempted and evidence and partial views remain
+
+#### Scenario: Each iteration carries canonical provenance
+- **WHEN** repeated collection initializes its evidence destinations
+- **THEN** each contains canonical `flow.json` and execution `metadata.json`, and the CLI creates neither file at the run root
 
 ### Requirement: Flow JSON defines ordered app flows
 The system SHALL load and validate a JSON flow file as an unprocessed flow containing an ordered list of `AppFlow` entries with `label`, `bundle`, `ability`, `terminate`, and `commands` fields, and SHALL preprocess the unprocessed flow into a canonical `Flow` through the public preprocessing API before execution. Unprocessed command entries MAY be concrete canonical commands or repeat macro entries. Repeat macro entries MUST be expanded before canonical `Flow` validation and before execution. Canonical `Flow` validation MUST enforce that app labels and snapshot labels match `^[A-Za-z0-9_-]+$`, that screenshot labels match `^[A-Za-z0-9_-]+$`, that app labels are globally unique across the flow, that snapshot labels are globally unique across all expanded `snapshot` commands, that screenshot labels are globally unique across all expanded `screenshot` commands, and that UI coordinate command payloads use integer percent coordinates from `0` to `100`. The flow JSON MAY include optional top-level `"$desc"` string metadata that describes the flow for human reviewers and does not affect execution.
@@ -444,7 +448,7 @@ The system SHALL support command actions `wait`, `snapshot`, `screenshot`, `key`
 - **THEN** the system fails schema validation before performing device actions
 
 ### Requirement: Backend command support is validated before execution
-The public `execute_flow` entry SHALL check every canonical command immediately after flow revalidation and before evidence-store creation or reservation or device preparation. It SHALL report the first unsupported command. The shared CLI collection helper SHALL preflight support before writing run provenance where practical, while the public API SHALL retain its own validation for direct callers.
+The public `execute_flow` entry SHALL check every canonical command immediately after flow revalidation and before evidence-store creation or reservation or device preparation. It SHALL report the first unsupported command. The shared CLI collection helper SHALL delegate command support validation to `execute_flow` and SHALL NOT duplicate that validation.
 
 #### Scenario: Device rejects an unsupported command
 - **WHEN** a validated flow contains a command that the selected device reports unsupported
@@ -563,3 +567,14 @@ The system SHALL provide `create_view.py DIR1 [DIR2 ...] --out-dir PARENT [--sma
 #### Scenario: Exact generated destination collides
 - **WHEN** the generated view destination already exists
 - **THEN** creation fails rather than merging, deleting, or replacing it
+
+### Requirement: Flow schema fields reject coercion
+The system SHALL reject a flow whose Python or JSON input supplies a value of the wrong builtin type for any flow-schema field, including app metadata, command payloads, macro payloads, and optional description metadata. It SHALL not coerce strings to numeric values, numeric values to strings or booleans, or other incompatible builtin values before validation. Existing field constraints and macro expansion behavior SHALL remain unchanged.
+
+#### Scenario: Coercible flow values are supplied
+- **WHEN** a flow input supplies a numeric string for an integer field, an integer for a boolean field, or a non-string value for a string field
+- **THEN** flow validation fails before preprocessing or device actions
+
+#### Scenario: Valid JSON flow is supplied
+- **WHEN** a flow JSON document supplies JSON values whose types match the flow schema
+- **THEN** the system accepts and processes the flow under the existing validation rules

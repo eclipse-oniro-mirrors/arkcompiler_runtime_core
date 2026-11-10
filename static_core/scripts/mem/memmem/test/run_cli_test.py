@@ -245,7 +245,7 @@ class RunCliTest(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("ABD_PATH is required", result.stderr)
 
-    def test_abd_multi_touch_fails_before_output_creation(self) -> None:
+    def test_abd_multi_touch_leaves_empty_output_parent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             root.joinpath(".env").write_text(
@@ -287,7 +287,8 @@ class RunCliTest(unittest.TestCase):
 
             self.assertEqual(result.returncode, 1)
             self.assertIn("does not support command", result.stderr)
-            self.assertFalse(output_path.exists())
+            self.assertTrue(output_path.is_dir())
+            self.assertFalse(output_path.joinpath("iteration_0").exists())
 
     def test_invalid_flow_json_fails_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

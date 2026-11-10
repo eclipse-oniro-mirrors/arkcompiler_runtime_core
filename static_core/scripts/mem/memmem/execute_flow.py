@@ -33,8 +33,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> int:
-    args = build_parser().parse_args()
+def main(argv: list[str]) -> int:
+    args = build_parser().parse_args(argv)
     out_dir = (absolutize(args.out_dir) if args.out_dir is not None else
                absolutize(pathlib.Path(
                    f"memmem-out-{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}")))
@@ -45,7 +45,9 @@ def main() -> int:
         flow = load_flow(args.flow)
         device = load_device(pathlib.Path(".env"), args.backend)
         execute_iterations(flow, device, out_dir, args.repeats, reboot=args.reboot,
-                           device_log=args.device_log)
+                           device_log=args.device_log,
+                           pre_hooks=args.pre_execute_flow_hook,
+                           post_hooks=args.post_execute_flow_hook)
     except Exception as error:
         print(f"memmem error: {error}", file=sys.stderr)
         return 1
@@ -55,4 +57,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))

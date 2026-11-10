@@ -268,7 +268,7 @@ When repeats is greater than `1`, the system SHALL generate raw and filtered agg
 
 #### Scenario: Column values are typed
 - **WHEN** an averaged summary report is generated
-- **THEN** `n_samples`, `min`, and `max` cells are integers and `mean`, `geomean`, `median`, and `std` cells are floating-point numbers with two decimal places
+- **THEN** `n_samples`, `min`, and `max` cells are integers and `mean`, `geomean`, `median`, and `std` cells are floating-point numbers with two decimal digits
 
 ### Requirement: Averaged memory trend plots are generated from the filtered summary
 When repeats is greater than `1`, the system SHALL generate one averaged SVG plot per app label and memory metric under `out_dir/summary/plots/<app_label>/<metric>.svg` using the retained iterations represented by `summary/summary_filtered.csv`. Each plot SHALL plot the geomean value for that metric at each snapshot and SHALL display the corresponding std as error bars. Plot x-axis timestamps SHALL be read from `snapshots/metadata.json` of the first retained iteration in run order, keyed by snapshot label. When `snapshots/metadata.json` is absent, the system SHALL emit a memmem warning log and skip averaged plot generation without failing report averaging.

@@ -24,7 +24,7 @@ ABD_PATH=/path/to/abd
 
 ```bash
 make venv
-source .venv/bin/activate
+source .venv/bin/activate # or use `.venv/bin/python` instead of just `python`
 ```
 
 ## Commands
@@ -35,7 +35,7 @@ python create_view.py memmem-out-.../iteration_0/evidence --out-dir views
 python run.py --flow flow.json --backend hdc --repeats 3
 ```
 
-`execute_flow.py` collects evidence. `create_view.py` creates a view from one or more existing evidence directories and does not require a device or `.env` file. `run.py` orchestrates `execute_flow.py` and `create_view.py` into a single CLI entrypoint: it collects evidence for every iteration, then creates a view for each iteration and a combined view.
+`execute_flow.py` executes a flow and collects raw evidence. `create_view.py` creates a view from one or more existing evidence directories and does not require a device or `.env` file. `run.py` orchestrates `execute_flow.py` and `create_view.py` into a single CLI entrypoint: it collects evidence for every iteration, then creates a view for each iteration and an aggregated view with averaged statistics.
 
 `execute_flow.py` and `run.py` accept:
 
@@ -45,43 +45,83 @@ python run.py --flow flow.json --backend hdc --repeats 3
 - `--repeats N` (default: `1`): number of evidence collections.
 - `--reboot` or `--no-reboot` (default: no reboot).
 - `--device-log` or `--no-device-log` (default: device logging enabled).
+- `--pre-execute-flow-hook PATH` (repeatable, default: `[]`): user hooks to run before flow execution starts.
+- `--post-execute-flow-hook PATH` (repeatable, default: `[]`): user hooks to run after flow execution completes.
 
-`create_view.py` and `run.py` accept `--smaps-filter REGEX` (default: `.*`) to select smaps mappings by normalized tag. `create_view.py` requires one or more evidence directories and `--out-dir PATH` for the new view.
+`create_view.py` and `run.py` accept:
+
+- `--smaps-filter REGEX` (default: `.*`) to select smaps mappings by normalized tag.
+- `--pre-create-view-hook PATH` (repeatable, default: `[]`): user hooks to run before view creation starts.
+- `--post-create-view-hook PATH` (repeatable, default: `[]`): user hooks to run after view creation completes.
+
+`create_view.py` requires one or more evidence directories and `--out-dir PATH` for the new view.
 
 All three commands accept:
 
 - `--memmem-log-level {info,warn,err}` (default: `err`).
 - `--memmem-log-file PATH`.
 
-Path arguments (`--flow`, `--out-dir`, `--memmem-log-file`, `HDC_PATH`, and `ABD_PATH`) are resolved against the directory the CLI was invoked from unless the path is absolute.
+Path arguments (including evidence directories, `--flow`, `--out-dir`, `--memmem-log-file`, hook paths, `HDC_PATH`, and `ABD_PATH`) are resolved against the directory the CLI was invoked from unless the path is absolute.
 
-## Record (record_hdc.py)
+## Andr0id Backend Notes
 
-```bash
-python record_hdc.py --timeout 30
+With `--backend abd`, `bundle` and `ability` are interpreted as the Andr0id package and activity, for example `com.example.app` and `.MainActivity`. Andr0id devices must be rooted so the shell can capture app smaps.
+
+### User hooks
+
+`execute_flow.py` and `run.py` accept `--pre-execute-flow-hook` and `--post-execute-flow-hook`. `create_view.py` and `run.py` accept `--pre-create-view-hook` and `--post-create-view-hook`. Each option takes an executable path and is repeatable. Hooks execute in registration order within each phase. Script hooks need both a shebang and executable permission. `--pre-*` hooks run directly before invocation of the corresponding `lib.*` API, and `--post-*` hooks run only after that API returns successfully. 
+Each hook has a 5-minute timeout. A nonzero exit or timeout stops the command. Later hooks are skipped. Hook stdout and stderr appear directly in the terminal. Hooks own their external side effects and child-process cleanup. Each hook's cwd is the CLI invocation directory. Memmem passes a single argument to each hook: the absolute path of a UTF-8 JSON file with hook context. Schemas of the JSON files:
+
+```python
+class ExecuteHookContext:
+  event: Literal["pre_execute_flow", "post_execute_flow"]
+  flow: dict[str, object]  # Flow
+  dst: str                 # path to the dst directory, absolutized
+  reboot: bool
+  device_log: bool
+
+class ViewHookContext:
+  event: Literal["pre_create_view", "post_create_view"]
+  dirs: list[str]  # list of input directories, absolutized
+  dst: str         # path to the dst directory, absolutized
+  smaps_filter_pattern: str
+  smaps_filter_flags: int
+  plots: bool
 ```
 
-`record_hdc.py` records UI input from an OpenHarmony device with `uitest uiRecord` and writes `flow-YYYYMMDD_HHMMSS_microseconds.json`. Andr0id recording is not supported.
+Examples of possible user hooks:
 
-- optional `--timeout`: recording duration in seconds; if omitted, recording continues until you type `y` and press Enter
-- script will prompt user for input when ready
-- generated flows contain UI input commands only; add waits, snapshots, and screenshots manually
-- generated `AppFlow` entries preserve recorded bundle/ability identity order and always use `terminate: false`
-- if a recorder event has empty bundle or ability metadata, the generated field remains `""` and the script prints a warning; edit those fields manually
+```python
+#!/usr/bin/env python3
+# log-hook.py
+import json
+import pathlib
+import sys
 
-## Compare result directories (`compare.py`)
-
-Compare one concrete baseline view with one or more concrete change views without rerunning benchmarks:
-
-```bash
-python compare.py \
-  --base baseline/view/view-20261027_120000_000000 \
-  --change change-a/view/view-20261027_120000_000000 \
-  --change change-b/view/view-20261027_120000_000000 \
-  --out-dir memmem-comparison
+context = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+print(f"{context['event']}: {context['dst']}", flush=True)
 ```
 
-Inputs must be validated concrete views with identical filter text/effective flags and ordered breakdown declarations. This is a caller assertion that matching labels represent comparable apps and flows; comparison does not reopen source evidence, so generated views remain comparable after their evidence has moved or been removed. The new `--out-dir` must not exist. The output contains comparative `summary.csv` and `breakdowns/<snapshot_label>/<app_label>.csv` files with one base value and one value/percentage pair for every `--change` argument in command-line order. Breakdown rows include the union of tags from all inputs; unavailable values and percentage deltas against a zero baseline are empty. Invalid or incompatible inputs fail before the comparison destination is created; generation failures retain partial newly created output.
+```bash
+#!/usr/bin/env bash
+# log-hook.sh
+set -euo pipefail
+event=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["event"])' "$1")
+dst=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["dst"])' "$1")
+printf '%s: %s\n' "$event" "$dst"
+```
+
+Example of the hook use:
+
+```bash
+chmod +x log-hook.py log-hook.sh
+python run.py --flow flow.json \
+  --pre-execute-flow-hook ./log-hook.py \
+  --pre-execute-flow-hook ./log-hook.sh \
+  --post-execute-flow-hook ./log-hook.py \
+  --pre-create-view-hook ./log-hook.py \
+  --post-create-view-hook ./log-hook.py
+```
 
 ## Flow schema
 
@@ -116,35 +156,6 @@ When `terminate` is `true`, the runner terminates that bundle after commands.
 
 App labels may contain only letters, digits, `_`, and `-`. App labels must be unique among app labels.
 
-### Multi-touch input
-
-`multi_touch_input` replays two or three concurrent finger paths on an OpenHarmony HDC device. It is not supported by the ABD backend. `finger_list` contains normalized start and end coordinates for each finger, and `duration_ms` is an integer from `1` through `15000`.
-
-```json
-{
-  "flow": [
-    {
-      "label": "zoom",
-      "bundle": "com.example.app",
-      "ability": "EntryAbility",
-      "terminate": false,
-      "commands": [
-        {
-          "action": "multi_touch_input",
-          "payload": {
-            "finger_list": [
-              { "x1_pct": 35, "y1_pct": 50, "x2_pct": 20, "y2_pct": 50 },
-              { "x1_pct": 65, "y1_pct": 50, "x2_pct": 80, "y2_pct": 50 }
-            ],
-            "duration_ms": 300
-          }
-        }
-      ]
-    }
-  ]
-}
-```
-
 ### Repeat macros
 
 Use repeat macros to avoid copying repeated command patterns.
@@ -178,6 +189,173 @@ Use repeat macros to avoid copying repeated command patterns.
 `iter_var` names the replacement variable and must match `^[A-Za-z_][A-Za-z0-9_]*$`. `n_iter` is the non-negative iteration count. During expansion, every `{<iter_var>}` occurrence inside string typed payloads is replaced with the iteration number in the range `[0, n_iter-1]`. The macro is replaced in place by the expanded commands in the same order.
 
 Labels are validated only after expansion: `"after_tap_{i}"` expands to `"after_tap_0"`, `"after_tap_1"`, ... and each resulting label must satisfy the canonical label rules.
+
+## Commands
+
+### Existing commands
+
+```json
+{ "action": "wait", "payload": 1.0 }
+{ "action": "snapshot", "payload": "label" }
+{ "action": "screenshot", "payload": "label" }
+{ "action": "key", "payload": { "key": "Home" } }
+```
+
+`wait` blocks execution for the given amount of seconds.
+
+`snapshot` captures smaps for every active app. Snapshot labels may contain only letters, digits, `_`, and `-`, and must be unique.
+
+`screenshot` captures the current screen as PNG evidence. Screenshot labels may contain only letters, digits, `_`, and `-`, and must be unique.
+
+`key` accepts only `Home`, `Back`, or `Power` and sends corresponding input to the device.
+
+### UI commands
+
+Coordinates are integer percentages from `0` to `100`:
+
+```json
+{ "action": "tap", "payload": { "x_pct": 50, "y_pct": 50 } }
+{ "action": "double_tap", "payload": { "x_pct": 50, "y_pct": 50 } }
+{ "action": "long_tap", "payload": { "x_pct": 50, "y_pct": 50 } }
+{ "action": "input_text", "payload": { "x_pct": 50, "y_pct": 40, "text": "hello" } }
+{ "action": "text", "payload": "hello" }
+```
+
+Swipe-like commands require `velocity` in `200..40000`:
+
+```json
+{
+  "action": "swipe",
+  "payload": {
+    "x1_pct": 50,
+    "y1_pct": 80,
+    "x2_pct": 50,
+    "y2_pct": 20,
+    "velocity": 800
+  }
+}
+```
+
+`drag` has the same payload as `swipe`.
+
+`fling` also requires positive `step_length`:
+
+```json
+{
+  "action": "fling",
+  "payload": {
+    "x1_pct": 50,
+    "y1_pct": 80,
+    "x2_pct": 50,
+    "y2_pct": 20,
+    "velocity": 1200,
+    "step_length": 20
+  }
+}
+```
+
+Directional fling:
+
+```json
+{
+  "action": "directional_fling",
+  "payload": { "direction": "up", "velocity": 1200, "step_length": 20 }
+}
+```
+
+`direction` is one of `left`, `right`, `up`, `down`.
+
+### Multi-touch input
+
+`multi_touch_input` replays two or three concurrent finger paths on an OpenHarmony HDC device. It is not supported by the ABD backend. `finger_list` contains normalized start and end coordinates for each finger, and `duration_ms` is an integer from `1` through `15000`.
+
+```json
+{
+  "flow": [
+    {
+      "label": "zoom",
+      "bundle": "com.example.app",
+      "ability": "EntryAbility",
+      "terminate": false,
+      "commands": [
+        {
+          "action": "multi_touch_input",
+          "payload": {
+            "finger_list": [
+              { "x1_pct": 35, "y1_pct": 50, "x2_pct": 20, "y2_pct": 50 },
+              { "x1_pct": 65, "y1_pct": 50, "x2_pct": 80, "y2_pct": 50 }
+            ],
+            "duration_ms": 300
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Output
+
+`run.py` uses this output layout, including when `--repeats 1`. `execute_flow.py` creates only the evidence directories:
+
+```text
+<out-dir>/
+  iteration_0/
+    evidence/...                # raw evidence of the 1-st iteration
+    view/
+      view-<timestamp>/...      # view of the raw evidence of the 1-st iteration
+  ...
+  iteration_N/
+    evidence/...                # raw evidence of the N-th iteration
+    view/
+      view-<timestamp>/...      # view of the raw evidence of the N-th iteration
+  view/
+    view-<timestamp>/...        # aggregated view of the raw evidence of iterations 0 through N
+```
+
+### Evidence
+
+Layout of the evidence directory produced by the `run.py`, `execute_flow.py` or `lib.execute_flow`:
+
+```text
+evidence/
+  flow.json                     # canonical executed flow
+  metadata.json                 # execution configuration
+  apps.json                     # launched applications and their metadata
+  snapshots/
+    metadata.json               # expected contents of the directory
+    <snapshot_label>/<app_label>.smaps
+  screenshots/
+    metadata.json               # expected contents of the directory
+    <screenshot_label>.png
+  logs/                         # only present when device logging is enabled
+    log.log
+```
+
+### View
+
+Layout of the view directory produced by `run.py`, `create_view.py`, or `lib.create_view`. The same layout is used for any number of evidence sources.
+
+```text
+<view>/
+  metadata.json                 # view configuration
+  summary.csv
+  footprint.csv                 # aggregate footprint statistics
+  outliers.csv                  # evidence directories excluded from the aggregation
+  breakdowns/                   # human-readable by-tag summary of the corresponding .smaps file in the evidence
+    metadata.json               # expected contents of the directory
+    <snapshot_label>/
+      <app_label>.csv
+  memdumps/                     # categorized memory summary for each smaps file
+    metadata.json               # expected contents of the directory
+    <snapshot_label>/
+      <app_label>.csv
+  plots/                        # plots for different metrics. Y is memory in Kb, X is time
+    <app_label>/
+      <app_label>-<metric>.svg
+```
+
+`summary.csv`, `footprint.csv`, breakdown CSVs, and memdump CSVs contain aggregate statistics: mean, geometric mean, median, standard deviation, minimum, and maximum.
 
 ### Programmatic API (lib.py)
 
@@ -269,133 +447,33 @@ For programmatic flows, prefer ordinary Python composition over `lib.unprocessed
 
 Configure optional application logging with `lib.configure_logger(level, log_file=None)`, access it with `lib.get_logger()`, and reset it with `lib.reset_logger()`. `level` is `"info"`, `"warn"`, or `"err"`.
 
-## Commands
+## Record (record_hdc.py)
 
-### Existing commands
-
-```json
-{ "action": "wait", "payload": 1.0 }
-{ "action": "snapshot", "payload": "label" }
-{ "action": "screenshot", "payload": "label" }
-{ "action": "key", "payload": { "key": "Home" } }
+```bash
+python record_hdc.py --timeout 30
 ```
 
-`wait` blocks execution for the given amount of seconds.
+`record_hdc.py` records UI input from an OpenHarmony device with `uitest uiRecord` and writes `flow-YYYYMMDD_HHMMSS_microseconds.json`. Andr0id recording is not supported.
 
-`snapshot` captures smaps for every active app. Snapshot labels may contain only letters, digits, `_`, and `-`, and must be unique.
+- optional `--timeout`: recording duration in seconds; if omitted, recording continues until you type `y` and press Enter
+- script will prompt user for input when ready
+- generated flows contain UI input commands only; add waits, snapshots, and screenshots manually
+- generated `AppFlow` entries preserve recorded bundle/ability identity order and always use `terminate: false`
+- if a recorder event has empty bundle or ability metadata, the generated field remains `""` and the script prints a warning; edit those fields manually
 
-`screenshot` captures the current screen as PNG evidence. Screenshot labels may contain only letters, digits, `_`, and `-`, and must be unique.
+## Compare result directories (`compare.py`)
 
-`key` accepts only `Home`, `Back`, or `Power` and sends corresponding input to the device.
+Compare one concrete baseline view with one or more concrete change views without rerunning benchmarks:
 
-### UI commands
-
-Coordinates are integer percentages from `0` to `100`:
-
-```json
-{ "action": "tap", "payload": { "x_pct": 50, "y_pct": 50 } }
-{ "action": "double_tap", "payload": { "x_pct": 50, "y_pct": 50 } }
-{ "action": "long_tap", "payload": { "x_pct": 50, "y_pct": 50 } }
-{ "action": "input_text", "payload": { "x_pct": 50, "y_pct": 40, "text": "hello" } }
-{ "action": "text", "payload": "hello" }
+```bash
+python compare.py \
+  --base baseline/view/view-20261027_120000_000000 \
+  --change change-a/view/view-20261027_120000_000000 \
+  --change change-b/view/view-20261027_120000_000000 \
+  --out-dir memmem-comparison
 ```
 
-Swipe-like commands require `velocity` in `200..40000`:
-
-```json
-{
-  "action": "swipe",
-  "payload": {
-    "x1_pct": 50,
-    "y1_pct": 80,
-    "x2_pct": 50,
-    "y2_pct": 20,
-    "velocity": 800
-  }
-}
-```
-
-`drag` has the same payload as `swipe`.
-
-`fling` also requires positive `step_length`:
-
-```json
-{
-  "action": "fling",
-  "payload": {
-    "x1_pct": 50,
-    "y1_pct": 80,
-    "x2_pct": 50,
-    "y2_pct": 20,
-    "velocity": 1200,
-    "step_length": 20
-  }
-}
-```
-
-Directional fling:
-
-```json
-{
-  "action": "directional_fling",
-  "payload": { "direction": "up", "velocity": 1200, "step_length": 20 }
-}
-```
-
-`direction` is one of `left`, `right`, `up`, `down`.
-
-## Andr0id Backend Notes
-
-With `--backend abd`, `bundle` and `ability` are interpreted as the Andr0id package and activity, for example `com.example.app` and `.MainActivity`. Andr0id devices must be rooted so the shell can capture app smaps. Device logs are collected with `logcat` at `logs/log.log`. Andr0id `input` does not expose all UITest gesture semantics, so double taps, long taps, drags, flings, velocity, and step length are replayed on a best-effort basis.
-
-## Output
-
-### Evidence
-
-Each execution creates an exact evidence directory:
-
-```text
-evidence/
-  apps.json
-  snapshots/
-    metadata.json
-    <snapshot_label>/<app_label>.smaps
-  screenshots/
-    metadata.json
-    <screenshot_label>.png
-  logs/log.log                  # only when device logging is enabled
-```
-
-`apps.json` records launched applications. Snapshot and screenshot metadata describe the evidence available to view creation.
-
-`run.py` uses this container layout, including when `--repeats 1`:
-
-```text
-<out-dir>/
-  flow.json
-  iteration_0/evidence/
-  iteration_0/view/view-<timestamp>/
-  iteration_1/evidence/
-  iteration_1/view/view-<timestamp>/
-  view/view-<timestamp>/
-```
-
-### Views
-
-Every view has one aggregate layout, whether it uses one or many evidence sources:
-
-```text
-<view>/
-  metadata.json
-  summary.csv
-  outliers.csv
-  breakdowns/
-    metadata.json
-    <snapshot_label>/<app_label>.csv
-  plots/<app_label>/<app_label>-<metric>.svg
-```
-
-`summary.csv` and breakdown CSVs contain aggregate statistics: mean, geometric mean, median, standard deviation, minimum, and maximum. `outliers.csv` lists evidence sources excluded from aggregation.
+Inputs must be validated concrete views with identical filter text/effective flags and ordered breakdown declarations. This is a caller assertion that matching labels represent comparable apps and flows; comparison does not reopen source evidence, so generated views remain comparable after their evidence has moved or been removed. The new `--out-dir` must not exist. The output contains comparative `summary.csv` and `breakdowns/<snapshot_label>/<app_label>.csv` files with one base value and one value/percentage pair for every `--change` argument in command-line order. Breakdown rows include the union of tags from all inputs; unavailable values and percentage deltas against a zero baseline are empty. Invalid or incompatible inputs fail before the comparison destination is created; generation failures retain partial newly created output.
 
 ## Testing
 

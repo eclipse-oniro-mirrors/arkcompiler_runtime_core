@@ -16,6 +16,7 @@
 import dataclasses
 import pathlib
 import re
+import typing
 
 import pydantic
 
@@ -26,9 +27,14 @@ from src.schema import Label
 RelativeParts = list[str]
 
 
-class AppMetadata(PydanticModel):
+class EvidenceMetadata(PydanticModel):
+    flow: typing.Literal["flow.json"]
+    reboot: bool
+    device_log: bool
 
-    pid: pydantic.StrictInt
+
+class AppMetadata(PydanticModel):
+    pid: int
     label: Label
     bundle: str
     ability: str
@@ -47,8 +53,8 @@ class AppMetadataFile(PydanticModel):
 
 class ArtifactMetadata(PydanticModel):
     label: Label
-    timestamp: pydantic.StrictStr
-    files: list[pydantic.StrictStr] = pydantic.Field(min_length=1)
+    timestamp: str
+    files: list[str] = pydantic.Field(min_length=1)
 
     @pydantic.field_validator("timestamp")
     @classmethod
@@ -91,10 +97,10 @@ class AppSnapshotLabelPair:
 
 
 class ViewMetadata(PydanticModel):
-
     dirs: list[pathlib.Path] = pydantic.Field(min_length=1)
-    smaps_filter: pydantic.StrictStr
-    smaps_filter_flags: pydantic.StrictInt
+    smaps_filter: str
+    smaps_filter_flags: int
+    plots: bool
 
     @pydantic.model_validator(mode="after")
     def validate_view_parameters(self) -> "ViewMetadata":

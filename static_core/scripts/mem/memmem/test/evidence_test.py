@@ -13,16 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import pathlib
 import re
 import tempfile
 import unittest
-from unittest import mock
 
 import pydantic
 
 from src.evidence import is_evidence_equivalent, parse_evidence, validate_evidence
-from src.metadata import AppMetadata, AppMetadataFile, ArtifactMetadata, ArtifactMetadataFile
+from src.log import configure_logger, reset_logger
+from src.metadata import AppMetadata, AppMetadataFile, ArtifactMetadata, ArtifactMetadataFile, EvidenceMetadata
 from src.store import EvidenceStore
 from src.store import ViewStore
 from src.view import is_view_equivalent, read_view
@@ -34,9 +35,16 @@ def _write(model: pydantic.BaseModel, path: pathlib.Path) -> None:
     path.write_text(model.model_dump_json(), encoding="utf-8")
 
 
+def _provenance(store: EvidenceStore) -> None:
+    _write(lib.flow([]), store.local_flow_path())
+    _write(EvidenceMetadata(flow="flow.json", reboot=False, device_log=False),
+           store.local_metadata_path())
+
+
 def _store(root: pathlib.Path) -> EvidenceStore:
     store = EvidenceStore(root)
     store.local_root().mkdir()
+    _provenance(store)
     store.local_snapshots_dir().mkdir()
     store.local_screenshots_dir().mkdir()
     _write(AppMetadataFile(apps=[AppMetadata(pid=1, label="App",
@@ -48,11 +56,48 @@ def _store(root: pathlib.Path) -> EvidenceStore:
     return store
 
 
+def _assert_invalid_provenance(test: unittest.TestCase, root: pathlib.Path,
+                               name: str, content: str | None) -> None:
+    store = _store(root)
+    path = store.local_root() / name
+    if content is None:
+        path.unlink()
+    else:
+        path.write_text(content, encoding="utf-8")
+    with test.assertRaises((RuntimeError, pydantic.ValidationError)):
+        validate_evidence(store)
+
+
 class EvidenceTest(unittest.TestCase):
+    def test_required_provenance_is_parsed_and_does_not_affect_equivalence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = _store(pathlib.Path(tmp) / "evidence")
+            first = parse_evidence(store, re.compile(".*"))
+            _write(lib.flow([], desc="different"), store.local_flow_path())
+            _write(EvidenceMetadata(flow="flow.json", reboot=True, device_log=True),
+                   store.local_metadata_path())
+            second = parse_evidence(store, re.compile(".*"))
+            self.assertEqual(second.flow.desc, "different")
+            self.assertTrue(second.metadata.reboot)
+            self.assertTrue(is_evidence_equivalent(first, second))
+
+    def test_missing_or_invalid_provenance_is_rejected(self) -> None:
+        cases = [("metadata.json", None), ("flow.json", None),
+                 ("metadata.json", "{}"), ("flow.json", "not json"),
+                 ("flow.json", '{"flow": [{"label": "bad"}]}'),
+                 ("metadata.json", json.dumps({"flow": "../flow.json",
+                                               "reboot": False, "device_log": False}))]
+        with tempfile.TemporaryDirectory() as tmp:
+            for index, (name, content) in enumerate(cases):
+                with self.subTest(name=name, content=content):
+                    _assert_invalid_provenance(
+                        self, pathlib.Path(tmp) / str(index), name, content)
+
     def test_empty_evidence_is_valid_without_parent_flow(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             store = EvidenceStore(pathlib.Path(tmp))
             store.local_root().mkdir(exist_ok=True)
+            _provenance(store)
             store.local_snapshots_dir().mkdir()
             store.local_screenshots_dir().mkdir()
             _write(AppMetadataFile(apps=[]), store.local_app_metadata_path())
@@ -68,6 +113,7 @@ class EvidenceTest(unittest.TestCase):
                 root = pathlib.Path(tmp).joinpath(missing)
                 store = EvidenceStore(root)
                 store.local_root().mkdir()
+                _provenance(store)
                 _write(AppMetadataFile(apps=[]),
                        store.local_app_metadata_path())
                 existing = (store.local_screenshots_dir() if missing == "snapshots"
@@ -160,6 +206,7 @@ class EvidenceTest(unittest.TestCase):
             for name, pid in (("one", 1), ("two", 2)):
                 store = EvidenceStore(root.joinpath(name))
                 store.local_root().mkdir()
+                _provenance(store)
                 store.local_snapshots_dir().mkdir()
                 store.local_screenshots_dir().mkdir()
                 _write(AppMetadataFile(apps=[AppMetadata(pid=pid, label="App",
@@ -186,6 +233,7 @@ class EvidenceTest(unittest.TestCase):
             evidence = root.joinpath("evidence")
             store = EvidenceStore(evidence)
             evidence.mkdir()
+            _provenance(store)
             store.local_snapshots_dir().mkdir()
             store.local_screenshots_dir().mkdir()
             _write(AppMetadataFile(apps=[AppMetadata(pid=1, label="App",
@@ -211,7 +259,7 @@ class EvidenceTest(unittest.TestCase):
             original_summary = view.joinpath(
                 "summary.csv").read_text(encoding="utf-8")
             empty_view = lib.create_view([evidence], root.joinpath("empty-view"),
-                                         re.compile("^never$"))
+                                         smaps_filter=re.compile("^never$"))
             with self.assertRaises(FileExistsError):
                 lib.create_view([evidence], view)
             self.assertTrue(empty_view.joinpath("plots").is_dir())
@@ -226,6 +274,7 @@ class EvidenceTest(unittest.TestCase):
             evidence = root.joinpath("evidence")
             store = EvidenceStore(evidence)
             evidence.mkdir()
+            _provenance(store)
             store.local_snapshots_dir().mkdir()
             store.local_screenshots_dir().mkdir()
             _write(AppMetadataFile(apps=[AppMetadata(pid=1, label="App",
@@ -239,16 +288,17 @@ class EvidenceTest(unittest.TestCase):
             store.local_snapshot_path("start", "App").parent.mkdir()
             store.local_snapshot_path(
                 "start", "App").write_text("", encoding="utf-8")
-            with mock.patch("lib.get_logger") as logger:
+            log = root / "warnings.log"
+            configure_logger("warn", log)
+            try:
                 lib.create_view([evidence], root.joinpath("view"))
                 lib.create_view([evidence], root.joinpath("second-view"))
-            logger.return_value.warn.assert_has_calls([
-                mock.call(f"smaps file {store.local_snapshot_path('start', 'App')} "
-                          "has no mappings aggregated for pattern .*"),
-                mock.call(f"smaps file {store.local_snapshot_path('start', 'App')} "
-                          "has no mappings aggregated for pattern .*"),
-            ])
-            self.assertEqual(logger.return_value.warn.call_count, 2)
+            finally:
+                reset_logger()
+            expected = (f"warning: smaps file {store.local_snapshot_path('start', 'App')} "
+                        "has no mappings aggregated for pattern .*")
+            self.assertEqual(log.read_text().splitlines(),
+                             [expected, expected])
 
     def test_create_view_does_not_warn_for_matching_zero_profile(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -256,6 +306,7 @@ class EvidenceTest(unittest.TestCase):
             evidence = root.joinpath("evidence")
             store = EvidenceStore(evidence)
             evidence.mkdir()
+            _provenance(store)
             store.local_snapshots_dir().mkdir()
             store.local_screenshots_dir().mkdir()
             _write(AppMetadataFile(apps=[AppMetadata(pid=1, label="App",
@@ -269,9 +320,13 @@ class EvidenceTest(unittest.TestCase):
             store.local_snapshot_path("start", "App").parent.mkdir()
             store.local_snapshot_path("start", "App").write_text(
                 "1-2 rw-p 0 00:00 0 [anon]\n", encoding="utf-8")
-            with mock.patch("lib.get_logger") as logger:
+            log = root / "warnings.log"
+            configure_logger("warn", log)
+            try:
                 lib.create_view([evidence], root.joinpath("view"))
-            logger.return_value.warn.assert_not_called()
+            finally:
+                reset_logger()
+            self.assertEqual(log.read_text(), "")
 
 
 if __name__ == "__main__":

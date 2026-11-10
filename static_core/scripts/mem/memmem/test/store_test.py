@@ -37,6 +37,8 @@ class EvidenceStoreTest(unittest.TestCase):
         store = _evidence_store()
 
         self.assertEqual(store.local_root(), _OUT_DIR)
+        self.assertEqual(store.local_flow_path(), _local("flow.json"))
+        self.assertEqual(store.local_metadata_path(), _local("metadata.json"))
         self.assertEqual(store.local_app_metadata_path(),
                          _local("apps.json"))
         self.assertEqual(
@@ -116,6 +118,12 @@ class ViewStoreTest(unittest.TestCase):
         store = ViewStore(_OUT_DIR)
         self.assertEqual(store.local_metadata_path(), _local("metadata.json"))
         self.assertEqual(store.local_summary_path(), _local("summary.csv"))
+        self.assertEqual(store.local_footprint_path(), _local("footprint.csv"))
+        self.assertEqual(store.local_memdumps_dir(), _local("memdumps"))
+        self.assertEqual(store.local_memdump_metadata_path(),
+                         _local("memdumps/metadata.json"))
+        self.assertEqual(store.local_memdump_path("snapshot", "app"),
+                         _local("memdumps/snapshot/app.csv"))
         self.assertEqual(store.local_outliers_path(), _local("outliers.csv"))
         self.assertEqual(store.local_breakdown_metadata_path(),
                          _local("breakdowns/metadata.json"))

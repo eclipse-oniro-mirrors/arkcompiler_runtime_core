@@ -19,7 +19,7 @@ import pathlib
 import sys
 
 from src.cli_helpers import (add_logging_arguments, add_view_arguments,
-                             view_destination)
+                             view_destination, create_view_with_hooks)
 from src.path import absolutize
 
 import lib
@@ -37,15 +37,17 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> int:
-    args = build_parser().parse_args()
+def main(argv: list[str]) -> int:
+    args = build_parser().parse_args(argv)
     log_file = (absolutize(args.memmem_log_file)
                 if args.memmem_log_file is not None else None)
     try:
         lib.configure_logger(args.memmem_log_level, log_file)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        lib.create_view([absolutize(path) for path in args.dirs],
-                        view_destination(args.out_dir, timestamp), args.smaps_filter)
+        create_view_with_hooks(args.dirs, view_destination(args.out_dir, timestamp),
+                               smaps_filter=args.smaps_filter,
+                               plots=args.plots, pre_hooks=args.pre_create_view_hook,
+                               post_hooks=args.post_create_view_hook)
     except Exception as error:
         print(f"memmem error: {error}", file=sys.stderr)
         return 1
@@ -55,4 +57,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))

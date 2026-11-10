@@ -81,6 +81,12 @@ def configure_logger(
     level: LogLevel = "err",
     log_file: str | pathlib.Path | None = None,
 ) -> MemmemLogger:
+    """@brief Replaces the shared logger with the requested filtering level and optional file destination. Closes the prior logger's file, and when log_file is set, creates or truncates that file and routes all logger output to it.
+
+    @param level LogLevel: Minimum emitted level: info, warn, or err.
+    @param log_file str | pathlib.Path | None: Optional writable log-file path. Its parent directory must already exist.
+    @return MemmemLogger: Newly configured shared logger instance.
+    """
     global _logger
     parsed_level = parse_log_level(level)
     if _logger is not None:
@@ -90,6 +96,10 @@ def configure_logger(
 
 
 def get_logger() -> MemmemLogger:
+    """@brief Returns the shared logger, lazily creating the default err-level logger when absent.
+
+    @return MemmemLogger: Current shared logger instance. Lazy initialization does not create a log file.
+    """
     global _logger
     if _logger is None:
         _logger = MemmemLogger("err")
@@ -97,6 +107,10 @@ def get_logger() -> MemmemLogger:
 
 
 def reset_logger() -> None:
+    """@brief Resets the shared logger to an unconfigured state. Closes its log file when configured and causes the next get_logger call to create the default err-level logger.
+
+    @return None: No value is returned.
+    """
     global _logger
     if _logger is not None:
         _logger.reset()

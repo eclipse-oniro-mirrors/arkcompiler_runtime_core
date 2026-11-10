@@ -20,7 +20,7 @@ import sys
 
 from src.cli_helpers import (add_execution_arguments, add_logging_arguments,
                              add_view_arguments, execute_iterations,
-                             load_device, load_flow, view_destination)
+                             load_device, load_flow, view_destination, create_view_with_hooks)
 from src.path import absolutize
 
 import lib
@@ -35,8 +35,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> int:
-    args = build_parser().parse_args()
+def main(argv: list[str]) -> int:
+    args = build_parser().parse_args(argv)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     out_dir = (absolutize(args.out_dir) if args.out_dir is not None else
                absolutize(pathlib.Path(
@@ -49,12 +49,18 @@ def main() -> int:
         device = load_device(pathlib.Path(".env"), args.backend)
         evidence_dirs = execute_iterations(
             flow, device, out_dir, args.repeats, reboot=args.reboot,
-            device_log=args.device_log)
+            device_log=args.device_log, pre_hooks=args.pre_execute_flow_hook,
+            post_hooks=args.post_execute_flow_hook)
         for index, evidence_dir in enumerate(evidence_dirs):
-            lib.create_view([evidence_dir], view_destination(
-                out_dir / f"iteration_{index}", timestamp), args.smaps_filter)
-        lib.create_view(evidence_dirs, view_destination(out_dir, timestamp),
-                        args.smaps_filter)
+            create_view_with_hooks([evidence_dir], view_destination(
+                out_dir / f"iteration_{index}", timestamp),
+                smaps_filter=args.smaps_filter,
+                plots=args.plots, pre_hooks=args.pre_create_view_hook,
+                post_hooks=args.post_create_view_hook)
+        create_view_with_hooks(evidence_dirs, view_destination(out_dir, timestamp),
+                               smaps_filter=args.smaps_filter, plots=args.plots,
+                               pre_hooks=args.pre_create_view_hook,
+                               post_hooks=args.post_create_view_hook)
     except Exception as error:
         print(f"memmem error: {error}", file=sys.stderr)
         return 1
@@ -64,4 +70,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))
