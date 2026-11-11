@@ -13,74 +13,42 @@
  * limitations under the License.
  */
 
-/* Preserve the existing ABI; localize only identified implementation exports. */
+/*
+ * Whitelist mode (same approach as arktsbase.version / arktsassembler.version):
+ * only the symbols matching the patterns below are exported; everything else
+ * (std:: / vixl / asmjit / securec / CRT entry points, ark::base template
+ * leaks) is hidden by the `local: *` fallback, so new internal symbols can
+ * not leak into .dynsym unnoticed.
+ *
+ * Exported surface: the ark::compiler encoder API — Encoder with its arch
+ * backends (a mid-name `*` spans nested namespaces and template arguments),
+ * the target.cpp factories, their RTTI families, and the only free function
+ * defined here, BackendSupport (type_info.h, target.cpp). libarktscompiler
+ * compiles encode.cpp itself but localizes its copy; this library is the sole
+ * process-wide exporter of the API for it, paoc, aotdump, irtoc and the
+ * runtime_library_exports_test contract.
+ */
 {
   global:
-    *;
-  local:
-    /* Localize identified duplicate implementation classes and templates. */
     extern "C++" {
-      std::__h::basic_*buf?char?*?::*;
-      vtable?for?std::__h::*;
-      VTT?for?std::__h::*;
-      construction?vtable?for?std::__h::*;
-      std::__h::__*;
-      vtable?for?ark::compiler::ScopedTmpReg;
-      vtable?for?ark::compiler::ScopedTmpRegImpl?*?;
+      ark::compiler::*Encoder*;
+      ark::compiler::*LabelHolder*;
+      ark::compiler::AssemblyPrinter*;
+      ark::compiler::RegistersDescription*;
+      ark::compiler::*RegisterDescription*;
+      ark::compiler::*CallingConvention*;
+      ark::compiler::*ParameterInfo*;
+      ark::compiler::CallConv*;
+      ark::compiler::BackendSupport*;
+      vtable?for?ark::compiler::*;
+      VTT?for?ark::compiler::*;
+      typeinfo?for?ark::compiler::*;
+      typeinfo?name?for?ark::compiler::*;
+      construction?vtable?for?ark::compiler::*;
+      guard?variable?for?ark::compiler::*;
+      virtual?thunk?to?ark::compiler::*;
+      non?virtual?thunk?to?ark::compiler::*;
     };
-    /* CRT entry points are reached through DT_INIT / DT_FINI. */
-    _init;
-    _fini;
-
-    /* Private copies from bounds_checking_function:libsec_static.
-     * External securec users depend on libsec_shared.z.so. */
-    GetHwSecureCVersion;
-    SecClearDestBuf;
-    SecClearDestBufW;
-    SecInputS;
-    SecInputSW;
-    SecVsnprintfImpl;
-    SecVswprintfImpl;
-    fscanf_s;
-    fwscanf_s;
-    gets_s;
-    memcpy_s;
-    memcpy_sOptAsm;
-    memcpy_sOptTc;
-    memmove_s;
-    memset_s;
-    memset_sOptAsm;
-    memset_sOptTc;
-    scanf_s;
-    snprintf_s;
-    snprintf_truncated_s;
-    sprintf_s;
-    sscanf_s;
-    strcat_s;
-    strcpy_error;
-    strcpy_s;
-    strncat_s;
-    strncpy_error;
-    strncpy_s;
-    strtok_s;
-    swprintf_s;
-    swscanf_s;
-    vfscanf_s;
-    vfwscanf_s;
-    vscanf_s;
-    vsnprintf_s;
-    vsnprintf_truncated_s;
-    vsprintf_s;
-    vsscanf_s;
-    vswprintf_s;
-    vswscanf_s;
-    vwscanf_s;
-    wcscat_s;
-    wcscpy_s;
-    wcsncat_s;
-    wcsncpy_s;
-    wcstok_s;
-    wmemcpy_s;
-    wmemmove_s;
-    wscanf_s;
+  local:
+    *;
 };
