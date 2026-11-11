@@ -22,7 +22,7 @@
     }
   },
   "files": [
-    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/binary-metadata/complex_tests/simultaneous_methods_dispatch/lib_types.ets",
-    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/binary-metadata/complex_tests/simultaneous_methods_dispatch/lib_impls.ets"
+    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/binary-metadata/complex_tests/simultaneous_methods_dispatch/lib_types.ats",
+    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/binary-metadata/complex_tests/simultaneous_methods_dispatch/lib_impls.ats"
   ]
 }

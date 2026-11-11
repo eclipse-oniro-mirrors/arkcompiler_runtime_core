@@ -19,31 +19,31 @@ cases:
     check_variants:
       - {enum_name: "ImpColorsInt", enum_type: "imp", enum_base_type: "int",
         red_value: "1", green_value: "2", blue_value: "4",
-        imported_module: "./to_export.ets"}
+        imported_module: "./to_export.ats"}
       - {enum_name: "ImpColorsStr", enum_type: "imp", enum_base_type: "string",
         red_value: "\"One\"", green_value: "\"Two\"", blue_value: "\"Three\"",
-        imported_module: "./to_export.ets"}
+        imported_module: "./to_export.ats"}
       - {enum_name: "ExpColorsLong", enum_type: "exp", enum_base_type: "long",
         red_value: "0x7FFF_FFFF_1", green_value: "0x7FFF_FFFF_2",
-        blue_value: "0x7FFF_FFFF_4", imported_module: "./to_export.ets"}
+        blue_value: "0x7FFF_FFFF_4", imported_module: "./to_export.ats"}
       - {enum_name: "ExpColorsInt", enum_type: "exp", enum_base_type: "int",
         red_value: "1", green_value: "2", blue_value: "4",
-        imported_module: "./to_export.ets"}
+        imported_module: "./to_export.ats"}
       - {enum_name: "ExpColorsShort", enum_type: "exp", enum_base_type: "short",
         red_value: "1", green_value: "2", blue_value: "4",
-        imported_module: "./to_export.ets"}
+        imported_module: "./to_export.ats"}
       - {enum_name: "ExpColorsByte", enum_type: "exp", enum_base_type: "byte",
         red_value: "1", green_value: "2", blue_value: "4",
-        imported_module: "./to_export.ets"}
+        imported_module: "./to_export.ats"}
       - {enum_name: "ExpColorsDouble", enum_type: "exp", enum_base_type: "double",
         red_value: "1.0", green_value: "2.5", blue_value: "5.0",
-        imported_module: "./to_export.ets"}
+        imported_module: "./to_export.ats"}
       - {enum_name: "ExpColorsFloat", enum_type: "exp", enum_base_type: "float",
         red_value: "1.0f", green_value: "2.5f", blue_value: "5.0f",
-        imported_module: "./to_export.ets"}
+        imported_module: "./to_export.ats"}
       - {enum_name: "ExpColorsStr", enum_type: "exp", enum_base_type: "string",
         red_value: "\"One\"", green_value: "\"Two\"", blue_value: "\"Three\"",
-        imported_module: "./to_export_exp_str.ets"}
+        imported_module: "./to_export_exp_str.ats"}
     decl: |-
       import { [enum_name] } from "[imported_module]"
     logic: |-

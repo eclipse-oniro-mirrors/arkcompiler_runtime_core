@@ -39,13 +39,14 @@ class SrcdumperGenerator(IGenerator):
         skipped = 0
         test_suite_root = self._config.test_suite.test_root
         coll = self.__get_collection()
-        mask = f"**/*.{self._config.test_suite.extension(coll)}"
-        for file_path in list(self._source.rglob(mask)):
-            if not self._expects_error(file_path):
-                raw_files.append(file_path)
-                raw_files.extend(self._search_dependencies(file_path))
-            else:
-                skipped += 1
+        for extension in self._config.test_suite.extensions(coll):
+            mask = f"**/*.{extension}"
+            for file_path in list(self._source.rglob(mask)):
+                if not self._expects_error(file_path):
+                    raw_files.append(file_path)
+                    raw_files.extend(self._search_dependencies(file_path))
+                else:
+                    skipped += 1
 
         for file_path in raw_files:
             test_id = file_path.relative_to(test_suite_root / coll.name).as_posix()

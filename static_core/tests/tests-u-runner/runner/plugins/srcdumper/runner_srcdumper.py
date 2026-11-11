@@ -86,8 +86,7 @@ class RunnerSRCDumper(RunnerJS):
             f'--arktsconfig={self.arktsconfig}'
         ]
         return [
-            TestDirectory(directory, extension, flags)
-            for extension in ('ets', 'ats')
+            TestDirectory(directory, 'ats', flags)
             for directory in ('compiler/ets', 'parser/ets', 'runtime/ets', 'ast', 'srcdump')
         ]
 

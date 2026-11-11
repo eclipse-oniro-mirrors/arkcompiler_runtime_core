@@ -24,6 +24,7 @@ workflows: [panda-metadata-parity]
 
 parameters:
     extension: ets
+    test-extensions: [ats]
     load-runtimes: ets
     # Isolated work-dir to avoid intersection with tests
     work-dir: ${WORK_DIR}/ets-cts-metadata-parity

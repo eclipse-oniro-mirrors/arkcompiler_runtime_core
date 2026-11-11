@@ -16,55 +16,55 @@ tests:
   test00: ""
 
   test01: |-
-    import {SharedVars} from "./shared_vars_module.ets"
+    import {SharedVars} from "./shared_vars_module.ats"
     let b: int = 1
     SharedVars.v2 = b
 
   test02: |-
-    import {SharedVars} from "./shared_vars_module.ets"
-    initModule("./init_module_first_[loop.index0].ets")
+    import {SharedVars} from "./shared_vars_module.ats"
+    initModule("./init_module_first_[loop.index0].ats")
     let b: int = 2
     SharedVars.v2 = b
 
   test03: |-
-    import {SharedVars} from "./shared_vars_module.ets"
+    import {SharedVars} from "./shared_vars_module.ats"
     let b: int = 3
     SharedVars.v2 = b
 
   test04: |-
-    import {SharedVars} from "./shared_vars_module.ets"
+    import {SharedVars} from "./shared_vars_module.ats"
     let b: int = 4
     SharedVars.v2 = b
 
   test05: |-
-    import {SharedVars} from "./shared_vars_module.ets"
+    import {SharedVars} from "./shared_vars_module.ats"
     let b: int = 5
     SharedVars.v2 = b
 
   test06: |-
-    import {SharedVars} from "./shared_vars_module.ets"
-    initModule("./init_module_first_[loop.index0].ets")
+    import {SharedVars} from "./shared_vars_module.ats"
+    initModule("./init_module_first_[loop.index0].ats")
     let b: int = 6
     SharedVars.v2 = b
 
   test07: |-
-    import {SharedVars} from "./shared_vars_module.ets"
-    initModule("./init_module_first_[loop.index0].ets")
+    import {SharedVars} from "./shared_vars_module.ats"
+    initModule("./init_module_first_[loop.index0].ats")
     let b: int = 7
     SharedVars.v2 = b
 
   test08: |-
-    import {SharedVars} from "./shared_vars_module.ets"
+    import {SharedVars} from "./shared_vars_module.ats"
     let b: int = 8
     SharedVars.v2 = b
 
   test09: |-
-    import {SharedVars} from "./shared_vars_module.ets"
-    initModule("./init_module_first_[loop.index0].ets")
+    import {SharedVars} from "./shared_vars_module.ats"
+    initModule("./init_module_first_[loop.index0].ats")
     let b: int = 9
     SharedVars.v2 = b
 
   test10: |-
-    import {SharedVars} from "./shared_vars_module.ets"
+    import {SharedVars} from "./shared_vars_module.ats"
     let b: int = 10
     SharedVars.v2 = b

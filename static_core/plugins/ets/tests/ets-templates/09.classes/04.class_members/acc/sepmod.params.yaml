@@ -14,7 +14,7 @@
 ---
 cases:
     # public access modifier
-    - files: './dir_pub_1/file_A.ets'
+    - files: './dir_pub_1/file_A.ats'
       decl: |-
           import { A } from './dir_pub_1/file_A';
       use: |-
@@ -23,7 +23,7 @@ cases:
           a.foo = 42
           arktest.assertEQ( a.foo, 42 )
 
-    - files: './dir_pub_2/file_B.ets'
+    - files: './dir_pub_2/file_B.ats'
       decl: |-
           import { B } from './dir_pub_2/file_B';
       use: |-
@@ -33,7 +33,7 @@ cases:
           arktest.assertEQ( b.foo, 44 )
 
     # protected access modifier
-    - files: './dir_prot_2/file_B.ets'
+    - files: './dir_prot_2/file_B.ats'
       decl: |-
           import { B } from './dir_prot_2/file_B';
       use: |-

@@ -63,8 +63,7 @@ class RunnerRecheck(RunnerFileBased):
             f'--arktsconfig={self.arktsconfig}',
         ]
         test_dirs: List[TestDirectory] = [
-            TestDirectory(directory, extension, flags)
-            for extension in ('ets', 'ats')
+            TestDirectory(directory, 'ats', flags)
             for directory in ('compiler/ets', 'parser/ets', 'runtime/ets', 'ast')
         ]
 

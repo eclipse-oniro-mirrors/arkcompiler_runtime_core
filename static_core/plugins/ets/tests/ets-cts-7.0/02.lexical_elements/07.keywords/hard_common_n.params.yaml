@@ -54,7 +54,7 @@ cases:
     - {keyword: switch}
     - {keyword: this}
     - {keyword: throw}
-    - {keyword: 'true', specific_error: '[hard_n_41.ets:35:5] Syntax error ESY0315: Number, string or computed value property name ''true'' is not allowed, use classes to access data by property names that are identifiers'}
+    - {keyword: 'true', specific_error: '[hard_n_41.ats:35:5] Syntax error ESY0315: Number, string or computed value property name ''true'' is not allowed, use classes to access data by property names that are identifiers'}
     - {keyword: try}
     - {keyword: typeof}
     - {keyword: undefined}

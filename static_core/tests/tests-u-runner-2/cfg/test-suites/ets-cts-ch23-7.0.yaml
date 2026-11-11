@@ -24,6 +24,7 @@ workflows: [panda-bin-compat]
 
 parameters:
     extension: ets
+    test-extensions: [ats]
     load-runtimes: ets
     work-dir: ${WORK_DIR}/ets-cts-7.0
 

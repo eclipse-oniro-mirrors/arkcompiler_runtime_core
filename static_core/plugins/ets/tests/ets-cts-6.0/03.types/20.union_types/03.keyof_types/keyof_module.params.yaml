@@ -13,7 +13,7 @@
 
 cases:
   - import: |-
-        import {A} from "./module.ets"
+        import {A} from "./module.ats"
 
         type t = keyof A
     call: |-
@@ -22,7 +22,7 @@ cases:
     tags: compile-only,negative
 
   - import: |-
-        import {B} from "./module.ets"
+        import {B} from "./module.ats"
 
         type t = keyof B
     call: |-
@@ -31,7 +31,7 @@ cases:
         a = b
 
   - import: |-
-        import {C} from "./module.ets"
+        import {C} from "./module.ats"
 
         type t = keyof C
     call: |-
@@ -41,7 +41,7 @@ cases:
         a = b
 
   - import: |-
-        import {AC} from "./module.ets"
+        import {AC} from "./module.ats"
 
         type t = keyof AC
     call: |-
@@ -51,7 +51,7 @@ cases:
         a = b
 
   - import: |-
-        import {I} from "./module.ets"
+        import {I} from "./module.ats"
 
         type t = keyof I
     call: |-

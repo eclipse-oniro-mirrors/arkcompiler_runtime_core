@@ -21,6 +21,6 @@
     }
   },
   "files": [
-    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/metadata/base_tests/source_declaration/lib_a.ets"
+    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/metadata/base_tests/source_declaration/lib_a.ats"
   ]
 }

@@ -49,7 +49,7 @@ cases:
       arktest.assertTrue(v6 instanceof FixedArray<undefined>, "expect instance of FixedArray<undefined>")
       arktest.assertTrue(v6[0] instanceof undefined, "expect instance of undefined")
 
-  # non-trivial cases based on instanceof.ets tests design
+  # non-trivial cases based on instanceof.ats tests design
   - use: |-
       let v1 = [1, 2] instanceof FixedArray<int | undefined>
       arktest.assertTrue(v1 instanceof boolean, "expect boolean v1")

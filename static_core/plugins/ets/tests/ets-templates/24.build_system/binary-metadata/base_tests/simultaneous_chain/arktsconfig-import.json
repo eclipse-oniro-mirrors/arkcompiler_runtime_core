@@ -5,13 +5,13 @@
     "cacheDir": "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/binary-metadata/base_tests/simultaneous_chain/decls",
     "dependencies": {
       "@panda/app": {
-        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/base_tests/simultaneous_chain/app_x.ets.abc"
+        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/base_tests/simultaneous_chain/app_x.ats.abc"
       },
       "@panda/middle": {
-        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/base_tests/simultaneous_chain/middle.ets.abc"
+        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/base_tests/simultaneous_chain/middle.ats.abc"
       },
       "@panda/core": {
-        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/base_tests/simultaneous_chain/core_a.ets.abc"
+        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/base_tests/simultaneous_chain/core_a.ats.abc"
       },
       "std/core": { "language": "ets", "path": "${PANDA_BUILD}/plugins/ets/etsstdlib.abc", "ohmUrl": "std/core" },
       "std/math": { "language": "ets", "path": "${PANDA_BUILD}/plugins/ets/etsstdlib.abc", "ohmUrl": "std/math" },

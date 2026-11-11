@@ -75,7 +75,7 @@
         "ohmUrl": "arkruntime"
       },
       "@panda/lib": {
-        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/stdlib_function_redefine_cross_package/lib_swap.ets.abc"
+        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/stdlib_function_redefine_cross_package/lib_swap.ats.abc"
       }
     }
   }

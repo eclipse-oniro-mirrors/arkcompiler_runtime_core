@@ -19,7 +19,7 @@ concrete tests from templates, then runs them under a *workflow* (`panda-int`, `
 
 | If you want to …                                                                         | Read |
 |------------------------------------------------------------------------------------------|---|
-| Understand `.ets` / `.params.yaml` shape + Test Policies + Review advices in "✗→✓ table" | [style-guide.md](style-guide.md) |
+| Understand `.ats` / `.params.yaml` shape + Test Policies + Review advices in "✗→✓ table" | [style-guide.md](style-guide.md) |
 | Copy-paste a working positive / negative / `ArkTestsuite` test                           | [examples.md](examples.md) |
 | Write the license header or the YAML front matter                                        | [headers.md](headers.md) |
 | Place the file in the right subdirectory, edit a KFL list, or run the suite              | [infra.md](infra.md) |
@@ -28,7 +28,7 @@ concrete tests from templates, then runs them under a *workflow* (`panda-int`, `
 ## Project metadata
 - **name**: ArkTS CTS — `ets-templates/`
 - **purpose**: Primary CTS test tree for current ArkTS 1.2. New tests for the default `ets-cts` suite live here.
-- **primary languages**: ArkTS-Sta (`.ets`, `.d.ets` for ambient declarations), Jinja2 templates, YAML params.
+- **primary languages**: ArkTS-Sta (`.ats`, `.d.ats` for ambient declarations), Jinja2 templates, YAML params.
 - **runner**: `static_core/tests/tests-u-runner-2` (URunner v2). Legacy `tests-u-runner` is kept only for `astchecker`.
 
 ## See also (external)

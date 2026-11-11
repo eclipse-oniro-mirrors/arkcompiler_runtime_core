@@ -4,7 +4,7 @@ Both blocks live at the **top** of every test file, in the order shown:
 license first (regular comment), front matter second (`/*--- … ---*/`).
 Mixing them up triggers the URunner trap.
 
-## Copyright notice — `.ets` file
+## Copyright notice — `.ats` file
 
 ```text
 /*
@@ -75,13 +75,13 @@ URunner as a YAML document. Required fields:
   variants is a recurring review finding).
 - `tags:` — `[]` or omitted for a plain positive test;
   `[compile-only, negative]` for a CTE-rejecting test (note the order and the single space after the comma); 
-  `[compile-only]` for no-runtime cases like warning checks; `[not-a-test, compile-only]` for helper / `.d.ets` companions.
+  `[compile-only]` for no-runtime cases like warning checks; `[not-a-test, compile-only]` for helper / `.d.ats` companions.
 - `expected_out:` — required for `[compile-only, negative]` and `[compile-only]`. Use the literal block scalar `|-`
   to match character-for-character. Real compiler diagnostic only — see the *Common review blockers* table in [style-guide.md](style-guide.md).
 
 Other metadata fields you may encounter:
 
-- `files:` — companion `.ets` / `.d.ets` files that must be compiled alongside this test (multi-file / ambient-declaration scenarios).
-- `test_suffix:` — override the default `_N` index in generated names (e.g. `test_suffix: "{{type}}"` produces `name_int.ets`, `name_string.ets`).
+- `files:` — companion `.ats` / `.d.ats` files that must be compiled alongside this test (multi-file / ambient-declaration scenarios).
+- `test_suffix:` — override the default `_N` index in generated names (e.g. `test_suffix: "{{type}}"` produces `name_int.ats`, `name_string.ats`).
 
 For the full list of metadata fields and their semantics, see `../../../../tests/tests-u-runner-2/agents.md`.

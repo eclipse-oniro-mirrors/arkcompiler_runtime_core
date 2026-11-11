@@ -5,7 +5,7 @@
     "cacheDir": "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/binary-metadata/base_tests/two_libs_two_imports/decls",
     "dependencies": {
       "@panda/lib1": {
-        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/base_tests/two_libs_two_imports/test_lib1.ets.abc"
+        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/base_tests/two_libs_two_imports/test_lib1.ats.abc"
       },
       "std/core": {
         "language": "ets",

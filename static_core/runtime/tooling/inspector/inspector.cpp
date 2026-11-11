@@ -203,8 +203,8 @@ void Inspector::SingleStep(PtThread thread, Method *method, const PtLocation &lo
     os::memory::ReadLockHolder lock(debuggerEventsLock_);
 
     auto sourceFile = debugInfoCache_.GetUserSourceFile(method);
-    // NOTE(fangting, #IC98Z2): etsstdlib.ets should not call loadModule in pytest.
-    if ((sourceFile == nullptr) || (strcmp(sourceFile, "etsstdlib.ets") == 0)) {
+    // NOTE(fangting, #IC98Z2): etsstdlib.ats should not call loadModule in pytest.
+    if ((sourceFile == nullptr) || (strcmp(sourceFile, "etsstdlib.ats") == 0)) {
         return;
     }
 

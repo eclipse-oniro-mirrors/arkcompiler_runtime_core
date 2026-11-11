@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Copy <test>.lib<N>.new.ets -> <test>.lib<N>.ets for all new lib versions.
-# A backup of the old lib is saved as <test>.lib<N>.ets.orig so that the
+# Copy <test>.lib<N>.new.ats -> <test>.lib<N>.ats for all new lib versions.
+# A backup of the old lib is saved as <test>.lib<N>.ats.orig so that the
 # matching restore loop in bin-compat-compile-new-libs.sh can put the old
 # content back after the new lib has been compiled. This makes repeat runs
 # without --force-generate work correctly.
@@ -21,19 +21,19 @@
 # Two naming conventions are supported:
 #
 #   1. Non-templated tests:
-#        gen/test.ets
-#        gen/test.libr.ets       gen/test.libr.new.ets
+#        gen/test.ats
+#        gen/test.libr.ats       gen/test.libr.new.ats
 #      BASE   = gen/test
-#      suffix = .ets
-#      glob   = ${BASE}.libr*.new.ets
+#      suffix = .ats
+#      glob   = ${BASE}.libr*.new.ats
 #
 #   2. Templated tests:
-#        gen/test_0.ets,                        gen/test_1.ets, ...
-#        gen/test.libr_0.ets,                   gen/test.libr_1.ets, ...
-#        gen/test.libr.new_0.ets,               gen/test.libr.new_1.ets, ...
+#        gen/test_0.ats,                        gen/test_1.ats, ...
+#        gen/test.libr_0.ats,                   gen/test.libr_1.ats, ...
+#        gen/test.libr.new_0.ats,               gen/test.libr.new_1.ats, ...
 #      BASE   = gen/test                      BASE   = gen/test
-#      suffix = _0.ets                        suffix = _1.ets
-#      glob   = ${BASE}.libr*.new_0.ets       glob   = ${BASE}.libr*.new_1.ets
+#      suffix = _0.ats                        suffix = _1.ats
+#      glob   = ${BASE}.libr*.new_0.ats       glob   = ${BASE}.libr*.new_1.ats
 #
 # In both cases the old lib is: ${new_lib%.new${suffix}}${suffix}
 #
@@ -43,15 +43,15 @@ set -euo pipefail
 
 BASE="$1"
 
-suffix=".ets"
+suffix=".ats"
 
 # Only treat as templated test if the BASE stem itself ends with _<N> AND
-# there is at least one .new_<N>.ets file in the directory.  This avoids
+# there is at least one .new_<N>.ats file in the directory.  This avoids
 # false positives on test names that happen to end with a number (e.g.
 # remove_enum_constants_2) but are NOT generated from a template.
 if [[ "$BASE" =~ ^(.+)_([0-9]+)$ ]]; then
-    candidate_suffix="_${BASH_REMATCH[2]}.ets"
-    # Check if any .new_<N>.ets file exists (templated pattern)
+    candidate_suffix="_${BASH_REMATCH[2]}.ats"
+    # Check if any .new_<N>.ats file exists (templated pattern)
     for f in "${BASH_REMATCH[1]}".libr*.new${candidate_suffix}; do
         if [ -f "$f" ]; then
             BASE="${BASH_REMATCH[1]}"

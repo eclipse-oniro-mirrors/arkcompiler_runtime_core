@@ -15,134 +15,134 @@
 tests:
   test00:
     files:
-      - ./init_module_first_[loop.index0].ets
-      - ./shared_vars_module.ets
+      - ./init_module_first_[loop.index0].ats
+      - ./shared_vars_module.ats
     decl: |-
-      import {SharedVars} from "./shared_vars_module.ets"
-      initModule("./init_module_first_[loop.index0].ets")
+      import {SharedVars} from "./shared_vars_module.ats"
+      initModule("./init_module_first_[loop.index0].ats")
     call: |-
       arktest.assertEQ(SharedVars.v1, 1)
 
   test01:
     files:
-      - ./init_module_first_[loop.index0].ets
-      - ./init_module_second_[loop.index0].ets
-      - ./shared_vars_module.ets
+      - ./init_module_first_[loop.index0].ats
+      - ./init_module_second_[loop.index0].ats
+      - ./shared_vars_module.ats
     decl: |-
-      import {SharedVars} from "./shared_vars_module.ets"
-      initModule("./init_module_first_[loop.index0].ets")
-      initModule("./init_module_second_[loop.index0].ets")
+      import {SharedVars} from "./shared_vars_module.ats"
+      initModule("./init_module_first_[loop.index0].ats")
+      initModule("./init_module_second_[loop.index0].ats")
     call: |-
       arktest.assertEQ(SharedVars.v1, 2)
       arktest.assertEQ(SharedVars.v2, 1)
 
   test02:
     files:
-      - ./init_module_first_[loop.index0].ets
-      - ./init_module_second_[loop.index0].ets
-      - ./shared_vars_module.ets
+      - ./init_module_first_[loop.index0].ats
+      - ./init_module_second_[loop.index0].ats
+      - ./shared_vars_module.ats
     decl: |-
-      import {SharedVars} from "./shared_vars_module.ets"
-      initModule("./init_module_first_[loop.index0].ets")
+      import {SharedVars} from "./shared_vars_module.ats"
+      initModule("./init_module_first_[loop.index0].ats")
     call: |-
       arktest.assertEQ(SharedVars.v1, 3)
       arktest.assertEQ(SharedVars.v2, 2)
 
   test03:
     files:
-      - ./init_module_first_[loop.index0].ets
-      - ./init_module_second_[loop.index0].ets
-      - ./shared_vars_module.ets
+      - ./init_module_first_[loop.index0].ats
+      - ./init_module_second_[loop.index0].ats
+      - ./shared_vars_module.ats
     decl: |-
-      import {SharedVars} from "./shared_vars_module.ets"
-      import {foo} from "./init_module_first_[loop.index0].ets"
+      import {SharedVars} from "./shared_vars_module.ats"
+      import {foo} from "./init_module_first_[loop.index0].ats"
     call: |-
       foo()
       arktest.assertEQ(SharedVars.v2, 3)
 
   test04:
     files:
-      - ./init_module_first_[loop.index0].ets
-      - ./init_module_second_[loop.index0].ets
-      - ./shared_vars_module.ets
+      - ./init_module_first_[loop.index0].ats
+      - ./init_module_second_[loop.index0].ats
+      - ./shared_vars_module.ats
     decl: |-
-      import {SharedVars} from "./shared_vars_module.ets"
-      import {C} from "./init_module_first_[loop.index0].ets"
-      initModule("./init_module_first_[loop.index0].ets")
+      import {SharedVars} from "./shared_vars_module.ats"
+      import {C} from "./init_module_first_[loop.index0].ats"
+      initModule("./init_module_first_[loop.index0].ats")
     call: |-
       let c = new C()
       arktest.assertEQ(SharedVars.v2, 4)
 
   test05:
     files:
-      - ./init_module_first_[loop.index0].ets
-      - ./init_module_second_[loop.index0].ets
-      - ./shared_vars_module.ets
+      - ./init_module_first_[loop.index0].ats
+      - ./init_module_second_[loop.index0].ats
+      - ./shared_vars_module.ats
     decl: |-
-      import {SharedVars} from "./shared_vars_module.ets"
-      import {C} from "./init_module_first_[loop.index0].ets"
+      import {SharedVars} from "./shared_vars_module.ats"
+      import {C} from "./init_module_first_[loop.index0].ats"
     call: |-
       let c: C
       arktest.assertEQ(SharedVars.v2, 0)
 
   test06:
     files:
-      - ./init_module_first_[loop.index0].ets
-      - ./init_module_second_[loop.index0].ets
-      - ./shared_vars_module.ets
+      - ./init_module_first_[loop.index0].ats
+      - ./init_module_second_[loop.index0].ats
+      - ./shared_vars_module.ats
     decl: |-
-      import {SharedVars} from "./shared_vars_module.ets"
-      initModule("./init_module_first_[loop.index0].ets")
+      import {SharedVars} from "./shared_vars_module.ats"
+      initModule("./init_module_first_[loop.index0].ats")
     call: |-
       arktest.assertEQ(SharedVars.v1, 4)
       arktest.assertEQ(SharedVars.v2, 6)
 
   test07:
     files:
-      - ./init_module_first_[loop.index0].ets
-      - ./init_module_second_[loop.index0].ets
-      - ./shared_vars_module.ets
+      - ./init_module_first_[loop.index0].ats
+      - ./init_module_second_[loop.index0].ats
+      - ./shared_vars_module.ats
     decl: |-
-      import {SharedVars} from "./shared_vars_module.ets"
-      initModule("./init_module_first_[loop.index0].ets")
+      import {SharedVars} from "./shared_vars_module.ats"
+      initModule("./init_module_first_[loop.index0].ats")
     call: |-
       arktest.assertEQ(SharedVars.v1, 5)
       arktest.assertEQ(SharedVars.v2, 7)
 
   test08:
     files:
-      - ./init_module_first_[loop.index0].ets
-      - ./init_module_second_[loop.index0].ets
-      - ./shared_vars_module.ets
+      - ./init_module_first_[loop.index0].ats
+      - ./init_module_second_[loop.index0].ats
+      - ./shared_vars_module.ats
     decl: |-
-      import {SharedVars} from "./shared_vars_module.ets"
-      import {NameSpace} from "./init_module_first_[loop.index0].ets"
-      initModule("./init_module_first_[loop.index0].ets")
+      import {SharedVars} from "./shared_vars_module.ats"
+      import {NameSpace} from "./init_module_first_[loop.index0].ats"
+      initModule("./init_module_first_[loop.index0].ats")
     call: |-
       arktest.assertEQ(NameSpace.v, 10)
       arktest.assertEQ(SharedVars.v2, 8)
 
   test09:
     files:
-      - ./init_module_first_[loop.index0].ets
-      - ./init_module_second_[loop.index0].ets
-      - ./shared_vars_module.ets
+      - ./init_module_first_[loop.index0].ats
+      - ./init_module_second_[loop.index0].ats
+      - ./shared_vars_module.ats
     decl: |-
-      import {SharedVars} from "./shared_vars_module.ets"
-      initModule("./init_module_first_[loop.index0].ets")
+      import {SharedVars} from "./shared_vars_module.ats"
+      initModule("./init_module_first_[loop.index0].ats")
     call: |-
       arktest.assertEQ(SharedVars.v1, 6)
       arktest.assertEQ(SharedVars.v2, 9)
 
   test10:
     files:
-      - ./init_module_first_[loop.index0].ets
-      - ./init_module_second_[loop.index0].ets
-      - ./shared_vars_module.ets
+      - ./init_module_first_[loop.index0].ats
+      - ./init_module_second_[loop.index0].ats
+      - ./shared_vars_module.ats
     decl: |-
-      import {SharedVars} from "./shared_vars_module.ets"
-      import {ExternalSpace} from "./init_module_first_[loop.index0].ets"
-      initModule("./init_module_first_[loop.index0].ets")
+      import {SharedVars} from "./shared_vars_module.ats"
+      import {ExternalSpace} from "./init_module_first_[loop.index0].ats"
+      initModule("./init_module_first_[loop.index0].ats")
     call: |-
       arktest.assertEQ(ExternalSpace.EmbeddedSpace.v, 15)
       arktest.assertEQ(SharedVars.v2, 10)

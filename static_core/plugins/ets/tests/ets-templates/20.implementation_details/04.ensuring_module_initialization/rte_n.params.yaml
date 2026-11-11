@@ -16,7 +16,7 @@ tests:
       If such module is not available or any other runtime issue occurs
       then a proper exception is thrown.
     files:
-      - ./rte_module_n.ets
+      - ./rte_module_n.ats
     decls:
       - |-
-        initModule("./rte_module_n.ets")
+        initModule("./rte_module_n.ats")

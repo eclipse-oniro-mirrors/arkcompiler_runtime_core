@@ -273,7 +273,7 @@ class TestStandardFlow(ITestFlow, Test):
         if not self.metadata.files:
             return []
 
-        if files := [file for file in self.metadata.files if file.endswith(".d.ets")]:
+        if files := [file for file in self.metadata.files if file.endswith((".d.ets", ".d.ats"))]:
             raise InvalidConfiguration(
                 f"Test {self.test_id} should not refer to a dependent .d.ets/.d.ats file(s): {files}")
 

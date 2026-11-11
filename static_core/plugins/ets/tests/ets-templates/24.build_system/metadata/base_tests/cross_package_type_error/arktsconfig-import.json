@@ -5,7 +5,7 @@
     "cacheDir": "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/metadata/base_tests/cross_package_type_error/decls",
     "dependencies": {
       "@panda/lib": {
-        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/cross_package_type_error/lib_types.ets.abc"
+        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/cross_package_type_error/lib_types.ats.abc"
       },
       "std/core": {
         "language": "ets",

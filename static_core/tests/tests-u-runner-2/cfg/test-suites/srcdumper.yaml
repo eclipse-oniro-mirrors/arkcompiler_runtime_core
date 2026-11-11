@@ -25,6 +25,7 @@ parameters:
     enable-verifier: false
     with-js: false
     extension: ets
+    test-extensions: [ats]
     use-metadata: false
 
 collections:

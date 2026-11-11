@@ -75,7 +75,7 @@
         "ohmUrl": "arkruntime"
       },
       "@panda/origin": {
-        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/reexport_nonexported_specifier_n/lib_origin.ets.abc"
+        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/reexport_nonexported_specifier_n/lib_origin.ats.abc"
       }
     }
   }

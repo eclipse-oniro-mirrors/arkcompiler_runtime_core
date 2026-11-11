@@ -16,7 +16,7 @@ cases:
 
 
     # protected access modifier
-    - files: './dir_prot_1/file_A.ets'
+    - files: './dir_prot_1/file_A.ats'
 
       decl: |-
           import { A } from './dir_prot_1/file_A';
@@ -27,7 +27,7 @@ cases:
 
 
     # private access modifier
-    - files: './dir_priv_1/file_A.ets'
+    - files: './dir_priv_1/file_A.ats'
 
       decl: |-
           import { A } from './dir_priv_1/file_A';
@@ -35,7 +35,7 @@ cases:
           // separate module, negative case with private field
           arktest.assertEQ( new A(42).fld, 43 )
 
-    - files: './dir_priv_2/file_B.ets'
+    - files: './dir_priv_2/file_B.ats'
 
       decl: |-
           import { B } from './dir_priv_2/file_B';

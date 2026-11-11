@@ -14,18 +14,18 @@
 ---
 tests:
   test00: |-
-    import {SharedVars} from "./shared_vars_module.ets"
+    import {SharedVars} from "./shared_vars_module.ats"
     let a: int = 1
     SharedVars.v1 = a
 
   test01: |-
-    import {SharedVars} from "./shared_vars_module.ets"
+    import {SharedVars} from "./shared_vars_module.ats"
     let a: int = 2
     SharedVars.v1 = a
 
   test02: |-
-    import {SharedVars} from "./shared_vars_module.ets"
-    initModule("./init_module_second_[loop.index0].ets")
+    import {SharedVars} from "./shared_vars_module.ats"
+    initModule("./init_module_second_[loop.index0].ats")
     let a: int = 2
     function foo () {
       a += 1
@@ -34,13 +34,13 @@ tests:
     foo()
 
   test03: |-
-    initModule("./init_module_second_[loop.index0].ets")
+    initModule("./init_module_second_[loop.index0].ats")
     export function foo(): void {}
     export class C {}
 
   test04: |-
-    import {SharedVars} from "./shared_vars_module.ets"
-    initModule("./init_module_second_[loop.index0].ets")
+    import {SharedVars} from "./shared_vars_module.ats"
+    initModule("./init_module_second_[loop.index0].ats")
     export function foo(): void {}
     export class C {
       v: int
@@ -50,8 +50,8 @@ tests:
     }
 
   test05: |-
-    import {SharedVars} from "./shared_vars_module.ets"
-    initModule("./init_module_second_[loop.index0].ets")
+    import {SharedVars} from "./shared_vars_module.ats"
+    initModule("./init_module_second_[loop.index0].ats")
     export function foo(): void {}
     export class C {
       v: int
@@ -61,8 +61,8 @@ tests:
     }
 
   test06: |-
-    import {SharedVars} from "./shared_vars_module.ets"
-    initModule("./init_module_second_[loop.index0].ets")
+    import {SharedVars} from "./shared_vars_module.ats"
+    initModule("./init_module_second_[loop.index0].ats")
     class C {
         static count: int = 3
         static {
@@ -74,8 +74,8 @@ tests:
     SharedVars.v1 = C.count
 
   test07: |-
-    import {SharedVars} from "./shared_vars_module.ets"
-    initModule("./init_module_second_[loop.index0].ets")
+    import {SharedVars} from "./shared_vars_module.ats"
+    initModule("./init_module_second_[loop.index0].ats")
     namespace NameSpace {
       export function foo(): void {}
       export let v: int = 4
@@ -89,8 +89,8 @@ tests:
     SharedVars.v1 = NameSpace.v
 
   test08: |-
-    import {SharedVars} from "./shared_vars_module.ets"
-    initModule("./init_module_second_[loop.index0].ets")
+    import {SharedVars} from "./shared_vars_module.ats"
+    initModule("./init_module_second_[loop.index0].ats")
     export namespace NameSpace {
       export function foo(): void {}
       export let v: int = 2
@@ -103,8 +103,8 @@ tests:
     }
 
   test09: |-
-    import {SharedVars} from "./shared_vars_module.ets"
-    initModule("./init_module_second_[loop.index0].ets")
+    import {SharedVars} from "./shared_vars_module.ats"
+    initModule("./init_module_second_[loop.index0].ats")
     namespace ExternalSpace {
       export function foo(): void {}
       export let v: int = 0
@@ -121,8 +121,8 @@ tests:
     SharedVars.v1 = ExternalSpace.EmbeddedSpace.v
 
   test10: |-
-    import {SharedVars} from "./shared_vars_module.ets"
-    initModule("./init_module_second_[loop.index0].ets")
+    import {SharedVars} from "./shared_vars_module.ats"
+    initModule("./init_module_second_[loop.index0].ats")
     export namespace ExternalSpace {
       export function foo(): void {}
       export let v: int = 0

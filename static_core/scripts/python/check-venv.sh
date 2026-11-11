@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 # Copyright (c) 2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
 # check-venv.sh: Check if all packages from requirements file are present in current active environment
 # Usage: check-venv.sh [-v] <requirements_file>
 #
+
+set -e
 
 # Check if Python is available
 if ! command -v python3 &> /dev/null; then
