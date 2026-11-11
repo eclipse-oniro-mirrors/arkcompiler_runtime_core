@@ -308,6 +308,38 @@ public:
     NO_MOVE_SEMANTIC(ElfBuilder);
     NO_COPY_SEMANTIC(ElfBuilder);
 
+    // Append a non-ALLOC `.gnu_debugdata` section (xz-compressed mini ELF
+    // holding method symbols for offline symbolization). Called from the
+    // post-settle hook inside Build(); the section is settled after all
+    // ALLOC sections.
+    void SetGnuDebugData(std::vector<uint8_t> &&data)
+    {
+        static_assert(!IS_JIT_MODE);
+        ASSERT(gnuDebugData_.GetDataSize() == 0);
+        // Lazy registration: the section and its `.shstrtab` name are added
+        // only when data actually arrives, so flag-off products keep the
+        // pre-change section layout (no empty section header). Called from
+        // the post-settle hook, after Build() registered the other section
+        // names but before `.shstrtab` is settled.
+        if (std::find(sections_.begin(), sections_.end(), &gnuDebugData_) == sections_.end()) {
+            AddSection(&gnuDebugData_);
+            gnuDebugData_.header_.sh_name = AddSectionName(gnuDebugData_.GetName());
+        }
+        gnuDebugData_.GetVector() = std::move(data);
+    }
+
+    // Register a callback invoked during Build(), once all ALLOC section
+    // addresses are settled and before the non-ALLOC tail (.shstrtab,
+    // .gnu_debugdata) is laid out. Used to generate the mini debug ELF with
+    // final method addresses (SetGnuDebugData may be called from the hook).
+    // The builder is passed to the callback as a call-time argument, so the
+    // stored callable must not capture the builder itself — the reference is
+    // only valid for the duration of the synchronous call inside Build().
+    void SetPostSettleHook(std::function<void(ElfBuilder &)> hook)
+    {
+        postSettleHook_ = std::move(hook);
+    }
+
     ElfWord AddSectionName(const std::string &name)
     {
         return name.empty() ? 0 : shstrtabSection_.AddString(name);
@@ -544,6 +576,14 @@ private:
     Segment *currentSegment_ {nullptr};
 
     std::vector<DataSection *> roDataSections_;
+    // Hand-built GNU hash (see ConstructGnuHashSection); it is also the first
+    // section-table entry, although the ELF spec reserves index 0 for a NULL
+    // section. Runtime loading is not affected (markers are resolved through
+    // DT_GNU_HASH), but BFD tools rewrite the whole file when invoked with a
+    // single file argument, and GNU objcopy drops this section and zeroes its
+    // bytes, breaking dlsym on the marker symbols. Do not run single-argument
+    // objcopy/strip/llvm-objcopy on .an products; extract data from a copy or
+    // with readelf/dd.
     DataSection gnuHashSection_ =  // NOLINTNEXTLINE(hicpp-signed-bitwise)
         DataSection(*this, ".gnu.hash", &dynsymSection_, {SHT_GNU_HASH, SHF_ALLOC, 0, GNU_HASH_SECTION_ALIGN, 0});
     DataSection textSection_ =  // NOLINTNEXTLINE(hicpp-signed-bitwise)
@@ -568,6 +608,11 @@ private:
 
     std::vector<DwarfSectionData> *frameData_ {nullptr};
 #endif
+    // Non-ALLOC section holding an xz-compressed mini ELF with method symbols
+    // (offline symbolization; never mapped into the process). Populated via
+    // SetGnuDebugData().
+    DataSection gnuDebugData_ = DataSection(*this, ".gnu_debugdata", nullptr, {SHT_PROGBITS, 0, 0, 1, 0});
+    std::function<void(ElfBuilder &)> postSettleHook_;
     std::string methodName_ = std::string("code");
 
     friend SegmentScope;
@@ -862,7 +907,19 @@ void ElfBuilder<ARCH, IS_JIT_MODE>::SettleSectionsForAot()
         SettleSection(&dynamicSection_);
     }
 
+    // IS_JIT_MODE is excluded by the static_assert at the top of this
+    // function; the hook/shstrtab/.gnu_debugdata sequence below is AOT-only.
+    if (postSettleHook_ != nullptr) {
+        // Hook generates .gnu_debugdata content with final addresses; it
+        // runs before the non-ALLOC tail is laid out because SetGnuDebugData
+        // may append the section name to .shstrtab. The builder is passed by
+        // reference for the duration of the call — the hook must not store it.
+        postSettleHook_(*this);
+    }
     SettleSection(&shstrtabSection_);
+    if (gnuDebugData_.GetDataSize() != 0) {
+        SettleSection(&gnuDebugData_);
+    }
 
     auto lodDynamicSegment = new Segment(*segments_.back());
     ASSERT(lodDynamicSegment->header.p_type == PT_DYNAMIC);
@@ -1252,8 +1309,8 @@ public:
         methods_.push_back(method);
         auto &methodHeader = methodHeaders_.emplace_back();
         methodHeader.methodId = method.GetMethod()->GetFileId().GetOffset();
-        methodHeader.codeOffset = currentCodeSize_;
         methodHeader.codeSize = method.GetOverallSize();
+        methodHeader.codeOffset = currentCodeSize_;
         currentCodeSize_ += methodHeader.codeSize;
         currentCodeSize_ = RoundUp(currentCodeSize_, GetCodeAlignment(arch_));
         currentBitmap_->SetBit(method.GetIndex());
@@ -1336,6 +1393,7 @@ private:
     uint32_t bitmapSize_ {0};
 
     RuntimeInterface *runtime_ {nullptr};
+
 #ifdef PANDA_COMPILER_DEBUG_INFO
     std::vector<DwarfSectionData> frameData_;
     bool emitDebugInfo_ {false};

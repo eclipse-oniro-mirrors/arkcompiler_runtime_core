@@ -310,6 +310,48 @@ public:
                      Args &&...params);
     void CreateLoadClassFromPLT(Inst *inst, Reg tmpReg, Reg dst, size_t classId);
     void CreateJumpToClassResolverPltShared(Inst *inst, Reg tmpReg, RuntimeInterface::EntrypointId id);
+    // Shared slow-path stubs are enabled in AOT mode only and can be turned
+    // off with --compiler-shared-stub=false (falls back to per-call-site
+    // inline entry-loading sequences).
+    bool CanUseSharedStub() const
+    {
+        // Stub sharing is enabled for 64-bit targets only (arm64, x86_64):
+        // no spare-register analysis was done for 32-bit architectures.
+        // PLT forwarders are additionally arm64-only (see EmitCallRuntimeCode);
+        // the x86_64 forwarder design is unverified and deferred.
+        return Is64BitsArch(GetArch()) && GetGraph()->IsAotMode() && g_options.IsCompilerSharedStub();
+    }
+
+protected:
+    template <typename... Args>
+    void FillCallParams(Args &&...params);
+
+public:
+    // Generic shared slow-path trampoline for throwing (non-returning)
+    // entrypoints (NPE/AIOOBE/ClassCast/ThrowException). Mirrors
+    // CallEntrypoint's pre-call sequence: live caller-saved registers
+    // (including GC-visible references) are spilled to the frame BEFORE the
+    // call, so the stack map at the call describes valid slots — required by
+    // both GC root scanning and deoptimization frame reconstruction.
+    // Parameters are then filled and the call jumps to the shared trampoline,
+    // which only loads the entrypoint address and tail-jumps.
+    template <typename... Args>
+    void CreateJumpToSharedSlowPath(Inst *inst, RuntimeInterface::EntrypointId id, Args &&...params);
+    // Generic PLT trampoline for regular (returning) runtime entry calls.
+    // The call site keeps the full calling ceremony (caller-saved register
+    // save/restore, stack map right after the call); only the 12-byte inline
+    // entry-address loading sequence is replaced with a 4-byte
+    // `bl <PLT stub>`. The stub is a pure forwarder: load entrypoint address
+    // and tail-jump; the runtime function returns straight back to the call
+    // site (standard ABI keeps callee-saved registers intact).
+    // Try PLT stub for a returning entrypoint; falls back to inline
+    // entry-address loading on unsupported architectures (arm32/x86_32)
+    // or when the stub is out of branch range. Returns true if the PLT
+    // stub call was emitted, false if the caller must emit inline loading.
+    bool TryCallRuntimePlt(Inst *inst, RuntimeInterface::EntrypointId id);
+    // Emit all PLT stub bodies registered in pltStubsMap_ (called from
+    // EmitSlowPaths, but uses the separate SharedPltData registry).
+    void EmitRuntimePltStubs();
     void CreateLoadTLABInformation(Reg regTlabStart, Reg regTlabSize);
     void CreateCheckForTLABWithConstSize(Inst *inst, Reg regTlabStart, Reg regTlabSize, size_t size,
                                          LabelHolder::LabelId label);
@@ -381,9 +423,6 @@ protected:
     RegMask GetUsedRegs() const;
     RegMask GetUsedVRegs() const;
 
-    template <typename... Args>
-    void FillCallParams(Args &&...params);
-
     template <size_t IMM_ARRAY_SIZE>
     class FillCallParamsHelper;
 
@@ -450,6 +489,16 @@ private:
 
     void EmitAtomicByteOr(Reg addr, Reg value);
 
+    // Get or create the shared stub for `id` and emit a call to it:
+    // cross-method reuse via SharedSlowPathOffset bl-by-offset when the stub
+    // is within the branch range; otherwise a stub is created in this method
+    // and registered in slowPathsMap_ (intra-method deduplication). `tmpReg`
+    // is the register the stub uses to load the entrypoint address; callers
+    // that need a specific register (e.g. the class-resolver GOT sequence)
+    // pass their own, others pass a scratch register.
+    void GetOrCreateSharedStub(Inst *inst, RuntimeInterface::EntrypointId id, Reg tmpReg,
+                               Reg scratchReg = INVALID_REGISTER);
+
 private:
     void CreateCmcReadViaBarrierCall(Inst *inst, Reg dstReg, bool isVolatile, RegMask preserved, Reg refAddr);
     ArenaAllocator *allocator_;
@@ -465,6 +514,9 @@ private:
 
     ArenaVector<SlowPathBase *> slowPaths_;
     ArenaUnorderedMap<RuntimeInterface::EntrypointId, SlowPathShared *> slowPathsMap_;
+    // Separate intra-method registry for returning-entrypoint PLT stubs
+    // (distinct calling convention from slow-path stubs — see SharedPltData).
+    ArenaUnorderedMap<RuntimeInterface::EntrypointId, SlowPathShared *> pltStubsMap_;
 
     const CFrameLayout frameLayout_;
     FrameInfo *frameInfo_ {nullptr};

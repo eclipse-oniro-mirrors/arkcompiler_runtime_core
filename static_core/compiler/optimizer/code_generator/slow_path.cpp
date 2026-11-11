@@ -51,11 +51,22 @@ bool SlowPathEntrypoint::GenerateThrowOutOfBoundsException(Codegen *codegen)
     if (GetInst()->GetOpcode() == Opcode::BoundsCheckI) {
         ScopedTmpReg indexReg(codegen->GetEncoder());
         codegen->GetEncoder()->EncodeMov(indexReg, Imm(GetInst()->CastToBoundsCheckI()->GetImm()));
-        codegen->CallRuntime(GetInst(), GetEntrypoint(), INVALID_REGISTER, RegMask::GetZeroMask(), indexReg, lenReg);
+        if (codegen->CanUseSharedStub()) {
+            // Shared trampoline; index/length params are passed through
+            codegen->CreateJumpToSharedSlowPath(GetInst(), GetEntrypoint(), indexReg, lenReg);
+        } else {
+            codegen->CallRuntime(GetInst(), GetEntrypoint(), INVALID_REGISTER, RegMask::GetZeroMask(), indexReg,
+                                 lenReg);
+        }
     } else {
         ASSERT(GetInst()->GetOpcode() == Opcode::BoundsCheck);
         auto indexReg = codegen->ConvertRegister(GetInst()->GetSrcReg(1), GetInst()->GetInputType(1));
-        codegen->CallRuntime(GetInst(), GetEntrypoint(), INVALID_REGISTER, RegMask::GetZeroMask(), indexReg, lenReg);
+        if (codegen->CanUseSharedStub()) {
+            codegen->CreateJumpToSharedSlowPath(GetInst(), GetEntrypoint(), indexReg, lenReg);
+        } else {
+            codegen->CallRuntime(GetInst(), GetEntrypoint(), INVALID_REGISTER, RegMask::GetZeroMask(), indexReg,
+                                 lenReg);
+        }
     }
     return true;
 }
@@ -116,20 +127,34 @@ bool SlowPathEntrypoint::GenerateByEntry(Codegen *codegen)
     switch (GetEntrypoint()) {
         case EntrypointId::THROW_EXCEPTION: {
             auto src = codegen->ConvertRegister(GetInst()->GetSrcReg(0), DataType::Type::REFERENCE);
-            codegen->CallRuntime(GetInst(), GetEntrypoint(), INVALID_REGISTER, RegMask::GetZeroMask(), src);
+            if (codegen->CanUseSharedStub()) {
+                // Shared trampoline; parameter is passed through
+                codegen->CreateJumpToSharedSlowPath(GetInst(), GetEntrypoint(), src);
+            } else {
+                codegen->CallRuntime(GetInst(), GetEntrypoint(), INVALID_REGISTER, RegMask::GetZeroMask(), src);
+            }
             return true;
         }
         case EntrypointId::NULL_POINTER_EXCEPTION:
         case EntrypointId::ARITHMETIC_EXCEPTION:
         case EntrypointId::THROW_NATIVE_EXCEPTION:
-            codegen->CallRuntime(GetInst(), GetEntrypoint(), INVALID_REGISTER, {});
+            if (codegen->CanUseSharedStub()) {
+                // Shared trampoline, no parameters
+                codegen->CreateJumpToSharedSlowPath(GetInst(), GetEntrypoint());
+            } else {
+                codegen->CallRuntime(GetInst(), GetEntrypoint(), INVALID_REGISTER, {});
+            }
             return true;
         case EntrypointId::ARRAY_INDEX_OUT_OF_BOUNDS_EXCEPTION:
         case EntrypointId::STRING_INDEX_OUT_OF_BOUNDS_EXCEPTION:
             return GenerateThrowOutOfBoundsException(codegen);
         case EntrypointId::NEGATIVE_ARRAY_SIZE_EXCEPTION: {
             auto size = codegen->ConvertRegister(GetInst()->GetSrcReg(0), GetInst()->GetInputType(0));
-            codegen->CallRuntime(GetInst(), GetEntrypoint(), INVALID_REGISTER, RegMask::GetZeroMask(), size);
+            if (codegen->CanUseSharedStub()) {
+                codegen->CreateJumpToSharedSlowPath(GetInst(), GetEntrypoint(), size);
+            } else {
+                codegen->CallRuntime(GetInst(), GetEntrypoint(), INVALID_REGISTER, RegMask::GetZeroMask(), size);
+            }
             return true;
         }
         case EntrypointId::INITIALIZE_CLASS:
@@ -194,13 +219,20 @@ void SlowPathExplicitNullCheck::GenerateImpl(Codegen *codegen)
 
 void SlowPathShared::GenerateImpl(Codegen *codegen)
 {
-    ASSERT(tmpReg_ != INVALID_REGISTER);
-    [[maybe_unused]] ScopedTmpReg tmpReg(codegen->GetEncoder(), tmpReg_);
-    ASSERT(tmpReg.GetReg().GetId() == tmpReg_.GetId());
     auto graph = codegen->GetGraph();
     ASSERT(graph->IsAotMode());
     auto aotData = graph->GetAotData();
-    aotData->SetSharedSlowPathOffset(GetEntrypoint(), codegen->GetEncoder()->GetCursorOffset());
+    if (isPltMode_) {
+        aotData->SetPltStubOffset(GetEntrypoint(), codegen->GetEncoder()->GetCursorOffset());
+    } else {
+        aotData->SetSharedSlowPathOffset(GetEntrypoint(), codegen->GetEncoder()->GetCursorOffset());
+    }
+    [[maybe_unused]] ScopedTmpReg tmpReg(codegen->GetEncoder(), tmpReg_);
+    if (scratchReg_.IsValid()) {
+        codegen->GetEntrypoint(scratchReg_, GetEntrypoint());
+        codegen->GetEncoder()->EncodeJump(scratchReg_);
+        return;
+    }
     ScopedTmpReg tmp1Reg(codegen->GetEncoder());
     codegen->GetEntrypoint(tmp1Reg, GetEntrypoint());
     codegen->GetEncoder()->EncodeJump(tmp1Reg);
@@ -241,6 +273,11 @@ void SlowPathCheckCast::GenerateImpl(Codegen *codegen)
     auto inst = GetInst();
     auto src = codegen->ConvertRegister(inst->GetSrcReg(0), inst->GetInputType(0));
 
+    if (codegen->CanUseSharedStub()) {
+        // Shared trampoline; class/obj params are passed through
+        codegen->CreateJumpToSharedSlowPath(GetInst(), GetEntrypoint(), classReg_, src);
+        return;
+    }
     codegen->CallRuntime(GetInst(), GetEntrypoint(), INVALID_REGISTER, RegMask::GetZeroMask(), classReg_, src);
 }
 
@@ -250,6 +287,13 @@ void SlowPathNullCheckCastUnresolved::GenerateImpl(Codegen *codegen)
                       std::string("SlowPath for Null-CheckCast exception") + std::to_string(GetInst()->GetId()));
     auto nullcheck = GetInst()->CastToNullCheck();
     auto typeIdImm = codegen->GetTypeIdImm(GetInst(), nullcheck->GetTypeId());
+    if (codegen->CanUseSharedStub()) {
+        // Shared trampoline; per-site type id is passed as a regular
+        // argument register value (uniform parameterization), so the stub
+        // itself stays shared.
+        codegen->CreateJumpToSharedSlowPath(GetInst(), GetEntrypoint(), typeIdImm);
+        return;
+    }
     codegen->CallRuntime(GetInst(), GetEntrypoint(), INVALID_REGISTER, RegMask::GetZeroMask(), typeIdImm);
 }
 

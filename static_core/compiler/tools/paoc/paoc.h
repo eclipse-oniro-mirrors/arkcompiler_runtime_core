@@ -28,6 +28,7 @@
 namespace ark::compiler {
 class Graph;
 class SharedSlowPathData;
+class SharedPltData;
 }  // namespace ark::compiler
 
 namespace ark::paoc {
@@ -197,6 +198,7 @@ private:
 
     PaocClusters clustersInfo_;
     compiler::SharedSlowPathData *slowPathData_ {nullptr};
+    compiler::SharedPltData *pltData_ {nullptr};
 
     unsigned successMethods_ {0};
     unsigned failedMethods_ {0};

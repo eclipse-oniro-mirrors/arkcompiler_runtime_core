@@ -798,7 +798,6 @@ llvm::Expected<compiler::Graph *> LLVMAotCompiler::CreateGraph(ArenaAllocator &a
     auto aotData = graph->GetAllocator()->New<compiler::AotData>(
         compiler::AotData::AotDataArgs {method.GetPandaFile(),
                                         graph,
-                                        nullptr,
                                         codeAddress,
                                         aotBuilder_->GetIntfInlineCacheIndex(),
                                         {aotBuilder_->GetGotPlt(), aotBuilder_->GetGotVirtIndexes(),

@@ -17,6 +17,8 @@ repository-wide documentation hub.
 - `ir_builder.md` - bytecode-to-SSA construction, save states, OSR-sensitive IR building
 - `paoc.md` - current `ark_aot` / paoc modes and option map
 - `aot_pgo.md` - compiler-facing AOT PGO workflow
+- `artifact-size-measurement.md` - measurement discipline for artifact-size analysis (savings estimates,
+  section-growth numbers)
 - `performance_workflows.md` - benchmark, GC-control, `perf`, and AOT PGO investigation workflow
 
 ### Workflow Knowledge

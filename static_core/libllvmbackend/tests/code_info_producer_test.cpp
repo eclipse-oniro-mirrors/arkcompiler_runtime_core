@@ -74,7 +74,6 @@ protected:
         auto *aotData = graph->GetAllocator()->New<ark::compiler::AotData>(
             ark::compiler::AotData::AotDataArgs {nullptr,
                                                  graph,
-                                                 nullptr,
                                                  codeAddress,
                                                  aotBuilder.GetIntfInlineCacheIndex(),
                                                  {aotBuilder.GetGotPlt(), aotBuilder.GetGotVirtIndexes(),

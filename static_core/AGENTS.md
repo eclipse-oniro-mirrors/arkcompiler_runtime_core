@@ -75,4 +75,11 @@ rules, tradeoffs, and validation expectations, read `irtoc/AGENTS.md`, then the 
 
 ## Code Style
 
-- Code style enforced by `.clang-format` / `.clang-tidy` and `docs/coding-style.md`.
+- Code style enforced by the repository's formatter and static-analysis configurations and `docs/coding-style.md`.
+
+## Pre-PR Static-Check Discipline
+
+Before pushing a PR, run these checks on every changed C++ file:
+
+1. Prefer `memcpy_s` over `memcpy` (securec) and keep comments free of external-project
+   analogies (describe the mechanism itself).

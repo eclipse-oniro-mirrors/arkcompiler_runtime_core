@@ -175,6 +175,7 @@ Codegen::Codegen(Graph *graph)
       codeBuilder_(allocator_->New<CodeInfoBuilder>(graph->GetArch(), allocator_)),
       slowPaths_(graph->GetLocalAllocator()->Adapter()),
       slowPathsMap_(graph->GetLocalAllocator()->Adapter()),
+      pltStubsMap_(graph->GetLocalAllocator()->Adapter()),
       frameLayout_(CFrameLayout(graph->GetArch(), graph->GetStackSlotsCount(), !graph->GetMode().IsFastPath())),
       osrEntries_(graph->GetLocalAllocator()->Adapter()),
       vregIndices_(GetAllocator()->Adapter()),
@@ -966,9 +967,19 @@ Condition Codegen::ConvertCcOverflow(ConditionCode cc)
 
 void Codegen::EmitSlowPaths()
 {
-    for (auto slowPath : slowPaths_) {
-        slowPath->Generate(this);
+    // Index-based loop — a throwing slowpath may append a shared
+    // SlowPathShared trampoline (CreateJumpToSharedSlowPath) while we iterate;
+    // range-for over a mutating vector is UB and would leave the trampoline
+    // label unbound (bl encoded as a jump-to-self).
+    for (size_t i = 0; i < slowPaths_.size(); i++) {
+        // PLT stubs are also registered in pltStubsMap_ and are emitted
+        // solely by EmitRuntimePltStubs below; generating them here too
+        // would emit every PLT stub body twice.
+        if (!slowPaths_[i]->IsPltMode()) {
+            slowPaths_[i]->Generate(this);
+        }
     }
+    EmitRuntimePltStubs();
 }
 
 uint32_t Codegen::GetAOTBinaryFileSnapshotIndexForInst([[maybe_unused]] const Inst *inst) const
@@ -1243,9 +1254,22 @@ bool Codegen::EmitCallRuntimeCode(Inst *inst, std::variant<EntrypointId, Reg> en
         encoder->MakeCall(reg);
     } else {
         auto id = std::get<EntrypointId>(entrypoint);
-        ScopedTmpReg tmpReg(encoder, true);
-        GetEntrypoint(tmpReg, id);
-        encoder->MakeCall(tmpReg);
+        // PLT enabled on AARCH64: the arm64 temp pool (x16/x17, IP0/IP1) is
+        // architecturally scratch-safe per AAPCS64 §6.1.2, so no per-call-site
+        // audit is needed. x86_64 stays disabled (temp pool r12-r14 is not
+        // scratch-safe, proven by direct_native/quick_native/unsafe_memory).
+        // `inst` must be non-null: slow-path stubs use it for debug strings and
+        // stack maps; synthetic callers (InsertCallChecker, JS cast) pass null
+        // and use the direct-call path below.
+        if (GetArch() == Arch::AARCH64 && CanUseSharedStub() && inst != nullptr &&
+            !GetRuntime()->IsEntrypointNoreturn(id) && TryCallRuntimePlt(inst, id)) {
+            // PLT stub call emitted; the stack map is created below, right
+            // after this call, as before.
+        } else {
+            ScopedTmpReg tmpReg(encoder, true);
+            GetEntrypoint(tmpReg, id);
+            encoder->MakeCall(tmpReg);
+        }
     }
 
     SaveStateInst *saveState =
@@ -1553,11 +1577,10 @@ void Codegen::CreateMultiArrayCall(CallInst *callInst)
     }
 }
 
-void Codegen::CreateJumpToClassResolverPltShared(Inst *inst, Reg tmpReg, RuntimeInterface::EntrypointId id)
+void Codegen::GetOrCreateSharedStub(Inst *inst, RuntimeInterface::EntrypointId id, Reg tmpReg, Reg scratchReg)
 {
     auto encoder = GetEncoder();
-    auto graph = GetGraph();
-    auto aotData = graph->GetAotData();
+    auto aotData = GetGraph()->GetAotData();
     auto offset = aotData->GetSharedSlowPathOffset(id, encoder->GetCursorOffset());
     if (offset == 0 || !encoder->CanMakeCallByOffset(offset)) {
         SlowPathShared *slowPath;
@@ -1568,12 +1591,103 @@ void Codegen::CreateJumpToClassResolverPltShared(Inst *inst, Reg tmpReg, Runtime
         } else {
             slowPath = CreateSlowPath<SlowPathShared>(inst, id);
             slowPath->SetTmpReg(tmpReg);
+            slowPath->SetScratchReg(scratchReg);
             slowPathsMap_[id] = slowPath;
         }
         encoder->MakeCall(slowPath->GetLabel());
-    } else {
-        encoder->MakeCallByOffset(offset);
+        return;
     }
+    encoder->MakeCallByOffset(offset);
+}
+
+bool Codegen::TryCallRuntimePlt(Inst *inst, RuntimeInterface::EntrypointId id)
+{
+    // Architecture whitelist: PLT stubs use a ceremony-protected scratch
+    // register (caller-saved, non-parameter). Only enabled on architectures
+    // where such a register exists and is verified safe:
+    //   - arm64: temp pool x16/x17 (IP0/IP1), architecturally scratch-safe
+    //     per AAPCS64 §6.1.2, no per-bl audit needed
+    //   - x86_64: rax (return value register, protected by calling ceremony,
+    //     never used for staged arguments)
+    // arm32/x86_32: no spare caller-saved register — always return false.
+    if (GetArch() != Arch::X86_64 && GetArch() != Arch::AARCH64) {
+        return false;
+    }
+
+    auto target = GetEncoder()->GetTarget();
+    auto aotData = GetGraph()->GetAotData();
+
+    // PLT stub scratch register selection depends on the architecture and
+    // the nature of the temp pool:
+    //
+    // AARCH64:
+    //   The temp pool (x16/x17, IP0/IP1) is architecturally scratch-safe
+    //   per AAPCS64 §6.1.2 — the compiler must NOT hold live values in
+    //   IP0/IP1 across a call. We exclusively use temp pool regs for PLT.
+    //   Fall back to other caller-saved non-param regs only if temp pool
+    //   is unavailable (should never happen on arm64).
+    //
+    // x86_64:
+    //   The temp pool (r12-r14) is provably unsafe (direct_native temp-pool
+    //   corruption). Use a ceremony-protected caller-saved non-param reg
+    //   (rax on x86_64). Deliberately include the return-value register:
+    //   the PLT stub tail-jumps to the runtime entry, so the "return" that
+    //   matters is the runtime function's return to the original caller —
+    //   the scratch value is dead after the jump.
+    RegMask candidates;
+    if (GetArch() == Arch::AARCH64) {
+        candidates = target.GetTempRegsMask();
+    }
+    if (!candidates.Any()) {
+        candidates = GetCallerRegsMask(GetArch(), false) & ~target.GetParamRegsMask();
+        candidates &= ~target.GetTempRegsMask();
+    }
+    Reg scratchReg = INVALID_REGISTER;
+    if (candidates.Any()) {
+        scratchReg = Reg(candidates.GetMinRegister(), Is64BitsArch(GetArch()) ? INT64_TYPE : INT32_TYPE);
+    }
+
+    // Use the PLT-specific registry (pltStubsMap_ + SharedPltData), NOT the
+    // slow-path registry — the two stub flavors have different calling
+    // conventions and must never share entries.
+    auto offset = aotData->GetPltStubOffset(id, GetEncoder()->GetCursorOffset());
+    if (offset != 0 && GetEncoder()->CanMakeCallByOffset(offset)) {
+        // Cross-method reuse: call the existing stub directly.
+        GetEncoder()->MakeCallByOffset(offset);
+        return true;
+    }
+
+    // Intra-method dedup via pltStubsMap_ (separate from slowPathsMap_).
+    auto search = pltStubsMap_.find(id);
+    if (search != pltStubsMap_.end()) {
+        GetEncoder()->MakeCall(search->second->GetLabel());
+        return true;
+    }
+
+    // Create a new PLT stub (registered in pltStubsMap_, emitted later by
+    // EmitRuntimePltStubs using SharedPltData for cross-method sharing).
+    auto *stub = CreateSlowPath<SlowPathShared>(inst, id);
+    stub->SetTmpReg(Reg(target.GetTempRegsMask().GetMinRegister(), INT64_TYPE));
+    stub->SetScratchReg(scratchReg);
+    stub->SetPltMode();
+    pltStubsMap_[id] = stub;
+    GetEncoder()->MakeCall(stub->GetLabel());
+    return true;
+}
+
+void Codegen::EmitRuntimePltStubs()
+{
+    // Emit PLT stub bodies. These are separate from slow-path stubs:
+    // they register their offsets in SharedPltData (not SharedSlowPathData)
+    // to prevent cross-flavor stub substitution.
+    for (auto &[id, stub] : pltStubsMap_) {
+        stub->Generate(this);
+    }
+}
+
+void Codegen::CreateJumpToClassResolverPltShared(Inst *inst, Reg tmpReg, RuntimeInterface::EntrypointId id)
+{
+    GetOrCreateSharedStub(inst, id, tmpReg);
     CreateStackMap(inst);
 }
 

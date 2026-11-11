@@ -63,7 +63,6 @@ public:
                 auto aotData = graph->GetAllocator()->New<compiler::AotData>(
                     compiler::AotData::AotDataArgs {nullptr,
                                                     graph,
-                                                    nullptr,
                                                     codeAddress,
                                                     aotBuilder.GetIntfInlineCacheIndex(),
                                                     {aotBuilder.GetGotPlt(), aotBuilder.GetGotVirtIndexes(),
@@ -111,7 +110,6 @@ public:
             auto aotData = graph->GetAllocator()->New<compiler::AotData>(
                 compiler::AotData::AotDataArgs {nullptr,
                                                 graph,
-                                                nullptr,
                                                 codeAddress,
                                                 aotBuilder.GetIntfInlineCacheIndex(),
                                                 {aotBuilder.GetGotPlt(), aotBuilder.GetGotVirtIndexes(),

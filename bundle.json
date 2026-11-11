@@ -51,6 +51,7 @@
                 "json",
                 "musl",
                 "elfio",
+                "lzma",
                 "node",
                 "qos_manager",
                 "ffrt"

@@ -22,6 +22,12 @@ options:
   description: Skip all optimizations
   tags: [perf]
 
+- name: compiler-shared-stub
+  type: bool
+  default: true
+  description: Use shared stubs for runtime entry calls in AOT mode (throwing-entrypoint trampolines + returning-entrypoint forwarders). Effective on 64-bit targets only (arm64, x86_64); 32-bit targets always use per-call-site sequences. PLT forwarders are additionally arm64-only (the x86_64 forwarder design is unverified and deferred). Set false to fall back to per-call-site inline entry-loading sequences (pre-shared-stub codegen)
+  tags: [size]
+
 - name: compiler-regex
   description: >
      A regular expression that specifies methods to compile (ECMA-262 grammar).
