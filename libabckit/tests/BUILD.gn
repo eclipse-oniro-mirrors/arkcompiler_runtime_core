@@ -1578,6 +1578,7 @@ group("abckit_stress_tests_apps") {
 }
 
 ohos_source_set("abckit_js_vm_helpers") {
+  testonly = true
   sources = [ "helpers/helpers_js_runtime.cpp" ]
 
   deps = [
