@@ -12,15 +12,15 @@ The SDK is organized into two main directories:
 
 - **`api/`** - HarmonyOS standard API implementations using the `@ohos.*` namespace
   - `@ohos.util.*` - Collection classes (ArrayList, HashMap, LinkedList, Stack, Queue, etc.)
-  - `@ohos.buffer.ets` - Buffer/array buffer utilities
-  - `@ohos.uri.ets`, `@ohos.url.ets` - URI/URL parsing and handling
-  - `@ohos.xml.ets` - XML pull parser
-  - `@ohos.base.ets` - Base types (BusinessError)
-  - `UtilHelper.ets` - Native helper functions
+  - `@ohos.buffer.ats` - Buffer/array buffer utilities
+  - `@ohos.uri.ats`, `@ohos.url.ats` - URI/URL parsing and handling
+  - `@ohos.xml.ats` - XML pull parser
+  - `@ohos.base.ats` - Base types (BusinessError)
+  - `UtilHelper.ats` - Native helper functions
 
 - **`arkts/`** - ArkTS-specific extensions
-  - `@arkts.math.Decimal.ets` - Decimal arithmetic
-  - `@arkts.collections.ets` - BitVector and other collections
+  - `@arkts.math.Decimal.ats` - Decimal arithmetic
+  - `@arkts.collections.ats` - BitVector and other collections
 
 - **`native/`** - C++ implementations using ANI (Ark Native Interface)
   - `main.cpp` - Entry point for native bindings
@@ -38,7 +38,7 @@ The SDK is organized into two main directories:
 
 The SDK uses **CMake** for building. The build process:
 
-1. **Compile each `.ets` file to `.abc` bytecode** using `compile_ets_code()`
+1. **Compile each `.ats` file to `.abc` bytecode** using `compile_ets_code()`
 2. **Link all `.abc` files** into a single `etssdk.abc` using `ark_link`
 3. **Build native library** (`ets_sdk_native.so`) for native method implementations
 
@@ -64,7 +64,7 @@ The SDK follows similar style guidelines to the stdlib (see `../stdlib/AGENTS.md
 ### Package Declaration
 - Files in `api/` use: `package api;` followed by `export namespace util { ... }`
 - Files in `arkts/` use: `export namespace collections { ... }`
-- Some files (like `@ohos.base.ets`) use direct `export` without package
+- Some files (like `@ohos.base.ats`) use direct `export` without package
 
 ### Native Method Declarations
 
@@ -123,7 +123,7 @@ The native layer provides C++ implementations for:
 ### Adding Native Methods
 
 To add a new native method:
-1. Add method declaration with `native` keyword in `.ets` file
+1. Add method declaration with `native` keyword in `.ats` file
 2. Implement in C++ in `native/api/*.cpp`
 3. Update `native/CMakeLists.txt` to include new source file
 4. Use ANI functions (`env->Object_GetFieldByName_*`, `env->CallMethod_*`) for ETS interop
@@ -133,13 +133,13 @@ To add a new native method:
 The `SDK_SRCS` variable in `CMakeLists.txt` explicitly lists all source files to be compiled:
 ```cmake
 set(SDK_SRCS
-    "${CMAKE_CURRENT_SOURCE_DIR}/api/@ohos.buffer.ets"
-    "${CMAKE_CURRENT_SOURCE_DIR}/api/@ohos.util.ArrayList.ets"
+    "${CMAKE_CURRENT_SOURCE_DIR}/api/@ohos.buffer.ats"
+    "${CMAKE_CURRENT_SOURCE_DIR}/api/@ohos.util.ArrayList.ats"
     # ... etc
 )
 ```
 
-**Important**: When adding new `.ets` files, add them to `SDK_SRCS` list. The build uses a foreach loop to compile each file and link the resulting `.abc` files.
+**Important**: When adding new `.ats` files, add them to `SDK_SRCS` list. The build uses a foreach loop to compile each file and link the resulting `.abc` files.
 
 ## Special Conventions
 

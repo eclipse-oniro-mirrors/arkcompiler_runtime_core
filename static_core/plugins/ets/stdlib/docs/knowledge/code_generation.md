@@ -5,7 +5,7 @@ This document only covers the constraints and workflow for template-based code g
 ## Core Model
 
 ```
-Template file (.j2) → genlib.sh → Generated .ets file
+Template file (.j2) → genlib.sh → Generated .ats file
 ```
 
 - Template directory: `../templates/stdlib/`
@@ -23,14 +23,14 @@ Template file (.j2) → genlib.sh → Generated .ets file
 
 | Template | Generated File |
 | --- | --- |
-| `TypedArray.ets.j2` | `escompat/TypedArrays.ets` |
-| `TypedUArray.ets.j2` | `escompat/TypedUArrays.ets` |
-| `Function.ets.j2` | `escompat/Functions.ets` |
-| `Tuple.ets.j2` | `std/core/Tuple.ets` |
-| `DataView.ets.j2` | `std/core/DataView.ets` |
-| `InteropTransferHelper.ets.j2` | `std/interop/js/InteropTransferHelper.ets` |
-| `Array_builtin_algorithms.ets.j2` | `std/core/BuiltinArrayAlgorithms.ets` |
-| `Array_builtin_sort.ets.j2` | `std/core/BuiltinArraySort.ets` |
+| `TypedArray.ats.j2` | `escompat/TypedArrays.ats` |
+| `TypedUArray.ats.j2` | `escompat/TypedUArrays.ats` |
+| `Function.ats.j2` | `escompat/Functions.ats` |
+| `Tuple.ats.j2` | `std/core/Tuple.ats` |
+| `DataView.ats.j2` | `std/core/DataView.ats` |
+| `InteropTransferHelper.ats.j2` | `std/interop/js/InteropTransferHelper.ats` |
+| `Array_builtin_algorithms.ats.j2` | `std/core/BuiltinArrayAlgorithms.ats` |
+| `Array_builtin_sort.ats.j2` | `std/core/BuiltinArraySort.ats` |
 
 ## Regeneration Steps
 

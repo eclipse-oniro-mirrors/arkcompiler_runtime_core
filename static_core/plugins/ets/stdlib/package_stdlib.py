@@ -139,11 +139,11 @@ def copy_files_with_filter(
 
 def validate_templates(template_dir: Path, stdlib_dir: Path):
     template_mapping = {
-        "Function.ets.j2": stdlib_dir / "std" / "core" / "Function.ets",
-        "DataView.ets.j2": stdlib_dir / "std" / "core" / "DataView.ets",
-        "Tuple.ets.j2": stdlib_dir / "std" / "core" / "Tuple.ets",
-        "typedArray.ets.j2": stdlib_dir / "escompat" / "TypedArrays.ets",
-        "typedUArray.ets.j2": stdlib_dir / "escompat" / "TypedUArrays.ets"
+        "Function.ats.j2": stdlib_dir / "std" / "core" / "Function.ats",
+        "DataView.ats.j2": stdlib_dir / "std" / "core" / "DataView.ats",
+        "Tuple.ats.j2": stdlib_dir / "std" / "core" / "Tuple.ats",
+        "typedArray.ats.j2": stdlib_dir / "escompat" / "TypedArrays.ats",
+        "typedUArray.ats.j2": stdlib_dir / "escompat" / "TypedUArrays.ats"
     }
     jinja_loader = jinja2.FileSystemLoader(template_dir)
     jinja_env = jinja2.Environment(

@@ -24,7 +24,7 @@ expected_error:
         - "E/runtime: Cannot initialize class 'rte_n.ETSGLOBAL'"
         - 'Unhandled exception: std.core.ArithmeticError'
         - 'ArithmeticError: / by zero'
-        - '    at std.core.ArithmeticError.<ctor> (Errors.ets:228:0)'
+        - '    at std.core.ArithmeticError.<ctor> (Errors.ats:228:0)'
         - '    at rte_module_n.ETSGLOBAL.foo (rte_module_n.ets:30:0)'
         - '    at rte_module_n.ETSGLOBAL.<cctor> (rte_module_n.ets:32:0)'
         - '    at rte_n.ETSGLOBAL.<cctor> (rte_n.ets:-1:0)'
