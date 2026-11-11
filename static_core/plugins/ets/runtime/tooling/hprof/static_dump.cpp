@@ -20,6 +20,9 @@
 #include <string_view>
 #include <vector>
 #include <unistd.h>
+#if defined(PANDA_TARGET_OHOS) && defined(PANDA_BUILD_IN_OHOS_TREE)
+#include <cstdio>
+#endif
 
 #if defined(ENABLE_DUMP_IN_FAULTLOG)
 #include "faultloggerd_client.h"
@@ -189,7 +192,12 @@ StaticDump::~StaticDump()
         delete staticStream_;
         staticStream_ = nullptr;
     } else if (outputFd_ >= 0) {
+#if defined(PANDA_TARGET_OHOS) && defined(PANDA_BUILD_IN_OHOS_TREE)
+        uint64_t tag = fdsan_create_owner_tag(FDSAN_OWNER_TYPE_FILE, reinterpret_cast<uintptr_t>(this));
+        (void)fdsan_close_with_tag(outputFd_, tag);
+#else
         close(outputFd_);
+#endif
         LOG(INFO, RUNTIME) << "[HybDump][Sta] Output fd closed: fd=" << outputFd_;
         outputFd_ = -1;
     }
@@ -972,6 +980,10 @@ bool StaticDump::AcquireOutput()
         return false;
     }
     outputFd_ = fd;
+#if defined(PANDA_TARGET_OHOS) && defined(PANDA_BUILD_IN_OHOS_TREE)
+    uint64_t tag = fdsan_create_owner_tag(FDSAN_OWNER_TYPE_FILE, reinterpret_cast<uintptr_t>(this));
+    fdsan_exchange_owner_tag(outputFd_, 0, tag);
+#endif
     LOG(INFO, RUNTIME) << "[HybDump][Sta] Output fd acquired: fd=" << fd;
     return true;
 #else
@@ -989,8 +1001,17 @@ bool StaticDump::CreateOutputWriter()
             LOG(ERROR, RUNTIME) << "[HybDump][Sta] Output writer creation failed: fd unavailable";
             return false;
         }
+#if defined(PANDA_TARGET_OHOS) && defined(PANDA_BUILD_IN_OHOS_TREE)
+        uint64_t tag = fdsan_create_owner_tag(FDSAN_OWNER_TYPE_FILE, reinterpret_cast<uintptr_t>(this));
+        // Release ownership before OutputStream claims the fd in its constructor.
+        fdsan_exchange_owner_tag(outputFd_, tag, 0);
+#endif
         staticStream_ = new (std::nothrow) OutputStream(outputFd_, OutputStream::DEFAULT_BUFFER_SIZE, true);
         if (staticStream_ == nullptr) {
+#if defined(PANDA_TARGET_OHOS) && defined(PANDA_BUILD_IN_OHOS_TREE)
+            // Allocation failed, so StaticDump still owns the fd.
+            fdsan_exchange_owner_tag(outputFd_, 0, tag);
+#endif
             return false;
         }
         outputFd_ = -1;

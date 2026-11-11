@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -27,6 +27,11 @@
 #include "libarkbase/os/failure_retry.h"
 #include "libarkbase/utils/logger.h"
 
+#include <cerrno>
+#include <cstdint>
+#if defined(PANDA_TARGET_OHOS) && defined(PANDA_BUILD_IN_OHOS_TREE)
+#include <cstdio>
+#endif
 #include <unistd.h>
 
 namespace ark::os::unique_fd {
@@ -60,6 +65,12 @@ public:
     int Release() noexcept
     {
         int fd = fd_;
+#if defined(PANDA_TARGET_OHOS) && defined(PANDA_BUILD_IN_OHOS_TREE)
+        if (fd != -1) {
+            fdsan_exchange_owner_tag(
+                fd, fdsan_create_owner_tag(FDSAN_OWNER_TYPE_UNIQUE_FD, reinterpret_cast<uintptr_t>(this)), 0);
+        }
+#endif
         fd_ = -1;
         return fd;
     }
@@ -71,6 +82,12 @@ public:
             DefaultCloser(fd_);
         }
         fd_ = newFd;
+#if defined(PANDA_TARGET_OHOS) && defined(PANDA_BUILD_IN_OHOS_TREE)
+        if (fd_ != -1) {
+            fdsan_exchange_owner_tag(
+                fd_, 0, fdsan_create_owner_tag(FDSAN_OWNER_TYPE_UNIQUE_FD, reinterpret_cast<uintptr_t>(this)));
+        }
+#endif
     }
 
     int Get() const noexcept
@@ -84,9 +101,17 @@ public:
     }
 
 private:
-    static void DefaultCloser(int fd)
+    void DefaultCloser(int fd)
     {
+#if defined(PANDA_TARGET_OHOS) && defined(PANDA_BUILD_IN_OHOS_TREE)
+        uint64_t tag = fdsan_create_owner_tag(FDSAN_OWNER_TYPE_UNIQUE_FD, reinterpret_cast<uintptr_t>(this));
+        const int result = fdsan_close_with_tag(fd, tag);
+        const int savedErrno = errno;
+        // Match OHOS close(): treat EINTR as success without retrying a possibly reused fd.
+        LOG_IF(result != 0 && !(result == -1 && savedErrno == EINTR), FATAL, COMMON) << "Incorrect fd: " << fd;
+#else
         LOG_IF(PANDA_FAILURE_RETRY(::close(fd)) != 0, FATAL, COMMON) << "Incorrect fd: " << fd;
+#endif
     }
 
     int fd_ = -1;
