@@ -15,30 +15,19 @@
 
 {
   global:
-    *;
+    # Public API of libarkverifier.so:
+    #   - Verify(const std::string&) declared in verify.h: matched by
+    #     mangled-name glob _Z6Verify* (the C++ mangling of the free
+    #     function; a plain "Verify*" demangled glob would also match any
+    #     future VerifyXxx helper).
+    #   - panda::verifier::Verifier public surface (constructor, Verify,
+    #     CollectIdInfos, VerifyChecksum, members, ...).
+    _Z6Verify*;
+
+    extern "C++" {
+      panda::verifier::Verifier::*;
+    };
 
   local:
-    extern "C++" {
-      panda::BytecodeEmitter::*;
-      panda::panda_file::*;
-      panda::libpandafile::*;
-      panda::os::*;
-      panda::JsonObject*;
-      panda::JsonEscape*;
-      panda::OpenArchive*;
-      panda::CloseArchive*;
-      panda::OpenCurrentFile*;
-      panda::CloseCurrentFile*;
-      panda::GoToNextFile*;
-      panda::GetCurrentFile*;
-      panda::GetGlobalFileInfo*;
-      panda::ExtractToMemory*;
-      panda::CreateOrAddFileIntoZip*;
-      panda::CloseArchiveFile*;
-      panda::IsZipMagic*;
-      vtable*panda::panda_file::*;
-      vtable*panda::BytecodeEmitter::*;
-      guard*panda::panda_file::*;
-      guard*panda::BytecodeEmitter::*;
-    };
+    *;
 };
