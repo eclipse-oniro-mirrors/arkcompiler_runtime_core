@@ -1,30 +1,30 @@
 [
     {
-        "file": "debug/RuntimeDebug.ets",
+        "file": "debug/RuntimeDebug.ats",
         "interfaces": [
             "RuntimeDebug"
         ]
     },
     {
-        "file": "debug/Logger.ets",
+        "file": "debug/Logger.ats",
         "interfaces": [
             "Logger"
         ]
     },
     {
-        "file": "core/EnumConstant.ets",
+        "file": "core/EnumConstant.ats",
         "interfaces": [
             "EnumConstant"
         ]
     },
     {
-        "file": "core/Void.ets",
+        "file": "core/Void.ats",
         "interfaces": [
             "Void"
         ]
     },
     {
-        "file": "core/RuntimeLinkerErrors.ets",
+        "file": "core/RuntimeLinkerErrors.ats",
         "interfaces": [
             "LinkerVerificationError",
             "LinkerUnresolvedClassError",
@@ -38,7 +38,7 @@
         ]
     },
     {
-        "file": "core/Intl.ets",
+        "file": "core/Intl.ats",
         "interfaces": [
             "intlLookUpLocale",
             "intlBestFitLocale",
@@ -48,7 +48,7 @@
         ]
     },
     {
-        "file": "core/Errors.ets",
+        "file": "core/Errors.ats",
         "interfaces": [
             "JSONTypeError",
             "CoroutinesLimitExceedError",
@@ -57,7 +57,7 @@
         ]
     },
     {
-        "file": "core/Value.ets",
+        "file": "core/Value.ats",
         "interfaces": [
             "LambdaValue",
             "BooleanValue",
@@ -75,20 +75,20 @@
         ]
     },
     {
-        "file": "core/DisplayNames.ets",
+        "file": "core/DisplayNames.ats",
         "interfaces": [
             "DisplayNamesLocaleMatcherOptions",
             "DisplayNames"
         ]
     },
     {
-        "file": "core/Numeric.ets",
+        "file": "core/Numeric.ats",
         "interfaces": [
             "Floating"
         ]
     },
     {
-        "file": "core/Exceptions.ets",
+        "file": "core/Exceptions.ats",
         "interfaces": [
             "NoDataError",
             "ArgumentOutOfRangeError",
@@ -99,43 +99,43 @@
         ]
     },
     {
-        "file": "core/System.ets",
+        "file": "core/System.ats",
         "interfaces": [
             "stackTraceLines"
         ]
     },
     {
-        "file": "core/Parameter.ets",
+        "file": "core/Parameter.ats",
         "interfaces": [
             "Parameter"
         ]
     },
     {
-        "file": "core/UnionCase.ets",
+        "file": "core/UnionCase.ats",
         "interfaces": [
             "UnionCase"
         ]
     },
     {
-        "file": "core/Json.ets",
+        "file": "core/Json.ats",
         "interfaces": [
             "JsonTypeError"
         ]
     },
     {
-        "file": "containers/ListInt.ets",
+        "file": "containers/ListInt.ats",
         "interfaces": [
             "ListInt"
         ]
     },
     {
-        "file": "containers/ListString.ets",
+        "file": "containers/ListString.ats",
         "interfaces": [
             "ListString"
         ]
     },
     {
-        "file": "containers/AVLTree.ets",
+        "file": "containers/AVLTree.ats",
         "interfaces": [
             "newEmpty",
             "isEmpty",
@@ -152,37 +152,37 @@
         ]
     },
     {
-        "file": "containers/UndefinableStringArray.ets",
+        "file": "containers/UndefinableStringArray.ats",
         "interfaces": [
             "UndefinableStringArray"
         ]
     },
     {
-        "file": "containers/ListObject.ets",
+        "file": "containers/ListObject.ats",
         "interfaces": [
             "ListObject"
         ]
     },
     {
-        "file": "containers/UndefinableObjectArray.ets",
+        "file": "containers/UndefinableObjectArray.ats",
         "interfaces": [
             "UndefinableObjectArray"
         ]
     },
     {
-        "file": "containers/ArrayAsListObject.ets",
+        "file": "containers/ArrayAsListObject.ats",
         "interfaces": [
             "ArrayAsListObject"
         ]
     },
     {
-        "file": "containers/ArrayAsListString.ets",
+        "file": "containers/ArrayAsListString.ats",
         "interfaces": [
             "ArrayAsListString"
         ]
     },
     {
-        "file": "containers/ArrayAsListInt.ets",
+        "file": "containers/ArrayAsListInt.ats",
         "interfaces": [
             "ArrayAsListInt"
         ]

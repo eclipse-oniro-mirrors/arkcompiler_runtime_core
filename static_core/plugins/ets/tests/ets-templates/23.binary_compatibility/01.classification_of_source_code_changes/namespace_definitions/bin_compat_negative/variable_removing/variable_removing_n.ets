@@ -35,8 +35,8 @@ expected_error:
         - "[TID 13e971] E/runtime: Cannot initialize class 'variable_removing_n.ETSGLOBAL'"
         - "Unhandled exception: std.core.LinkerVerificationError"
         - "LinkerVerificationError: Lvariable_removing_n/ETSGLOBAL;"
-        - "at std.core.LinkerError.<ctor> (RuntimeLinkerErrors.ets:20:0)"
-        - "at std.core.LinkerVerificationError.<ctor> (RuntimeLinkerErrors.ets:30:0)"
+        - "at std.core.LinkerError.<ctor> (RuntimeLinkerErrors.ats:20:0)"
+        - "at std.core.LinkerVerificationError.<ctor> (RuntimeLinkerErrors.ats:30:0)"
 ---*/
 
 import { N } from './variable_removing_n.libr.ets'

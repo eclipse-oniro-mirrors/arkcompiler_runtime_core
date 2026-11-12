@@ -224,21 +224,21 @@ static_core/plugins/ets/runtime/hybrid/mem/                                   ^d
 static_core/plugins/ets/runtime/interop_js/ets_proxy/shared_reference*        ^dmitriitr @artemu ^ipetrov
 static_core/plugins/ets/runtime/interop_js/xgc/                               ^dmitriitr @artemu ^ipetrov
 static_core/plugins/ets/stdlib/std/concurrency/                               ^konstanting ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^dmitriitr ^artemu ^wang_zhaoyong ^ychen3 ^tanglu100 @MofengMa ^weixin_41079876
-static_core/plugins/ets/stdlib/std/concurrency/Atomics.ets                    ^dmitriitr ^konstanting ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^tanglu100 @MofengMa ^weixin_41079876 ^molotkovmikhail
-static_core/plugins/ets/stdlib/std/concurrency/taskpool.ets                   ^ipetrov ^dmitriitr ^konstanting ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^molotkovmikhail @kastenalexey ^tanglu100 @MofengMa ^weixin_41079876
-static_core/plugins/ets/stdlib/std/containers/*BlockingQueue.ets              ^konstanting ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^tanglu100 @MofengMa ^weixin_41079876
+static_core/plugins/ets/stdlib/std/concurrency/Atomics.ats                    ^dmitriitr ^konstanting ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^tanglu100 @MofengMa ^weixin_41079876 ^molotkovmikhail
+static_core/plugins/ets/stdlib/std/concurrency/taskpool.ats                   ^ipetrov ^dmitriitr ^konstanting ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^molotkovmikhail @kastenalexey ^tanglu100 @MofengMa ^weixin_41079876
+static_core/plugins/ets/stdlib/std/containers/*BlockingQueue.ats              ^konstanting ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^tanglu100 @MofengMa ^weixin_41079876
 static_core/plugins/ets/stdlib/std/containers/*Concurren*                     ^molotkovmikhail ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^tanglu100 @MofengMa ^weixin_41079876
-static_core/plugins/ets/stdlib/std/containers/WaitersLits.ets                 ^molotkovmikhail ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^tanglu100 @MofengMa ^weixin_41079876
-static_core/plugins/ets/stdlib/std/core/AbcRuntimeLinker.ets                  @vpukhov @slynkodenis @shilei123 ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^liyiming13 ^lijin1039
-static_core/plugins/ets/stdlib/std/core/BootRuntimeLinker.ets                 @vpukhov @slynkodenis @shilei123 ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^liyiming13 ^lijin1039
-static_core/plugins/ets/stdlib/std/core/Coroutine.ets                         ^dmitriitr ^konstanting ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^ychen3 ^tanglu100 @MofengMa ^weixin_41079876
-static_core/plugins/ets/stdlib/std/core/EAWorker.ets                          ^dmitriitr ^konstanting ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^ychen3 ^tanglu100 @MofengMa ^weixin_41079876
-static_core/plugins/ets/stdlib/std/core/FinalizationRegistry.ets              ^dmitriitr @artemu ^shemetovphilip ^liyiming13 ^lijin1039
-static_core/plugins/ets/stdlib/std/core/GC.ets                                ^dmitriitr @artemu
-static_core/plugins/ets/stdlib/std/core/Promise.ets                           ^dmitriitr ^konstanting ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^tanglu100 @MofengMa ^weixin_41079876
-static_core/plugins/ets/stdlib/std/core/Runtime.ets                           @vpukhov @igelhaus @Prof @chernykhsergey ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg @lijin1039
-static_core/plugins/ets/stdlib/std/core/RuntimeLinker.ets                     @vpukhov @slynkodenis @shilei123 ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^liyiming13 ^lijin1039
-static_core/plugins/ets/stdlib/std/core/WeakRef.ets                           ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^liyiming13 @lijin1039 ^chernykhsergey @artemu ^ipetrov
+static_core/plugins/ets/stdlib/std/containers/WaitersLits.ats                 ^molotkovmikhail ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^tanglu100 @MofengMa ^weixin_41079876
+static_core/plugins/ets/stdlib/std/core/AbcRuntimeLinker.ats                  @vpukhov @slynkodenis @shilei123 ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^liyiming13 ^lijin1039
+static_core/plugins/ets/stdlib/std/core/BootRuntimeLinker.ats                 @vpukhov @slynkodenis @shilei123 ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^liyiming13 ^lijin1039
+static_core/plugins/ets/stdlib/std/core/Coroutine.ats                         ^dmitriitr ^konstanting ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^ychen3 ^tanglu100 @MofengMa ^weixin_41079876
+static_core/plugins/ets/stdlib/std/core/EAWorker.ats                          ^dmitriitr ^konstanting ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^ychen3 ^tanglu100 @MofengMa ^weixin_41079876
+static_core/plugins/ets/stdlib/std/core/FinalizationRegistry.ats              ^dmitriitr @artemu ^shemetovphilip ^liyiming13 ^lijin1039
+static_core/plugins/ets/stdlib/std/core/GC.ats                                ^dmitriitr @artemu
+static_core/plugins/ets/stdlib/std/core/Promise.ats                           ^dmitriitr ^konstanting ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^tanglu100 @MofengMa ^weixin_41079876
+static_core/plugins/ets/stdlib/std/core/Runtime.ats                           @vpukhov @igelhaus @Prof @chernykhsergey ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg @lijin1039
+static_core/plugins/ets/stdlib/std/core/RuntimeLinker.ats                     @vpukhov @slynkodenis @shilei123 ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^liyiming13 ^lijin1039
+static_core/plugins/ets/stdlib/std/core/WeakRef.ats                           ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^liyiming13 @lijin1039 ^chernykhsergey @artemu ^ipetrov
 static_core/plugins/ets/tests/ets-common-tests/atomics/                       ^konstanting ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^tanglu100 @MofengMa ^weixin_41079876
 static_core/plugins/ets/tests/ets-common-tests/gc/                              @artemu
 static_core/plugins/ets/tests/ets-common-tests/gc/*finalization*                @artemu ^shemetovphilip
@@ -269,7 +269,7 @@ static_core/plugins/ets/tests/test-lists/ets-func-tests/                      ^a
 static_core/plugins/ets/tests/test-lists/ets-sdk/                             ^amate ^sergeyandreev @Prof @kuchkovairina @Nojpg @anton-sysoev ^ivan-tyulyandin ^magikarp777
 static_core/plugins/ets/stdlib/native/core/regexp/                            ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg
 static_core/plugins/ets/stdlib/std/debug/concurrency/                         ^konstanting ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^tanglu100 @MofengMa ^weixin_41079876
-static_core/plugins/ets/tests/ets_test_suite/std/containers/blocking_queue.ets    ^konstanting ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^tanglu100 @MofengMa ^weixin_41079876
+static_core/plugins/ets/tests/ets_test_suite/std/containers/blocking_queue.ats    ^konstanting ^anton-sysoev @magikarp777 ^ivan-tyulyandin @Nojpg ^tanglu100 @MofengMa ^weixin_41079876
 static_core/plugins/ets/tests/ets_ts_subset/std/core/Promise*                 ^anton-sysoev @magikarp777 ^ivan-tyulyandin ^dmitriitr ^konstanting ^Nojpg ^tanglu100 @MofengMa ^weixin_41079876
 static_core/plugins/ets/tests/interop_js/tests/checked/                       ^igelhaus ^nazarovkonstantin @ignatenkooleg ^rokashevichsvetlana @Prof ^kurnevichstanislav ^wanzixuan330
 static_core/plugins/ets/tests/interop_js/tests/compiler/                      ^igelhaus ^nazarovkonstantin @ignatenkooleg ^rokashevichsvetlana @Prof ^wanzixuan330

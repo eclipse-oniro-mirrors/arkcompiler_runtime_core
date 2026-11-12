@@ -20,14 +20,14 @@ readonly GEN_ESCOMPAT_PATH="${1:-${GENPATH}}/escompat"
 readonly GEN_STDCORE_PATH="${1:-${GENPATH}}/std/core"
 readonly VENV_DIR=${VENV_DIR:-$(realpath ~/.venv-panda)}
 readonly GEN_STDINTEROP_PATH="${1:-${GENPATH}}/std/interop/js"
-readonly BLT_ARR_SORT="${GEN_STDCORE_PATH}/BuiltinArraySort.ets"
-readonly BLT_ARR_ARG="${GEN_STDCORE_PATH}/BuiltinArrayAlgorithms.ets"
-readonly DATAVIEW="${GEN_STDCORE_PATH}/DataView.ets"
-readonly TYPED_ARR="${GEN_ESCOMPAT_PATH}/TypedArrays.ets"
-readonly TYPED_UARR="${GEN_ESCOMPAT_PATH}/TypedUArrays.ets"
-readonly FUNC="${GEN_STDCORE_PATH}/Function.ets"
-readonly TUP="${GEN_STDCORE_PATH}/Tuple.ets"
-readonly INTEROP_TRANSFER_HELPER="${GEN_STDINTEROP_PATH}/InteropTransferHelper.ets"
+readonly BLT_ARR_SORT="${GEN_STDCORE_PATH}/BuiltinArraySort.ats"
+readonly BLT_ARR_ARG="${GEN_STDCORE_PATH}/BuiltinArrayAlgorithms.ats"
+readonly DATAVIEW="${GEN_STDCORE_PATH}/DataView.ats"
+readonly TYPED_ARR="${GEN_ESCOMPAT_PATH}/TypedArrays.ats"
+readonly TYPED_UARR="${GEN_ESCOMPAT_PATH}/TypedUArrays.ats"
+readonly FUNC="${GEN_STDCORE_PATH}/Function.ats"
+readonly TUP="${GEN_STDCORE_PATH}/Tuple.ats"
+readonly INTEROP_TRANSFER_HELPER="${GEN_STDINTEROP_PATH}/InteropTransferHelper.ats"
 
 cd "$SCRIPT_DIR"
 
@@ -45,31 +45,31 @@ mkdir -p "${GEN_STDCORE_PATH}"
 mkdir -p "${GEN_STDINTEROP_PATH}"
 
 echo "Generating ${BLT_ARR_SORT}"
-"${JINJA_PATH}" Array_builtin_sort.ets.j2 | format_file > "${BLT_ARR_SORT}"
+"${JINJA_PATH}" Array_builtin_sort.ats.j2 | format_file > "${BLT_ARR_SORT}"
 
 echo "Generating ${BLT_ARR_ARG}"
-"${JINJA_PATH}" Array_builtin_algorithms.ets.j2 | format_file > "${BLT_ARR_ARG}"
+"${JINJA_PATH}" Array_builtin_algorithms.ats.j2 | format_file > "${BLT_ARR_ARG}"
 
 # Generate TypedArrays
 echo "Generating ${DATAVIEW}"
-"${JINJA_PATH}" "${SCRIPT_DIR}/DataView.ets.j2" -o "${DATAVIEW}"
+"${JINJA_PATH}" "${SCRIPT_DIR}/DataView.ats.j2" -o "${DATAVIEW}"
 
 echo "Generating ${TYPED_ARR}"
-"${JINJA_PATH}" "${SCRIPT_DIR}/typedArray.ets.j2" -o "${TYPED_ARR}"
+"${JINJA_PATH}" "${SCRIPT_DIR}/typedArray.ats.j2" -o "${TYPED_ARR}"
 
 echo "Generating ${TYPED_UARR}"
-"${JINJA_PATH}" "${SCRIPT_DIR}/typedUArray.ets.j2" -o "${TYPED_UARR}"
+"${JINJA_PATH}" "${SCRIPT_DIR}/typedUArray.ats.j2" -o "${TYPED_UARR}"
 
 # Generate Functions
 echo "Generating ${FUNC}"
-"${JINJA_PATH}" "${SCRIPT_DIR}/Function.ets.j2" -o "${FUNC}"
+"${JINJA_PATH}" "${SCRIPT_DIR}/Function.ats.j2" -o "${FUNC}"
 
 # Generate Tuples
 echo "Generating ${TUP}"
-"${JINJA_PATH}" "${SCRIPT_DIR}/Tuple.ets.j2" -o "${TUP}"
+"${JINJA_PATH}" "${SCRIPT_DIR}/Tuple.ats.j2" -o "${TUP}"
 
 # Generate InteropTransferHelper
 echo "Generating ${INTEROP_TRANSFER_HELPER}"
-"${JINJA_PATH}" "${SCRIPT_DIR}/InteropTransferHelper.ets.j2" -o "${INTEROP_TRANSFER_HELPER}"
+"${JINJA_PATH}" "${SCRIPT_DIR}/InteropTransferHelper.ats.j2" -o "${INTEROP_TRANSFER_HELPER}"
 
 exit 0

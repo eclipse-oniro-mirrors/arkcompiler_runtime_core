@@ -13,8 +13,8 @@
 [TID 0257cd] E/runtime: Cannot initialize class 'entry_point_main_28.ETSGLOBAL'
 Unhandled exception: std.core.AssertionError
 AssertionError: expected true but was false
-	at std.core.AssertionError.<ctor> (Errors.ets:23:0)
-	at std.core.AssertionError.<ctor> (Errors.ets:22:0)
-	at std.testing.arktest.failingAssertion (arktest.ets:39:0)
-	at std.testing.arktest.assertCommon (arktest.ets:28:0)
-	at std.testing.arktest.assertTrue (arktest.ets:49:0)
+	at std.core.AssertionError.<ctor> (Errors.ats:23:0)
+	at std.core.AssertionError.<ctor> (Errors.ats:22:0)
+	at std.testing.arktest.failingAssertion (arktest.ats:39:0)
+	at std.testing.arktest.assertCommon (arktest.ats:28:0)
+	at std.testing.arktest.assertTrue (arktest.ats:49:0)

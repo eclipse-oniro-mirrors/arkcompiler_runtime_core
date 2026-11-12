@@ -12,9 +12,9 @@
 # limitations under the License.
 Unhandled exception: std.core.AssertionError
 AssertionError: expected equality failed: '42' === '0'
-	at std.core.AssertionError.<ctor> (Errors.ets:23:0)
-	at std.core.AssertionError.<ctor> (Errors.ets:22:0)
-	at std.testing.arktest.failingAssertion (arktest.ets:39:0)
-	at std.testing.arktest.assertCommon (arktest.ets:28:0)
-	at std.testing.arktest.assertEQ (arktest.ets:70:0)
+	at std.core.AssertionError.<ctor> (Errors.ats:23:0)
+	at std.core.AssertionError.<ctor> (Errors.ats:22:0)
+	at std.testing.arktest.failingAssertion (arktest.ats:39:0)
+	at std.testing.arktest.assertCommon (arktest.ats:28:0)
+	at std.testing.arktest.assertEQ (arktest.ats:70:0)
 	at entry_point_foo_22.NS.foo (entry_point_foo_22.ets:28:0)

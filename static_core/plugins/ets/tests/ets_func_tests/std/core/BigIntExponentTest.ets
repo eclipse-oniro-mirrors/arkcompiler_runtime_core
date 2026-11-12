@@ -77,7 +77,7 @@ function testExponentThresholdBoundary(): void {
         });
 
     // (e) Negative exponent on a non-zero mantissa is 'not an integer' -- the EXISTING guard at
-    //     BigInt.ets handles it, NOT the new parseExponent threshold. Verifying this confirms the
+    //     BigInt.ats handles it, NOT the new parseExponent threshold. Verifying this confirms the
     //     fix did not alter that path.
     arktest.expectThrow(
         (): void => { let _ = new BigInt('1e-3'); },

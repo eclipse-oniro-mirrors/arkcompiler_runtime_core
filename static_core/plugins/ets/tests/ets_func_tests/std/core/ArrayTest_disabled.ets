@@ -349,7 +349,7 @@ function fromArrayLikeAndIterableAndFunc(): int {
     return success;
     //NOTE (ikorobkov): uncomment when Array will have implementation of from<T,U>
     // (arr: ArrayLike<T>|Iterable<T>, fn: (v: T, k: number) => U)
-    //NOTE (ikorobkov):  and have call 'iteratorForEach<T>' at 801Line in Array.ets
+    //NOTE (ikorobkov):  and have call 'iteratorForEach<T>' at 801Line in Array.ats
     //NOTE (ikorobkov): Below is check ArrayLike<T>
     // let fn = (val: Number, index: number): Number => {
     //     if (index < 0) {

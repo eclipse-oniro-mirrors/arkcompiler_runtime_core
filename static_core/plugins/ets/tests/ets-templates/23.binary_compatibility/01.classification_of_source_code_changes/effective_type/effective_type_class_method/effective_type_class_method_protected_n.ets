@@ -48,8 +48,8 @@ expected_error:
             void effective_type_class_method_protected_n.C::check(effective_type_class_method_protected_n.C)"
         - "Unhandled exception: std.core.LinkerVerificationError"
         - "LinkerVerificationError: Leffective_type_class_method_protected_n/C;"
-        - "  at std.core.LinkerError.<ctor> (RuntimeLinkerErrors.ets:20:0)"
-        - "  at std.core.LinkerVerificationError.<ctor> (RuntimeLinkerErrors.ets:30:0)"
+        - "  at std.core.LinkerError.<ctor> (RuntimeLinkerErrors.ats:20:0)"
+        - "  at std.core.LinkerVerificationError.<ctor> (RuntimeLinkerErrors.ats:30:0)"
         - "  at effective_type_class_method_protected_n.ETSGLOBAL.main
             (effective_type_class_method_protected_n.ets:65:0)"
 ---*/

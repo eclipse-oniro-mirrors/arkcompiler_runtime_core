@@ -22,6 +22,7 @@ workflows: [declgen-ets2ts]
 
 parameters:
     extension: ets
+    test-extensions: [ats]
     load-runtimes: ets
     work-dir: ${WORK_DIR}/${suite-name}
     # This test suite declgen-ets2ts-sdk runs tsc with its own project file

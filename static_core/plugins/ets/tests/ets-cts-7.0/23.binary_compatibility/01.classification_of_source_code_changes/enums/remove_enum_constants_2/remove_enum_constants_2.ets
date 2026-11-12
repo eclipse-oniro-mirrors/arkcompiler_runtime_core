@@ -29,8 +29,8 @@ expected_error:
         - "E/runtime: Cannot initialize class 'remove_enum_constants_2.ETSGLOBAL'"
         - "Unhandled exception: std.core.LinkerVerificationError"
         - "LinkerVerificationError: Lremove_enum_constants_2/ETSGLOBAL;"
-        - "at std.core.LinkerError.<ctor> (RuntimeLinkerErrors.ets:20:0)"
-        - "at std.core.LinkerVerificationError.<ctor> (RuntimeLinkerErrors.ets:30:0)"
+        - "at std.core.LinkerError.<ctor> (RuntimeLinkerErrors.ats:20:0)"
+        - "at std.core.LinkerVerificationError.<ctor> (RuntimeLinkerErrors.ats:30:0)"
 files: ['./remove_enum_constants_2.libr.ets']
 ---*/
 
