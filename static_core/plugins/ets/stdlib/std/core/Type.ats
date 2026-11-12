@@ -2473,7 +2473,7 @@ export final class ClassType extends Type {
      */
     public getInterface(i: long): InterfaceType {
         const iface = TypeAPI.getInterface(this.cls, i)
-        if (iface) {
+        if (iface != undefined) {
             return Type.resolve(iface.getDescriptor(), iface.getLinker()) as InterfaceType
         }
         throw new TypeError("no interface at " + i)
@@ -2526,7 +2526,7 @@ export final class ClassType extends Type {
      */
     public getField(i: long): Field {
         const fieldPtr = TypeAPI.getFieldPtr(this.cls, i)
-        if (fieldPtr) {
+        if (fieldPtr != undefined && fieldPtr != 0) {
             return this.getFieldImpl(fieldPtr)
         }
         throw new TypeError("no field at " + i)
@@ -2543,7 +2543,7 @@ export final class ClassType extends Type {
      */
     public getOwnField(i: long): Field {
         const fieldPtr = TypeAPI.getOwnFieldPtr(this.cls, i)
-        if (fieldPtr) {
+        if (fieldPtr != undefined && fieldPtr != 0) {
             return this.getFieldImpl(fieldPtr)
         }
         throw new TypeError("no own field at " + i)
@@ -2560,7 +2560,7 @@ export final class ClassType extends Type {
      */
     public getFieldByName(name: string): Field {
         const fieldPtr = TypeAPI.getFieldPtrByName(this.cls, name)
-        if (fieldPtr) {
+        if (fieldPtr != undefined && fieldPtr != 0) {
             return this.getFieldImpl(fieldPtr)
         }
         throw new TypeError("no field \"" + name + "\"")
@@ -2628,7 +2628,7 @@ export final class ClassType extends Type {
      */
     public getMethod(i: long): Method {
         const td = TypeAPI.getMethodDescriptor(this.cls, i)
-        if (td) {
+        if (td != undefined && td.length != 0) {
             const methodType = Type.resolve(td, this.getContextLinker())! as MethodType
             const ownerClass = TypeAPI.getDeclaringClassImpl(methodType)!
             const ownerType = Type.resolve(ownerClass.getDescriptor(), ownerClass.getLinker())!
@@ -2660,7 +2660,7 @@ export final class ClassType extends Type {
      */
     public getConstructor(i: long): Method {
         const td = TypeAPI.getConstructorDescriptor(this.cls, i)
-        if (td) {
+        if (td != undefined && td.length != 0) {
             const methodType = Type.resolve(td, this.getContextLinker())! as MethodType
             const ownerClass = TypeAPI.getDeclaringClassImpl(methodType)!
             const ownerType = Type.resolve(ownerClass.getDescriptor(), ownerClass.getLinker())!
@@ -2990,7 +2990,7 @@ export final class InterfaceType extends Type {
      */
     public getInterface(i: long): InterfaceType {
         const iface = TypeAPI.getInterface(this.cls, i)
-        if (iface) {
+        if (iface != undefined) {
             return Type.resolve(iface.getDescriptor(), iface.getLinker()) as InterfaceType
         }
         throw new TypeError("no interface at " + i)
@@ -3031,7 +3031,7 @@ export final class InterfaceType extends Type {
      */
     public getMethod(i: long): Method {
         const td = TypeAPI.getMethodDescriptor(this.cls, i)
-        if (td) {
+        if (td != undefined && td.length != 0) {
             const methodType = Type.resolve(td, this.getContextLinker())! as MethodType
             const ownerClass = TypeAPI.getDeclaringClassImpl(methodType)!
             const ownerType = Type.resolve(ownerClass.getDescriptor(), ownerClass.getLinker())!
@@ -3509,7 +3509,7 @@ export abstract class FunctionType extends Type {
      */
     public getParameter(i: long): TypeAPIParameter {
         const paramDescriptor = this.getParameterDescriptor(i)
-        if (paramDescriptor) {
+        if (paramDescriptor != undefined) {
             const paramType = Type.resolve(paramDescriptor, this.getContextLinker())!
             return this.getParameter(i, paramType)
         }
@@ -3715,7 +3715,7 @@ export final class MethodType extends FunctionType {
      */
     public getReceiverType(): Type {
         const receiverTd = this.getReceiverTypeDescriptor()
-        if (receiverTd) {
+        if (receiverTd != undefined && receiverTd.length != 0) {
             return Type.resolve(receiverTd, this.getContextLinker())!
         }
         throw new TypeError("Method does not have receiver")

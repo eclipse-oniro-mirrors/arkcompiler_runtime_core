@@ -341,15 +341,15 @@ export final class StringBuilder {
 
 final class DoubleToStringCacheElement {
     string: string = "";
-    number: double;
+    number: double = 0;
 }
 
 final class FloatToStringCacheElement {
     string: string = "";
-    number: float;
+    number: float = 0.0f;
 }
 
 final class LongToStringCacheElement {
     string: string = "";
-    number: long;
+    number: long = 0;
 }

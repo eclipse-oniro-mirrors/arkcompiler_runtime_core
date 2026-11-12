@@ -240,7 +240,7 @@ export final class FinalizationRegistry<T> {
                     finReg.callback(arg);
                 } catch (e) {
                     console.error(e);
-                    if (e.stack) {
+                    if ((e.stack ?? "").length != 0) {
                         console.error(e.stack);
                     }
                 }

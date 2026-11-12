@@ -29,7 +29,7 @@ package std.core;
 export final class EnumConstant {
     private name: string = ""
     private typ: Type | undefined
-    private intVal: int
+    private intVal: int = 0
     private strVal: string = ""
 
     private constructor () {}

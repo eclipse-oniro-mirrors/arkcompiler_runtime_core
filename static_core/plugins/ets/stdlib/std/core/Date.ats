@@ -741,11 +741,11 @@ export class Date {
      * @FaAndStageModel
      */
     public toLocaleTimeString(locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions): string {
-        if (options && options.dateStyle) {
+        if (options != undefined && (options.dateStyle ?? "").length != 0) {
             throw new TypeError("Invalid option : dateStyle")
         }
 
-        const effectiveOptions = !options ? Date.TIME_FORMAT_OPTIONS : this.appendDefaultTimeOptions(options)
+        const effectiveOptions = options == undefined ? Date.TIME_FORMAT_OPTIONS : this.appendDefaultTimeOptions(options)
         return new Intl.DateTimeFormat(Intl.intlLocalesToLanguageTags(locales), effectiveOptions).format(this.getTime())
     }
 
@@ -804,7 +804,7 @@ export class Date {
             options_ = options
         }
         
-        const effectiveOptions = !options_ ? Date.DATE_TIME_FORMAT_OPTIONS : this.appendDefaultDateTimeOptions(options_)
+        const effectiveOptions = options_ == undefined ? Date.DATE_TIME_FORMAT_OPTIONS : this.appendDefaultDateTimeOptions(options_)
         const formatter = new Intl.DateTimeFormat(Intl.intlLocalesToLanguageTags(locales), effectiveOptions)
         return formatter.format(this.getTime())
     }
@@ -854,11 +854,11 @@ export class Date {
      * @FaAndStageModel
      */
     public toLocaleDateString(locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions): string {
-        if (options && options.timeStyle) {
+        if (options != undefined && (options.timeStyle ?? "").length != 0) {
             throw new TypeError("Invalid option : timeStyle")
         }
 
-        const effectiveOptions = !options ? Date.DATE_FORMAT_OPTIONS : this.appendDefaultDateOptions(options)
+        const effectiveOptions = options == undefined ? Date.DATE_FORMAT_OPTIONS : this.appendDefaultDateOptions(options)
         const formatter = new Intl.DateTimeFormat(Intl.intlLocalesToLanguageTags(locales), effectiveOptions)
         return formatter.format(this.getTime())
     }
@@ -2242,6 +2242,7 @@ class ReadDataResult {
     }
 
     constructor(value: string, length: int) {
+        this.value = 0;
         this.strValue = value;
         this.length = length;
     }

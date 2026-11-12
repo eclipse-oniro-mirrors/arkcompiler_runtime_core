@@ -1721,9 +1721,9 @@ export namespace taskpool {
                 initGlobalTaskQueues();
                 this.addTaskRegistryReference(executionRecord);
                 const newWaitingTasksNum = waitingTasksNum.fetchAdd(1) + 1;
-                while (!globalTaskQueue?.get(normalizeTaskQueuePriority(priority))?.add(
+                while (globalTaskQueue?.get(normalizeTaskQueuePriority(priority))?.add(
                     new QueuedExecution(this.task, executionRecord, priority)
-                )) {
+                ) !== true) {
                     Coroutine.Schedule();
                 }
                 return newWaitingTasksNum;
@@ -2064,7 +2064,7 @@ export namespace taskpool {
             // handle asyncRunner
             if (this.asyncId.load() != 0) {
                 const asyncRunner = AsyncRunnerImpl.getAsyncRunnerById(this.asyncId.load());
-                if (asyncRunner) {
+                if (asyncRunner != undefined) {
                     asyncRunner.handleTaskCompletionFromTryTriggerRunner();
                 }
             }
@@ -3230,9 +3230,9 @@ export namespace taskpool {
 
     function enqueueTransientExecution(transientExecution: TransientExecution, priority: Priority): void {
         initGlobalTaskQueues();
-        while (!globalTaskQueue?.get(normalizeTaskQueuePriority(priority))?.add(
+        while (globalTaskQueue?.get(normalizeTaskQueuePriority(priority))?.add(
             new QueuedExecution(transientExecution, priority)
-        )) {
+        ) !== true) {
             Coroutine.Schedule();
         }
         const newWaitingTasksNum = waitingTasksNum.fetchAdd(1) + 1;

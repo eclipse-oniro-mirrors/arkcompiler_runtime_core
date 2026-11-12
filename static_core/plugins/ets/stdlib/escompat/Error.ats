@@ -237,7 +237,7 @@ export class Error {
      * @FaAndStageModel
      */
     override toString(): String {
-        return this.name + ((this.name !== "" && this.message) ? ": " + this.message : this.message);
+        return this.name + ((this.name !== "" && this.message !== "") ? ": " + this.message : this.message);
     }
 
     /**

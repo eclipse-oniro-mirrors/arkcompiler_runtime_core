@@ -161,7 +161,7 @@ export final class Promise<out T> implements PromiseLike<T> {
                 if (this.state == Promise.STATE_RESOLVED) {
                     promise.doResolve<U>(onFulfilled(this.value as T));
                 } else {
-                    if (onRejected) {
+                    if (onRejected != undefined) {
                         promise.doResolve<E>(onRejected(this.value as Error));
                     } else {
                         promise.rejectImpl(this.value as Error, false);
@@ -215,7 +215,7 @@ export final class Promise<out T> implements PromiseLike<T> {
         let fn: () => void = (): void => {
             try {
                 if (this.state == Promise.STATE_REJECTED) {
-                    if (onRejected) {
+                    if (onRejected != undefined) {
                         let res: PromiseLike<U>|U = onRejected(this.value as Error);
                         promise.doResolve<U>(res);
                     } else {
@@ -255,7 +255,7 @@ export final class Promise<out T> implements PromiseLike<T> {
                     }
                 };
 
-                if (onFinally) {
+                if (onFinally != undefined) {
                     try {
                         onFinallyResult = onFinally();
                     } catch (error) {
@@ -264,7 +264,7 @@ export final class Promise<out T> implements PromiseLike<T> {
                     }
                 }
 
-                if (onFinallyError) {
+                if (onFinallyError != undefined) {
                     promise.rejectImpl(onFinallyError!, false);
                 } else if (onFinallyResult instanceof Promise) {
                     onFinallyResult.then(

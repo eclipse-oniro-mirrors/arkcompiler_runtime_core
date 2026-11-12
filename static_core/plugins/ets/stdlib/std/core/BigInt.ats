@@ -459,13 +459,13 @@ export final class BigInt {
     }
 
     private static toNumberFormatOptions(options?: BigIntToLocaleStringOptions): Intl.NumberFormatOptions | undefined {
-        if (!options) {
+        if (options == undefined) {
             return undefined
         }
 
         const numFmtOptions: Intl.NumberFormatOptions = {}
 
-        if (options.compactDisplay) {
+        if ((options.compactDisplay ?? "").length != 0) {
             if (!(options.compactDisplay == "short" || options.compactDisplay == "long")) {
                 throw new RangeError(`invalid value "${options.compactDisplay}" for option compactDisplay`)
             }
@@ -474,7 +474,7 @@ export final class BigInt {
 
         numFmtOptions.currency = options.currency
 
-        if (options.currencyDisplay) {
+        if ((options.currencyDisplay ?? "").length != 0) {
             const currencyDisplay = options.currencyDisplay
             if (!(currencyDisplay == "code" || currencyDisplay == "symbol" || currencyDisplay == "narrowSymbol" || currencyDisplay == "name")) {
                 throw new RangeError(`invalid value "${currencyDisplay}" for option currencyDisplay`)
@@ -482,7 +482,7 @@ export final class BigInt {
             numFmtOptions.currencyDisplay = currencyDisplay as "code" | "symbol" | "narrowSymbol" | "name"
         }
 
-        if (options.localeMatcher) {
+        if ((options.localeMatcher ?? "").length != 0) {
             const localeMatcher = options.localeMatcher
             if (!(localeMatcher == "lookup" || localeMatcher == "best fit")) {
                 throw new RangeError(`invalid value "${localeMatcher}" for option localeMatcher`)
@@ -496,7 +496,7 @@ export final class BigInt {
         numFmtOptions.minimumIntegerDigits = options.minimumIntegerDigits
         numFmtOptions.minimumSignificantDigits = options.minimumSignificantDigits
 
-        if (options.notation) {
+        if ((options.notation ?? "").length != 0) {
             const notation = options.notation
             if (!(notation == "standard" || notation == "scientific" || notation == "engineering" || notation == "compact")) {
                 throw new RangeError(`invalid value "${notation}" for option notation`)
@@ -506,7 +506,7 @@ export final class BigInt {
 
         // numFmtOptions.numberingSystem = options.numberingSystem
 
-        if (options.style) {
+        if ((options.style ?? "").length != 0) {
             const style = options.style
             if (!(style == "decimal" || style == "percent" || style == "currency" || style == "unit")) {
                 throw new RangeError(`invalid value "${style}" for option style`)
@@ -516,7 +516,7 @@ export final class BigInt {
 
         numFmtOptions.unit = options.unit
 
-        if (options.unitDisplay) {
+        if ((options.unitDisplay ?? "").length != 0) {
             const unitDisplay = options.unitDisplay
             if (unitDisplay == "short" || unitDisplay == "long" || unitDisplay == "narrow") {
                 throw new RangeError(`invalid value "${unitDisplay}" for option unitDisplay`)
@@ -1288,7 +1288,7 @@ export final class BigInt {
                 let a: long = lhs[j].toLong() & BigInt.maskSys
                 last = a & 0x1
                 a = (a >> 1) & BigInt.maskSys
-                if (first) {
+                if (first != 0) {
                     a = a | bit
                 }
 
@@ -2075,7 +2075,7 @@ export final class BigInt {
         } else if (exponent < 0) {
             result = result.operatorRightShift(new BigInt(-exponent));
         }
-        if (signBit) {
+        if (signBit != 0) {
             result = result.negate();
         }
         return result;

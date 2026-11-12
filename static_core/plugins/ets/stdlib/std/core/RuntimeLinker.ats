@@ -20,7 +20,7 @@ package std.core;
  * All classes deriving from RuntimeLinker must implement findClass.
  */
 export abstract class RuntimeLinker {
-    private classLinkerCtxPtr: long
+    private classLinkerCtxPtr: long = 0
 
     protected constructor() {
         this.initializeContext()
@@ -48,7 +48,7 @@ export abstract class RuntimeLinker {
      */
     public final loadClass(clsName: string, init: boolean = false): Class {
         const optClass = this.loadClassSafe(clsName, init)
-        if (optClass) {
+        if (optClass != undefined) {
             return optClass
         }
         throw new LinkerClassNotFoundError(clsName)
@@ -81,7 +81,7 @@ export abstract class RuntimeLinker {
      */
     protected final loadClassSafe(clsName: string, init: boolean): Class | undefined {
         let optClass = this.findLoadedClass(clsName)
-        if (optClass) {
+        if (optClass != undefined) {
             if (init) {
                 // No-op if class is already initialized
                 optClass.initialize()

@@ -25,8 +25,8 @@ export class Method extends Object {
     private methodType: MethodType | undefined // not undefined if already created
     private ownerType: Type | undefined // not undefined if already created
     private name: string = ""
-    private attributes: int
-    private accessMod: byte
+    private attributes: int = 0
+    private accessMod: byte = 0
 
     private constructor () {}
 

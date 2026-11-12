@@ -60,8 +60,8 @@ export class AbcRuntimeLinker extends RuntimeLinker {
             new FixedArray<AbcFile | undefined>(paths.length, undefined)
         let count = 0
         for (let i = 0; i < paths.length; i++) {
-            const file = AbcFile.loadAbcFile(this, paths[i])
-            if (file) {
+            const file = AbcRuntimeLinker.loadAbcFileOrUndefined(this, paths[i])
+            if (file != undefined) {
                 loadedFiles[count] = file
                 count++
             } else {
@@ -91,12 +91,12 @@ export class AbcRuntimeLinker extends RuntimeLinker {
      */
     protected override findAndLoadClass(clsName: string, init: boolean): Class | undefined {
         let optClass = this.parentLinker.loadClassSafe(clsName, init)
-        if (optClass) {
+        if (optClass != undefined) {
             return optClass
         }
         for (let sharedLibraryLoader of this.sharedLibraryLoaders) {
             let sharedClass = sharedLibraryLoader!.loadClassSafe(clsName, init)
-            if (sharedClass) {
+            if (sharedClass != undefined) {
                 return sharedClass
             }
         }
@@ -109,6 +109,12 @@ export class AbcRuntimeLinker extends RuntimeLinker {
      * @param newFiles ABC files loaded into current context.
      */
     protected final native addAbcFiles(newFiles: FixedArray<AbcFile | undefined>): void
+
+    // The native loader can return undefined for packages without an ABC entry.
+    // Preserve that return type here so callers retain the runtime check.
+    private static loadAbcFileOrUndefined(linker: AbcRuntimeLinker, path: string): AbcFile | undefined {
+        return AbcFile.loadAbcFile(linker, path)
+    }
 
     private native loadClassFromAbcFiles(clsName: string, init: boolean): Class | undefined
 

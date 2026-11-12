@@ -30,7 +30,7 @@ package std.core;
 export final class TypeAPIParameter extends Object {
     private paramType: Type | undefined // not undefined if already created
     private name: string = ""
-    private attributes: int
+    private attributes: int = 0
 
     private constructor () {}
 

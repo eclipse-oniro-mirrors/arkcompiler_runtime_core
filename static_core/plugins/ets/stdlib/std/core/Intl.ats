@@ -771,7 +771,7 @@ export class DateTimeFormat {
 
             if (resolvedOptions.hourCycle === undefined) {
                 const hourCycleOpt = this.options.hourCycle
-                resolvedOptions.hourCycle = hourCycleOpt ? hourCycleOpt : this.getLocaleHourCycle()
+                resolvedOptions.hourCycle = (hourCycleOpt != undefined && hourCycleOpt.length != 0) ? hourCycleOpt : this.getLocaleHourCycle()
             }
 
             resolvedOptions.locale = this.locale
@@ -798,7 +798,7 @@ export class DateTimeFormat {
         public static supportedLocalesOf(locales: string | Locale | ReadonlyArray<string | Locale>, options?: DateTimeFormatOptions): string[] {
             const langTags = intlLocalesToLanguageTags(locales)
 
-            if (options) {
+            if (options != undefined) {
                 return (options.localeMatcher == 'best fit')
                         ? intlBestFitLocales(langTags)
                         : intlLookUpLocales(langTags)
@@ -866,7 +866,7 @@ export class DateTimeFormat {
 
         private getHourSymbol(): string {
             const hourCycle = this.options.hourCycle
-            if (hourCycle) {
+            if (hourCycle != undefined && hourCycle.length != 0) {
                 switch (hourCycle) {
                     case 'h11':
                         return 'K'
@@ -905,7 +905,7 @@ export class DateTimeFormat {
 
         private appendYearPattern(pattern: StringBuilder): void {
             const year = this.options.year
-            if (year) {
+            if (year != undefined && year.length != 0) {
                 switch (year) {
                     case 'numeric':
                         pattern.append('yyyy')
@@ -919,7 +919,7 @@ export class DateTimeFormat {
 
         private appendMonthPattern(pattern: StringBuilder): void {
             const month = this.options.month
-            if (month) {
+            if (month != undefined && month.length != 0) {
                 switch (month) {
                     case 'numeric':
                         pattern.append('M')
@@ -942,7 +942,7 @@ export class DateTimeFormat {
 
         private appendWeekdayPattern(pattern: StringBuilder): void {
             const weekday = this.options.weekday
-            if (weekday) {
+            if (weekday != undefined && weekday.length != 0) {
                 switch (weekday) {
                     case 'long':
                         pattern.append('EEEE')
@@ -959,7 +959,7 @@ export class DateTimeFormat {
 
         private appendDayPattern(pattern: StringBuilder): void {
             const day = this.options.day
-            if (day) {
+            if (day != undefined && day.length != 0) {
                 switch (day) {
                     case 'numeric':
                         pattern.append('d')
@@ -973,14 +973,14 @@ export class DateTimeFormat {
 
         private appendDayPeriodPattern(pattern: StringBuilder): void {
             const dayPeriod = this.options.dayPeriod
-            if (dayPeriod) {
+            if (dayPeriod != undefined && dayPeriod.length != 0) {
                 pattern.append('B')
             }
         }
 
         private appendEraPattern(pattern: StringBuilder): void {
             const optEra = this.options.era
-            if (optEra) {
+            if (optEra != undefined && optEra.length != 0) {
                 switch (optEra) {
                     case 'long':
                         pattern.append('GGGG')
@@ -1009,7 +1009,7 @@ export class DateTimeFormat {
 
         private appendHourPattern(pattern: StringBuilder): void {
             const optHour = this.options.hour
-            if (optHour) {
+            if (optHour != undefined && optHour.length != 0) {
                 const hourSymbol = this.getHourSymbol()
                 switch (optHour) {
                     case '2-digit':
@@ -1024,7 +1024,7 @@ export class DateTimeFormat {
 
         private appendMinutePattern(pattern: StringBuilder): void {
             const optMinute = this.options.minute
-            if (optMinute) {
+            if (optMinute != undefined && optMinute.length != 0) {
                 switch (optMinute) {
                     case '2-digit':
                         pattern.append('mm')
@@ -1038,7 +1038,7 @@ export class DateTimeFormat {
 
         private appendSecondPattern(pattern: StringBuilder): void {
             const optSecond = this.options.second
-            if (optSecond) {
+            if (optSecond != undefined && optSecond.length != 0) {
                 switch (optSecond) {
                     case '2-digit':
                         pattern.append('ss')
@@ -1052,7 +1052,7 @@ export class DateTimeFormat {
 
         private appendFractionalSecondPattern(pattern: StringBuilder): void {
             const optFractionalSecond = this.options.fractionalSecondDigits
-            if (optFractionalSecond) {
+            if (optFractionalSecond != undefined && optFractionalSecond != 0) {
                 if (optFractionalSecond < 1 || optFractionalSecond > 3) {
                     throw new RangeError('invalid digits value: ' + optFractionalSecond)
                 }
@@ -1062,7 +1062,7 @@ export class DateTimeFormat {
 
         private appendTimeZoneNamePattern(pattern: StringBuilder): void {
             const optTimeZoneName = this.options.timeZoneName
-            if (optTimeZoneName) {
+            if (optTimeZoneName != undefined && optTimeZoneName.length != 0) {
                 switch (optTimeZoneName) {
                     case 'short':
                         pattern.append('z');
