@@ -78,8 +78,8 @@
     }
   },
   "files": [
-    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/metadata/base_tests/two_libs_two_imports/test_lib1.ets",
-    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/metadata/base_tests/two_libs_two_imports/test_lib2.ets",
-    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/metadata/base_tests/two_libs_two_imports/test_lib12.ets"
+    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/metadata/base_tests/two_libs_two_imports/test_lib1.ats",
+    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/metadata/base_tests/two_libs_two_imports/test_lib2.ats",
+    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/metadata/base_tests/two_libs_two_imports/test_lib12.ats"
   ]
 }

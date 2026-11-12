@@ -75,7 +75,7 @@
         "ohmUrl": "arkruntime"
       },
       "@panda/lib": {
-        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/base_tests/imported_function_local_var_shadow/lib_helper.ets.abc"
+        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/base_tests/imported_function_local_var_shadow/lib_helper.ats.abc"
       }
     }
   }

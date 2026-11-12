@@ -5,7 +5,7 @@
     "cacheDir": "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/metadata/base_tests/wildcard_reexport/decls",
     "dependencies": {
       "@panda/origin": {
-        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/wildcard_reexport/lib_origin.ets.abc"
+        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/wildcard_reexport/lib_origin.ats.abc"
       },
       "std/core": {
         "language": "ets",

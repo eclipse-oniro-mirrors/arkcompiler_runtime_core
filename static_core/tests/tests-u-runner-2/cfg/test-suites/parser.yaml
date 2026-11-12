@@ -81,14 +81,14 @@ collections:
   compiler/ets:
     parameters:
       extension: ets
-      test-extensions: [ets, ats]
+      test-extensions: [ats]
       es2panda-test-suite-args:
         - "--dump-ast"
         - "--thread=0"
   parser/ets:
     parameters:
       extension: ets
-      test-extensions: [ets, ats]
+      test-extensions: [ats]
       es2panda-test-suite-args:
         - "--dump-ast"
         - "--thread=0"

@@ -104,7 +104,7 @@ function run_linter() {
     flake8 --select "${FLAKE8_RULES}" "${filename}"
     save_exit_code ${EXIT_CODE} $?
     EXIT_CODE=$?
-    ((num_checked++))
+    ((++num_checked))
 }
 
 # Check all files with '.py' extensions except *conf.py which are config files for sphinx

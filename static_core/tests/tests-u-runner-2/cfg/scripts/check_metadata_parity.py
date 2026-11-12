@@ -200,7 +200,7 @@ def _check_pair(lhs_path: Path) -> int:
 
 def _check_siblings(lhs: Path) -> int:
     """Diff every sibling *.json / *.yaml in the test's directory. Runner
-    discovery is .ets-only, so these would otherwise escape per-test checks."""
+    discovery is .ats-only, so these would otherwise escape per-test checks."""
     if not lhs.is_file():
         return 0
     failures = 0

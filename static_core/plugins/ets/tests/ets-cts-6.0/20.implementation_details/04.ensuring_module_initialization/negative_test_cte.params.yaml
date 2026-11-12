@@ -36,13 +36,13 @@ tests:
       then a proper exception is thrown.
     decls:
       - |-
-        initModule("./not_exist_module.ets")
+        initModule("./not_exist_module.ats")
 
   - desc: |-
       If such module is not available or any other runtime issue occurs
       then a proper exception is thrown.
     files:
-      - ./negative_test_cte_module.ets
+      - ./negative_test_cte_module.ats
     decls:
       - |-
-        initModule("./negative_test_cte_module.ets")
+        initModule("./negative_test_cte_module.ats")

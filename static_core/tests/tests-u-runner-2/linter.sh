@@ -26,7 +26,7 @@ function run() {
     local args=("$@")
     echo "...Run ${desc}"
     if ! $executor "${args[@]}"; then
-        ((EXIT_CODE++))
+        ((++EXIT_CODE))
     fi
 }
 

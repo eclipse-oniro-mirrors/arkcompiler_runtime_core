@@ -62,20 +62,12 @@ class RunnerJSParser(RunnerJS):
 
         test_dirs: List[TestDirectory] = [
             TestDirectory('compiler/ts', 'ts', flags=['--extension=ts']),
-            TestDirectory('compiler/ets', 'ets', flags=[
-                '--extension=ets',
-                f'--arktsconfig={self.arktsconfig}'
-            ]),
             TestDirectory('compiler/ets', 'ats', flags=[
                 '--extension=ets',
                 f'--arktsconfig={self.arktsconfig}'
             ]),
             TestDirectory('parser/ts', 'ts', flags=['--parse-only', '--extension=ts']),
             TestDirectory('parser/as', 'ts', flags=['--parse-only', '--extension=as']),
-            TestDirectory('parser/ets', 'ets', flags=[
-                '--extension=ets',
-                f'--arktsconfig={self.arktsconfig}'
-            ]),
             TestDirectory('parser/ets', 'ats', flags=[
                 '--extension=ets',
                 f'--arktsconfig={self.arktsconfig}'

@@ -60,20 +60,12 @@ class RunnerASTChecker(RunnerJS):
 
         test_dirs: List[TestDirectory] = [
             TestDirectory('ast/compiler/ts', 'ts', flags=['--extension=ts']),
-            TestDirectory('ast/compiler/ets', 'ets', flags=[
-                '--extension=ets',
-                f'--arktsconfig={self.arktsconfig}'
-            ]),
             TestDirectory('ast/compiler/ets', 'ats', flags=[
                 '--extension=ets',
                 f'--arktsconfig={self.arktsconfig}'
             ]),
             TestDirectory('ast/parser/ts', 'ts', flags=['--parse-only', '--extension=ts']),
             TestDirectory('ast/parser/as', 'ts', flags=['--parse-only', '--extension=as']),
-            TestDirectory('ast/parser/ets', 'ets', flags=[
-                '--extension=ets',
-                f'--arktsconfig={self.arktsconfig}'
-            ]),
             TestDirectory('ast/parser/ets', 'ats', flags=[
                 '--extension=ets',
                 f'--arktsconfig={self.arktsconfig}'

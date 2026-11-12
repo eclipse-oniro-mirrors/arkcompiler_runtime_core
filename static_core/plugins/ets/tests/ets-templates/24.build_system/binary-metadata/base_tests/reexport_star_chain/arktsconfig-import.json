@@ -5,13 +5,13 @@
     "cacheDir": "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/binary-metadata/base_tests/reexport_star_chain/decls",
     "dependencies": {
       "@panda/pkgc": {
-        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/base_tests/reexport_star_chain/lib_c.ets.abc"
+        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/base_tests/reexport_star_chain/lib_c.ats.abc"
       },
       "@panda/pkgb": {
-        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/base_tests/reexport_star_chain/lib_b.ets.abc"
+        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/base_tests/reexport_star_chain/lib_b.ats.abc"
       },
       "@panda/pkga": {
-        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/base_tests/reexport_star_chain/lib_a.ets.abc"
+        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/base_tests/reexport_star_chain/lib_a.ats.abc"
       },
       "std/core": {
         "language": "ets",

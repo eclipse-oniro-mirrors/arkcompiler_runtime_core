@@ -12,7 +12,7 @@
 # limitations under the License.
 cases:
   - import: |-
-        import {A} from "./module.ets"
+        import {A} from "./module.ats"
 
         type t = keyof A
     call: |-

@@ -5,7 +5,7 @@
     "cacheDir": "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/binary-metadata/base_tests/cross_lib_inheritance/decls",
     "dependencies": {
       "@panda/animal": {
-        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/base_tests/cross_lib_inheritance/lib_animal.ets.abc"
+        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/base_tests/cross_lib_inheritance/lib_animal.ats.abc"
       },
       "std/core": {
         "language": "ets",

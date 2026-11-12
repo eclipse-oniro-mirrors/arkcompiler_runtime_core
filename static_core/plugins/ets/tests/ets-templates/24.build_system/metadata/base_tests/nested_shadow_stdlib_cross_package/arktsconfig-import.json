@@ -5,7 +5,7 @@
     "cacheDir": "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/metadata/base_tests/nested_shadow_stdlib_cross_package/decls",
     "dependencies": {
       "@panda/lib": {
-        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/nested_shadow_stdlib_cross_package/lib_shadow.ets.abc"
+        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/nested_shadow_stdlib_cross_package/lib_shadow.ats.abc"
       },
       "std/core": {
         "language": "ets",

@@ -22,8 +22,8 @@
     }
   },
   "files": [
-    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/binary-metadata/base_tests/simultaneous_cyclic_imports/lib_a.ets",
-    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/binary-metadata/base_tests/simultaneous_cyclic_imports/lib_b.ets",
-    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/binary-metadata/base_tests/simultaneous_cyclic_imports/lib_c.ets"
+    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/binary-metadata/base_tests/simultaneous_cyclic_imports/lib_a.ats",
+    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/binary-metadata/base_tests/simultaneous_cyclic_imports/lib_b.ats",
+    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/binary-metadata/base_tests/simultaneous_cyclic_imports/lib_c.ats"
   ]
 }

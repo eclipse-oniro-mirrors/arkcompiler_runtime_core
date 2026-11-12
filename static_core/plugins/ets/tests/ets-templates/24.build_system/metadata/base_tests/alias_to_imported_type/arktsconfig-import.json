@@ -75,10 +75,10 @@
         "ohmUrl": "arkruntime"
       },
       "@panda/w": {
-        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/alias_to_imported_type/lib_widget.ets.abc"
+        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/alias_to_imported_type/lib_widget.ats.abc"
       },
       "@panda/alias": {
-        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/alias_to_imported_type/lib_alias.ets.abc"
+        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/alias_to_imported_type/lib_alias.ats.abc"
       }
     }
   }

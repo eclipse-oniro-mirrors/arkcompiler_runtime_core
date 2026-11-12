@@ -5,13 +5,13 @@
     "cacheDir": "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/metadata/base_tests/diamond_dependency/decls",
     "dependencies": {
       "@panda/base": {
-        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/diamond_dependency/lib_base.ets.abc"
+        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/diamond_dependency/lib_base.ats.abc"
       },
       "@panda/left": {
-        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/diamond_dependency/lib_left.ets.abc"
+        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/diamond_dependency/lib_left.ats.abc"
       },
       "@panda/right": {
-        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/diamond_dependency/lib_right.ets.abc"
+        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/diamond_dependency/lib_right.ats.abc"
       },
       "std/core": {
         "language": "ets",

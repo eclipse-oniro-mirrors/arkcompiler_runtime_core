@@ -20,7 +20,7 @@ cases:
       - enum_name: ColorsInt
       - enum_name: ConstColorsInt
     decl: |-
-      import { [enum_name] } from "./to_export.ets"
+      import { [enum_name] } from "./to_export.ats"
     logic: |-
       let r: [enum_name] = [enum_name].Red
       let g: [enum_name] = [enum_name].Green
@@ -58,7 +58,7 @@ cases:
       - enum_name: ColorsLong
       - enum_name: ConstColorsLong
     decl: |-
-      import { [enum_name] } from "./to_export.ets"
+      import { [enum_name] } from "./to_export.ats"
     logic: |-
       let r: [enum_name] = [enum_name].Red
       let g: [enum_name] = [enum_name].Green
@@ -96,7 +96,7 @@ cases:
       - enum_name: ColorsStr
       - enum_name: ConstColorsStr
     decl: |-
-      import { [enum_name] } from "./to_export.ets"
+      import { [enum_name] } from "./to_export.ats"
     logic: |-
       let r: [enum_name] = [enum_name].Red
       let g: [enum_name] = [enum_name].Green

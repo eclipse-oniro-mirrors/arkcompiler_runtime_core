@@ -130,46 +130,46 @@ cases:
       a = new B()
       arktest.assertEQ(f(b), 2)
   - decl: |
-      import {A} from "./a.ets"
+      import {A} from "./a.ats"
       function f(this: A) {}
     use: |
       let a: A = new A()
       a.f()
   - decl: |
-      import {A} from "./a.ets"
+      import {A} from "./a.ats"
       function f(this: A) {}
     use: |
       let a: A = new A()
       f(a)
   - decl: |
-      import {I} from "./i.ets"
+      import {I} from "./i.ats"
       function f(this: I) {}
     use: |
       let i: I = {}
       i.f()
   - decl: |
-      import {I} from "./i.ets"
+      import {I} from "./i.ats"
       function f(this: I) {}
     use: |
       let i: I = {}
       f(i)
   - decl: |
-      import {A, f} from "./a1.ets"
+      import {A, f} from "./a1.ats"
     use: |
       let a: A = new A()
       a.f()
   - decl: |
-      import {A, f} from "./a1.ets"
+      import {A, f} from "./a1.ats"
     use: |
       let a: A = new A()
       f(a)
   - decl: |
-      import {I, f} from "./i1.ets"
+      import {I, f} from "./i1.ats"
     use: |
       let i: I = {}
       i.f()
   - decl: |
-      import {I, f} from "./i1.ets"
+      import {I, f} from "./i1.ats"
     use: |
       let i: I = {}
       f(i)

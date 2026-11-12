@@ -75,7 +75,7 @@
         "ohmUrl": "arkruntime"
       },
       "@panda/lib": {
-        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/export_type_directive_rename/lib_types.ets.abc"
+        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/base_tests/export_type_directive_rename/lib_types.ats.abc"
       }
     }
   }

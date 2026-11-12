@@ -5,7 +5,7 @@
     "cacheDir": "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/binary-metadata/base_tests/type_alias_across_packages_via_utility/decls",
     "dependencies": {
       "@panda/lib": {
-        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/base_tests/type_alias_across_packages_via_utility/lib_alias.ets.abc"
+        "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/base_tests/type_alias_across_packages_via_utility/lib_alias.ats.abc"
       },
       "std/core": {
         "language": "ets",

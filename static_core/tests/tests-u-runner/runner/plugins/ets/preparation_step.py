@@ -63,7 +63,6 @@ class TestPreparationStep(ABC):
         pass
 
     def _collect_generated_tests(self) -> List[str]:
-        # ".ats" tests are the renamed ".ets" ones; collect both extensions during the migration
         tests: List[str] = []
         for extension in ('ets', 'ats'):
             glob_expression = os.path.join(self.test_gen_path, f"**/*.{extension}")

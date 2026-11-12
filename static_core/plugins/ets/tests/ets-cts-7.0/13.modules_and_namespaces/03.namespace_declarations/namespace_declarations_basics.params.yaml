@@ -208,7 +208,7 @@ cases:
           let NS2: string = "Test should pass"
           arktest.assertEQ(NS2, "Test should pass")
       files:
-          - ./namespace_storage.ets
+          - ./namespace_storage.ats
 
     # 15. Case sensitivity
     - decl: |-
@@ -293,7 +293,7 @@ cases:
           arktest.assertEQ(Space1.foo(), "Local Space1")
           arktest.assertEQ(mySpace.foo(), "foo")
       files:
-          - ./namespace_storage.ets
+          - ./namespace_storage.ats
 
     # 21. Inner namespace interface extending outer namespace interface via outer qualification
     - decl: |-

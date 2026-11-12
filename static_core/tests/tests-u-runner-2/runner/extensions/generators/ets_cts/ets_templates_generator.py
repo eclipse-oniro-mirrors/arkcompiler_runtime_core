@@ -40,7 +40,8 @@ DEFAULT_FILTER = "*"
 class EtsTemplatesGenerator(IGenerator):
     def __init__(self, source: Path, target: Path, config: Config) -> None:
         super().__init__(source, target, config)
-        self.extension = f".{self._config.test_suite.extension()}"
+        # ".ats" tests are the renamed ".ets" ones; discover/generate both during the migration
+        self.extensions = [f".{ext}" for ext in self._config.test_suite.extensions()]
         self.filter: str = self._config.test_suite.filter
         self.test_file = self._config.test_suite.test_lists.explicit_file
         self._generated_deps: set[Path] = set()
@@ -82,6 +83,9 @@ class EtsTemplatesGenerator(IGenerator):
         _LOGGER.default(f"Generation finished! Generated {len(self.generated_tests)} test files")
         return self.generated_tests
 
+    def _has_known_extension(self, path: Path) -> bool:
+        return any(str(path).endswith(ext) for ext in self.extensions)
+
     def _get_matched_paths(self) -> set[Path]:
         matched: set[Path] = set()
         suite_root = Path(self._test_root).resolve()
@@ -95,7 +99,7 @@ class EtsTemplatesGenerator(IGenerator):
                 p = suite_root / rel
                 if not p.is_file():
                     continue
-                if not str(p).endswith(self.extension):
+                if not self._has_known_extension(p):
                     continue
                 if not p.is_relative_to(source_root):
                     continue
@@ -152,8 +156,11 @@ class EtsTemplatesGenerator(IGenerator):
 
         # test_file might have postfix from template, should find parent file
         base, _, _ = path.name.rpartition("_")
-        parent_test = path.parent / f"{base}{self.extension}"
-        return parent_test if parent_test.exists() else None
+        for ext in self.extensions:
+            parent_test = path.parent / f"{base}{ext}"
+            if parent_test.exists():
+                return parent_test
+        return None
 
     def _collect_d_ets(self, test_full_name: str, seen_d_ets: set[Path]) -> tuple[set[Path], set[Path]]:
         new_d_ets_files = set()
@@ -166,7 +173,7 @@ class EtsTemplatesGenerator(IGenerator):
         return new_d_ets_files, seen_d_ets
 
     def _is_d_ets_file(self, file_path: Path) -> bool:
-        return file_path.is_file() and file_path.suffixes[-2:] == [".d", ".ets"]
+        return file_path.is_file() and file_path.suffixes[-2:] in ([".d", ".ets"], [".d", ".ats"])
 
     def _should_generate_dependency(self, dep_test: Path) -> bool:
         if dep_test in self._generated_deps or dep_test in self.generated_tests:
@@ -199,7 +206,7 @@ class EtsTemplatesGenerator(IGenerator):
         test_full_name = os.path.relpath(path, self._source)
         output = self._target / test_full_name
 
-        bench = Benchmark(path, output, test_full_name, self._test_root, self.extension)
+        bench = Benchmark(path, output, test_full_name, self._test_root, path.suffix)
         generated_tests = bench.generate()
         if len(generated_tests) > 1:
             self._generated_deps.add(path)
@@ -233,7 +240,7 @@ class EtsTemplatesGenerator(IGenerator):
         if path not in self._matched:
             return
 
-        if str(path).endswith(self.extension):
+        if self._has_known_extension(path):
             self.__generate_test(path, set())
 
             return
@@ -244,8 +251,8 @@ class EtsTemplatesGenerator(IGenerator):
             for child in sorted(test_path.iterdir()):
                 self.__copy_new_lib_files_recursive(child)
             return
-        if test_path.is_file() and test_path.suffixes[-2:] == [".new", ".ets"]:
-            # Skip templated .new.ets files (with .params.yaml) - they are
+        if test_path.is_file() and test_path.suffixes[-2:] in ([".new", ".ets"], [".new", ".ats"]):
+            # Skip templated .new.ets/.new.ats files (with .params.yaml) - they are
             # rendered by the Benchmark template engine, not copied as-is.
             params_file = test_path.with_suffix("").with_suffix(".params.yaml")
             if params_file.exists():

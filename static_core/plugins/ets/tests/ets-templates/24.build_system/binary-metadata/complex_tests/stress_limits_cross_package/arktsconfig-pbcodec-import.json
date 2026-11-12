@@ -75,16 +75,16 @@
     "ohmUrl": "arkruntime"
    },
    "@panda/schema0": {
-    "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/complex_tests/stress_limits_cross_package/lib_pb0.ets.abc"
+    "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/complex_tests/stress_limits_cross_package/lib_pb0.ats.abc"
    },
    "@panda/schema1": {
-    "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/complex_tests/stress_limits_cross_package/lib_pb1.ets.abc"
+    "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/complex_tests/stress_limits_cross_package/lib_pb1.ats.abc"
    },
    "@panda/schema2": {
-    "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/complex_tests/stress_limits_cross_package/lib_pb2.ets.abc"
+    "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/complex_tests/stress_limits_cross_package/lib_pb2.ats.abc"
    },
    "@panda/schema3": {
-    "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/complex_tests/stress_limits_cross_package/lib_pb3.ets.abc"
+    "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/complex_tests/stress_limits_cross_package/lib_pb3.ats.abc"
    }
   }
  }

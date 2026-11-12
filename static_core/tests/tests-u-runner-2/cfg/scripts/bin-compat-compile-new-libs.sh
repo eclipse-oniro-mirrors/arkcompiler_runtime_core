@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Recompile all libs that had .new.ets replacements, then restore the
+# Recompile all libs that had .new.ats replacements, then restore the
 # original old-lib content from the .orig backups created by
 # bin-compat-copy-new-libs.sh. The recompiled .abc files in
 # intermediate/ keep the new-lib bytecode, while the gen/ source files
@@ -24,14 +24,14 @@
 #   1. Non-templated tests:
 #        BASE_GEN          = gen/test
 #        BASE_INTERMEDIATE = intermediate/test
-#        suffix = .ets
-#        new-lib glob = ${BASE_GEN}.libr*.new.ets
+#        suffix = .ats
+#        new-lib glob = ${BASE_GEN}.libr*.new.ats
 #
 #   2. Templated tests:
 #        BASE_GEN          = gen/test
 #        BASE_INTERMEDIATE = intermediate/test
-#        suffix = _0.ets
-#        new-lib glob = ${BASE_GEN}.libr*.new_0.ets
+#        suffix = _0.ats
+#        new-lib glob = ${BASE_GEN}.libr*.new_0.ats
 #
 # In both cases the old lib is: ${new_lib%.new${suffix}}${suffix}
 # The output ABC path swaps the gen base for the intermediate base.
@@ -49,15 +49,15 @@ BASE_GEN="$5"
 BASE_INTERMEDIATE="$6"
 ES2PANDA_ARGS="${7:-}"
 
-suffix=".ets"
+suffix=".ats"
 
 # Only treat as templated test if the BASE_GEN stem itself ends with _<N> AND
-# there is at least one .new_<N>.ets file in the directory.  This avoids
+# there is at least one .new_<N>.ats file in the directory.  This avoids
 # false positives on test names that happen to end with a number (e.g.
 # remove_enum_constants_2) but are NOT generated from a template.
 if [[ "$BASE_GEN" =~ ^(.+)_([0-9]+)$ ]]; then
-    candidate_suffix="_${BASH_REMATCH[2]}.ets"
-    # Check if any .new_<N>.ets file exists (templated pattern)
+    candidate_suffix="_${BASH_REMATCH[2]}.ats"
+    # Check if any .new_<N>.ats file exists (templated pattern)
     for f in "${BASH_REMATCH[1]}".libr*.new${candidate_suffix}; do
         if [ -f "$f" ]; then
             BASE_GEN="${BASH_REMATCH[1]}"

@@ -75,16 +75,16 @@
     "ohmUrl": "arkruntime"
    },
    "@panda/min0": {
-    "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/complex_tests/stress_limits_cross_package/lib_min0.ets.abc"
+    "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/complex_tests/stress_limits_cross_package/lib_min0.ats.abc"
    },
    "@panda/min1": {
-    "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/complex_tests/stress_limits_cross_package/lib_min1.ets.abc"
+    "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/complex_tests/stress_limits_cross_package/lib_min1.ats.abc"
    },
    "@panda/min2": {
-    "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/complex_tests/stress_limits_cross_package/lib_min2.ets.abc"
+    "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/complex_tests/stress_limits_cross_package/lib_min2.ats.abc"
    },
    "@panda/min3": {
-    "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/complex_tests/stress_limits_cross_package/lib_min3.ets.abc"
+    "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/metadata/complex_tests/stress_limits_cross_package/lib_min3.ats.abc"
    }
   }
  }

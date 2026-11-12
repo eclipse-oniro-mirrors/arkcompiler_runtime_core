@@ -35,7 +35,7 @@ function main(): void {
 }
 ```
 
-Filename: `name.ets`, placed under `07.expressions/32.assignment/`.
+Filename: `name.ats`, placed under `07.expressions/32.assignment/`.
 
 ## Minimal negative test
 
@@ -59,7 +59,7 @@ function main(): void {
 }
 ```
 
-Filename: `name_n.ets`, same chapter directory. The `ESExxxx` code in `expected_out:` must come from a real compiler run — see
+Filename: `name_n.ats`, same chapter directory. The `ESExxxx` code in `expected_out:` must come from a real compiler run — see
 [*Common review blockers*](style-guide.md) for the `TODO:` placeholder anti-pattern.
 
 ## Minimal multi-case positive test using `ArkTestsuite`

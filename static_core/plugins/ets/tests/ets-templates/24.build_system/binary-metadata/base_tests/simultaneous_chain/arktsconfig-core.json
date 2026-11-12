@@ -22,7 +22,7 @@
     }
   },
   "files": [
-    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/binary-metadata/base_tests/simultaneous_chain/core_a.ets",
-    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/binary-metadata/base_tests/simultaneous_chain/core_b.ets"
+    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/binary-metadata/base_tests/simultaneous_chain/core_a.ats",
+    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/binary-metadata/base_tests/simultaneous_chain/core_b.ats"
   ]
 }

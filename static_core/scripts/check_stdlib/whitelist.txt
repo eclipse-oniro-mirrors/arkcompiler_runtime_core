@@ -128,7 +128,7 @@
 [Double.ats:107:13] Warning W65000: The equality expression is always true.
 [EAWorker.ats:156:28] Warning W369037: Cast expression `as (() => undefined)` is type unsafe. 'ClassCastError' exception can be thrown at runtime
 [EAWorker.ats:161:28] Warning W369037: Cast expression `as (() => undefined)` is type unsafe. 'ClassCastError' exception can be thrown at runtime
-[etsstdlib.ets:1:1] Warning W1001506: the value of the instanceof expression is known at compile-time as false
+[etsstdlib.ats:1:1] Warning W1001506: the value of the instanceof expression is known at compile-time as false
 [EventLoop.ats:198:33] Warning W369037: Cast expression `as (() => undefined)` is type unsafe. 'ClassCastError' exception can be thrown at runtime
 [Message.ats:96:24] Warning W369037: Cast expression `as (() => undefined)` is type unsafe. 'ClassCastError' exception can be thrown at runtime
 [MessageHandler.ats:57:27] Warning W670214: This cast can be excessive because it always succeeds

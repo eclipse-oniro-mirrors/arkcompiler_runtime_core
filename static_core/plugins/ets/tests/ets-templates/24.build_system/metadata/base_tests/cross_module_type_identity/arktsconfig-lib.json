@@ -22,7 +22,7 @@
     }
   },
   "files": [
-    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/metadata/base_tests/cross_module_type_identity/lib_base.ets",
-    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/metadata/base_tests/cross_module_type_identity/lib_child.ets"
+    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/metadata/base_tests/cross_module_type_identity/lib_base.ats",
+    "${WORK_DIR}/${SUITE_NAME}/gen/24.build_system/metadata/base_tests/cross_module_type_identity/lib_child.ats"
   ]
 }

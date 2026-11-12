@@ -14,27 +14,27 @@
 cases:
     # use an alias defined and exported as type from another unit
 
-    - files: ['./mod/mod_1.ets']
+    - files: ['./mod/mod_1.ats']
       decl: |-
-          import { MOD_ALIAS1 } from './mod/mod_1.ets'
+          import { MOD_ALIAS1 } from './mod/mod_1.ats'
       use: |-
           let v: MOD_ALIAS1 = true  // should be visible here
           let ok = v
 
     # use an alias defined and exported from another unit
 
-    - files: ['./mod/mod_2.ets']
+    - files: ['./mod/mod_2.ats']
       decl: |-
-          import { MOD_ALIAS2 } from './mod/mod_2.ets'
+          import { MOD_ALIAS2 } from './mod/mod_2.ats'
       use: |-
           let v: MOD_ALIAS2 = true  // should be visible here
           let ok = true
 
     # use an alias defined and exported as type under a different name from another unit
 
-    - files: ['./mod/mod_3.ets']
+    - files: ['./mod/mod_3.ats']
       decl: |-
-          import { X } from './mod/mod_3.ets'
+          import { X } from './mod/mod_3.ats'
       use: |-
           let v: X = true  // should be visible here
           let ok = v

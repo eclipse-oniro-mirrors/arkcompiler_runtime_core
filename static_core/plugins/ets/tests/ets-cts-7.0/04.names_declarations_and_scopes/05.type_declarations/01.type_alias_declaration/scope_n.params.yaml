@@ -14,9 +14,9 @@
 cases:
     # use an alias defined in another unit
 
-    - files: ['./mod/mod_0.ets']
+    - files: ['./mod/mod_0.ats']
       decl: |-
-          import { MOD_ALIAS0 } from './mod/mod_0.ets'
+          import { MOD_ALIAS0 } from './mod/mod_0.ats'
       use: |-
           let v: MOD_ALIAS0 = true  // should not be visible here
           let ok = true
@@ -24,9 +24,9 @@ cases:
 
     # use an alias defined and not exported from another unit
 
-    - files: ['./mod/mod_4.ets']
+    - files: ['./mod/mod_4.ats']
       decl: |-
-          import { EClass } from './mod/mod_4.ets'
+          import { EClass } from './mod/mod_4.ats'
       use: |-
           let v: MOD_ALIAS4 = new EClass()  // should not be visible here
           let ok = v instanceof EClass
@@ -34,9 +34,9 @@ cases:
 
     # use an alias defined and exported from another unit, duplicate
 
-    - files: ['./mod/mod_5.ets']
+    - files: ['./mod/mod_5.ats']
       decl: |-
-          import { MOD_ALIAS5 } from './mod/mod_5.ets'
+          import { MOD_ALIAS5 } from './mod/mod_5.ats'
           type MOD_ALIAS5 = number
       use: |-
           let v: MOD_ALIAS5 = 1.0  // should not be visible here

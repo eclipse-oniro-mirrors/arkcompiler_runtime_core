@@ -75,7 +75,7 @@
     "ohmUrl": "arkruntime"
    },
    "@panda/lib": {
-    "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/complex_tests/stress_limits_cross_package/lib_methods.ets.abc"
+    "path": "${WORK_DIR}/${SUITE_NAME}/intermediate/24.build_system/binary-metadata/complex_tests/stress_limits_cross_package/lib_methods.ats.abc"
    }
   }
  }
