@@ -13,7 +13,16 @@
  * limitations under the License.
  */
 
+import { main as test11 } from './dir1/11.ats'
+import { main as test111 } from './dir1/dir11/111.ats'
+import { main as test21 } from './dir2/21.ats'
+import { main as test22 } from './dir2/22.ats'
+
 export function main(): void {
     // CC-OFFNXT(G.AOD.03) for test purposes
-    console.log('21.ets')
+    console.log('1.ats')
+    test11()
+    test111()
+    test21()
+    test22()
 }

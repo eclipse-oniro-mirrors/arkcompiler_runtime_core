@@ -13,9 +13,10 @@
  * limitations under the License.
  */
 
-import { print, test } from './2'
+import { test } from './2'
+import { print } from './3'
 
 export function main(): void {
-    print('1.ets')
+    print('1.ats')
     test()
 }

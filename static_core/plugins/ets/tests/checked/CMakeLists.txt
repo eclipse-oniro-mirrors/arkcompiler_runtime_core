@@ -61,7 +61,7 @@ function(panda_add_checked_test_ets)
         set(ARG_ETS_STRINGS_CONCAT "true")
     endif()
 
-    if (${TEST_TYPE} MATCHES "ets")
+    if ("${TEST_TYPE}" MATCHES "[.](ets|ats)$")
         compile_ets_code(${ARG_FILE} ${BINARY_FILE} ${ABC_TARGET} OPT_LEVEL ${ARG_OPT_LEVEL} ETS_STRINGS_CONCAT ${ARG_ETS_STRINGS_CONCAT})
     else()
 #Compile assembly file
@@ -83,7 +83,7 @@ function(panda_add_checked_test_ets)
         list(APPEND EXT_FILES "${APP_FILE_OUTPUT}")
     endforeach()
 
-    if (${TEST_TYPE} MATCHES "ets")
+    if ("${TEST_TYPE}" MATCHES "[.](ets|ats)$")
         set(COMMAND_TOKEN "//!")
     else()
         set(COMMAND_TOKEN "#!")
@@ -181,9 +181,9 @@ if (PANDA_TARGET_AMD64 OR NOT PANDA_ARM64_TESTS_WITH_SANITIZER)
 #AOT mode for arm32 is not supported
         if (NOT PANDA_PRODUCT_BUILD)
 #Disabled as stdlib API was required to change.issue 25232
-#panda_add_checked_test_ets(FILE ${CMAKE_CURRENT_SOURCE_DIR} / string_tlab_allocations.ets JITINTERFACE)
-            panda_add_checked_test_ets(FILE ${CMAKE_CURRENT_SOURCE_DIR}/string_tlab_repeat.ets JITINTERFACE)
-            panda_add_checked_test_ets(FILE ${CMAKE_CURRENT_SOURCE_DIR}/ets_string_builder_deopt1.ets JITINTERFACE ETS_STRINGS_CONCAT "false")
+#panda_add_checked_test_ets(FILE ${CMAKE_CURRENT_SOURCE_DIR} / string_tlab_allocations.ats JITINTERFACE)
+            panda_add_checked_test_ets(FILE ${CMAKE_CURRENT_SOURCE_DIR}/string_tlab_repeat.ats JITINTERFACE)
+            panda_add_checked_test_ets(FILE ${CMAKE_CURRENT_SOURCE_DIR}/ets_string_builder_deopt1.ats JITINTERFACE ETS_STRINGS_CONCAT "false")
         endif()
 #LoadAndInitClass in AOT mode for arm32 is not supported
     endif()

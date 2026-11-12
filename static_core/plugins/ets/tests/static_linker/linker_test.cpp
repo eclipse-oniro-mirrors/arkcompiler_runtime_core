@@ -304,27 +304,27 @@ TEST(linkertests, ForeignBase)
 
 TEST(linkertests, StsHelloWorld)
 {
-    TestSts("hello_world", {"1.ets.abc"});
+    TestSts("hello_world", {"1.ats.abc"});
 }
 
 TEST(linkertests, StsForeignClass)
 {
-    TestSts("fclass", {"1.ets.abc", "2.ets.abc"});
+    TestSts("fclass", {"1.ats.abc", "2.ats.abc"});
 }
 
 TEST(linkertests, StsForeignMethod)
 {
-    TestSts("fmethod", {"1.ets.abc", "2.ets.abc"});
+    TestSts("fmethod", {"1.ats.abc", "2.ats.abc"});
 }
 
 TEST(linkertests, StsFMethodOverloaded)
 {
-    TestSts("fmethod_overloaded", {"1.ets.abc", "2.ets.abc"});
+    TestSts("fmethod_overloaded", {"1.ats.abc", "2.ats.abc"});
 }
 
 TEST(linkertests, StsFMethodOverloaded2)
 {
-    TestSts("fmethod_overloaded_2", {"1.ets.abc", "2.ets.abc", "3.ets.abc", "4.ets.abc"});
+    TestSts("fmethod_overloaded_2", {"1.ats.abc", "2.ats.abc", "3.ats.abc", "4.ats.abc"});
 }
 
 TEST(linkertests, FilesInfo)
@@ -334,14 +334,14 @@ TEST(linkertests, FilesInfo)
 
 TEST(linkertests, Mix)
 {
-    TestSts("mix", {"1.ets.abc", "2.ets.abc"});
+    TestSts("mix", {"1.ats.abc", "2.ats.abc"});
 }
 
 TEST(linkertests, ClassCallNoDeleteDependency)
 {
     TestStsConfig config;
     config.entryPoint = "dependency.ETSGLOBAL::main";
-    TestSts("classcall_doublefile", {"dependency.ets.abc", "bedependent.ets.abc"}, true, {}, config);
+    TestSts("classcall_doublefile", {"dependency.ats.abc", "bedependent.ats.abc"}, true, {}, config);
 }
 
 TEST(linkertests, ClassCallDeleteDependency)
@@ -350,7 +350,7 @@ TEST(linkertests, ClassCallDeleteDependency)
     opts.stripUnused = true;
     TestStsConfig config;
     config.entryPoint = "dependency.ETSGLOBAL::main";
-    TestSts("classcall_doublefile", {"dependency.ets.abc", "bedependent.ets.abc"}, true, opts, config);
+    TestSts("classcall_doublefile", {"dependency.ats.abc", "bedependent.ats.abc"}, true, opts, config);
     std::unordered_set<std::string> allowedClasses = {
         "Ldependency/ETSGLOBAL;",        "Lbedependent/ETSGLOBAL;",    "Ldependency/AnotherClass;", "Ldependency/User;",
         "Lbedependent/DependencyClass;", "Lbedependent/UnusedClass1;", "Lbedependent/UnusedClass2;"};
@@ -365,7 +365,7 @@ TEST(linkertests, ClassCallDeleteDependencyFromEntry)
     opts.stripUnusedSkiplist = "\"dependency/ETSGLOBAL\"";
     TestStsConfig config;
     config.entryPoint = "dependency.ETSGLOBAL::main";
-    TestSts("classcall_doublefile", {"dependency.ets.abc", "bedependent.ets.abc"}, true, opts, config);
+    TestSts("classcall_doublefile", {"dependency.ats.abc", "bedependent.ats.abc"}, true, opts, config);
     std::unordered_set<std::string> allowedClasses = {"Ldependency/ETSGLOBAL;", "Ldependency/User;"};
     std::unordered_set<std::string> notAllowedClasses = {"Lbedependent/ETSGLOBAL;", "Lbedependent/UnusedClass1;",
                                                          "Lbedependent/UnusedClass2;"};
@@ -378,7 +378,7 @@ TEST(linkertests, ClassCallDeleteDependencyFromEntryInputError)
     StripOptions opts;
     opts.stripUnused = true;
     opts.stripUnusedSkiplist = "\"1/ETSGLOBAL\"";
-    TestSts("classcall_doublefile", {"dependency.ets.abc", "bedependent.ets.abc"}, false, opts);
+    TestSts("classcall_doublefile", {"dependency.ats.abc", "bedependent.ats.abc"}, false, opts);
 }
 
 TEST(linkertests, ClassCallDeleteDependencyFromConfig)
@@ -388,7 +388,7 @@ TEST(linkertests, ClassCallDeleteDependencyFromConfig)
     opts.stripUnusedSkiplist = "@data/ets/classcall_doublefile/configfile.txt";
     TestStsConfig config;
     config.entryPoint = "dependency.ETSGLOBAL::main";
-    TestSts("classcall_doublefile", {"dependency.ets.abc", "bedependent.ets.abc"}, true, opts, config);
+    TestSts("classcall_doublefile", {"dependency.ats.abc", "bedependent.ats.abc"}, true, opts, config);
     std::unordered_set<std::string> allowedClasses = {"Ldependency/ETSGLOBAL;", "Ldependency/User;"};
     std::unordered_set<std::string> notAllowedClasses = {"Lbedependent/ETSGLOBAL;", "bedependent/UnusedClass1;",
                                                          "Lbedependent/UnusedClass2;"};
@@ -403,7 +403,7 @@ TEST(linkertests, MethodCallDeleteDependencyFromEntry)
     opts.stripUnusedSkiplist = "\"dependency/ETSGLOBAL/main\"";
     TestStsConfig config;
     config.entryPoint = "dependency.ETSGLOBAL::main";
-    TestSts("classcall_doublefile", {"dependency.ets.abc", "bedependent.ets.abc"}, true, opts, config);
+    TestSts("classcall_doublefile", {"dependency.ats.abc", "bedependent.ats.abc"}, true, opts, config);
     std::unordered_set<std::string> allowedClasses = {"Ldependency/ETSGLOBAL;", "Ldependency/User;"};
     std::unordered_set<std::string> notAllowedClasses = {"Lbedependent/ETSGLOBAL;", "Lbedependent/UnusedClass1;",
                                                          "Lbedependent/UnusedClass2;"};
@@ -416,7 +416,7 @@ TEST(linkertests, MethodCallDeleteDependencyFromEntryInputError)
     StripOptions opts;
     opts.stripUnused = true;
     opts.stripUnusedSkiplist = "\"1/ETSGLOBAL/main\"";
-    TestSts("classcall_doublefile", {"dependency.ets.abc", "bedependent.ets.abc"}, false, opts);
+    TestSts("classcall_doublefile", {"dependency.ats.abc", "bedependent.ats.abc"}, false, opts);
 }
 
 TEST(linkertests, MethodCallDeleteDependencyFromConfig)
@@ -426,7 +426,7 @@ TEST(linkertests, MethodCallDeleteDependencyFromConfig)
     opts.stripUnusedSkiplist = "@data/ets/classcall_doublefile/methodconfig.txt";
     TestStsConfig config;
     config.entryPoint = "dependency.ETSGLOBAL::main";
-    TestSts("classcall_doublefile", {"dependency.ets.abc", "bedependent.ets.abc"}, true, opts, config);
+    TestSts("classcall_doublefile", {"dependency.ats.abc", "bedependent.ats.abc"}, true, opts, config);
     std::unordered_set<std::string> allowedClasses = {"Ldependency/ETSGLOBAL;", "Ldependency/User;"};
     std::unordered_set<std::string> notAllowedClasses = {"Lbedependent/ETSGLOBAL;", "Lbedependent/UnusedClass1;",
                                                          "Lbedependent/UnusedClass2;"};
@@ -439,17 +439,17 @@ TEST(linkertests, CallDeleteDependencyFromConfigFileNotExist)
     StripOptions opts;
     opts.stripUnused = true;
     opts.stripUnusedSkiplist = "@data/ets/classcall_doublefile/methodconfig1.txt";
-    TestSts("classcall_doublefile", {"dependency.ets.abc", "bedependent.ets.abc"}, false, opts);
+    TestSts("classcall_doublefile", {"dependency.ats.abc", "bedependent.ats.abc"}, false, opts);
 }
 
 TEST(linkertests, CallDeleteDependencyFromEntryFile)
 {
     StripOptions opts;
     opts.stripUnused = true;
-    opts.stripUnusedSkiplist = "\"dependency.ets\"";
+    opts.stripUnusedSkiplist = "\"dependency.ats\"";
     TestStsConfig config;
     config.entryPoint = "dependency.ETSGLOBAL::main";
-    TestSts("classcall_doublefile", {"dependency.ets.abc", "bedependent.ets.abc"}, true, opts, config);
+    TestSts("classcall_doublefile", {"dependency.ats.abc", "bedependent.ats.abc"}, true, opts, config);
     std::unordered_set<std::string> allowedClasses = {"Ldependency/ETSGLOBAL;", "Ldependency/AnotherClass;",
                                                       "Lbedependent/DependencyClass;", "Ldependency/User;"};
     std::unordered_set<std::string> notAllowedClasses = {"Lbedependent/ETSGLOBAL;", "Lbedependent/UnusedClass1;",
@@ -462,8 +462,8 @@ TEST(linkertests, CallDeleteDependencyFromEntryFileNotExist)
 {
     StripOptions opts;
     opts.stripUnused = true;
-    opts.stripUnusedSkiplist = "\"1.ets\"";
-    TestSts("classcall_doublefile", {"dependency.ets.abc", "bedependent.ets.abc"}, false, opts);
+    opts.stripUnusedSkiplist = "\"1.ats\"";
+    TestSts("classcall_doublefile", {"dependency.ats.abc", "bedependent.ats.abc"}, false, opts);
 }
 
 TEST(linkertests, MethodAnnotationDeleteDependency)
@@ -473,7 +473,7 @@ TEST(linkertests, MethodAnnotationDeleteDependency)
     opts.stripUnusedSkiplist = "\"method/ETSGLOBAL/main\"";
     TestStsConfig config;
     config.entryPoint = "method.ETSGLOBAL::main";
-    TestSts("annotation", {"method.ets.abc"}, true, opts, config);
+    TestSts("annotation", {"method.ats.abc"}, true, opts, config);
     std::unordered_set<std::string> allowedClasses = {"Lmethod/ETSGLOBAL;", "Lmethod/ClassAuthor;"};
     std::unordered_set<std::string> notAllowedClasses = {"Lmethod/C3;", "Lmethod/ClassPreamble;"};
     const std::string abcFilePathPrefix = "data/output/annotation/";
@@ -487,7 +487,7 @@ TEST(linkertests, FieldAnnotationDeleteDependency)
     opts.stripUnusedSkiplist = "\"field/ETSGLOBAL/main\"";
     TestStsConfig config;
     config.entryPoint = "field.ETSGLOBAL::main";
-    TestSts("annotation", {"field.ets.abc"}, true, opts, config);
+    TestSts("annotation", {"field.ats.abc"}, true, opts, config);
     std::unordered_set<std::string> allowedClasses = {"Lfield/ETSGLOBAL;", "Lfield/PropertyAuthor;"};
     std::unordered_set<std::string> notAllowedClasses = {"Lfield/C3;", "Lfield/ClassPreamble;",
                                                          "Lfield/DeprecatedProperty;"};
@@ -503,7 +503,7 @@ TEST(linkertests, ClassExtensionDeleteDependency)
     TestStsConfig config;
     config.entryPoint = "classExtension.ETSGLOBAL::main";
     config.outputFileName = "classExtension.gold";
-    TestSts("singlefile", {"classExtension.ets.abc"}, true, opts, config);
+    TestSts("singlefile", {"classExtension.ats.abc"}, true, opts, config);
     std::unordered_set<std::string> allowedClasses = {"LclassExtension/ETSGLOBAL;", "LclassExtension/Animal;",
                                                       "LclassExtension/Dog;"};
     const std::string abcFilePathPrefix = "data/output/singlefile/";
@@ -518,7 +518,7 @@ TEST(linkertests, InterImplDeleteDependency)
     TestStsConfig config;
     config.entryPoint = "interImpl.ETSGLOBAL::main";
     config.outputFileName = "interImpl.gold";
-    TestSts("singlefile", {"interImpl.ets.abc"}, true, opts, config);
+    TestSts("singlefile", {"interImpl.ats.abc"}, true, opts, config);
     std::unordered_set<std::string> allowedClasses = {"LinterImpl/ETSGLOBAL;", "LinterImpl/Circle;",
                                                       "LinterImpl/Rectangle;", "LinterImpl/Shape;"};
     const std::string abcFilePathPrefix = "data/output/singlefile/";
@@ -533,7 +533,7 @@ TEST(linkertests, ObjectLiteralDeleteDependency)
     TestStsConfig config;
     config.entryPoint = "ObjectLiteral.ETSGLOBAL::main";
     config.outputFileName = "ObjectLiteral.gold";
-    TestSts("singlefile", {"ObjectLiteral.ets.abc"}, true, opts, config);
+    TestSts("singlefile", {"ObjectLiteral.ats.abc"}, true, opts, config);
     std::unordered_set<std::string> allowedClasses = {"LObjectLiteral/ETSGLOBAL;", "LObjectLiteral/Person;"};
     const std::string abcFilePathPrefix = "data/output/singlefile/";
     VerifyDeletedDependencies(abcFilePathPrefix + "linked.abc", allowedClasses);
@@ -547,7 +547,7 @@ TEST(linkertests, TestErrorDeleteDependency)
     TestStsConfig config;
     config.entryPoint = "teserror.ETSGLOBAL::main";
     config.outputFileName = "teserror.gold";
-    TestSts("singlefile", {"teserror.ets.abc"}, true, opts, config);
+    TestSts("singlefile", {"teserror.ats.abc"}, true, opts, config);
     std::unordered_set<std::string> allowedClasses = {"Lteserror/ETSGLOBAL;", "Lteserror/TestA;"};
     const std::string abcFilePathPrefix = "data/output/singlefile/";
     VerifyDeletedDependencies(abcFilePathPrefix + "linked.abc", allowedClasses);
@@ -574,7 +574,7 @@ TEST(linkertests, MultiClassCallNoDeleteDependency)
     TestStsConfig config;
     config.entryPoint = "main_dependencyUser.ETSGLOBAL::main";
     TestSts("classcall_multifile",
-            {"main_dependencyUser.ets.abc", "dependency.ets.abc", "user_dependency.ets.abc", "product_user.ets.abc"},
+            {"main_dependencyUser.ats.abc", "dependency.ats.abc", "user_dependency.ats.abc", "product_user.ats.abc"},
             true, {}, config);
 }
 
@@ -585,7 +585,7 @@ TEST(linkertests, MultiClassCallDeleteDependency)
     TestStsConfig config;
     config.entryPoint = "main_dependencyUser.ETSGLOBAL::main";
     TestSts("classcall_multifile",
-            {"main_dependencyUser.ets.abc", "dependency.ets.abc", "user_dependency.ets.abc", "product_user.ets.abc"},
+            {"main_dependencyUser.ats.abc", "dependency.ats.abc", "user_dependency.ats.abc", "product_user.ats.abc"},
             true, opts, config);
     std::unordered_set<std::string> allowedClasses = {"Lmain_dependencyUser/ETSGLOBAL;",
                                                       "Lmain_dependencyUser/MainApplication;",
@@ -609,7 +609,7 @@ TEST(linkertests, MultiClassCallDeleteDependencyFromEntry)
     TestStsConfig config;
     config.entryPoint = "main_dependencyUser.ETSGLOBAL::main";
     TestSts("classcall_multifile",
-            {"main_dependencyUser.ets.abc", "dependency.ets.abc", "user_dependency.ets.abc", "product_user.ets.abc"},
+            {"main_dependencyUser.ats.abc", "dependency.ats.abc", "user_dependency.ats.abc", "product_user.ats.abc"},
             true, opts, config);
     std::unordered_set<std::string> allowedClasses = {"Lmain_dependencyUser/ETSGLOBAL;",
                                                       "Lmain_dependencyUser/MainApplication;",
@@ -629,7 +629,7 @@ TEST(linkertests, MultiClassCallDeleteDependencyFromConfig)
     TestStsConfig config;
     config.entryPoint = "main_dependencyUser.ETSGLOBAL::main";
     TestSts("classcall_multifile",
-            {"main_dependencyUser.ets.abc", "dependency.ets.abc", "user_dependency.ets.abc", "product_user.ets.abc"},
+            {"main_dependencyUser.ats.abc", "dependency.ats.abc", "user_dependency.ats.abc", "product_user.ats.abc"},
             true, opts, config);
     std::unordered_set<std::string> allowedClasses = {
         "Lmain_dependencyUser/ETSGLOBAL;", "Lmain_dependencyUser/MainApplication;", "Ldependency/DependencyClass;",
@@ -647,7 +647,7 @@ TEST(linkertests, ClassCallDeleteDependencyAll)
     opts.stripUnusedSkiplist = "*";
     TestStsConfig config;
     config.entryPoint = "dependency.ETSGLOBAL::main";
-    TestSts("classcall_doublefile", {"dependency.ets.abc", "bedependent.ets.abc"}, true, opts, config);
+    TestSts("classcall_doublefile", {"dependency.ats.abc", "bedependent.ats.abc"}, true, opts, config);
     std::unordered_set<std::string> allowedClasses = {
         "Ldependency/ETSGLOBAL;",        "Lbedependent/ETSGLOBAL;",    "Ldependency/AnotherClass;", "Ldependency/User;",
         "Lbedependent/DependencyClass;", "Lbedependent/UnusedClass1;", "Lbedependent/UnusedClass2;"};
@@ -659,7 +659,7 @@ TEST(linkertests, CallDeleteDependencyNoStripUnusedArg)
 {
     StripOptions opts;
     opts.stripUnusedSkiplist = "\"dependency/ETSGLOBAL/main\"";
-    TestSts("classcall_doublefile", {"dependency.ets.abc", "bedependent.ets.abc"}, false, opts);
+    TestSts("classcall_doublefile", {"dependency.ats.abc", "bedependent.ats.abc"}, false, opts);
 }
 
 std::string GenLinkCmd(const std::string &param)
@@ -681,7 +681,7 @@ TEST(linkertests, TestForCoverage)
     linkRes = std::system(cmd.c_str());
     ASSERT_NE(linkRes, 0);
 
-    cmd = GenLinkCmd(" -- data/ets/sys/1.ets.abc data/ets/sys/2.ets.abc");
+    cmd = GenLinkCmd(" -- data/ets/sys/1.ats.abc data/ets/sys/2.ats.abc");
     // NOLINTNEXTLINE(cert-env33-c)
     linkRes = std::system(cmd.c_str());
     ASSERT_EQ(linkRes, 0);
@@ -691,18 +691,18 @@ TEST(linkertests, TestForCoverage)
     linkRes = std::system(cmd.c_str());
     ASSERT_NE(linkRes, 0);
 
-    cmd = GenLinkCmd(" -- data/ets/sys/1.ets.abc data/ets/sys/2.ets.abc");
+    cmd = GenLinkCmd(" -- data/ets/sys/1.ats.abc data/ets/sys/2.ats.abc");
     // NOLINTNEXTLINE(cert-env33-c)
     linkRes = std::system(cmd.c_str());
     ASSERT_EQ(linkRes, 0);
 
-    cmd = GenLinkCmd(" --output data/ets/sys/target.abc -- data/ets/sys/1.ets.abc data/ets/sys/2.ets.abc");
+    cmd = GenLinkCmd(" --output data/ets/sys/target.abc -- data/ets/sys/1.ats.abc data/ets/sys/2.ats.abc");
     // NOLINTNEXTLINE(cert-env33-c)
     linkRes = std::system(cmd.c_str());
     ASSERT_EQ(linkRes, 0);
 
     std::string opt = " --show-stats --log-level info";
-    std::string dst = " --output data/ets/sys/target.abc -- data/ets/sys/1.ets.abc data/ets/sys/2.ets.abc";
+    std::string dst = " --output data/ets/sys/target.abc -- data/ets/sys/1.ats.abc data/ets/sys/2.ats.abc";
     cmd = GenLinkCmd(opt + dst);
     // NOLINTNEXTLINE(cert-env33-c)
     linkRes = std::system(cmd.c_str());

@@ -374,15 +374,15 @@ if (with_stdlib) {
         "      \"dynamic_import_tests\": {\"language\": \"js\", \"ohmUrl\": \"dynamic_import_tests\"},",
         "      \"dynamic_import_tests/modules/instanceof\": {",
         "        \"language\": \"js\", \"path\": \"" + rebase_path(
-                "${ark_es2panda_root}/test/parser/ets/dynamic_import_tests/modules/instanceof.ets") + "\",",
+                "${ark_es2panda_root}/test/parser/ets/dynamic_import_tests/modules/instanceof.ats") + "\",",
         "        \"ohmUrl\": \"" + rebase_path(
-                "${ark_es2panda_root}/test/parser/ets/dynamic_import_tests/modules/instanceof.ets") + "\"",
+                "${ark_es2panda_root}/test/parser/ets/dynamic_import_tests/modules/instanceof.ats") + "\"",
         "      },",
         "      \"dynamic_import_tests/modules/module\": {",
         "        \"language\": \"js\", \"path\": \"" + rebase_path(
-                "${ark_es2panda_root}/test/parser/ets/dynamic_import_tests/modules/module.ets") + "\",",
+                "${ark_es2panda_root}/test/parser/ets/dynamic_import_tests/modules/module.ats") + "\",",
         "        \"ohmUrl\": \"" + rebase_path(
-                "${ark_es2panda_root}/test/parser/ets/dynamic_import_tests/modules/module.ets") + "\"",
+                "${ark_es2panda_root}/test/parser/ets/dynamic_import_tests/modules/module.ats") + "\"",
         "      }",
         "    }",
         "  }",

@@ -15,5 +15,5 @@
 
 export function main(): void {
     // CC-OFFNXT(G.AOD.03) for test purposes
-    console.log('22.ets')
+    console.log('21.ats')
 }

@@ -62,17 +62,17 @@ def minimal_input_bundle() -> Dict[str, Any]:
                 "nodes": [
                     {
                         "id": "f_entry_index",
-                        "name": "workspace/project/entry/src/main/ets/pages/Index.ets",
+                        "name": "workspace/project/entry/src/main/ets/pages/Index.ats",
                         "kind": 1,
                     },
                     {
                         "id": "f_entry_api",
-                        "name": "workspace/project/entry/src/main/ets/services/Api.ets",
+                        "name": "workspace/project/entry/src/main/ets/services/Api.ats",
                         "kind": 1,
                     },
                     {
                         "id": "f_utils_helper",
-                        "name": "workspace/project/utils/src/main/ets/utils/Helper.ets",
+                        "name": "workspace/project/utils/src/main/ets/utils/Helper.ats",
                         "kind": 1,
                     },
                 ],

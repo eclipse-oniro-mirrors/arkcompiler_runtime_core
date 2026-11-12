@@ -13,16 +13,26 @@
  * limitations under the License.
  */
 
-import { main as test11 } from './dir1/11.ets'
-import { main as test111 } from './dir1/dir11/111.ets'
-import { main as test21 } from './dir2/21.ets'
-import { main as test22 } from './dir2/22.ets'
+export class DependencyClass {
+    methodDependency(): void {
+        // CC-OFFNXT(G.AOD.03) for test purposes
+        console.log('Method DependencyClass is called');
+    }
+}
 
-export function main(): void {
-    // CC-OFFNXT(G.AOD.03) for test purposes
-    console.log('1.ets')
-    test11()
-    test111()
-    test21()
-    test22()
+class UnusedClass1 {
+    private unusedProperty: string = 'I\'m unused';
+    
+    unusedMethod(): void {
+        // CC-OFFNXT(G.AOD.03) for test purposes
+        console.log('This method is never called');
+    }
+}
+
+class UnusedClass2 {
+    public static readonly UNUSED_CONSTANT = 100;
+    
+    private unusedMethod(): number {
+        return 42;
+    }
 }

@@ -13,10 +13,18 @@
  * limitations under the License.
  */
 
-import { test } from './2'
-import { print } from './3'
-
-export function main(): void {
-    print('1.ets')
-    test()
+export class DependencyClass {
+    static main(): void {
+        // CC-OFFNXT(G.AOD.03) for test purposes
+        console.log('Method DependencyClass is called');
+    }
 }
+
+export class UnusedDependencyClass {
+    unusedMethod(): void {
+        // CC-OFFNXT(G.AOD.03) for test purposes
+        console.log('This method is never called');
+    }
+}
+
+DependencyClass.main();

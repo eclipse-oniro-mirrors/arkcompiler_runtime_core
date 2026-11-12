@@ -13,16 +13,7 @@
  * limitations under the License.
  */
 
-export function print(a0: string): void {
+export function main(): void {
     // CC-OFFNXT(G.AOD.03) for test purposes
-    console.log(a0)
-}
-
-export function print(a0: string, a1: int): void {
-    // CC-OFFNXT(G.AOD.03) for test purposes
-    console.log(a0)
-}
-
-export function test(): void {
-    print('2.ets', 0)
+    console.log('hello world')
 }
