@@ -150,17 +150,18 @@ static bool CheckJobSwitchEnabled(JobExecutionContext *executionCtx)
 
 struct EntrypointParams {
     // CC-OFFNXT(G.FUN.01-CPP) solid logic
-    EntrypointParams(JobManager *jobMan, EventId eId, EntrypointInfo &&epInfo, int delay, bool isPeriodic, TimerId tId)
-        : event(jobMan, eId), timer(std::move(epInfo), delay, isPeriodic, tId)
+    EntrypointParams(JobManager *jobMan, EventId eId, EntrypointInfo &&epInfo, int delay, bool isPeriodic, TimerId tId,
+                     JobEvent::Type eventType)
+        : event(jobMan, eId, eventType), timer(std::move(epInfo), delay, isPeriodic, tId)
     {
     }
 
     // CC-OFFNXT(G.FUN.01-CPP) solid logic
     static EntrypointParams *Create(JobManager *jobMan, EventId eId, EntrypointInfo &&epInfo, int delay,
-                                    bool isPeriodic, TimerId tId)
+                                    bool isPeriodic, TimerId tId, JobEvent::Type eventType)
     {
         auto allocator = Runtime::GetCurrent()->GetInternalAllocator();
-        return allocator->New<EntrypointParams>(jobMan, eId, std::move(epInfo), delay, isPeriodic, tId);
+        return allocator->New<EntrypointParams>(jobMan, eId, std::move(epInfo), delay, isPeriodic, tId, eventType);
     }
 
     static void Destroy(EntrypointParams *params)
@@ -239,18 +240,19 @@ void TimerEntrypoint(void *param)
 
     g_timerTable.RetireTimer(epParams->timer.GetId());
 
+    auto eventType = epParams->event.GetType();
     epParams->event.~TimerEvent();
 
     auto *executionCtx = JobExecutionContext::GetCurrent();
     auto *jobMan = executionCtx->GetManager();
     // Atomic with relaxed order reason: sync is not needed here
     auto eventId = g_internalEventId.fetch_add(1, std::memory_order_relaxed);
-    auto *timerEvent = std::launder(new (&epParams->event) TimerEvent(jobMan, eventId));
+    auto *timerEvent = std::launder(new (&epParams->event) TimerEvent(jobMan, eventId, eventType));
 
     LaunchTimerCallback(epParams, timerEvent);
 }
 
-TimerId CreateTimer(EntrypointInfo timerEntrypoint, int32_t delay, bool periodic)
+TimerId CreateTimer(EntrypointInfo timerEntrypoint, int32_t delay, bool periodic, TimerEventKind kind)
 {
     auto *executionCtx = JobExecutionContext::GetCurrent();
     if (!CheckJobSwitchEnabled(executionCtx)) {
@@ -262,7 +264,9 @@ TimerId CreateTimer(EntrypointInfo timerEntrypoint, int32_t delay, bool periodic
     // Atomic with relaxed order reason: sync is not needed here
     auto timerId = g_nextTimerId.fetch_add(1, std::memory_order_relaxed);
     auto *jobMan = executionCtx->GetManager();
-    auto *epParams = EntrypointParams::Create(jobMan, eventId, std::move(timerEntrypoint), delay, periodic, timerId);
+    auto eventType = kind == TimerEventKind::PUMP ? JobEvent::Type::PUMP : JobEvent::Type::TIMER;
+    auto *epParams =
+        EntrypointParams::Create(jobMan, eventId, std::move(timerEntrypoint), delay, periodic, timerId, eventType);
     ASSERT(epParams != nullptr);
 
     LaunchTimerCallback(epParams, &epParams->event);

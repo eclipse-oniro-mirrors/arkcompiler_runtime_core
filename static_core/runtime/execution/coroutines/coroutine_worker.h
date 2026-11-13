@@ -45,7 +45,7 @@ public:
         return false;
     }
 
-    virtual bool HasPendingLocalJobs()
+    virtual bool HasUnExpiredTimer()
     {
         return false;
     }

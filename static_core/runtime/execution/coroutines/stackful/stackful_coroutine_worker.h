@@ -200,7 +200,7 @@ public:
     /// check whether the worker is idle
     bool IsIdle();
 
-    bool HasPendingLocalJobs() NO_THREAD_SAFETY_ANALYSIS override;
+    bool HasUnExpiredTimer() override;
     void OnNewCoroutineStartup(Coroutine *co) override;
 
     /// @brief Update worker local object in coroutines

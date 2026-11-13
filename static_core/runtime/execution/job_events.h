@@ -111,7 +111,12 @@ public:
     NO_COPY_SEMANTIC(JobEvent);
     NO_MOVE_SEMANTIC(JobEvent);
 
-    enum class Type { NONE, GENERIC, COMPLETION, CHANNEL, IO, TIMER, BLOCKING };
+    enum class Type { NONE, GENERIC, COMPLETION, CHANNEL, IO, TIMER, BLOCKING, PUMP };
+
+    bool DrivesExpiration() const
+    {
+        return type_ == Type::TIMER || type_ == Type::PUMP;
+    }
 
     virtual ~JobEvent()
     {
@@ -236,7 +241,7 @@ private:
 
 class TimerEvent : public JobEvent {  // NOLINT(cppcoreguidelines-special-member-functions)
 public:
-    explicit TimerEvent(JobManager *jobManager, EventId id) : JobEvent(Type::TIMER, jobManager, id) {}
+    explicit TimerEvent(JobManager *jobManager, EventId id, Type type = Type::TIMER) : JobEvent(type, jobManager, id) {}
 
     NO_COPY_SEMANTIC(TimerEvent);
     NO_MOVE_SEMANTIC(TimerEvent);

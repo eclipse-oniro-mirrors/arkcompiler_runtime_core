@@ -69,7 +69,10 @@ private:
 
 using EntrypointInfo = std::variant<ManagedEntrypoint, NativeEntrypoint>;
 
-TimerId CreateTimer(EntrypointInfo entrypoint, int32_t delay, bool periodic);
+enum class TimerEventKind : uint8_t { USER, PUMP };
+
+TimerId CreateTimer(EntrypointInfo entrypoint, int32_t delay, bool periodic,
+                    TimerEventKind kind = TimerEventKind::USER);
 
 void StopTimer(TimerId timerId);
 

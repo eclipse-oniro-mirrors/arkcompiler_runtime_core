@@ -177,13 +177,13 @@ extern "C" EtsInt GetDefaultTaskPoolWorkersLimit()
     return static_cast<EtsInt>(GetDefaultTaskPoolEWorkersLimit(Runtime::GetOptions()));
 }
 
-extern "C" EtsBoolean CurrentWorkerHasPendingLocalJobs()
+extern "C" EtsBoolean CurrentWorkerHasUnExpiredTimer()
 {
     auto *executionCtx = JobExecutionContext::GetCurrent();
     ASSERT(executionCtx != nullptr);
     auto *worker = static_cast<CoroutineWorker *>(executionCtx->GetWorker());
     ASSERT(worker != nullptr);
-    return ark::ets::ToEtsBoolean(worker->HasPendingLocalJobs());
+    return ark::ets::ToEtsBoolean(worker->HasUnExpiredTimer());
 }
 
 extern "C" EtsLong CollectAsyncStack()

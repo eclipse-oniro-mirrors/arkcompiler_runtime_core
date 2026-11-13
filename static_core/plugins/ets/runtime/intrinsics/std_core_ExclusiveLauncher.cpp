@@ -408,7 +408,8 @@ public:
             EtsExecutionContext::FromMT(jobCtx)->GetPandaVM()->RunEventLoop(EventLoopRunMode::RUN_NOWAIT);
         };
         auto entrypoint = helpers::NativeEntrypoint {schedEntrypoint, nullptr};
-        auto tid = helpers::CreateTimer(std::move(entrypoint), PERIODIC_SCHEDULING_DELAY, true);
+        auto tid =
+            helpers::CreateTimer(std::move(entrypoint), PERIODIC_SCHEDULING_DELAY, true, helpers::TimerEventKind::PUMP);
         auto wid = JobExecutionContext::GetCurrent()->GetWorker()->GetId();
         {
             os::memory::LockHolder lh(idsLock_);
@@ -469,7 +470,7 @@ static void AwaitInteropPumpEvent(JobWorkerThread *worker, JobEvent *event)
 
 static void AwaitInteropPumpDelay(JobWorkerThread *worker, JobManager *jobMan, uint64_t waitingTimeUs)
 {
-    TimerEvent timerEvt(jobMan, 0);
+    TimerEvent timerEvt(jobMan, 0, JobEvent::Type::PUMP);
     timerEvt.SetExpirationTime(jobMan->GetCurrentTime() + waitingTimeUs);
     AwaitInteropPumpEvent(worker, &timerEvt);
 }
