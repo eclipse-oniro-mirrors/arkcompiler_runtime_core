@@ -1,18 +1,18 @@
 ### Issue 34810
-api/@ohos/util/GetMainThreadStackTraceTest.ets
+api/@ohos/util/GetMainThreadStackTraceTest.ats
 
 ### Issue 25591
-api/@ohos/util/StringDecoder/EncodingTest.ets
-api/@ohos/util/stream/StreamPipeEnCodingTestPart4.ets
-api/@ohos/util/stream/StreamReadableTestPart4.ets
+api/@ohos/util/StringDecoder/EncodingTest.ats
+api/@ohos/util/stream/StreamPipeEnCodingTestPart4.ats
+api/@ohos/util/stream/StreamReadableTestPart4.ats
 
 ### Issue 25591
-api/@ohos/util/TextDecoder/TextDecoderDecodeToStringTest.ets
+api/@ohos/util/TextDecoder/TextDecoderDecodeToStringTest.ats
 
 ### Issue 28302
-api/@ohos/util/ErrnoToStringTest.ets
+api/@ohos/util/ErrnoToStringTest.ats
 
 ### Issue 31475
-api/@ohos/util/stream/StreamDuplexTestPart2.ets
-api/@ohos/util/stream/StreamWritableTestPart2.ets
+api/@ohos/util/stream/StreamDuplexTestPart2.ats
+api/@ohos/util/stream/StreamWritableTestPart2.ats
 

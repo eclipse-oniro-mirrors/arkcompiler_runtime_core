@@ -22,7 +22,7 @@ function testRegularMethodStackTrace(): void {
         regularFunctionThatThrows()
     } catch (e) {
         let stack = (e as Error).stack!
-        arktest.assertNE(stack.indexOf(".ets:"), -1, "Regular method stack should contain file path with '.ets:' suffix")
+        arktest.assertNE(stack.indexOf(".ats:"), -1, "Regular method stack should contain file path with '.ats:' suffix")
         arktest.assertNE(stack.indexOf("regularFunctionThatThrows"), -1, "Stack should contain 'regularFunctionThatThrows'")
     }
 }

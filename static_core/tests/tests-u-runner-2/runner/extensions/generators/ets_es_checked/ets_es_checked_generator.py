@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -- coding: utf-8 --
 #
-# Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2024-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -55,6 +55,8 @@ class EsCheckedGenerator(IGenerator):
                 'Failed to run es cross-validator, please, make sure that '
                 'all required tools are installed (see tests-u-runner/readme.md#ets-es-checked-dependencies)')
             raise SetupException(f"invalid return code {res.returncode}\n" + res.stdout + res.stderr)
-        extension = self._config.test_suite.extension()
-        glob_expression = path.join(self._target, f"**/*.{extension}")
-        return list(glob(glob_expression, recursive=True))
+        tests: list[str] = []
+        for extension in self._config.test_suite.extensions():
+            glob_expression = path.join(self._target, f"**/*.{extension}")
+            tests.extend(glob(glob_expression, recursive=True))
+        return tests

@@ -1,4 +1,4 @@
 #31686
-math_Math_imul0.ets
+math_Math_imul0.ats
 #31695
-math_Math_clz320.ets
+math_Math_clz320.ats

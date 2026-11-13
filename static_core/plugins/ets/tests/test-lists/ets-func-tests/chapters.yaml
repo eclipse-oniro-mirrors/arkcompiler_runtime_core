@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2021-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -62,39 +62,39 @@ chapters:
   - std-core-reflect1:
     - 'ets-func-tests-templates/std/core/test-ClassGetInstanceMethodByName-*.ets'
   - std-core1:
-    - 'std/core/BadRadixTest*.ets'
-    - 'std/core/EscapeUnescapeTest*.ets'
-    - 'std/core/EscapeUnescapeURITest*.ets'
-    - 'std/core/GoodRadixTest*.ets'
-    - 'std/core/SortInternalTestLong*.ets'
-    - 'std/core/SortInternalTest*.ets'
-    - 'std/core/SortNotFromBeginningTest*.ets'
-    - 'std/core/SortStringsTest*.ets'
-    - 'std/core/StringAtExceptionTest*.ets'
-    - 'std/core/TypeAssignableFromTest*.ets'
-    - 'std/core/TypeCreateErasedBodyTest*.ets'
-    - 'std/core/TypeMethodInvoke*.ets'
-    - 'std/core/TypeMethodInvokeConstructor*.ets'
-    - 'std/core/TypeMethodInvokeVirt*.ets'
-    - 'std/core/TypeMethodResolveConstructor*.ets'
-    - 'std/core/TypeMethodResolveConstructorFew*.ets'
-    - 'std/core/TypeResolve*.ets'
+    - 'std/core/BadRadixTest*.ats'
+    - 'std/core/EscapeUnescapeTest*.ats'
+    - 'std/core/EscapeUnescapeURITest*.ats'
+    - 'std/core/GoodRadixTest*.ats'
+    - 'std/core/SortInternalTestLong*.ats'
+    - 'std/core/SortInternalTest*.ats'
+    - 'std/core/SortNotFromBeginningTest*.ats'
+    - 'std/core/SortStringsTest*.ats'
+    - 'std/core/StringAtExceptionTest*.ats'
+    - 'std/core/TypeAssignableFromTest*.ats'
+    - 'std/core/TypeCreateErasedBodyTest*.ats'
+    - 'std/core/TypeMethodInvoke*.ats'
+    - 'std/core/TypeMethodInvokeConstructor*.ats'
+    - 'std/core/TypeMethodInvokeVirt*.ats'
+    - 'std/core/TypeMethodResolveConstructor*.ats'
+    - 'std/core/TypeMethodResolveConstructorFew*.ats'
+    - 'std/core/TypeResolve*.ats'
   - std-core2:
-    - 'std/core/std_core_array*.ets'
-    - 'std/core/std_core_array_exception*.ets'
+    - 'std/core/std_core_array*.ats'
+    - 'std/core/std_core_array_exception*.ats'
   - std-core3:
-    - 'std/core/std_core_boolean*.ets'
-    - 'std/core/std_core_byte*.ets'
-    - 'std/core/std_core_char*.ets'
-    - 'std/core/std_core_constructor*.ets'
-    - 'std/core/std_core_double*.ets'
-    - 'std/core/std_core_float*.ets'
-    - 'std/core/std_core_int*.ets'
-    - 'std/core/std_core_long*.ets'
-    - 'std/core/std_core_regexp*.ets'
-    - 'std/core/std_core_short*.ets'
-    - 'std/core/std_core_string*.ets'
-    - 'std/core/std_core_stringbuilder*.ets'
+    - 'std/core/std_core_boolean*.ats'
+    - 'std/core/std_core_byte*.ats'
+    - 'std/core/std_core_char*.ats'
+    - 'std/core/std_core_constructor*.ats'
+    - 'std/core/std_core_double*.ats'
+    - 'std/core/std_core_float*.ats'
+    - 'std/core/std_core_int*.ats'
+    - 'std/core/std_core_long*.ats'
+    - 'std/core/std_core_regexp*.ats'
+    - 'std/core/std_core_short*.ats'
+    - 'std/core/std_core_string*.ats'
+    - 'std/core/std_core_stringbuilder*.ats'
   - std-core4:
     - std/core
     - exclude:
@@ -102,8 +102,8 @@ chapters:
       - "std-core2"
       - "std-core3"
   - escompat1:
-    - 'escompat/escompat_typedarrays*.ets'
-    - 'escompat/escompat_typeduarrays*.ets'
+    - 'escompat/escompat_typedarrays*.ats'
+    - 'escompat/escompat_typeduarrays*.ats'
 
   - jit-preheat-low:
     - "std-core-reflect1"

@@ -348,7 +348,7 @@ class Generator
             buf = $template_ets.result(binding)
             buf = buf.gsub("%int%", "int")
             buf = buf.gsub("%.toInt()%", ".toInt()")
-            ets_path = File.join $options[:out], "#{k}#{chunk_id}.ets"
+            ets_path = File.join $options[:out], "#{k}#{chunk_id}.ats"
             File.write ets_path, buf
 
             # verify ets
