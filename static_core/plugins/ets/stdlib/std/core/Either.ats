@@ -29,7 +29,7 @@ package std.core;
 export abstract class Either<L, R> {
     protected Ldata?: L
     protected Rdata?: R
-    protected isLeft_: boolean
+    protected isLeft_: boolean = false
 
     /**
      * Checks if Either is Left

@@ -68,7 +68,11 @@ export namespace containers {
             this.actualCapacity = Int.MAX_VALUE;
             this.head = new ListNode<T>();
             this.tail = this.head;
-            if (iterable) {
+            this.addInitialElements(iterable);
+        }
+
+        private addInitialElements(iterable: Iterable<T> | undefined): void {
+            if (iterable != undefined) {
                 const entriesIter = iterable.$_iterator();
                 for (let iterRes = entriesIter.next(); !iterRes.done; iterRes = entriesIter.next()) {
                     const val = iterRes.value;

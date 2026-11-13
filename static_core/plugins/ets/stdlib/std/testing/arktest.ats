@@ -50,7 +50,7 @@ export namespace arktest {
     * @FaAndStageModel
     */
     function failingAssertion(message: string, description?: string): never {
-        throw new AssertionError((description ? description + "\n" : "") + message)
+        throw new AssertionError(((description != undefined && description.length != 0) ? description + "\n" : "") + message)
     }
 
     /**
@@ -472,7 +472,7 @@ export namespace arktest {
                     // so set message to empty to avoid double printing
                     e.message = "";
                 }
-                if (e.stack) {
+                if ((e.stack ?? "").length != 0) {
                     console.error(e.stack);
                 }
                 console.log(msgFail);
@@ -495,7 +495,7 @@ export namespace arktest {
          */
         final getFullName(): string {
             let name: string = "";
-            if (this.suite) {
+            if (this.suite != undefined) {
                 name += this.suite!.name + ".";
             }
             return name + this.name;

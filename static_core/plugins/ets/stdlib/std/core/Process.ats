@@ -406,7 +406,7 @@ export namespace StdProcess {
     */
     export function off(type: "unhandledPromiseRejection" | "uncaughtError", listener?: RejectedObjectListener): boolean {
         if (type == string("unhandledJobRejection")) {
-            if (listener) {
+            if (listener != undefined) {
                 failedJobHandler.unregister(listener);
             } else {
                 failedJobHandler.reset();
@@ -414,7 +414,7 @@ export namespace StdProcess {
             return true;
         }
         if (type == "unhandledPromiseRejection") {
-            if (listener) {
+            if (listener != undefined) {
                 rejectedPromiseHandler.unregister(listener);
             } else {
                 rejectedPromiseHandler.reset();

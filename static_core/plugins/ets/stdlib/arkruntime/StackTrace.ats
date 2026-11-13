@@ -32,7 +32,7 @@ export class StackTraceElement {
     private className: String = ""
     private methodName: String = ""
     private sourceFileName: String = ""
-    private lineNumber: int
+    private lineNumber: int = 0
     private colNumber: int = 0
 
     private constructor () {}

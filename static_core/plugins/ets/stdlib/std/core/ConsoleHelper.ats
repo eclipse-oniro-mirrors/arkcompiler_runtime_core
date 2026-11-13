@@ -147,10 +147,10 @@ export class Formatter {
         let baseFunctionStr = '[Function: ' + functionName + ']'
 
         if (full) {
-            let end = delimiter + (inArray || isSub) ? '  ' : '';
+            const end = '  ';
             let length = Formatter.getLength(obj)
             strB.append('{ ' + baseFunctionStr + end +
-                '[length]: ' + (length ? length : 0) + ',' + end +
+                '[length]: ' + length + ',' + end +
                 '[name] :\'' + functionName + '\',' + end +
                 '[prototype]: ' + functionName + ' { [constructor]: [Circular] } }')
         } else {
@@ -161,7 +161,7 @@ export class Formatter {
     }
 
     private static arrayToStringImpl(delimiter: string, arr: Array<Object>, depth: int, full: boolean = false): string {
-        if (!arr.length) {
+        if (arr.length == 0) {
             return ''
         }
 
@@ -196,11 +196,11 @@ export class Formatter {
 
     private static getLength(obj: Object): int {
         let subObj = Formatter.getValue("length", obj)
-        return subObj ? subObj! as int : 0
+        return subObj instanceof int ? subObj as int : 0
     }
 
-    private static getValue(key: string, obj: Object): Any {
-        if (!obj) {
+    private static getValue(key: string, obj: Object | undefined): Any {
+        if (obj == undefined) {
             return null
         }
         let cls = Class.of(obj)

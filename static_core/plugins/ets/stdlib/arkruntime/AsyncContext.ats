@@ -28,8 +28,8 @@ final class AsyncContext {
     private primValues: ValueArray<long> | undefined = undefined;
     private frameOffsets: ValueArray<short> | undefined = undefined;
 
-    private refCount: long;
-    private primCount: long;
+    private refCount: long = 0;
+    private primCount: long = 0;
 
     private awaitId: long = -1;
     private compiledCode: long = -1;

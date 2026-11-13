@@ -955,7 +955,7 @@ export class JSON {
 
         JSON.checkType(type, new Map<Class, TypeColor>())
 
-        let bigIntOpt: int = options ? options.bigIntMode.valueOf() : 0
+        let bigIntOpt: int = options != undefined ? options.bigIntMode.valueOf() : 0
         let jsonValue = UnifiedJsonParser.parseToJSONValue(json)
         const parsingResult = new JSONValueParser(reviver, bigIntOpt).parse(jsonValue, type) as T
 
@@ -1005,7 +1005,7 @@ export class JSON {
         instance: T,
         options?: jsonx.ParseOptions
     ): T {
-        let bigIntOpt: int = options ? options.bigIntMode.valueOf() : 0
+        let bigIntOpt: int = options != undefined ? options.bigIntMode.valueOf() : 0
         const jsonValue = UnifiedJsonParser.parseToJSONValue(json)
         const result = new JSONValueParser(reviver, bigIntOpt).parseInto(jsonValue, instance as object) as T
 
@@ -1279,7 +1279,7 @@ class JSONWriter {
             }
         } else {
             const objClass = Class.ofAny(obj)
-            const message = objClass ? objClass.getName() : 'value has no class metadata'
+            const message = objClass != undefined ? objClass.getName() : 'value has no class metadata'
             throw new TypeError('Unsupported object type: ' + message)
         }
     }
@@ -4412,7 +4412,7 @@ class JSONArray extends JSONValue {
 }
 
 class JSONNumber extends JSONValue {
-    public value: double
+    public value: double = 0
     public bigintValue: bigint = new BigInt()
 
     public override toString(): String {

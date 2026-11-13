@@ -225,7 +225,7 @@ function launchWithArgs<R>(coroFun: Function, args: FixedArray<Any>, launchParam
 }
 
 function launchInternal<R>(coroFun: () => R, launchParams?: LaunchParams): Job<R> {
-  if (launchParams) {
+  if (launchParams != undefined) {
     return launchInternalJobNative<R>(coroFun, launchParams.abortFlag, stub.toValueArray(launchParams.workerGroupId));
   }
   return launchInternalJobNative<R>(coroFun, false, stub.toValueArray(WorkerGroup.ANY_ID));

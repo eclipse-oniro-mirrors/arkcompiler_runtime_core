@@ -191,7 +191,7 @@ export namespace jsonx {
                 return JsonType.JsonNumber
             }
             if (this.maybeBoolValue != undefined) {
-                return this.maybeBoolValue ? JsonType.JsonTrue : JsonType.JsonFalse
+                return this.maybeBoolValue === true ? JsonType.JsonTrue : JsonType.JsonFalse
             }
             return JsonType.JsonUndefined
         }
@@ -945,7 +945,7 @@ export namespace jsonx {
             this.maybeBigIntValue = source.maybeBigIntValue
 
             // Deep copy object values recursively
-            if (source.maybeObjectValues) {
+            if (source.maybeObjectValues != undefined) {
                 this.maybeObjectValues = new Map<string, JsonElement>()
                 source.maybeObjectValues!.forEach((value, key) => {
                     const copiedElement = new JsonElement()
@@ -957,7 +957,7 @@ export namespace jsonx {
             }
 
             // Deep copy array values recursively
-            if (source.maybeArrayValues) {
+            if (source.maybeArrayValues != undefined) {
                 this.maybeArrayValues = Array<JsonElement>()
                 for (const element of source.maybeArrayValues!) {
                     const copiedElement = new JsonElement()

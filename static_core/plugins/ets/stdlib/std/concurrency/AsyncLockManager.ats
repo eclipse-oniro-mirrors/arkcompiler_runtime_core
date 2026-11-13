@@ -238,7 +238,7 @@ export class AbortSignal<T> {
     /**
      * Set to true to abort an operation.
      */
-    public aborted: boolean;
+    public aborted: boolean = false;
 
     /**
      * Reason for the abort. This value will be used to reject the promise returned from lockAsync.

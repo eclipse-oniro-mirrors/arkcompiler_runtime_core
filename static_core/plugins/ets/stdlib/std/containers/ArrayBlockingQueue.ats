@@ -50,7 +50,11 @@ export namespace containers {
             this.array = Array.create<T | undefined>(this.capacitySize, undefined);
             this.mutex = ConcurrencyHelpers.mutexCreate();
             this.condVar = ConcurrencyHelpers.condVarCreate();
-            if (iterable) {
+            this.addInitialElements(iterable);
+        }
+
+        private addInitialElements(iterable: Iterable<T> | undefined): void {
+            if (iterable != undefined) {
                 const entriesIter = iterable.$_iterator();
                 for (let iterRes = entriesIter.next(); !iterRes.done; iterRes = entriesIter.next()) {
                     const val = iterRes.value;

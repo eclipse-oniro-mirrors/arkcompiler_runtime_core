@@ -72,7 +72,7 @@ export class WorkerLocal<T> {
 
         let wrapped: Wrapper<T> | undefined = this.storage.get(workerId);
         if (wrapped === undefined) {
-            if (this.init) {
+            if (this.init != undefined) {
                 let value = this.init!();
                 this.storage.set(workerId, new Wrapper<T>(value));
                 return value;

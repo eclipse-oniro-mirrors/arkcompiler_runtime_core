@@ -17,7 +17,7 @@ package std.interop.js;
 
 // Subtype of Shareable enables reference tracking for ETS objects
 // TODO(ivagin): This is a workaround and should be removed if the future
-class Shareable { private internal_ : long; };
+class Shareable { private internal_ : long = 0; };
 
 export class MimicJSValueIteratableIterator implements IterableIterator<Any> {
     private iterator: Any;
