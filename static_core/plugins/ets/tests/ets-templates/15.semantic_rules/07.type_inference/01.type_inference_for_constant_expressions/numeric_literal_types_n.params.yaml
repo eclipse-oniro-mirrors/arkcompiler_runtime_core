@@ -12,15 +12,34 @@
 # limitations under the License.
 ---
 cases:
-  - { use: "127", value: '128', use_type: ": byte | string", expected_out: "Semantic error ESE0318: Type 'Int' cannot be assigned to type 'Byte|String'" }
-  - { use: "128", value: '127', use_type: ": byte | long", expected_out: "Semantic error ESE101680: Ambiguous value 127, fits into multiple types" }
-  - { use: "1234", value: '127', use_type: ": byte | int", expected_out: "Semantic error ESE101680: Ambiguous value 127, fits into multiple types" }
-  - { use: "32768", value: '127', use_type: ": int | short", expected_out: "Semantic error ESE101680: Ambiguous value 127, fits into multiple types" }
-  - { use: "9223372036854775807", value: '127', use_type: ": int | long", expected_out: "Semantic error ESE101680: Ambiguous value 127, fits into multiple types" }
-  - { use: "9223372036854775807", value: '127', use_type: ": short | long", expected_out: "Semantic error ESE101680: Ambiguous value 127, fits into multiple types" }
-  - { use: "3.4e39", value: '1', use_type: ": float | double", expected_out: "Semantic error ESE0255: Ambiguous union type operation" }
-  - { use: "127", value: '(2147483647).toInt()', use_type: ": short", expected_out: "Semantic error ESE0318: Type 'Int' cannot be assigned to type 'Short'" }
-  - { use: "2147483647", value: '(9223372036854775807).toLong()', use_type: ": int", expected_out: "Semantic error ESE0318: Type 'Long' cannot be assigned to type 'Int'" }
-  - { use: "1", value: '1.0', use_type: ": long", expected_out: "Semantic error ESE0318: Type 'Double' cannot be assigned to type 'Long'" }
-  - { use: "127", value: '128', use_type: ": byte", expected_out: "Semantic error ESE0318: Type 'Int' cannot be assigned to type 'Byte'" }
-  - { use: "123f", value: '3.14', use_type: ": float", expected_out: "Semantic error ESE0318: Type 'Double' cannot be assigned to type 'Float'" }
+- expected_out: 'Semantic error ESE0318: Type ''Int'' cannot be assigned to type ''Byte|String'''
+  use: '127'
+  use_type: ': byte | string'
+  value: '128'
+- expected_out: 'Semantic error ESE0255: Ambiguous union type operation'
+  use: 3.4e39
+  use_type: ': float | double'
+  value: '1'
+- expected_out: 'Semantic error ESE0318: Type ''Int'' cannot be assigned to type ''Short'''
+  use: '127'
+  use_type: ': short'
+  value: (2147483647).toInt()
+- expected_out: 'Semantic error ESE0318: Type ''Long'' cannot be assigned to type
+    ''Int'''
+  use: '2147483647'
+  use_type: ': int'
+  value: (9223372036854775807).toLong()
+- expected_out: 'Semantic error ESE0318: Type ''Double'' cannot be assigned to type
+    ''Long'''
+  use: '1'
+  use_type: ': long'
+  value: '1.0'
+- expected_out: 'Semantic error ESE0318: Type ''Int'' cannot be assigned to type ''Byte'''
+  use: '127'
+  use_type: ': byte'
+  value: '128'
+- expected_out: 'Semantic error ESE0318: Type ''Double'' cannot be assigned to type
+    ''Float'''
+  use: 123f
+  use_type: ': float'
+  value: '3.14'

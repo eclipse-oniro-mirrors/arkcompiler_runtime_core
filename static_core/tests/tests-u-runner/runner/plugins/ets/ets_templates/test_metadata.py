@@ -121,6 +121,13 @@ def get_metadata(path: Path) -> TestMetadata:
     metadata['module'] = metadata['package']
     if metadata['module'] is None:
         metadata['module'] = path.stem
+    from dataclasses import fields
+    valid_fields = {f.name for f in fields(TestMetadata)}
+    dropped_keys = [k for k in metadata if k not in valid_fields]
+    if dropped_keys:
+        _LOGGER.warning("Ignoring unknown metadata keys %s in %s (possible typos, e.g. "
+                        "'expected_err' instead of 'expected_error')", dropped_keys, path)
+    metadata = {k: v for k, v in metadata.items() if k in valid_fields}
     return TestMetadata(**metadata)
 
 

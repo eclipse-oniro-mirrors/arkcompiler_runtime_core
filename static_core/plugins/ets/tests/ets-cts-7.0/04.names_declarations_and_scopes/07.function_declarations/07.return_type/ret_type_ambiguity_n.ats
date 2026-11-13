@@ -16,7 +16,7 @@
 {% for c in cases %}
 /*---
 desc: >-
-    CTE expected for function/method/lambda return type ambiguity
+    CTE expected when return type union has no subtype match and no unique widening target
 tags: [compile-only, negative]
 ---*/
 

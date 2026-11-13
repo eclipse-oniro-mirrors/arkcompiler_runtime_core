@@ -90,8 +90,8 @@ cases:
 
     - type: byte|string
       values:
-          - { key: 0, val: 0 }
-          - { key: 0, val: 55 }
+          - { key: "0 as byte", val: "0 as byte" }
+          - { key: "0 as byte", val: "55 as byte" }
           - { key: Byte.MIN_VALUE, val: Byte.MIN_VALUE }
           - { key: Byte.MIN_VALUE, val: Byte.MAX_VALUE }
           - { key: Byte.MAX_VALUE, val: Byte.MAX_VALUE }
@@ -105,8 +105,8 @@ cases:
 
     - type: short|string
       values:
-          - { key: 0, val: 0 }
-          - { key: 0, val: 55 }
+          - { key: "0 as short", val: "0 as short" }
+          - { key: "0 as short", val: "55 as short" }
           - { key: Short.MIN_VALUE, val: Short.MIN_VALUE }
           - { key: Short.MIN_VALUE, val: Short.MAX_VALUE }
           - { key: Short.MAX_VALUE, val: Short.MAX_VALUE }

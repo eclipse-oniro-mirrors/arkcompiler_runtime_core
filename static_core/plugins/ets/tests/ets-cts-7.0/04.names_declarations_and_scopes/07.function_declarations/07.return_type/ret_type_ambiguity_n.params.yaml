@@ -14,38 +14,38 @@
 ---
 cases:
   - decl: |-
-      function foo(): byte|long {
+      function foo(): byte|short {
         return 127
       }
 
   - decl: |-
       class C {
-        foo(): byte|long {
+        foo(): byte|short {
           return 127
         }
       }
 
   - decl: |-
       class C {
-        static foo(): byte|long {
+        static foo(): byte|short {
           return 127
         }
       }
 
   - decl: |-
       abstract class C {
-        foo(): byte|long {
+        foo(): byte|short {
           return 127
         }
       }
 
   - decl: |-
         interface I {
-          foo(): byte|long {
+          foo(): byte|short {
             return 127
           }
         }
         class C implements I {} 
 
   - decl: |-
-      let foo = (): int|long => { return 1 }
+      let foo = (): long|double => { return 1 }

@@ -46,6 +46,12 @@ cases:
   - { use: "-2147483649", use_type: ": long", expected_type: long }
   - { use: "-0x7FFF_FFFF_FFFF_FFFF", use_type: ": long", expected_type: long }
   - { use: "-32767", use_type: ": short", expected_type: short }
+  # union type: default inferred type is a union member
+  - { use: "127", use_type: ": byte | short | int", expected_type: int }
+  - { use: "127", use_type: ": short | int | long", expected_type: int }
+  - { use: "127", use_type: ": int | long", expected_type: int }
+  - { use: "1023", use_type: ": short | int", expected_type: int }
+  - { use: "2000000", use_type: ": int | long", expected_type: int }
   # union type valid narrowing
   - { use: "256", use_type: ": byte | int", expected_type: int }
   - { use: "32768", use_type: ": short | int", expected_type: int }

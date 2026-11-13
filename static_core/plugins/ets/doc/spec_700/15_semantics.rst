@@ -1649,6 +1649,12 @@ literal type is determined by the following rules:
    via *widening numeric conversion* (see :ref:`Widening Numeric
    Conversions`), then ``N``:sub:`i` is the inferred type;
 
+#. **Rule Optional-Narrowing:** Otherwise, if the union consists of exactly
+   one numeric type ``N``:sub:`i` and the type ``undefined``, and the literal
+   is an integer literal whose *default inferred type* is ``int`` and whose
+   value fits into the range of ``N``:sub:`i` (where ``N``:sub:`i` is
+   ``byte`` or ``short``), then ``N``:sub:`i` is the inferred type;
+
 #. **Rule Ambiguous-Widening:** Otherwise, if several numeric types in the
    union are reachable from the *default inferred type* via *widening
    numeric conversion*, a :index:`compile-time error` occurs due to type
@@ -1660,10 +1666,15 @@ literal type is determined by the following rules:
 .. note::
    Unlike *Case 1*, fitting an integer value or a floating-point value
    into the range of a smaller numeric type is **not** considered for
-   union target types. Only *Rule Subtype-Matching*, *Rule Unique-Widening*,
+   union target types, with the sole exception of *Rule
+   Optional-Narrowing*, which handles the optional-numeric cases
+   ``byte | undefined`` and ``short | undefined``. Only *Rule
+   Subtype-Matching*, *Rule Unique-Widening*, *Rule Optional-Narrowing*,
    and *Rule Ambiguous-Widening* are considered. Non-numeric union members
    (such as ``Object``) participate in the subtype check of
-   *Rule Subtype-Matching* but are not candidates for the widening rules.
+   *Rule Subtype-Matching* but are not candidates for the widening rules;
+   the type ``undefined`` additionally enables *Rule Optional-Narrowing*
+   when it is the only non-numeric member of the union.
    For example, an integer literal ``1`` with *default inferred type*
    ``int`` can be assigned to ``byte | Object`` because ``int`` is a
    subtype of ``Object`` (*Rule Subtype-Matching*), but cannot be assigned
@@ -1718,6 +1729,20 @@ Type inference for a union target type is represented in the examples below:
                                       numeric conversion from 'long' to 'byte'
                                       or 'int' exists
                                    */
+
+    let m: byte | undefined = 12 /* inferred type is 'byte': the union consists of
+                                    the single numeric member 'byte' and 'undefined',
+                                    and the value fits into the 'byte' range
+                                    (Rule Optional-Narrowing)
+                                 */
+    let n: short | undefined = 12 // inferred type is 'short' (Rule Optional-Narrowing)
+
+    let o: byte | undefined = 128 /* Compile-time error: the value does not fit into
+                                     the 'byte' range, so Rule Optional-Narrowing
+                                     does not apply, and no other rule matches
+                                  */
+
+    let p: int | undefined = 12 // inferred type is 'int' (Rule Subtype-Matching)
 
 .. index::
    numeric type

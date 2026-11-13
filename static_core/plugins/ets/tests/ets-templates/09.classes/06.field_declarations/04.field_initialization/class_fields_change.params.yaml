@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Huawei Device Co., Ltd.
+# Copyright (c) 2025-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,13 +20,13 @@ cases:
       - {check_type: "int",
         base_value: "4", new_value: "5"}
       - {check_type: "byte",
-        base_value: "4", new_value: "5"}
+        base_value: "4", new_value: "5 as byte"}
       - {check_type: "short",
-        base_value: "4", new_value: "5"}
+        base_value: "4", new_value: "5 as short"}
       - {check_type: "double",
-        base_value: "4", new_value: "7.3"}
+        base_value: "4 as short", new_value: "7.3"}
       - {check_type: "number",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "float",
         base_value: "4.5f", new_value: "7.3f"}
       - {check_type: "bigint",
@@ -38,13 +38,13 @@ cases:
       - {check_type: "boolean",
         base_value: "false", new_value: "true"}
       - {check_type: "Object",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "Object | undefined",
         base_value: "undefined", new_value: "5"}
       - {check_type: "Object | undefined | null",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "Any",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
     decl_variants:
       - |-
         class A {
@@ -73,17 +73,17 @@ cases:
       Checking for changing the value from outside of class.
     check_variants:
       - {check_type: "long",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "int",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "byte",
-        base_value: "4", new_value: "5"}
+        base_value: "4", new_value: "5 as byte"}
       - {check_type: "short",
-        base_value: "4", new_value: "5"}
+        base_value: "4", new_value: "5 as short"}
       - {check_type: "double",
-        base_value: "4", new_value: "7.3"}
+        base_value: "4 as short", new_value: "7.3"}
       - {check_type: "number",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "float",
         base_value: "4.5f", new_value: "7.3f"}
       - {check_type: "bigint",
@@ -95,13 +95,13 @@ cases:
       - {check_type: "boolean",
         base_value: "false", new_value: "true"}
       - {check_type: "Object",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "Object | undefined",
         base_value: "undefined", new_value: "5"}
       - {check_type: "Object | undefined | null",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "Any",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
     decl_variants:
       - |-
         class A {
@@ -130,17 +130,17 @@ cases:
       Checking for changing the value from function call.
     check_variants:
       - {check_type: "long",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "int",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "byte",
-        base_value: "4", new_value: "5"}
+        base_value: "4", new_value: "5 as byte"}
       - {check_type: "short",
-        base_value: "4", new_value: "5"}
+        base_value: "4", new_value: "5 as short"}
       - {check_type: "double",
-        base_value: "4", new_value: "7.3"}
+        base_value: "4 as short", new_value: "7.3"}
       - {check_type: "number",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "float",
         base_value: "4.5f", new_value: "7.3f"}
       - {check_type: "bigint",
@@ -152,13 +152,13 @@ cases:
       - {check_type: "boolean",
         base_value: "false", new_value: "true"}
       - {check_type: "Object",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "Object | undefined",
         base_value: "undefined", new_value: "5"}
       - {check_type: "Object | undefined | null",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "Any",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
     decl_variants:
       - |-
         class A {
@@ -182,17 +182,17 @@ cases:
         with object captured by lambda.
     check_variants:
       - {check_type: "long",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "int",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "byte",
-        base_value: "4", new_value: "5"}
+        base_value: "4", new_value: "5 as byte"}
       - {check_type: "short",
-        base_value: "4", new_value: "5"}
+        base_value: "4", new_value: "5 as short"}
       - {check_type: "double",
-        base_value: "4", new_value: "7.3"}
+        base_value: "4 as short", new_value: "7.3"}
       - {check_type: "number",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "float",
         base_value: "4.5f", new_value: "7.3f"}
       - {check_type: "bigint",
@@ -204,13 +204,13 @@ cases:
       - {check_type: "boolean",
         base_value: "false", new_value: "true"}
       - {check_type: "Object",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "Object | undefined",
         base_value: "undefined", new_value: "5"}
       - {check_type: "Object | undefined | null",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "Any",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
     decl_variants:
       - |-
         class A {
@@ -311,17 +311,17 @@ cases:
         with subtype usage.
     check_variants:
       - {check_type: "long",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "int",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "byte",
-        base_value: "4", new_value: "5"}
+        base_value: "4", new_value: "5 as byte"}
       - {check_type: "short",
-        base_value: "4", new_value: "5"}
+        base_value: "4", new_value: "5 as short"}
       - {check_type: "double",
-        base_value: "4", new_value: "7.3"}
+        base_value: "4 as short", new_value: "7.3"}
       - {check_type: "number",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "float",
         base_value: "4.5f", new_value: "7.3f"}
       - {check_type: "bigint",
@@ -333,13 +333,13 @@ cases:
       - {check_type: "boolean",
         base_value: "false", new_value: "true"}
       - {check_type: "Object",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "Object | undefined",
         base_value: "undefined", new_value: "5"}
       - {check_type: "Object | undefined | null",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "Any",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
     decl_variants:
       - |-
         class Base {
@@ -378,17 +378,17 @@ cases:
       Checking for changing field by setter.
     check_variants:
       - {check_type: "long",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "int",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "byte",
-        base_value: "4", new_value: "5"}
+        base_value: "4", new_value: "5 as byte"}
       - {check_type: "short",
-        base_value: "4", new_value: "5"}
+        base_value: "4", new_value: "5 as short"}
       - {check_type: "double",
-        base_value: "4", new_value: "7.3"}
+        base_value: "4 as short", new_value: "7.3"}
       - {check_type: "number",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "float",
         base_value: "4.5f", new_value: "7.3f"}
       - {check_type: "bigint",
@@ -400,13 +400,13 @@ cases:
       - {check_type: "boolean",
         base_value: "false", new_value: "true"}
       - {check_type: "Object",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "Object | undefined",
         base_value: "undefined", new_value: "5"}
       - {check_type: "Object | undefined | null",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "Any",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
     decl_variants:
       - |-
         class A {
@@ -452,8 +452,8 @@ cases:
     check_variants:
       - {check_type: "long", new_value: "5"}
       - {check_type: "int", new_value: "5"}
-      - {check_type: "byte", new_value: "5"}
-      - {check_type: "short", new_value: "5"}
+      - {check_type: "byte", new_value: "5 as byte"}
+      - {check_type: "short", new_value: "5 as short"}
       - {check_type: "double", new_value: "7.3"}
       - {check_type: "number", new_value: "5"}
       - {check_type: "float", new_value: "7.3f"}
@@ -490,17 +490,17 @@ cases:
     async: true
     check_variants:
       - {check_type: "long",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "int",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "byte",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as byte", new_value: "5 as byte"}
       - {check_type: "short",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5 as short"}
       - {check_type: "double",
-        base_value: "4", new_value: "7.3"}
+        base_value: "4 as short", new_value: "7.3"}
       - {check_type: "number",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "float",
         base_value: "4.5f", new_value: "7.3f"}
       - {check_type: "bigint",
@@ -512,13 +512,13 @@ cases:
       - {check_type: "boolean",
         base_value: "false", new_value: "true"}
       - {check_type: "Object",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "Object | undefined",
         base_value: "undefined", new_value: "5"}
       - {check_type: "Object | undefined | null",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "Any",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
     decl_variants:
       - |-
         class A {
@@ -547,17 +547,17 @@ cases:
       Checking for changing the value with asynchronous API usage.
     check_variants:
       - {check_type: "long",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "int",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "byte",
-        base_value: "4", new_value: "5"}
+        base_value: "4", new_value: "5 as byte"}
       - {check_type: "short",
-        base_value: "4", new_value: "5"}
+        base_value: "4", new_value: "5 as short"}
       - {check_type: "double",
-        base_value: "4", new_value: "7.3"}
+        base_value: "4 as short", new_value: "7.3"}
       - {check_type: "number",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "float",
         base_value: "4.5f", new_value: "7.3f"}
       - {check_type: "bigint",
@@ -569,13 +569,13 @@ cases:
       - {check_type: "boolean",
         base_value: "false", new_value: "true"}
       - {check_type: "Object",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "Object | undefined",
         base_value: "undefined", new_value: "5"}
       - {check_type: "Object | undefined | null",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "Any",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
     decl_variants:
       - |-
         class A {
@@ -606,17 +606,17 @@ cases:
         Checking for changing the value with asynchronous API usage.
     check_variants:
       - {check_type: "long",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "int",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "byte",
-        base_value: "4", new_value: "5"}
+        base_value: "4", new_value: "5 as byte"}
       - {check_type: "short",
-        base_value: "4", new_value: "5"}
+        base_value: "4", new_value: "5 as short"}
       - {check_type: "double",
-        base_value: "4", new_value: "7.3"}
+        base_value: "4 as short", new_value: "7.3"}
       - {check_type: "number",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "float",
         base_value: "4.5f", new_value: "7.3f"}
       - {check_type: "bigint",
@@ -628,13 +628,13 @@ cases:
       - {check_type: "boolean",
         base_value: "false", new_value: "true"}
       - {check_type: "Object",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "Object | undefined",
         base_value: "undefined", new_value: "5"}
       - {check_type: "Object | undefined | null",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "Any",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
     decl_variants:
       - |-
         class A {
@@ -672,17 +672,17 @@ cases:
       Checking for changing the value from outside of generic class.
     check_variants:
       - {check_type: "long",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "int",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "byte",
-        base_value: "4", new_value: "5"}
+        base_value: "4", new_value: "5 as byte"}
       - {check_type: "short",
-        base_value: "4", new_value: "5"}
+        base_value: "4", new_value: "5 as short"}
       - {check_type: "double",
-        base_value: "4", new_value: "7.3"}
+        base_value: "4 as short", new_value: "7.3"}
       - {check_type: "number",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "float",
         base_value: "4.5f", new_value: "7.3f"}
       - {check_type: "bigint",
@@ -694,13 +694,13 @@ cases:
       - {check_type: "boolean",
         base_value: "false", new_value: "true"}
       - {check_type: "Object",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "Object | undefined",
         base_value: "undefined", new_value: "5"}
       - {check_type: "Object | undefined | null",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
       - {check_type: "Any",
-        base_value: "4", new_value: "5"}
+        base_value: "4 as short", new_value: "5"}
     decl_variants:
       - |-
         class A<T> {

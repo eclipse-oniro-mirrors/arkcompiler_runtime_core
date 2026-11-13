@@ -387,7 +387,7 @@ cases:
         }
       }
     logic: |-
-      let value: short | string = 1;
+      let value: short | string = 1 as short;
       arktest.assertEQ(unitedSwitch(value),'short case triggered');
   - desc: The bigint and string types match.
     decl: |-
@@ -447,5 +447,5 @@ cases:
         }
       }
     logic: |-
-      let value: byte | string = 123;
+      let value: byte | string = 123 as byte;
       arktest.assertEQ(unitedSwitch(value),'byte case triggered');
