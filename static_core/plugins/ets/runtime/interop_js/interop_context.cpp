@@ -515,7 +515,10 @@ InteropCtx::InteropCtx(EtsExecutionContext *executionCtx, napi_env env, bool isJ
 InteropCtx::~InteropCtx()
 {
     etsClassWrappersCache_.EnumerateWrappers([this](ets_proxy::EtsClassWrapper *wrapper) { wrapper->Destroy(jsEnv_); });
-    Refstor()->Remove(jsvalueFregistryRef_);
+    // jsvalueFregistryRef_ may be null if InitJsValueFinalizationRegistry returned early
+    if (jsvalueFregistryRef_ != nullptr) {
+        Refstor()->Remove(jsvalueFregistryRef_);
+    }
 }
 
 std::shared_ptr<void> InteropCtx::TryAcquireSharedEtsVmState()
@@ -545,6 +548,11 @@ void InteropCtx::InitJsValueFinalizationRegistry(EtsExecutionContext *executionC
         PlatformTypes(executionCtx)
             ->interopJSRuntime->GetStaticMethod("createFinalizationRegistry", ":Lstd/core/FinalizationRegistry;");
     ASSERT(method != nullptr);
+    if (executionCtx->GetMT()->HasPendingException()) {
+        INTEROP_LOG(ERROR) << "InitJsValueFinalizationRegistry: pending exception before Invoke, registry is not "
+                              "initialized";
+        return;
+    }
     Value res;
     if (executionCtx->GetMT()->IsManagedCode()) {
         res = method->GetPandaMethod()->Invoke(executionCtx->GetMT(), nullptr);
@@ -566,6 +574,11 @@ void InteropCtx::InitJsValueFinalizationRegistry(EtsExecutionContext *executionC
 
 bool InteropCtx::PushOntoFinalizationRegistry(EtsExecutionContext *executionCtx, EtsObject *obj, EtsObject *cbarg)
 {
+    // The registry may be not initialized when InitJsValueFinalizationRegistry returned early
+    if ((jsvalueFregistryRef_ == nullptr) || (jsvalueFregistryRegister_ == nullptr)) {
+        INTEROP_LOG(DEBUG) << "PushOntoFinalizationRegistry: finalization registry is not initialized, skip register";
+        return false;
+    }
     auto queue = Refstor()->Get(jsvalueFregistryRef_);
     std::array<Value, 4U> args = {Value(queue), Value(obj->GetCoreType()), Value(cbarg->GetCoreType()),
                                   Value(static_cast<ObjectHeader *>(nullptr))};
