@@ -171,7 +171,9 @@ JSValue *JSRuntimeGetNullIntrinsic()
 
 JSValue *JSRuntimeGetGlobalIntrinsic()
 {
-    return JSRuntimeGetGlobal();
+    auto *executionCtx = EtsExecutionContext::GetCurrent();
+    EtsHandleScope s(executionCtx);
+    return JSRuntimeGetGlobal().GetPtr();
 }
 
 JSValue *JSRuntimeCreateObjectIntrinsic()

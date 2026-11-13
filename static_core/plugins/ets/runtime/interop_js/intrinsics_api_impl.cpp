@@ -24,6 +24,7 @@
 #include "plugins/ets/runtime/interop_js/call/call.h"
 #include "plugins/ets/runtime/interop_js/js_convert.h"
 #include "plugins/ets/runtime/interop_js/js_value.h"
+#include "plugins/ets/runtime/ets_handle.h"
 #include "plugins/ets/runtime/interop_js/interop_common.h"
 #include "plugins/ets/runtime/interop_js/interop_context.h"
 #include "plugins/ets/runtime/interop_js/intrinsics_api_impl.h"
@@ -70,13 +71,13 @@ using ark::mem::TaggedType;
            StringStartWith(url, PREFIX_PACKAGE) || (url[0] != '@');
 }
 
-[[maybe_unused]] static JSValue *LoadJSModule(const PandaString &moduleName, const PandaString &abcFilePath)
+[[maybe_unused]] static EtsHandle<JSValue> LoadJSModule(const PandaString &moduleName, const PandaString &abcFilePath)
 {
     auto executionCtx = EtsExecutionContext::GetCurrent();
     auto ctx = InteropCtx::Current(executionCtx);
     if (ctx == nullptr) {
         ThrowNoInteropContextException();
-        return nullptr;
+        return EtsHandle<JSValue>();
     }
     INTEROP_CODE_SCOPE_ETS_TO_JS(executionCtx);
     auto env = ctx->GetJSEnv();
@@ -89,7 +90,7 @@ using ark::mem::TaggedType;
         if (status != napi_ok) {
             INTEROP_LOG(ERROR) << "Unable to load module " << moduleName.c_str() << " due to Forward Exception";
             ctx->ForwardJSException(executionCtx);
-            return nullptr;
+            return EtsHandle<JSValue>();
         }
     }
     if (IsUndefined(env, result) || result == nullptr) {
@@ -97,9 +98,9 @@ using ark::mem::TaggedType;
         PandaString exp = PandaString("Unable to load module ") + moduleName.c_str() + " due to Undefined result";
         INTEROP_LOG(ERROR) << exp;
         InteropCtx::ThrowETSError(executionCtx, exp.c_str());
-        return nullptr;
+        return EtsHandle<JSValue>();
     }
-    return JSValue::CreateRefValue(executionCtx, ctx, result, napi_object);
+    return EtsHandle<JSValue>(executionCtx, JSValue::CreateRefValue(executionCtx, ctx, result, napi_object));
 }
 
 void JSRuntimeFinalizationRegistryCallback(EtsObject *cbarg)
@@ -343,13 +344,13 @@ JSValue *JSRuntimeGetNull()
     return JSValue::CreateNull(executionCtx, ctx);
 }
 
-JSValue *JSRuntimeGetGlobal()
+EtsHandle<JSValue> JSRuntimeGetGlobal()
 {
     auto executionCtx = EtsExecutionContext::GetCurrent();
     auto ctx = InteropCtx::Current(executionCtx);
     if (ctx == nullptr) {
         ThrowNoInteropContextException();
-        return nullptr;
+        return EtsHandle<JSValue>();
     }
     INTEROP_CODE_SCOPE_ETS_TO_JS(executionCtx);
     auto env = ctx->GetJSEnv();
@@ -360,7 +361,7 @@ JSValue *JSRuntimeGetGlobal()
         ScopedNativeCodeThread nativeScope(executionCtx->GetMT());
         global = GetGlobal(env);
     }
-    return JSValue::CreateRefValue(executionCtx, ctx, global, napi_object);
+    return EtsHandle<JSValue>(executionCtx, JSValue::CreateRefValue(executionCtx, ctx, global, napi_object));
 }
 
 JSValue *JSRuntimeCreateObject()
@@ -624,6 +625,7 @@ JSValue *JSRuntimeLoadModule(EtsString *module, [[maybe_unused]] EtsString *abcF
         ThrowNoInteropContextException();
         return nullptr;
     }
+    EtsHandleScope scope(executionCtx);
     INTEROP_CODE_SCOPE_ETS_TO_JS(executionCtx);
     auto env = ctx->GetJSEnv();
     NapiEscapableScope jsHandleScope(env);
@@ -632,7 +634,7 @@ JSValue *JSRuntimeLoadModule(EtsString *module, [[maybe_unused]] EtsString *abcF
 #if defined(PANDA_TARGET_OHOS) || defined(PANDA_JS_ETS_HYBRID_MODE)
     if (NotNativeOhmUrl(moduleName)) {
         PandaString abcFilePathStr = (abcFilePath != nullptr) ? abcFilePath->GetMutf8() : PandaString("");
-        return LoadJSModule(moduleName, abcFilePathStr);
+        return LoadJSModule(moduleName, abcFilePathStr).GetPtr();
     }
 #endif
     auto [mod, func] = ResolveModuleName(moduleName);
@@ -751,13 +753,18 @@ static std::pair<EtsString *, EtsString *> GetOhmurlAndCallerABCPath(EtsString *
         return {moduleName, nullptr};
     }
 
+    EtsHandleScope scope(executionCtx);
+    EtsHandle<EtsString> moduleNameHandle(executionCtx, moduleName);
+
     std::string rawPath = GetCallerPandaFilePath();
     EtsString *abcPath = BuildCallerABCPath(rawPath);
+    EtsHandle<EtsString> abcPathHandle(executionCtx, abcPath);
+
     PandaString callerModuleName = GetCallerModuleName(rawPath);
     Class *klassEtsglobal = GetEtsGlobalClass(callerModuleName, bundleName, interopCtx);
     if (klassEtsglobal == nullptr) {
         INTEROP_LOG(WARNING) << "Failed to get ETS global class, using moduleName for loading.";
-        return {moduleName, abcPath};
+        return {moduleNameHandle.GetPtr(), abcPathHandle.GetPtr()};
     }
 
     EtsClassLinker *etsClassLinker = executionCtx->GetPandaVM()->GetClassLinker();
@@ -775,13 +782,13 @@ static std::pair<EtsString *, EtsString *> GetOhmurlAndCallerABCPath(EtsString *
             INTEROP_LOG(ERROR) << "Field 'map_ohmurl' is not a reference type, expected Map";
         }
     }
-    EtsString *ohmurl = GetMapValueByKey(ohmurlMapObj, moduleName, executionCtx);
+    EtsString *ohmurl = GetMapValueByKey(ohmurlMapObj, moduleNameHandle.GetPtr(), executionCtx);
     if (ohmurl == nullptr) {
-        INTEROP_LOG(ERROR) << "Ohmurl not found in ohmurl map with key: " << moduleName->GetMutf8();
-        ohmurl = moduleName;
+        INTEROP_LOG(ERROR) << "Ohmurl not found in ohmurl map with key: " << moduleNameHandle->GetMutf8();
+        ohmurl = moduleNameHandle.GetPtr();
     }
 
-    return {ohmurl, abcPath};
+    return {ohmurl, abcPathHandle.GetPtr()};
 }
 
 JSValue *JSRuntimeLoadModuleWithBundleName(EtsString *module, EtsString *bundleName)
