@@ -19,9 +19,11 @@
 #include "assembly-function.h"
 #include "assembly-record.h"
 #include "libpandafile/literal_data_accessor.h"
+#include "libpandabase/utils/workerQueue.h"
 #include "utils/logger.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <map>
 #include <set>
 #include <unordered_map>
@@ -36,6 +38,15 @@ struct ImportInfo {
     std::string sourceRecord;
     std::string localName;
     uint16_t reqIdx {0};
+    /*
+     * Cached verdict of the one-shot import-cycle analysis
+     * (AnalyzeImportCycles): true when this import is provably acyclic (and
+     * not polluted by a lazy re-export on the chain), so the throw guarding
+     * its slot is removable without any per-throw graph walk. Defaults to
+     * false (cyclic — keep the throw) so every import the analysis did not
+     * explicitly clear stays conservative.
+     */
+    bool acyclic {false};
 };
 /*
  * Per-module import information used by the cross-module hole-check elimination.
@@ -149,8 +160,8 @@ bool RecordSource(const std::vector<std::string> &requests, std::set<std::string
  * (`import "./mod"`) which carry a ModuleRequest but no regular-import entry.
  * Recording all requests here (not only the ones referenced by import/re-export
  * entries) ensures cyclic-via-side-effect-import graphs are seen as cyclic;
- * otherwise IsImportAcyclic traverses an empty source set and wrongly returns
- * acyclic, and Rule 1 removes a TDZ throw that must fire.
+ * otherwise the cycle analysis traverses an empty source set and wrongly
+ * returns acyclic, and Rule 1 removes a TDZ throw that must fire.
  */
 bool ParseRequests(const LiteralArray &arr, size_t *i, std::vector<std::string> *requests,
                    std::set<std::string> *sources)
@@ -506,13 +517,36 @@ static bool CheckLazyReexport(const std::set<uint16_t> &reexportReqIdxs, const L
     return false;
 }
 
+/*
+ * Module names resolved in one program while collecting imports. Used for the
+ * single-module fallback attribution: when exactly one module literal
+ * resolves, unmangled function names belong to that record (see
+ * EliminateCrossModuleHoleChecks). Collected during the import scan so the
+ * caller does not re-enumerate every record field a second time.
+ */
+struct ProgramModuleNames {
+    size_t count {0U};
+    std::string last;
+};
+
 // Collect import edges from every module record of the program. The phase
 // literal (if present) records which module requests are lazy imports.
-void CollectProgramImports(const Program &prog, ImportGraph *graph)
+void CollectProgramImports(const Program &prog, ImportGraph *graph, ProgramModuleNames *moduleNames)
 {
     bool hasSharedPhaseRecord = prog.record_table.find("_ModuleRequestPhaseRecord") != prog.record_table.end();
-    ForEachModuleLiteral(prog, [graph, hasSharedPhaseRecord](const std::string &moduleName, const LiteralArray &literal,
-                                                             const LiteralArray *phaseLiteral) {
+    ForEachModuleLiteral(prog, [&graph, moduleNames, hasSharedPhaseRecord](const std::string &moduleName,
+                                                                           const LiteralArray &literal,
+                                                                           const LiteralArray *phaseLiteral) {
+        /*
+         * Count `moduleName` BEFORE parsing: the single-module fallback counts
+         * every resolvable module literal, including ones whose layout fails
+         * to parse. A program with one parseable and one malformed module
+         * must NOT attribute its unmangled functions to the parseable module
+         * — the malformed module's unrecognized layout has to stay
+         * conservative (fallback disabled, throws kept).
+         */
+        ++moduleNames->count;
+        moduleNames->last = moduleName;
         std::vector<std::string> requests;
         std::map<uint32_t, ImportInfo> imports;
         std::set<std::string> sources;
@@ -542,48 +576,255 @@ bool IsSdkRecord(const std::string &recordName)
 }
 
 /*
- * An import is cyclic iff the source record transitively imports back from
- * the importing record, by ANY edge kind (regular/namespace import, indirect
- * re-export, or star export). Every record on the chain must be present in
- * the graph; anything unknown is treated as cyclic (conservative) — EXCEPT
- * SDK records (identified by the @ohos: / @system: / @hms prefix), which are
- * guaranteed to never import back into project source, so a chain that
- * reaches an absent SDK record is acyclic on that branch.
+ * An import record -> source is cyclic iff the source record transitively
+ * imports back to the importing record, by ANY edge kind (regular/namespace
+ * import, indirect re-export, or star export); iff any module on the chain
+ * might re-export a lazy-imported binding (a lazy re-export does not trigger
+ * module loading, so the binding may still be hole even in an acyclic chain);
+ * or iff any record on the chain is absent from the graph (unknown is
+ * conservative) — EXCEPT SDK records (@ohos: / @system: / @hms), which are
+ * pre-compiled system modules that never import back into project source.
  *
- * Additionally, if any module on the chain might re-export a lazy-imported
- * binding (hasReexport && hasLazyLoad), the import is treated as cyclic:
- * a lazy re-export does not trigger module loading, so the binding may still
- * be hole even in an acyclic chain.
+ * AnalyzeImportCycles answers those three questions for the WHOLE graph in
+ * one O(V + E) pass and caches the verdict per import edge, instead of
+ * re-running a graph DFS for every throw (the previous IsImportAcyclic, which
+ * cost O(#throws * (V + E)) with log-factor set/map operations):
+ *   * "source reaches back to record": every parsed import adds the edge
+ *     record -> source to the importer's `sources`, so this holds iff record
+ *     and source are in the same strongly connected component (Tarjan);
+ *   * "chain contains a lazy-reexport module" and "chain reaches an absent
+ *     non-SDK record": pure forward-reachability properties of the source
+ *     node, precomputed by one backward propagation over reverse edges each;
+ *   * a source itself absent from the compilation is resolved at cache-fill
+ *     time (SDK -> acyclic, anything else -> conservative cyclic).
  */
-bool IsImportAcyclic(const ImportGraph &graph, const std::string &record, const ImportInfo &import)
+/*
+ * Id-indexed view of the import graph used by the cycle analysis: forward and
+ * reverse adjacency over in-graph nodes, plus two per-node cyclic-verdict
+ * seeds — `reachesUnknownSource` marks a node importing a record absent from
+ * the compilation (SDK terminals are proven acyclic and dropped), and
+ * `reachesLazy` marks a node that might re-export a lazily imported binding.
+ */
+struct ImportGraphView {
+    std::unordered_map<std::string, uint32_t> nodeIds;
+    std::vector<std::vector<uint32_t>> succs;
+    std::vector<std::vector<uint32_t>> preds;
+    std::vector<uint8_t> reachesUnknownSource;
+    std::vector<uint8_t> reachesLazy;
+};
+
+ImportGraphView BuildGraphView(const ImportGraph &graph)
 {
-    std::vector<std::string> stack {import.sourceRecord};
-    std::set<std::string> visited;
-    while (!stack.empty()) {
-        auto cur = stack.back();
-        stack.pop_back();
-        if (cur == record) {
-            return false;  // source transitively imports back -> cycle
+    const size_t nodeCount = graph.size();
+    ImportGraphView view;
+    view.nodeIds.reserve(nodeCount);
+    uint32_t nextId = 0U;
+    for (const auto &[name, node] : graph) {
+        view.nodeIds.emplace(name, nextId++);
+    }
+    view.succs.resize(nodeCount);
+    view.preds.resize(nodeCount);
+    view.reachesUnknownSource.assign(nodeCount, 0U);
+    view.reachesLazy.assign(nodeCount, 0U);
+    for (const auto &[name, node] : graph) {
+        uint32_t u = view.nodeIds.find(name)->second;
+        if (node.mightReexportLazy) {
+            view.reachesLazy[u] = 1U;
         }
-        if (!visited.insert(cur).second) {
-            continue;
-        }
-        auto it = graph.find(cur);
-        if (it == graph.end()) {
-            if (IsSdkRecord(cur)) {
-                continue;  // SDK record absent from compilation -> cannot cycle back
+        for (const auto &src : node.sources) {
+            auto it = view.nodeIds.find(src);
+            if (it != view.nodeIds.end()) {
+                view.succs[u].push_back(it->second);
+                view.preds[it->second].push_back(u);
+            } else if (!IsSdkRecord(src)) {
+                view.reachesUnknownSource[u] = 1U;
             }
-            return false;  // non-SDK record not in this compilation -> cannot rule out a cycle
-        }
-        if (it->second.mightReexportLazy) {
-            return false;  // module might re-export a lazy binding -> binding may be hole
-        }
-        for (const auto &src : it->second.sources) {
-            stack.push_back(src);
         }
     }
-    return true;
+    return view;
 }
+
+constexpr uint32_t NO_NODE_ID = UINT32_MAX;
+
+/*
+ * Iterative Tarjan SCC over the id-indexed graph. compId is equal for two
+ * nodes exactly when each can reach the other — which is the "imports back"
+ * question the cycle verdict needs.
+ */
+class TarjanSCC {
+public:
+    explicit TarjanSCC(const std::vector<std::vector<uint32_t>> &succs) : succs_(succs) {}
+
+    std::vector<uint32_t> Run()
+    {
+        const size_t nodeCount = succs_.size();
+        compId_.assign(nodeCount, NO_NODE_ID);
+        index_.assign(nodeCount, NO_NODE_ID);
+        low_.assign(nodeCount, 0U);
+        onStack_.assign(nodeCount, 0U);
+        stack_.reserve(nodeCount);
+        for (uint32_t root = 0U; root < nodeCount; ++root) {
+            if (index_[root] != NO_NODE_ID) {
+                continue;
+            }
+            Start(root);
+            while (!frames_.empty()) {
+                Step();
+            }
+        }
+        return compId_;
+    }
+
+private:
+    void Start(uint32_t root)
+    {
+        index_[root] = low_[root] = counter_++;
+        stack_.push_back(root);
+        onStack_[root] = 1U;
+        frames_.emplace_back(root, 0U);
+    }
+
+    // Explores v's next child: push it when unvisited, else fold its index
+    // into v's low link when it still sits on the Tarjan stack.
+    void Visit(uint32_t w)
+    {
+        if (index_[w] != NO_NODE_ID) {
+            if (onStack_[w] != 0U) {
+                uint32_t v = frames_.back().first;
+                low_[v] = std::min(low_[v], index_[w]);
+            }
+            return;
+        }
+        index_[w] = low_[w] = counter_++;
+        stack_.push_back(w);
+        onStack_[w] = 1U;
+        frames_.emplace_back(w, 0U);
+    }
+
+    // Advances v's current frame; finishes v (and its component) when all
+    // children are explored.
+    void Step()
+    {
+        uint32_t v = frames_.back().first;
+        size_t ci = frames_.back().second;
+        if (ci < succs_[v].size()) {
+            frames_.back().second = ci + 1U;
+            Visit(succs_[v][ci]);
+            return;
+        }
+        Finish(v);
+    }
+
+    void Finish(uint32_t v)
+    {
+        if (low_[v] == index_[v]) {
+            compCounter_ = PopComponent(v, compCounter_);
+        }
+        frames_.pop_back();
+        if (!frames_.empty()) {
+            uint32_t parent = frames_.back().first;
+            low_[parent] = std::min(low_[parent], low_[v]);
+        }
+    }
+
+    /*
+     * Pops the finished component rooted at `root` off the Tarjan stack and
+     * assigns it `comp`; returns the next free component id. `root` is always
+     * present on the stack (it was pushed when discovered), so the loop
+     * terminates at the latest on `root` itself.
+     */
+    uint32_t PopComponent(uint32_t root, uint32_t comp)
+    {
+        /*
+         * root is guaranteed to be on the stack here: vertices leave the
+         * stack only via this call (which also assigns their component), and
+         * a non-root vertex is never popped before its own Finish — its low
+         * link folds in the on-stack SCC root, so low_ != index_ there.
+         */
+        ASSERT(!stack_.empty());
+        uint32_t w = 0U;
+        do {
+            w = stack_.back();
+            stack_.pop_back();
+            onStack_[w] = 0U;
+            compId_[w] = comp;
+        } while (w != root);
+        return comp + 1U;
+    }
+
+    const std::vector<std::vector<uint32_t>> &succs_;
+    std::vector<uint32_t> compId_;
+    std::vector<uint32_t> index_;
+    std::vector<uint32_t> low_;
+    std::vector<uint8_t> onStack_;
+    std::vector<uint32_t> stack_;
+    std::vector<std::pair<uint32_t, size_t>> frames_;  // (node, next child index)
+    uint32_t counter_ {0U};
+    uint32_t compCounter_ {0U};
+};
+
+/*
+ * Backward reachability over reverse edges: a node is flagged when it
+ * forward-reaches any flagged node, so after one pass the flag marks exactly
+ * the nodes whose import chain hits the offending property (a lazy-reexport
+ * module, or an absent non-SDK record).
+ */
+void BackwardPropagate(const std::vector<std::vector<uint32_t>> &preds, std::vector<uint8_t> *flag)
+{
+    std::vector<uint32_t> stack;
+    const size_t nodeCount = preds.size();
+    for (uint32_t u = 0U; u < nodeCount; ++u) {
+        if ((*flag)[u] != 0U) {
+            stack.push_back(u);
+        }
+    }
+    while (!stack.empty()) {
+        uint32_t u = stack.back();
+        stack.pop_back();
+        for (uint32_t p : preds[u]) {
+            if ((*flag)[p] == 0U) {
+                (*flag)[p] = 1U;
+                stack.push_back(p);
+            }
+        }
+    }
+}
+
+/*
+ * Cache the verdict per import edge: acyclic iff the source cannot reach back
+ * to the importer (different SCC), its chain contains no lazy-reexport module
+ * and reaches no absent non-SDK record. A source absent from the compilation
+ * is resolved directly (SDK -> acyclic, anything else -> conservative cyclic).
+ * IsThrowRemovable then answers in O(1).
+ */
+void CacheVerdicts(ImportGraph *graph, const ImportGraphView &view, const std::vector<uint32_t> &compId)
+{
+    for (auto &[name, node] : *graph) {
+        uint32_t ru = view.nodeIds.find(name)->second;
+        for (auto &slotInfo : node.imports) {
+            ImportInfo &info = slotInfo.second;
+            auto it = view.nodeIds.find(info.sourceRecord);
+            if (it == view.nodeIds.end()) {
+                info.acyclic = IsSdkRecord(info.sourceRecord);
+                continue;
+            }
+            uint32_t su = it->second;
+            info.acyclic =
+                compId[su] != compId[ru] && view.reachesLazy[su] == 0U && view.reachesUnknownSource[su] == 0U;
+        }
+    }
+}
+
+void AnalyzeImportCycles(ImportGraph *graph)
+{
+    ImportGraphView view = BuildGraphView(*graph);
+    TarjanSCC tarjan(view.succs);
+    std::vector<uint32_t> compId = tarjan.Run();
+    BackwardPropagate(view.preds, &view.reachesLazy);
+    BackwardPropagate(view.preds, &view.reachesUnknownSource);
+    CacheVerdicts(graph, view, compId);
+}
+
 bool IsExternalLoad(const Ins &ins)
 {
     return ins.GetOpcode() == Opcode::LDEXTERNALMODULEVAR || ins.GetOpcode() == Opcode::WIDE_LDEXTERNALMODULEVAR;
@@ -596,26 +837,77 @@ bool OverwritesAccWithoutRead(const Ins &ins)
     return !ins.IsLabel() && ins.HasFlag(InstFlags::ACC_WRITE) && !ins.HasFlag(InstFlags::ACC_READ);
 }
 
+constexpr uint32_t TRIE_ROOT = 0U;
+
 /*
  * The record a function belongs to: the longest module-record name that is a
  * name prefix followed by '.' (mangled names keep "record." as the prefix).
  * Single-record programs (plain single-file compiles) emit unmangled names;
- * `fallback` covers those.
+ * the caller covers those with a `fallback` pointer.
+ *
+ * A trie over the graph's record names makes each query linear in the
+ * function name's length and independent of the module count — the previous
+ * implementation rescanned the whole graph with a prefix compare per record
+ * for EVERY function, i.e. O(#functions * #modules * name-length), which
+ * dominates on large merge-abc inputs where both counts are in the thousands.
  */
-const std::string *OwnerRecord(const std::string &funcName, const ImportGraph &graph, const std::string *fallback)
-{
-    const std::string *best = nullptr;
-    for (const auto &[recName, imports] : graph) {
-        (void)imports;
-        if (funcName.size() > recName.size() + 1U && funcName.compare(0, recName.size(), recName) == 0 &&
-            funcName[recName.size()] == '.') {
-            if (best == nullptr || recName.size() > best->size()) {
-                best = &recName;
-            }
+class OwnerRecordResolver {
+public:
+    explicit OwnerRecordResolver(const ImportGraph &graph) : nodes_(1U)
+    {
+        for (const auto &[recName, imports] : graph) {
+            (void)imports;
+            Insert(recName);
         }
     }
-    return (best != nullptr) ? best : fallback;
-}
+
+    /*
+     * Longest record name that is a prefix of `funcName`, followed by '.' with
+     * at least one further character (`funcName.size() > len + 1`, matching
+     * the previous linear scan). nullptr when nothing matches.
+     */
+    const std::string *Resolve(const std::string &funcName) const
+    {
+        const std::string *best = nullptr;
+        uint32_t cur = TRIE_ROOT;
+        for (size_t i = 0U; i < funcName.size(); ++i) {
+            auto it = nodes_[cur].children.find(funcName[i]);
+            if (it == nodes_[cur].children.end()) {
+                break;
+            }
+            cur = it->second;
+            if (nodes_[cur].owner != nullptr && funcName.size() > i + 2U && funcName[i + 1U] == '.') {
+                best = nodes_[cur].owner;  // walking forward: later matches are longer
+            }
+        }
+        return best;
+    }
+
+private:
+    struct Node {
+        std::unordered_map<char, uint32_t> children;
+        const std::string *owner {nullptr};
+    };
+
+    void Insert(const std::string &recName)
+    {
+        uint32_t cur = TRIE_ROOT;
+        for (char c : recName) {
+            auto it = nodes_[cur].children.find(c);
+            if (it != nodes_[cur].children.end()) {
+                cur = it->second;
+                continue;
+            }
+            uint32_t next = static_cast<uint32_t>(nodes_.size());
+            nodes_.emplace_back();
+            nodes_[cur].children.emplace(c, next);  // re-indexed: emplace_back may reallocate nodes_
+            cur = next;
+        }
+        nodes_[cur].owner = &recName;  // the graph key outlives the resolver
+    }
+
+    std::vector<Node> nodes_;
+};
 
 /*
  * --- Must-definition dataflow over the linear ins sequence ---
@@ -660,24 +952,49 @@ struct FlowState {
     }
 };
 
+// ldexternalmodulevar: the acc origin becomes the loaded external slot (or
+// unknown when the immediate does not carry a slot index).
+void TransferExternalLoad(const Ins &ins, FlowState *state)
+{
+    auto imms = ins.Imms();
+    if (!imms.empty() && std::holds_alternative<int64_t>(imms[0U])) {
+        state->acc = ValueOrigin {true, static_cast<uint32_t>(std::get<int64_t>(imms[0U]))};
+    } else {
+        state->acc = UNKNOWN_ORIGIN;
+    }
+}
+
+// lda: the acc origin becomes the source register's origin (or unknown when
+// that register holds no tracked origin).
+void TransferLda(const Ins &ins, FlowState *state)
+{
+    auto regs = ins.Regs();
+    if (!regs.empty()) {
+        auto it = state->regs.find(regs[0U]);
+        state->acc = (it != state->regs.end()) ? it->second : UNKNOWN_ORIGIN;
+    } else {
+        state->acc = UNKNOWN_ORIGIN;
+    }
+}
+
 /*
  * Instruction transfer. Only the register-defining instructions of the ES
  * subset are modeled (sta/mov); every other acc-writing instruction sets the
- * acc origin to unknown, which is the conservative lattice bottom.
+ * acc origin to unknown, which is the conservative lattice bottom. The
+ * external-load and lda cases are extracted to keep this switch within the
+ * function-size limit.
+ *
+ * Regs()/Imms() are virtual and return vectors BY VALUE (one heap allocation
+ * each), and this runs per instruction per dataflow iteration — so operands
+ * are fetched lazily, only in the branches that need them. The default branch
+ * (the vast majority of opcodes) performs no allocation at all.
  */
 void TransferIns(const Ins &ins, FlowState &state)
 {
-    auto opcode = ins.GetOpcode();
-    auto regs = ins.Regs();
-    auto imms = ins.Imms();
-    switch (opcode) {
+    switch (ins.GetOpcode()) {
         case Opcode::LDEXTERNALMODULEVAR:
         case Opcode::WIDE_LDEXTERNALMODULEVAR:
-            if (!imms.empty() && std::holds_alternative<int64_t>(imms[0U])) {
-                state.acc = ValueOrigin {true, static_cast<uint32_t>(std::get<int64_t>(imms[0U]))};
-            } else {
-                state.acc = UNKNOWN_ORIGIN;
-            }
+            TransferExternalLoad(ins, &state);
             return;
         case Opcode::THROW_UNDEFINEDIFHOLEWITHNAME:
             /*
@@ -690,23 +1007,22 @@ void TransferIns(const Ins &ins, FlowState &state)
             }
             return;
         case Opcode::LDA:
-            if (!regs.empty()) {
-                auto it = state.regs.find(regs[0U]);
-                state.acc = (it != state.regs.end()) ? it->second : UNKNOWN_ORIGIN;
-            } else {
-                state.acc = UNKNOWN_ORIGIN;
-            }
+            TransferLda(ins, &state);
             return;
-        case Opcode::STA:
+        case Opcode::STA: {
+            auto regs = ins.Regs();
             if (!regs.empty()) {
                 state.regs[regs[0U]] = state.acc;  // acc passes through unchanged
             }
             return;
-        case Opcode::MOV:
+        }
+        case Opcode::MOV: {
+            auto regs = ins.Regs();
             if (!regs.empty()) {
                 state.regs[regs[0U]] = UNKNOWN_ORIGIN;  // parameter copy, not a load
             }
             return;
+        }
         default:
             break;
     }
@@ -851,61 +1167,58 @@ private:
     bool conservative_ {false};
 };
 
-// Must-join of predecessor OUT states: fields that agree on every incoming
-// path keep their value, everything else degrades to unknown.
-FlowState JoinStates(const std::vector<FlowState> &states)
+/*
+ * Must-join of one predecessor OUT state into `state`: fields that agree on
+ * every incoming path keep their value, everything else degrades to unknown.
+ * Intersects in place — the previous implementation first deep-copied every
+ * predecessor's OUT (each carrying an unordered_map/set) into a temporary
+ * vector, which dominated the dataflow's allocation cost.
+ */
+void IntersectMustState(FlowState *state, const FlowState &other)
 {
-    FlowState joined = states[0U];
-    for (size_t i = 1U; i < states.size(); ++i) {
-        const auto &other = states[i];
-        if (joined.acc != other.acc) {
-            joined.acc = UNKNOWN_ORIGIN;
-        }
-        for (auto it = joined.regs.begin(); it != joined.regs.end();) {
-            if (other.regs.find(it->first) == other.regs.end() || !(other.regs.at(it->first) == it->second)) {
-                it = joined.regs.erase(it);
-            } else {
-                ++it;
-            }
-        }
-        // Registers known only in `other` are not must-known.
-        for (auto it = joined.proven.begin(); it != joined.proven.end();) {
-            if (other.proven.find(*it) == other.proven.end()) {
-                it = joined.proven.erase(it);
-            } else {
-                ++it;
-            }
+    if (state->acc != other.acc) {
+        state->acc = UNKNOWN_ORIGIN;
+    }
+    for (auto it = state->regs.begin(); it != state->regs.end();) {
+        auto o = other.regs.find(it->first);
+        if (o == other.regs.end() || !(o->second == it->second)) {
+            it = state->regs.erase(it);
+        } else {
+            ++it;
         }
     }
-    return joined;
+    // Registers known only in `other` are not must-known.
+    for (auto it = state->proven.begin(); it != state->proven.end();) {
+        if (other.proven.find(*it) == other.proven.end()) {
+            it = state->proven.erase(it);
+        } else {
+            ++it;
+        }
+    }
 }
 
 FlowState ComputeBlockIn(const BasicBlock &bb, const std::vector<BasicBlock> &blocks)
 {
-    if (bb.catchEntry || bb.preds.empty()) {
+    /*
+     * The entry's first iteration has no prior throw executed; the fresh-start
+     * state joins as an all-unknown identity (it erases every known origin and
+     * proven slot), so the entry block IN is always empty — a back-edge into
+     * the entry (e.g. a top-level do-while whose loop head IS the entry) cannot
+     * pollute `proven` with a throw that only executed on later iterations —
+     * otherwise Rule T removes a TDZ throw that must fire.
+     */
+    if (bb.catchEntry || bb.preds.empty() || bb.isEntry) {
         return FlowState {};
     }
-    std::vector<FlowState> outs;
-    outs.reserve(bb.preds.size() + (bb.isEntry ? 1U : 0U));
-    /*
-     * The entry's first iteration has no prior throw executed; model a fresh-start
-     * pred so a back-edge into the entry (e.g. a top-level do-while whose loop
-     * head IS the entry) cannot pollute `proven` with a throw that only executed
-     * on later iterations — otherwise Rule T removes a TDZ throw that must fire.
-     */
-    if (bb.isEntry) {
-        outs.push_back(FlowState {});
+    FlowState in = blocks[bb.preds[0U]].out;
+    for (size_t j = 1U; j < bb.preds.size(); ++j) {
+        IntersectMustState(&in, blocks[bb.preds[j]].out);
     }
-    for (auto p : bb.preds) {
-        outs.push_back(blocks[p].out);
-    }
-    return JoinStates(outs);
+    return in;
 }
 
 struct ThrowCheckCtx {
     const std::map<uint32_t, ImportInfo> &imports;
-    const ImportGraph &graph;
-    const std::string &recordName;
     const FlowState &cur;
 };
 
@@ -915,39 +1228,71 @@ bool IsThrowRemovable(uint32_t slot, const Ins &ins, const ThrowCheckCtx &ctx)
         return false;
     }
     auto it = ctx.imports.find(slot);
-    bool acyclic = it != ctx.imports.end() && it->second.localName == ins.Ids()[0U] &&
-                   IsImportAcyclic(ctx.graph, ctx.recordName, it->second);
+    // Acyclicity was precomputed per import edge by AnalyzeImportCycles; the
+    // per-throw check is a cached-flag read, not a graph walk.
+    bool acyclic = it != ctx.imports.end() && it->second.localName == ins.Ids()[0U] && it->second.acyclic;
     return acyclic || ctx.cur.proven.count(slot) != 0U;
 }
 
+/*
+ * Enqueues `bb`'s non-empty successors after `bb`'s OUT changed, so their
+ * IN/OUT states get recomputed on the next worklist pass.
+ */
+void EnqueueSuccessors(const BasicBlock &bb, const std::vector<BasicBlock> &blocks, std::vector<uint8_t> *queued,
+                       std::vector<size_t> *worklist)
+{
+    for (auto s : bb.succs) {
+        if ((*queued)[s] == 0U && blocks[s].begin != blocks[s].end) {
+            (*queued)[s] = 1U;
+            worklist->push_back(s);
+        }
+    }
+}
+
+/*
+ * Forward must-dataflow to fixpoint. A worklist replaces the previous
+ * round-robin sweep: a block is re-evaluated only when a predecessor's OUT
+ * changed (or on the initial seeding). The queue is FIFO — blocks drain in
+ * program order, so a straight-line chain of N blocks settles in ~2N
+ * transfers instead of the quadratic re-solving a LIFO order causes on such
+ * chains. The transfer and join functions are monotone, so the reached
+ * fixpoint is the same one the round-robin iteration computed.
+ */
 void SolveDataflow(std::vector<BasicBlock> &blocks, const Function &func)
 {
-    bool changed = true;
-    while (changed) {
-        changed = false;
-        for (size_t b = 0; b < blocks.size(); ++b) {
-            auto &bb = blocks[b];
-            if (bb.begin == bb.end) {
-                continue;
-            }
-            FlowState in = ComputeBlockIn(bb, blocks);
-            FlowState out = in;
-            for (size_t i = bb.begin; i < bb.end; ++i) {
-                TransferIns(*func.ins[i], out);
-            }
-            if (!(in == bb.in) || !(out == bb.out) || !bb.outValid) {
-                bb.in = std::move(in);
-                bb.out = std::move(out);
-                bb.outValid = true;
-                changed = true;
-            }
+    std::vector<uint8_t> queued(blocks.size(), 0U);
+    std::vector<size_t> worklist;
+    worklist.reserve(blocks.size());
+    for (size_t b = 0U; b < blocks.size(); ++b) {
+        if (blocks[b].begin == blocks[b].end) {
+            continue;
+        }
+        queued[b] = 1U;
+        worklist.push_back(b);
+    }
+    size_t head = 0U;
+    while (head < worklist.size()) {
+        const size_t b = worklist[head];
+        ++head;
+        queued[b] = 0U;
+        auto &bb = blocks[b];
+        FlowState in = ComputeBlockIn(bb, blocks);
+        FlowState out = in;
+        for (size_t i = bb.begin; i < bb.end; ++i) {
+            TransferIns(*func.ins[i], out);
+        }
+        if (!(in == bb.in) || !(out == bb.out) || !bb.outValid) {
+            bb.in = std::move(in);
+            bb.out = std::move(out);
+            bb.outValid = true;
+            // Only successors depend on this block's OUT.
+            EnqueueSuccessors(bb, blocks, &queued, &worklist);
         }
     }
 }
 
 std::vector<size_t> FindRemovableThrows(const std::vector<BasicBlock> &blocks, const Function &func,
-                                        const std::string &recordName, const std::map<uint32_t, ImportInfo> &imports,
-                                        const ImportGraph &graph)
+                                        const std::map<uint32_t, ImportInfo> &imports)
 {
     std::vector<size_t> toRemove;
     for (const auto &bb : blocks) {
@@ -958,7 +1303,7 @@ std::vector<size_t> FindRemovableThrows(const std::vector<BasicBlock> &blocks, c
         for (size_t i = bb.begin; i < bb.end; ++i) {
             const auto &ins = func.ins[i];
             bool isThrow = ins->GetOpcode() == Opcode::THROW_UNDEFINEDIFHOLEWITHNAME && cur.acc.known;
-            if (isThrow && IsThrowRemovable(cur.acc.slot, *ins, {imports, graph, recordName, cur})) {
+            if (isThrow && IsThrowRemovable(cur.acc.slot, *ins, {imports, cur})) {
                 toRemove.push_back(i);
             }
             TransferIns(*ins, cur);
@@ -967,58 +1312,61 @@ std::vector<size_t> FindRemovableThrows(const std::vector<BasicBlock> &blocks, c
     return toRemove;
 }
 
-void RemoveDeadLoads(Function &func, const std::vector<size_t> &toRemove)
+/*
+ * Marks instructions for removal in `removed`: every throw in `toRemove`,
+ * plus each throw's feeding `ldexternalmodulevar` when the next surviving
+ * instruction overwrites acc without reading it (or the function ends) — the
+ * load result is dead once the throw is gone.
+ */
+void MarkRemovedLoads(Function &func, const std::vector<size_t> &toRemove, std::vector<bool> *removed)
 {
-    if (toRemove.empty()) {
-        return;
-    }
-    std::vector<bool> removed(func.ins.size(), false);
     for (auto idx : toRemove) {
-        removed[idx] = true;
+        (*removed)[idx] = true;
     }
     for (auto idx : toRemove) {
         auto prev = static_cast<std::ptrdiff_t>(idx) - 1;
-        while (prev >= 0 && removed[static_cast<size_t>(prev)]) {
+        while (prev >= 0 && (*removed)[static_cast<size_t>(prev)]) {
             --prev;
         }
         if (prev < 0 || !IsExternalLoad(*func.ins[static_cast<size_t>(prev)])) {
             continue;
         }
         size_t next = idx + 1U;
-        while (next < func.ins.size() && removed[next]) {
+        while (next < func.ins.size() && (*removed)[next]) {
             ++next;
         }
         if (next >= func.ins.size() || OverwritesAccWithoutRead(*func.ins[next])) {
-            removed[static_cast<size_t>(prev)] = true;
+            (*removed)[static_cast<size_t>(prev)] = true;
             LOG(DEBUG, ASSEMBLER) << "EliminateCrossModuleHoleChecks removes dead external load in " << func.name;
         }
     }
-    /*
-     * Build old-to-new instruction index mapping so that local_variable_debug
-     * entries (whose start/length reference instruction positions) stay valid
-     * after instructions are erased below.
-     */
+}
+
+/*
+ * Compacts func.ins in a single forward pass (the previous back-to-front
+ * erase loop shifted the tail once per removal) and records the old-to-new
+ * instruction index mapping so local_variable_debug entries — whose
+ * start/length reference instruction positions — stay valid after compaction.
+ * Without the remap, stale insn_order values can exceed ins.size() and cause
+ * out-of-bounds access in BuildLineNumberProgram (assembly-emitter.cpp).
+ */
+void CompactIns(Function &func, const std::vector<bool> &removed)
+{
     const size_t old_size = func.ins.size();
-    std::vector<size_t> old_to_new(old_size + 1);
+    std::vector<size_t> old_to_new(old_size + 1U);
     size_t new_idx = 0;
     for (size_t i = 0; i < old_size; ++i) {
         old_to_new[i] = new_idx;
-        if (!removed[i]) {
-            ++new_idx;
+        if (removed[i]) {
+            continue;
         }
+        if (new_idx != i) {
+            func.ins[new_idx] = std::move(func.ins[i]);
+        }
+        ++new_idx;
     }
     old_to_new[old_size] = new_idx;
-    for (size_t i = func.ins.size(); i-- > 0U;) {
-        if (removed[i]) {
-            func.ins.erase(func.ins.begin() + static_cast<std::ptrdiff_t>(i));
-        }
-    }
-    /*
-     * Update local_variable_debug to reflect the new instruction indices after
-     * erasure. Without this, stale insn_order values in CollectLocalVariable
-     * can exceed ins.size() and cause out-of-bounds access in
-     * BuildLineNumberProgram (assembly-emitter.cpp).
-     */
+    func.ins.resize(new_idx);
     for (auto &v : func.local_variable_debug) {
         size_t old_start = std::min(static_cast<size_t>(v.start), old_size);
         size_t old_end = std::min(static_cast<size_t>(v.start) + static_cast<size_t>(v.length), old_size);
@@ -1027,8 +1375,17 @@ void RemoveDeadLoads(Function &func, const std::vector<size_t> &toRemove)
     }
 }
 
-void EliminateInFunction(Function &func, const std::string &recordName, const std::map<uint32_t, ImportInfo> &imports,
-                         const ImportGraph &graph)
+void RemoveDeadLoads(Function &func, const std::vector<size_t> &toRemove)
+{
+    if (toRemove.empty()) {
+        return;
+    }
+    std::vector<bool> removed(func.ins.size(), false);
+    MarkRemovedLoads(func, toRemove, &removed);
+    CompactIns(func, removed);
+}
+
+void EliminateInFunction(Function &func, const std::map<uint32_t, ImportInfo> &imports)
 {
     CfgBuilder builder(func);
     if (builder.Conservative()) {
@@ -1036,51 +1393,125 @@ void EliminateInFunction(Function &func, const std::string &recordName, const st
     }
     auto &blocks = builder.Blocks();
     SolveDataflow(blocks, func);
-    auto toRemove = FindRemovableThrows(blocks, func, recordName, imports, graph);
+    auto toRemove = FindRemovableThrows(blocks, func, imports);
     if (toRemove.empty()) {
         return;
     }
     RemoveDeadLoads(func, toRemove);
 }
 
+/*
+ * Per-function elimination task. Everything the task reads — the import
+ * graph, its cached cycle verdicts, the owner trie — is frozen read-only
+ * input by the time tasks are dispatched, and the only thing a task mutates
+ * is its own Function object, so concurrent tasks share no mutable state.
+ */
+struct EliminateTask {
+    Function *func {nullptr};
+    const std::map<uint32_t, ImportInfo> *imports {nullptr};
+};
+
+class EliminateFunctionJob : public panda::WorkerJob {
+public:
+    EliminateFunctionJob(Function &func, const std::map<uint32_t, ImportInfo> &imports) : func_(func), imports_(imports)
+    {
+    }
+    NO_COPY_SEMANTIC(EliminateFunctionJob);
+    NO_MOVE_SEMANTIC(EliminateFunctionJob);
+    ~EliminateFunctionJob() override = default;
+
+    bool Run() override
+    {
+        EliminateInFunction(func_, imports_);
+        return true;
+    }
+
+private:
+    Function &func_;
+    const std::map<uint32_t, ImportInfo> &imports_;
+};
+
+class EliminateFunctionsQueue : public panda::WorkerQueue {
+public:
+    EliminateFunctionsQueue(size_t threadCount, const std::vector<EliminateTask> &tasks)
+        : WorkerQueue(threadCount), tasks_(tasks)
+    {
+    }
+    NO_COPY_SEMANTIC(EliminateFunctionsQueue);
+    NO_MOVE_SEMANTIC(EliminateFunctionsQueue);
+    ~EliminateFunctionsQueue() override = default;
+
+    void Schedule() override
+    {
+        ASSERT(jobsCount_ == 0U);
+        std::unique_lock<std::mutex> lock(m_);
+        jobs_.reserve(tasks_.size());
+        for (const auto &task : tasks_) {
+            jobs_.push_back(new EliminateFunctionJob(*task.func, *task.imports));
+            ++jobsCount_;
+        }
+        lock.unlock();
+        jobsAvailable_.notify_all();
+    }
+
+private:
+    const std::vector<EliminateTask> &tasks_;
+};
+
 }  // namespace
 
-void EliminateCrossModuleHoleChecks(const std::vector<Program *> &progs)
+void EliminateCrossModuleHoleChecks(const std::vector<Program *> &progs, size_t threadCount)
 {
     ImportGraph graph;
-    for (auto *prog : progs) {
-        CollectProgramImports(*prog, &graph);
+    std::vector<ProgramModuleNames> progModules(progs.size());
+    for (size_t idx = 0U; idx < progs.size(); ++idx) {
+        CollectProgramImports(*progs[idx], &graph, &progModules[idx]);
     }
     if (graph.empty()) {
         return;
     }
-    for (auto *prog : progs) {
+    // One-shot O(V + E) cycle analysis; verdicts are cached per import edge.
+    AnalyzeImportCycles(&graph);
+    OwnerRecordResolver resolver(graph);
+    /*
+     * Materialize the per-function tasks. From this point on the graph-side
+     * data is read-only, and each task's writes are confined to its own
+     * Function — worker threads cannot interfere with each other, and the
+     * result does not depend on the scheduling order.
+     */
+    std::vector<EliminateTask> tasks;
+    for (size_t idx = 0U; idx < progs.size(); ++idx) {
+        auto *prog = progs[idx];
         // Single-module programs (plain single-file compiles) emit unmangled
         // function names; those belong to the program's only module record.
-        std::string fallbackName;
-        size_t ownModules = 0U;
-        // clang-format off
-        ForEachModuleLiteral(*prog,
-            [&fallbackName, &ownModules](const std::string &moduleName, const LiteralArray &literal,
-                                          const LiteralArray *phaseLiteral) {
-                (void)literal;
-                (void)phaseLiteral;
-                ++ownModules;
-                fallbackName = moduleName;
-            });
-        // clang-format on
-        const std::string *fallback = (ownModules == 1U) ? &fallbackName : nullptr;
+        const std::string *fallback = (progModules[idx].count == 1U) ? &progModules[idx].last : nullptr;
         for (auto &[name, func] : prog->function_table) {
-            auto *record = OwnerRecord(name, graph, fallback);
+            auto *record = resolver.Resolve(name);
+            if (record == nullptr) {
+                record = fallback;
+            }
             if (record == nullptr) {
                 continue;
             }
             auto it = graph.find(*record);
             if (it != graph.end()) {
-                EliminateInFunction(func, *record, it->second.imports, graph);
+                tasks.push_back({&func, &it->second.imports});
             }
         }
     }
+    if (tasks.empty()) {
+        return;
+    }
+    if (threadCount <= 1U) {
+        for (const auto &task : tasks) {
+            EliminateInFunction(*task.func, *task.imports);
+        }
+        return;
+    }
+    EliminateFunctionsQueue queue(threadCount, tasks);
+    queue.Schedule();
+    queue.Consume();
+    queue.Wait();
 }
 
 }  // namespace panda::pandasm

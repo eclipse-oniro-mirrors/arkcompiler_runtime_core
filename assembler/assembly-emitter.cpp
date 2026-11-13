@@ -1538,7 +1538,7 @@ bool AsmEmitter::EmitPrograms(const std::string &filename, const std::vector<Pro
     // items so the merged abc carries one LiteralArrayItem per unique content. Only in release mode —
     // debug builds keep all arrays for faithful round-trip disassembly.
     if (!emitterConfig.isDebug) {
-        EliminateCrossModuleHoleChecks(progs);
+        EliminateCrossModuleHoleChecks(progs, emitterConfig.fileThreadCount);
         DeduplicateLiteralArrays(progs);
     }
     {
