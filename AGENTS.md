@@ -46,6 +46,7 @@ Before planning or editing, classify the task and read the matching documents.
 - `assembler/`      -> read `assembler/AGENTS.md`
 - `disassembler/`   -> read `disassembler/AGENTS.md`
 - `bytecode_optimizer/` -> read `bytecode_optimizer/AGENTS.md`
+- `bytecode_explorer/` -> read `bytecode_explorer/AGENTS.md`
 - `libpandabase/`   -> read `libpandabase/AGENTS.md`
 - `libpandafile/`   -> read `libpandafile/AGENTS.md`
 - `abc2program/`    -> read `abc2program/AGENTS.md`

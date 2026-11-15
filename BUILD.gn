@@ -24,6 +24,15 @@ group("arkcompiler_params") {
   deps = [ "libpandafile:arkcompiler_params" ]
 }
 
+group("ark_bytecode_explorer_tests") {
+  testonly = true
+  deps = [ "$ark_root/bytecode_explorer:ark_bytecode_explorer_testsAction" ]
+}
+
+group("ark_bytecode_explorer") {
+  deps = [ "$ark_root/bytecode_explorer:ark_bytecode_explorer(${host_toolchain})" ]
+}
+
 group("ark_device_packages") {
   deps = [ "$ark_root/verifier:libarkverifier" ]
 }
@@ -45,6 +54,7 @@ group("ark_host_linux_tools_packages") {
     deps = [
       "$ark_root/abc2program:abc2prog(${host_toolchain})",
       "$ark_root/ark_guard:ark_guard(${host_toolchain})",
+      "$ark_root/bytecode_explorer:ark_bytecode_explorer(${host_toolchain})",
       "$ark_root/disassembler:ark_disasm(${host_toolchain})",
       "$ark_root/libabckit:abckit_packages(${host_toolchain})",
       "$ark_root/libpandabase:libarkbase(${host_toolchain})",

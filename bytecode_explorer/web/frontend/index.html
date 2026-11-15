@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ark Bytecode Explorer</title>
+    <link rel="stylesheet" href="/assets/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div class="brand-copy">
+          <div class="brand-title">ARK BYTECODE EXPLORER</div>
+          <div class="brand-subtitle">Dynamic ArkTS · offline workbench</div>
+        </div>
+        <div class="topbar-spacer"></div>
+        <button class="file-chip" id="file-chip" type="button" disabled aria-label="Open another ABC file"
+                data-tip="Open another ABC file"><span class="file-dot"></span><span id="file-name">Opening ABC…</span></button>
+        <button class="theme-toggle" id="theme-toggle" type="button"
+                aria-label="Switch color theme, current: Dark"
+                data-tip="Color theme: Dark — click to switch"><span class="theme-dot"></span><span id="theme-label">Dark</span></button>
+        <div class="offline-chip">LOCAL ONLY</div>
+      </header>
+
+      <main class="workbench" id="workbench">
+        <div class="landing-state hidden" id="landing-state">
+          <div class="landing-card">
+            <div class="empty-glyph">⌁</div>
+            <h2>Open an ABC bytecode file</h2>
+            <p>Pick an ArkTS bytecode file from this machine, or reopen a recent one. The file never leaves your device.</p>
+            <button class="landing-open" id="landing-open" type="button">OPEN ABC FILE…</button>
+            <div class="landing-recent-label">RECENTLY OPENED</div>
+            <div class="landing-recent" id="landing-recent"></div>
+          </div>
+        </div>
+
+        <aside class="structure-panel workbench-panel" id="structure-panel"
+               data-workbench-panel data-panel-id="structure-panel">
+          <div class="panel-heading">
+            <div>
+              <div class="eyebrow">DOCUMENT</div>
+              <h1>Structure</h1>
+            </div>
+            <div class="panel-heading-actions">
+              <div class="node-count" id="node-count">—</div>
+              <button class="panel-maximize" type="button" data-panel-maximize="structure-panel">MAXIMIZE</button>
+            </div>
+          </div>
+          <div class="tree-toolbar">
+            <label class="search-box">
+              <span aria-hidden="true">⌕</span>
+              <input id="tree-search" type="search" placeholder="Filter declarations" autocomplete="off">
+            </label>
+            <button class="tree-sort" id="tree-sort" type="button" aria-label="Tree sort order" disabled
+                    data-tip="Computing module sizes">File order</button>
+          </div>
+          <div class="tree-legend"><span>Semantic hierarchy</span><span>ABC backing retained</span></div>
+          <div class="tree" id="structure-tree" role="tree" aria-label="ABC structure"></div>
+        </aside>
+
+        <div class="workbench-separator workbench-separator-column" data-workbench-separator="structure"
+             role="separator" tabindex="0" aria-label="Resize Structure panel" aria-orientation="vertical"
+             aria-valuemin="220" aria-valuemax="700"></div>
+
+        <div class="workbench-stack workbench-center">
+          <section class="workbench-pane workbench-panel" id="disassembly-panel"
+                   data-workbench-panel data-panel-id="disassembly-panel">
+            <div class="workbench-pane-titlebar">
+              <span>DISASSEMBLY</span>
+              <button class="panel-maximize" type="button" data-panel-maximize="disassembly-panel">MAXIMIZE</button>
+            </div>
+          <div class="content-toolbar">
+            <div class="breadcrumb" id="breadcrumb"><span>ABC</span><i>›</i><strong>Select a declaration</strong></div>
+          </div>
+
+          <div class="empty-state" id="empty-state">
+            <div class="empty-glyph">⌁</div>
+            <h2>Select a function or method</h2>
+            <p>The right side will show bytecode decoded by the existing C++ disassembler.</p>
+          </div>
+
+          <div class="detail-view hidden" id="detail-view">
+            <section class="function-hero">
+              <div>
+                <div class="entity-kicker" id="entity-kicker">METHOD · STATIC</div>
+                <h2 id="function-name">create</h2>
+                <div class="internal-name" id="internal-name"></div>
+              </div>
+              <div class="origin-badge" id="origin-badge">RECONSTRUCTED</div>
+            </section>
+
+            <section class="metric-grid" id="metrics"></section>
+
+            <section class="table-card">
+              <div class="table-heading">
+                <div>
+                  <div class="eyebrow">DECODED CODE</div>
+                  <h3>Instructions <span id="instruction-count"></span></h3>
+                </div>
+                <div class="table-hint">Click a row to inspect typed operands</div>
+              </div>
+              <div class="instruction-scroll">
+                <table>
+                  <thead><tr><th data-tip="Offset inside this function's bytecode" aria-label="PC: offset inside this function's bytecode">PC</th><th data-tip="Physical instruction bytes in the ABC" aria-label="Bytes: physical instruction bytes in the ABC">Bytes</th><th data-tip="Decoded Ark bytecode operation" aria-label="Mnemonic: decoded Ark bytecode operation">Mnemonic</th><th data-tip="Registers, immediates and resolved IDs" aria-label="Operands: registers, immediates and resolved IDs">Operands</th><th></th></tr></thead>
+                  <tbody id="instruction-body"></tbody>
+                </table>
+              </div>
+              <div class="instruction-inspector" id="instruction-inspector">
+                Select an instruction to see its opcode, physical file range and typed ID resolution.
+              </div>
+            </section>
+          </div>
+          </section>
+
+          <div class="workbench-separator workbench-separator-row" data-workbench-separator="centerRows"
+               role="separator" tabindex="0" aria-label="Resize Disassembly and CFG panels"
+               aria-orientation="horizontal" aria-valuemin="25" aria-valuemax="75"></div>
+
+          <section class="workbench-pane workbench-panel" id="cfg-panel"
+                   data-workbench-panel data-panel-id="cfg-panel">
+            <div class="workbench-pane-titlebar">
+              <span>CONTROL FLOW GRAPH</span>
+              <button class="panel-maximize" type="button" data-panel-maximize="cfg-panel">MAXIMIZE</button>
+            </div>
+
+          <div class="cfg-view hidden" id="cfg-view">
+            <div class="cfg-toolbar">
+              <div>
+                <div class="eyebrow">CONTROL FLOW</div>
+                <div class="cfg-summary" id="cfg-summary">No graph loaded</div>
+              </div>
+              <div class="cfg-legend" aria-label="CFG edge legend">
+                <span class="normal">Flow</span><span class="branch">Branch</span><span class="exception">Exception / back edge</span>
+              </div>
+              <div class="cfg-controls" aria-label="CFG viewport controls">
+                <button id="cfg-zoom-out" type="button" aria-label="Zoom out" data-tip="Zoom out">−</button>
+                <span id="cfg-zoom-label">100%</span>
+                <button id="cfg-zoom-in" type="button" aria-label="Zoom in" data-tip="Zoom in">+</button>
+                <button id="cfg-actual-size" type="button">100%</button>
+                <button id="cfg-fit" type="button">FIT</button>
+                <button id="cfg-reset-current" type="button" disabled>RESET BB</button>
+                <button id="cfg-reset-layout" type="button" disabled>RESET LAYOUT</button>
+              </div>
+            </div>
+            <div class="cfg-viewport" id="cfg-viewport" tabindex="0" aria-label="Interactive control-flow graph">
+              <div class="cfg-stage" id="cfg-stage">
+                <svg class="cfg-edge-layer" id="cfg-edge-layer" aria-hidden="true"></svg>
+                <div class="cfg-node-layer" id="cfg-node-layer"></div>
+              </div>
+              <div class="cfg-gesture-hint">Wheel: pan · Ctrl/⌘ + wheel: zoom · Drag a BB header to pin</div>
+            </div>
+          </div>
+          </section>
+        </div>
+
+        <div class="workbench-separator workbench-separator-column" data-workbench-separator="inspector"
+             role="separator" tabindex="0" aria-label="Resize center and inspector panels" aria-orientation="vertical"
+             aria-valuemin="360" aria-valuemax="760"></div>
+
+        <div class="workbench-stack workbench-inspector">
+          <section class="workbench-pane workbench-panel metadata-panel" id="metadata-panel"
+                   data-workbench-panel data-panel-id="metadata-panel">
+            <div class="workbench-pane-titlebar">
+              <span>METADATA</span>
+              <button class="panel-maximize" type="button" data-panel-maximize="metadata-panel">MAXIMIZE</button>
+            </div>
+
+          <div class="metadata-view hidden" id="metadata-view">
+            <form class="metadata-toolbar" id="metadata-search-form">
+              <div>
+                <div class="eyebrow">ABC METADATA</div>
+                <div class="metadata-summary" id="metadata-summary">Not indexed</div>
+              </div>
+              <label class="metadata-search-label">
+                <span>SEARCH</span>
+                <input id="metadata-search" type="search" maxlength="256" placeholder="Search metadata"
+                       autocomplete="off" spellcheck="false">
+              </label>
+              <button type="submit">SEARCH</button>
+            </form>
+            <div class="metadata-index-strip">
+              <label class="metadata-kinds" id="metadata-kinds">
+                <span>KIND</span>
+                <select id="metadata-kind" aria-label="Metadata kind">
+                  <option>All</option>
+                  <option>String</option>
+                  <option>Method</option>
+                  <option>Literal Array</option>
+                </select>
+              </label>
+              <div class="metadata-progress" id="metadata-progress" role="progressbar" aria-label="Metadata indexing"
+                   aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <span id="metadata-progress-bar"></span>
+              </div>
+            </div>
+            <div class="metadata-notice hidden" id="metadata-notice" role="status"></div>
+            <div class="metadata-list" id="metadata-list">
+              <div class="metadata-objects" id="metadata-objects" aria-live="polite">
+                <section class="metadata-selection hidden" id="metadata-selection"
+                         aria-label="Selected metadata object">
+                  <div class="metadata-detail" id="metadata-detail"></div>
+                  <div class="metadata-references" id="metadata-references"></div>
+                  <div class="metadata-reference-pager" aria-label="Metadata reference pages">
+                    <button id="metadata-references-back" type="button">BACK</button>
+                    <button id="metadata-references-next" type="button">NEXT</button>
+                  </div>
+                </section>
+              </div>
+              <button class="metadata-load-more" id="metadata-load-more" type="button">LOAD MORE</button>
+            </div>
+          </div>
+          </section>
+
+          <div class="workbench-separator workbench-separator-row" data-workbench-separator="inspectorRows"
+               role="separator" tabindex="0" aria-label="Resize Metadata and Hex panels"
+               aria-orientation="horizontal" aria-valuemin="25" aria-valuemax="75"></div>
+
+          <section class="workbench-pane workbench-panel hex-panel" id="hex-panel"
+                   data-workbench-panel data-panel-id="hex-panel">
+            <div class="workbench-pane-titlebar">
+              <span>HEX</span>
+              <button class="panel-maximize" type="button" data-panel-maximize="hex-panel">MAXIMIZE</button>
+            </div>
+
+          <div class="hex-view hidden" id="hex-view">
+            <form class="hex-toolbar" id="hex-jump-form">
+              <div>
+                <div class="eyebrow">RAW ABC BYTES</div>
+                <div class="hex-range-summary" id="hex-range-summary">No byte range selected</div>
+              </div>
+              <label class="hex-offset-input">
+                <span>OFFSET</span>
+                <input id="hex-offset" inputmode="text" autocomplete="off" spellcheck="false" value="0x00000000">
+              </label>
+              <button id="hex-go" type="submit">GO</button>
+            </form>
+            <div class="hex-notice hidden" id="hex-notice"></div>
+            <div class="hex-column-header" aria-hidden="true">
+              <span>OFFSET</span>
+              <div class="hex-column-bytes">
+                <span>00</span><span>01</span><span>02</span><span>03</span>
+                <span>04</span><span>05</span><span>06</span><span>07</span>
+                <span>08</span><span>09</span><span>0A</span><span>0B</span>
+                <span>0C</span><span>0D</span><span>0E</span><span>0F</span>
+              </div>
+              <span>ASCII</span>
+            </div>
+            <div class="hex-viewport" id="hex-viewport" tabindex="0" aria-label="ABC hexadecimal bytes">
+              <div class="hex-spacer" id="hex-spacer"></div>
+              <div class="hex-rows" id="hex-rows"></div>
+            </div>
+          </div>
+          </section>
+        </div>
+
+          <div class="error-state hidden" id="error-state" role="alert"></div>
+      </main>
+
+      <div class="toast hidden" id="toast" role="status"></div>
+
+      <footer class="statusbar">
+        <span class="status-ready"></span><span id="status-text" role="status">Starting local session…</span>
+        <span class="status-spacer"></span>
+        <span id="document-meta"></span>
+      </footer>
+    </div>
+    <script src="/assets/bootstrap.js" defer></script>
+  </body>
+</html>

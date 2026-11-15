@@ -69,6 +69,11 @@ config("arkfile_fuzz_config") {
   defines = [ "SUPPORT_KNOWN_EXCEPTION" ]
 }
 
+config("arkfile_checked_config") {
+  configs = [ "$build_root/config/compiler:exceptions" ]
+  defines = [ "SUPPORT_KNOWN_EXCEPTION" ]
+}
+
 config("arkfile_verifier_config") {
   include_dirs = [
     "$ark_root/libpandafile",
@@ -340,6 +345,41 @@ ohos_source_set("libarkfile_frontend_set_static") {
   subsystem_name = "arkcompiler"
 }
 
+# Read-only tools accept user-supplied ABC files and must report malformed
+# entity data instead of terminating through the runtime's fatal accessor path.
+ohos_source_set("libarkfile_frontend_checked_set_static") {
+  sources = libarkfile_frontend_sources
+
+  public_configs = libarkfile_configs
+  public_configs += [ "$ark_root:ark_config" ]
+  public_configs += [ ":arkfile_frontend_public_config" ]
+  public_configs += [ ":arkfile_checked_config" ]
+
+  deps = [
+    ":arkfile_header_deps",
+    "$ark_root/libpandabase:libarkbase_frontend_static",
+    "$ark_root/libziparchive:libarkziparchive_frontend_static",
+  ]
+
+  if (is_arkui_x) {
+    deps += [
+      "$ark_third_party_root/bounds_checking_function:libsec_static",
+      "$ark_third_party_root/zlib:libz",
+    ]
+  } else {
+    external_deps = [
+      "zlib:libz",
+      sdk_libc_secshared_dep,
+    ]
+    if (!ark_standalone_build && enable_hilog) {
+      external_deps += [ "hilog:libhilog" ]
+    }
+  }
+
+  part_name = "runtime_core"
+  subsystem_name = "arkcompiler"
+}
+
 ohos_static_library("libarkfile_frontend_static") {
   stack_protector_ret = false
   deps = [ ":libarkfile_frontend_set_static" ]
@@ -347,6 +387,20 @@ ohos_static_library("libarkfile_frontend_static") {
   public_configs = [
     ":arkfile_public_config",
     ":arkfile_frontend_public_config",
+  ]
+
+  part_name = "runtime_core"
+  subsystem_name = "arkcompiler"
+}
+
+ohos_static_library("libarkfile_frontend_checked_static") {
+  stack_protector_ret = false
+  deps = [ ":libarkfile_frontend_checked_set_static" ]
+
+  public_configs = [
+    ":arkfile_public_config",
+    ":arkfile_frontend_public_config",
+    ":arkfile_checked_config",
   ]
 
   part_name = "runtime_core"

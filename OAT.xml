@@ -64,6 +64,7 @@
         <filefilterlist>
             <filefilter name="defaultFilter" desc="Files not to check">
                 <filteritem type="filename" name="*.iml|*.json|*.txt|*.png|*.pdf" desc="desc files"/>
+                <filteritem type="filename" name="*.abc" desc="Ark bytecode binary fixtures compiled from test sources"/>
                 <filteritem type="filename" name="AUTHORS" desc="Author list"/>
                 <filteritem type="filepath" name=".*/docs/.*" desc="Docs files"/>
                 <filteritem type="filepath" name=".*/docs/diagrams/.*" desc="Docs files"/>
