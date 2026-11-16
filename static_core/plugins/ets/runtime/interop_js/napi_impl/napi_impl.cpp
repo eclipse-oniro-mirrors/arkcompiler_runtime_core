@@ -170,6 +170,12 @@ napi_register_appstate_callback([[maybe_unused]] napi_env env, [[maybe_unused]] 
 {
     return napi_ok;
 }
+
+napi_status __attribute__((weak))  // CC-OFF(G.FMT.10) project code style
+napi_notify_arkts_sta_background_gc([[maybe_unused]] bool gcStarted)
+{
+    return napi_ok;
+}
 // NOLINTEND(readability-identifier-naming)
 #endif  // PANDA_TARGET_OHOS
 
