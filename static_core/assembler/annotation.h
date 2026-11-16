@@ -592,7 +592,7 @@ public:
         return value_.get();
     }
 
-    PANDA_PUBLIC_API static std::string TypeToString(Value::Type type);
+    static PANDA_PUBLIC_API std::string TypeToString(Value::Type type);
 
 private:
     std::string name_;

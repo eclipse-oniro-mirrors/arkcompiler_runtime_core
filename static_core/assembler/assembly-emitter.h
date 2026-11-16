@@ -53,38 +53,38 @@ public:
         std::unordered_map<std::string, panda_file::LiteralArrayItem *> literalarrayItems;
     };
 
-    PANDA_PUBLIC_API static bool Emit(panda_file::ItemContainer *items, Program &program,
+    static PANDA_PUBLIC_API bool Emit(panda_file::ItemContainer *items, Program &program,
                                       PandaFileToPandaAsmMaps *maps = nullptr, bool emitDebugInfo = true,
                                       ark::panda_file::pgo::ProfileOptimizer *profileOpt = nullptr);
 
     // CC-OFFNXT(G.FUN.01-CPP) solid logic
-    PANDA_PUBLIC_API static bool Emit(panda_file::Writer *writer, Program &program,
+    static PANDA_PUBLIC_API bool Emit(panda_file::Writer *writer, Program &program,
                                       std::map<std::string, size_t> *stat = nullptr,
                                       PandaFileToPandaAsmMaps *maps = nullptr, bool debugInfo = true,
                                       ark::panda_file::pgo::ProfileOptimizer *profileOpt = nullptr);
     // CC-OFFNXT(G.FUN.01-CPP) solid logic
-    PANDA_PUBLIC_API static bool Emit(panda_file::Writer *writer, Program &program, std::map<std::string, size_t> *stat,
+    static PANDA_PUBLIC_API bool Emit(panda_file::Writer *writer, Program &program, std::map<std::string, size_t> *stat,
                                       PandaFileToPandaAsmMaps *maps, bool debugInfo,
                                       ark::panda_file::pgo::ProfileOptimizer *profileOpt,
                                       std::optional<panda_file::ItemContainer::BytecodeVersion> bytecodeVersion);
 
     // CC-OFFNXT(G.FUN.01-CPP) solid logic
-    PANDA_PUBLIC_API static bool Emit(const std::string &filename, Program &program,
+    static PANDA_PUBLIC_API bool Emit(const std::string &filename, Program &program,
                                       std::map<std::string, size_t> *stat = nullptr,
                                       PandaFileToPandaAsmMaps *maps = nullptr, bool debugInfo = true,
                                       ark::panda_file::pgo::ProfileOptimizer *profileOpt = nullptr);
     // CC-OFFNXT(G.FUN.01-CPP) solid logic
-    PANDA_PUBLIC_API static bool Emit(const std::string &filename, Program &program,
+    static PANDA_PUBLIC_API bool Emit(const std::string &filename, Program &program,
                                       std::map<std::string, size_t> *stat, PandaFileToPandaAsmMaps *maps,
                                       bool debugInfo, ark::panda_file::pgo::ProfileOptimizer *profileOpt,
                                       std::optional<panda_file::ItemContainer::BytecodeVersion> bytecodeVersion);
 
-    PANDA_PUBLIC_API static std::unique_ptr<const panda_file::File> Emit(Program &program,
+    static PANDA_PUBLIC_API std::unique_ptr<const panda_file::File> Emit(Program &program,
                                                                          PandaFileToPandaAsmMaps *maps = nullptr);
 
-    PANDA_PUBLIC_API static bool AssignProfileInfo(Program *program);
+    static PANDA_PUBLIC_API bool AssignProfileInfo(Program *program);
 
-    PANDA_PUBLIC_API static std::string GetLastError()
+    static PANDA_PUBLIC_API std::string GetLastError()
     {
         return lastError_;
     }
@@ -189,7 +189,7 @@ private:
         const std::unordered_map<panda_file::Type::TypeId, panda_file::PrimitiveTypeItem *> &primitiveTypes,
         const Type &type, const Program &program);
 
-    PANDA_PUBLIC_API static void SetLastError(const std::string &message)
+    static PANDA_PUBLIC_API void SetLastError(const std::string &message)
     {
         lastError_ = message;
     }
@@ -293,9 +293,9 @@ private:
     // NOLINTNEXTLINE(fuchsia-statically-constructed-objects)
 #if defined(__clang__)
     // Avoid destructor at exit to prevent potential double-free in global dtors with ASan
-    PANDA_PUBLIC_API static std::string lastError_ __attribute__((no_destroy));
+    static PANDA_PUBLIC_API std::string lastError_ __attribute__((no_destroy));
 #else
-    PANDA_PUBLIC_API static std::string lastError_;
+    static PANDA_PUBLIC_API std::string lastError_;
 #endif
 };
 
