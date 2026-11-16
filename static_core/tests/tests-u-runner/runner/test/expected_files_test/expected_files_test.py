@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2025 Huawei Device Co., Ltd.
+# Copyright (c) 2025-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,7 +16,9 @@
 
 import unittest
 from pathlib import Path
+from unittest.mock import Mock
 
+from runner.plugins.ets.ets_templates.test_metadata import Tags, TestMetadata
 from runner.plugins.ets.test_ets import TestETS
 from runner.enum_types.params import TestReport
 
@@ -24,6 +26,10 @@ from runner.enum_types.params import TestReport
 def get_test_instance(report_stdout: str, report_stderr: str, expected_file: str,
                       expected_err_file: str) -> TestETS:
     test_inst = TestETS.__new__(TestETS)
+    test_inst.metadata = TestMetadata(Tags())
+    test_inst.test_env = Mock()
+    test_inst.test_env.config.ark.jit.enable = False
+    test_inst.reproduce = []
     test_inst.expected = ""
     test_inst.expected_err = ''
     test_inst.passed = True
@@ -40,8 +46,8 @@ class ExpectedFilesTest(unittest.TestCase):
     def test_compare_output_ok(self) -> None:
         report_stdout = "default: 1\ndefault: 2\ndefault: 3"
         report_stderr = ""
-        expected_file = "ConsoleTest1.ets.expected"
-        expected_err_file = "ConsoleTest1.ets.expected.err"
+        expected_file = "ConsoleTest1.ats.expected"
+        expected_err_file = "ConsoleTest1.ats.expected.err"
         test_result = get_test_instance(report_stdout, report_stderr, expected_file, expected_err_file)
         if test_result.report is not None:
             passed, _ = test_result.compare_output_with_expected(test_result.report.output,
@@ -51,8 +57,8 @@ class ExpectedFilesTest(unittest.TestCase):
     def test_compare_output_but_stderr(self) -> None:
         report_stdout = "default: 1\ndefault: 2\ndefault: 3"
         report_stderr = "error!"
-        expected_file = "ConsoleTest1.ets.expected"
-        expected_err_file = "ConsoleTest1.ets.expected.err"
+        expected_file = "ConsoleTest1.ats.expected"
+        expected_err_file = "ConsoleTest1.ats.expected.err"
         test_result = get_test_instance(report_stdout, report_stderr, expected_file, expected_err_file)
         if test_result.report is not None:
             passed, _ = test_result.compare_output_with_expected(test_result.report.output,
@@ -62,8 +68,8 @@ class ExpectedFilesTest(unittest.TestCase):
     def test_compare_output_fail(self) -> None:
         report_stdout = "default: 2\ndefault: 2\ndefault: 3"
         report_stderr = ""
-        expected_file = "ConsoleTest1.ets.expected"
-        expected_err_file = "ConsoleTest1.ets.expected.err"
+        expected_file = "ConsoleTest1.ats.expected"
+        expected_err_file = "ConsoleTest1.ats.expected.err"
         test_result = get_test_instance(report_stdout, report_stderr, expected_file, expected_err_file)
         if test_result.report is not None:
             passed, _ = test_result.compare_output_with_expected(test_result.report.output,
@@ -73,8 +79,8 @@ class ExpectedFilesTest(unittest.TestCase):
     def test_compare_stderr_ok(self) -> None:
         report_stdout = ""
         report_stderr = "default: 1\ndefault: 2\ndefault: 3"
-        expected_file = "ConsoleTest2.ets.expected"
-        expected_err_file = "ConsoleTest2.ets.expected.err"
+        expected_file = "ConsoleTest2.ats.expected"
+        expected_err_file = "ConsoleTest2.ats.expected.err"
         test_result = get_test_instance(report_stdout, report_stderr, expected_file, expected_err_file)
         if test_result.report is not None:
             passed, _ = test_result.compare_output_with_expected(test_result.report.output,
@@ -84,8 +90,8 @@ class ExpectedFilesTest(unittest.TestCase):
     def test_compare_stderr_fail(self) -> None:
         report_stdout = ""
         report_stderr = "default: 2\ndefault: 2\ndefault: 3"
-        expected_file = "ConsoleTest2.ets.expected"
-        expected_err_file = "ConsoleTest2.ets.expected.err"
+        expected_file = "ConsoleTest2.ats.expected"
+        expected_err_file = "ConsoleTest2.ats.expected.err"
         test_result = get_test_instance(report_stdout, report_stderr, expected_file, expected_err_file)
         if test_result.report is not None:
             passed, _ = test_result.compare_output_with_expected(test_result.report.output,
@@ -95,8 +101,8 @@ class ExpectedFilesTest(unittest.TestCase):
     def test_compare_both(self) -> None:
         report_stdout = "default: 1\ndefault: 2\ndefault: 3"
         report_stderr = "default: 4\ndefault: 5\ndefault: 6"
-        expected_file = "ConsoleTest3.ets.expected"
-        expected_err_file = "ConsoleTest3.ets.expected.err"
+        expected_file = "ConsoleTest3.ats.expected"
+        expected_err_file = "ConsoleTest3.ats.expected.err"
         test_result = get_test_instance(report_stdout, report_stderr, expected_file, expected_err_file)
         if test_result.report is not None:
             passed, _ = test_result.compare_output_with_expected(test_result.report.output,

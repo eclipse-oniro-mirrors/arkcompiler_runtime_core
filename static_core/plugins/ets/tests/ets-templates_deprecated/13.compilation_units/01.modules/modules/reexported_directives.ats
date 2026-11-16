@@ -1,0 +1,60 @@
+/*
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*---
+desc: >-
+      Module exports top-level declaration - types, classes, interfaces, enums, variables (including const) and functions
+      to reexport them.
+tags: [compile-only, not-a-test]
+files:
+- ./declarations.ats
+---*/
+
+// classes, interfaces, enum
+export {A as RA} from "./declarations.ats"
+export {B as RB} from "./declarations.ats"
+export {AC as RAC} from "./declarations.ats"
+export {C as RC} from "./declarations.ats"
+export {I as RI} from "./declarations.ats"
+export {II as RII} from "./declarations.ats"
+export {D as RD} from "./declarations.ats"
+export {ENUM as RENUM} from "./declarations.ats"
+
+// variables
+export {a as ra} from "./declarations.ats"
+export {i as ri} from "./declarations.ats"
+export {n as reexportedNumber} from "./declarations.ats"
+export {s as rs} from "./declarations.ats"
+export {c as rc} from "./declarations.ats"
+export {u as ru} from "./declarations.ats"
+export {arr as rarr} from "./declarations.ats"
+
+// constants
+export { ca as rca } from "./declarations.ats"
+export { cs as rcs } from "./declarations.ats"
+export { ci as rci } from "./declarations.ats"
+
+// functions
+export { NoArg as RNoArg } from "./declarations.ats"
+export { OneArg as ROneArg } from "./declarations.ats"
+export { TwoArgs as RTwoArgs } from "./declarations.ats"
+export { Gen as RGen } from "./declarations.ats"
+export { ArgFun as RArgFun } from "./declarations.ats"
+export { ArgFun2 as RArgFun2 } from "./declarations.ats"
+
+// types
+export { CLASS_A as RCLASS_A } from "./declarations.ats"
+export { VAR_i as RVAR_i } from "./declarations.ats"
+export { TPL as RTPL } from "./declarations.ats"

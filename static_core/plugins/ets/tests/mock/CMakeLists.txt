@@ -16,13 +16,13 @@ add_custom_target(ets_test_napi_mock_run)
 panda_ets_native_add_gtest(
     NAME stack_trace_test
     CPP_SOURCE stack_trace_test.cpp
-    ETS_SOURCE StackTraceTest.ets
+    ETS_SOURCE StackTraceTest.ats
 )
 
 panda_ets_native_add_gtest(
     NAME js_mode_launch
     CPP_SOURCE js_mode_launch.cpp
-    ETS_SOURCE js_mode_launch.ets
+    ETS_SOURCE js_mode_launch.ats
 )
 
 
@@ -37,23 +37,23 @@ endif()
 panda_ets_native_add_gtest(
     NAME uncaught_error_handler
     CPP_SOURCE uncaught_error_handler_test.cpp
-    ETS_SOURCE UncaughtErrorHandlerTest.ets
+    ETS_SOURCE UncaughtErrorHandlerTest.ats
 )
 
 if (NOT ENABLE_UNIT_TESTS_FULL_COVERAGE)
     panda_ets_native_add_gtest(
         NAME register_native_allocation_test
         CPP_SOURCE register_native_allocation_test.cpp
-        ETS_SOURCE RegisterNativeAllocationTest.ets
+        ETS_SOURCE RegisterNativeAllocationTest.ats
     )
     panda_ets_native_add_gtest(
         NAME coroswitch_in_cctor
         CPP_SOURCE coroswitch_in_cctor.cpp
-        ETS_SOURCE coroswitch_in_cctor.ets
+        ETS_SOURCE coroswitch_in_cctor.ats
     )
     panda_ets_native_add_gtest(
         NAME abort_flag_launch
         CPP_SOURCE abort_flag_launch_test.cpp
-        ETS_SOURCE AbortFlagLaunchTest.ets
+        ETS_SOURCE AbortFlagLaunchTest.ats
     )
 endif()

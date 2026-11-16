@@ -21,7 +21,7 @@ steps:
     echo-compiler-ets:
         executable-path: /usr/bin/echo
         step-type: compiler
-        step-filter: "simple1.ets"
+        step-filter: "simple1.ats"
         args:
             - "--output=${parameters.output-file}"
             - ${test-id}

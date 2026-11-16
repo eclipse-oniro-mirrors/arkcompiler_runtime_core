@@ -6,8 +6,8 @@
     "rootDir": "${CURRENT_SOURCE_DIR}/lib"
   },
   "files": [
-    "${CURRENT_SOURCE_DIR}/lib/file1.ets",
-    "${CURRENT_SOURCE_DIR}/lib/dir/file2.ets",
-    "${CURRENT_SOURCE_DIR}/lib/dir/dir2/file3.ets"
+    "${CURRENT_SOURCE_DIR}/lib/file1.ats",
+    "${CURRENT_SOURCE_DIR}/lib/dir/file2.ats",
+    "${CURRENT_SOURCE_DIR}/lib/dir/dir2/file3.ats"
   ]
 }

@@ -15,7 +15,7 @@ if (PANDA_TARGET_ARM32)
     return()
 endif()
 
-set(EXPORT_FILE_ETS ${CMAKE_CURRENT_SOURCE_DIR}/dir/export_file.ets)
+set(EXPORT_FILE_ETS ${CMAKE_CURRENT_SOURCE_DIR}/dir/export_file.ats)
 set(EXPORT_FILE_CACHE ${CMAKE_CURRENT_BINARY_DIR}/dir/export_file.etscache)
 set(EXPORT_FILE_ABC ${CMAKE_CURRENT_BINARY_DIR}/dir/export_file.abc)
 set(EXPORT_FILE_CACHE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/dir)
@@ -30,7 +30,7 @@ set(ETS_CONFIG ${CMAKE_CURRENT_BINARY_DIR}/arktsconfig.json)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.in.json ${ETS_CONFIG})
 
 run_int_ets_code(import_from_declaration_cache ${CMAKE_CURRENT_BINARY_DIR}
-                 SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/file.ets
+                 SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/file.ats
                  ARKTS_CONFIGS ${ETS_CONFIG}
                  RUNTIME_EXTRA_OPTIONS --panda-files=${EXPORT_FILE_ABC})
 

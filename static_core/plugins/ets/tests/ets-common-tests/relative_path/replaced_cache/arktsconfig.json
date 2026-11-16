@@ -4,19 +4,19 @@
         "cacheDir": "${WORK_DIR}/${SUITE_NAME}/gen/ets-common-tests/relative_path/build/cache",
         "paths": {
             "cacheDedup/shared": [
-                "./shared.ets"
+                "./shared.ats"
             ],
             "cacheDedup/left": [
-                "./left.d.ets"
+                "./left.d.ats"
             ],
             "cacheDedup/right": [
-                "./right.d.ets"
+                "./right.d.ats"
             ]
         },
         "rootDir": "${WORK_DIR}/${SUITE_NAME}/gen/ets-common-tests/relative_path/replaced_cache"
     },
     "files": [
-        "./main.ets",
-        "./shared.ets"
+        "./main.ats",
+        "./shared.ats"
     ]
 }

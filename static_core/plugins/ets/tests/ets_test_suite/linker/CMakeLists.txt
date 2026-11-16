@@ -50,7 +50,7 @@ function(add_linker_test test additional_dependencies)
     endif()
 
     set(test_out_dir "${linker_tests_out_dir}/${test}")
-    set(test_in "${linker_tests_in_dir}/${test}.ets")
+    set(test_in "${linker_tests_in_dir}/${test}.ats")
     set(target ets_test_suite_linker_${test})
 
     run_int_jit_aot_ets_code(${test_in} ${test_out_dir} ${target}
@@ -94,7 +94,7 @@ foreach(test ${linker_tests})
 endforeach()
 
 function(test_runtime_linker_extensions test)
-    file(GLOB abc_runtime_linker_sources "${linker_tests_in_dir}/abc_runtime_linker_sources/*.ets")
+    file(GLOB abc_runtime_linker_sources "${linker_tests_in_dir}/abc_runtime_linker_sources/*.ats")
     set(additional_abc_dir "${linker_tests_out_dir}/abc_runtime_linker_sources")
     set(additional_abc_files_list "")
     set(compilations_targets_list "")
@@ -103,7 +103,7 @@ function(test_runtime_linker_extensions test)
         get_filename_component(src_filename ${ets_source} NAME)
         set(output_abc ${additional_abc_dir}/${src_filename}.abc)
         list(APPEND additional_abc_files_list ${output_abc})
-        if (src_filename STREQUAL "additional1.ets")
+        if (src_filename STREQUAL "additional1.ats")
             set(additional_hap_source_abc ${output_abc})
         endif()
 
@@ -112,18 +112,18 @@ function(test_runtime_linker_extensions test)
         compile_ets_code(${ets_source} ${output_abc} ${compilation_target}
             OPT_LEVEL ${ARG_OPT_LEVEL}
             COMPILER_EXTRA_OPTIONS "--ets-module")
-        if (src_filename STREQUAL "additional1.ets")
+        if (src_filename STREQUAL "additional1.ats")
             set(additional_hap_source_abc ${output_abc})
         endif()
-        if (src_filename STREQUAL "additional2.ets")
+        if (src_filename STREQUAL "additional2.ats")
             set(additional_second_source_abc ${output_abc})
         endif()
     endforeach()
     if (NOT additional_hap_source_abc)
-        message(FATAL_ERROR "additional1.ets is required to build runtime linker HAP test package")
+        message(FATAL_ERROR "additional1.ats is required to build runtime linker HAP test package")
     endif()
     if (NOT additional_second_source_abc)
-        message(FATAL_ERROR "additional2.ets is required to build runtime linker HAP test package")
+        message(FATAL_ERROR "additional2.ats is required to build runtime linker HAP test package")
     endif()
 
     set(additional_hap_stage_dir "${additional_abc_dir}/additional1_hap")
@@ -165,6 +165,7 @@ function(test_runtime_linker_extensions test)
     set(additional_native_only_hap_file "${additional_abc_dir}/additional1_native_only.ets.hap")
     set(additional_dup_hsp_file "${linker_tests_out_dir}/additional1_dup.ets.hsp")
     set(additional_dup_hsp_relative_file "additional1_dup.ets.hsp")
+    string(REGEX REPLACE "[.]hsp$" "" additional_dup_hsp_entry_dir "${additional_dup_hsp_relative_file}")
     add_custom_command(
         OUTPUT ${additional_ambiguous_hap_file}
         COMMENT "Create ${additional_ambiguous_hap_file}"
@@ -187,7 +188,7 @@ function(test_runtime_linker_extensions test)
         OUTPUT ${additional_dup_hsp_file}
         COMMENT "Create ${additional_dup_hsp_file}"
         COMMAND ${Python3_EXECUTABLE} ${linker_tests_in_dir}/scripts/make_ambiguous_hap.py duplicate
-                additional1_dup.ets/ets/modules_static.abc ${additional_hap_source_abc}
+                ${additional_dup_hsp_entry_dir}/ets/modules_static.abc ${additional_hap_source_abc}
                 ${additional_second_source_abc} ${additional_dup_hsp_file}
         DEPENDS ${additional_hap_source_abc} ${additional_second_source_abc}
                 ${linker_tests_in_dir}/scripts/make_ambiguous_hap.py
@@ -250,15 +251,16 @@ function(test_runtime_linker_extensions test)
     set(additional_hsp_stage_dir "${linker_tests_out_dir}/additional1_hsp")
     set(additional_hsp_file "${linker_tests_out_dir}/additional1.ets.hsp")
     set(additional_hsp_relative_file "additional1.ets.hsp")
+    string(REGEX REPLACE "[.]hsp$" "" additional_hsp_entry_dir "${additional_hsp_relative_file}")
     add_custom_command(
         OUTPUT ${additional_hsp_file}
         COMMENT "Create ${additional_hsp_file}"
         COMMAND ${CMAKE_COMMAND} -E rm -rf ${additional_hsp_stage_dir}
         COMMAND ${CMAKE_COMMAND} -E rm -f ${additional_hsp_file}
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${additional_hsp_stage_dir}/additional1.ets/ets
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${additional_hsp_stage_dir}/${additional_hsp_entry_dir}/ets
         COMMAND ${CMAKE_COMMAND} -E copy ${additional_hap_source_abc}
-                ${additional_hsp_stage_dir}/additional1.ets/ets/modules_static.abc
-        COMMAND ${CMAKE_COMMAND} -E chdir ${additional_hsp_stage_dir} zip -r -0 ${additional_hsp_file} additional1.ets
+                ${additional_hsp_stage_dir}/${additional_hsp_entry_dir}/ets/modules_static.abc
+        COMMAND ${CMAKE_COMMAND} -E chdir ${additional_hsp_stage_dir} zip -r -0 ${additional_hsp_file} ${additional_hsp_entry_dir}
         DEPENDS ${additional_hap_source_abc}
     )
 
@@ -318,7 +320,7 @@ test_runtime_linker_extensions(runtime_linker_extensions)
 
 function(test_app_linker_context_exception TARGET WORK_DIR)
     # Must provide a valid abc file, so that runtime would start creating application linker context
-    set(EXISTING_SOURCE "${linker_tests_in_dir}/abc_runtime_linker_sources/additional1.ets")
+    set(EXISTING_SOURCE "${linker_tests_in_dir}/abc_runtime_linker_sources/additional1.ats")
     set(EXISTING_ABC "${WORK_DIR}/${TARGET}-existing.abc")
     set(ABC_TARGET ${TARGET}-abc)
     compile_ets_code(${EXISTING_SOURCE} ${EXISTING_ABC} ${ABC_TARGET})
@@ -347,9 +349,9 @@ add_dependencies(ets_tests ets_app_linker_context_tests)
 # Test case showing how AbcRuntimeLinker can be used for basic mocking
 function(test_mock_linker test)
     set(mock_app_sources
-        "${linker_tests_in_dir}/mock_linker/app.ets"
-        "${linker_tests_in_dir}/mock_linker/a.ets"
-        "${linker_tests_in_dir}/mock_linker/mock_a.ets")
+        "${linker_tests_in_dir}/mock_linker/app.ats"
+        "${linker_tests_in_dir}/mock_linker/a.ats"
+        "${linker_tests_in_dir}/mock_linker/mock_a.ats")
 
     set(abc_dir "${linker_tests_out_dir}/mock_linker")
     set(app_abc_files_list "")
@@ -381,7 +383,7 @@ endfunction()
 test_mock_linker(mock_runtime_linker)
 
 function(test_proxy_with_linker TARGET WORK_DIR)
-    set(MAIN_SOURCE "${linker_tests_in_dir}/proxy/main.ets")
+    set(MAIN_SOURCE "${linker_tests_in_dir}/proxy/main.ats")
     set(MAIN_ABC "${WORK_DIR}/main.abc")
     set(MAIN_ABC_TARGET ${TARGET}-main-abc)
     compile_ets_code(${MAIN_SOURCE} ${MAIN_ABC} ${MAIN_ABC_TARGET})
@@ -389,8 +391,8 @@ function(test_proxy_with_linker TARGET WORK_DIR)
     set(ADDITIONAL_ABC_FILES "")
 
     set(ADDITIONAL_SOURCE
-        "${linker_tests_in_dir}/proxy/myinterface.ets"
-        "${linker_tests_in_dir}/proxy/myinterface2.ets"
+        "${linker_tests_in_dir}/proxy/myinterface.ats"
+        "${linker_tests_in_dir}/proxy/myinterface2.ats"
     )
     set(ADDITIONAL_FILES_COMPILE_TARGET "compile_additional_files")
     add_custom_target(${ADDITIONAL_FILES_COMPILE_TARGET})

@@ -34,7 +34,7 @@ set(ENTRY_CONFIG ${CURRENT_BINARY_DIR}/arktsconfig_entry.json)
 configure_file(${CURRENT_SOURCE_DIR}/arktsconfig.in.json ${ENTRY_CONFIG})
 
 run_int_ets_code(import_from_abc_package ${CURRENT_BINARY_DIR}
-                 SOURCES ${CURRENT_SOURCE_DIR}/entry.ets
+                 SOURCES ${CURRENT_SOURCE_DIR}/entry.ats
                  ARKTS_CONFIGS ${ENTRY_CONFIG}
                  ENTRYPOINT "Entry.entry"
                  RUNTIME_EXTRA_OPTIONS --panda-files=${LIB_SOURCE_ABC})

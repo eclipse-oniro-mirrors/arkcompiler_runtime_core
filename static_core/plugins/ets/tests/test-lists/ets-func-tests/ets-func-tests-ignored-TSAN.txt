@@ -1,5 +1,5 @@
 #24357 Koala related issues
-koala-related-benchmarks/benchmark-lambda-no-lambda-original.ets
+koala-related-benchmarks/benchmark-lambda-no-lambda-original.ats
 
 #34920
 ets_func_tests/std/core/get_hash.ats
@@ -8,5 +8,5 @@ ets_func_tests/std/core/get_hash.ats
 std/containers/BlockingQueue/LinkedBlockingQueue_getEnd.ets
 
 ### Undefined type
-spec/undefined-type/undefined-union-array-type_2.ets
+spec/undefined-type/undefined-union-array-type_2.ats
 ### End of Undefined type

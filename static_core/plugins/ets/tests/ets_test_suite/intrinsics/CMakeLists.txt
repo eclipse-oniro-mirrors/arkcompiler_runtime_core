@@ -90,7 +90,7 @@ add_custom_target(ets_test_suite_intrinsics)
 foreach(test ${intrinsics_tests})
     set(test_out_dir "${intrinsics_tests_out_dir}/${test}")
 
-    set(test_in "${intrinsics_tests_in_dir}/${test}.ets")
+    set(test_in "${intrinsics_tests_in_dir}/${test}.ats")
     set(target ets_test_suite_intrinsics_${test})
     set(extra_options "")
 

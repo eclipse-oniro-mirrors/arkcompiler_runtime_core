@@ -80,16 +80,16 @@ class TestStepsTest(TestCase):
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @test_utils.parametrized_test_cases([
-        (["runner.sh", "workflow_step_filter_ext", "test_suite", "--test-file=simple1.ets"],),
+        (["runner.sh", "workflow_step_filter_ext", "test_suite", "--test-file=simple1.ats"],),
         (["runner.sh", "workflow_step_filter_ext", "test_suite", "--test-file=simple1.pa"],),
-        (["runner.sh", "workflow_step_filter_name", "test_suite", "--test-file=simple1.ets"],),
+        (["runner.sh", "workflow_step_filter_name", "test_suite", "--test-file=simple1.ats"],),
         (["runner.sh", "workflow_step_filter_name", "test_suite", "--test-file=simple1.pa"],),
     ])
     def test_step_filter(self, argv: Callable) -> None:
         """
         Feature: workflow steps contain filters by file name/extension
         Expected:
-        - test 'simple1.ets'/'simple1.pa' should contain 2 steps - 1 compilation for ets/pa and 1 runtime
+        - test 'simple1.ats'/'simple1.pa' should contain 2 steps - 1 compilation for ets/pa and 1 runtime
         """
         with patch('sys.argv', argv):
             # preparation
@@ -118,12 +118,12 @@ class TestStepsTest(TestCase):
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @test_utils.parametrized_test_cases([
-        (["runner.sh", "workflow", "test_suite", "--test-file=imports_nat.ets"],),
-        (["runner.sh", "workflow", "test_suite", "--test-file=imports_nat.ets", "--gn-build"],),
+        (["runner.sh", "workflow", "test_suite", "--test-file=imports_nat.ats"],),
+        (["runner.sh", "workflow", "test_suite", "--test-file=imports_nat.ats", "--gn-build"],),
     ])
     def test_imports_nat(self, argv: Callable) -> None:
         """
-        Feature: the main file 'imports_nat.ets' imports a file 'depends_nat.ets' which
+        Feature: the main file 'imports_nat.ats' imports a file 'depends_nat.ats' which
         is marked as only 'not-a-test'
         Expected:
         - test 'imports_nat' should contain 3 steps - 2 compilation and 1 runtime
@@ -136,10 +136,10 @@ class TestStepsTest(TestCase):
             # test
             steps = self.get_steps(result.step_reports)
             expected_types = [COMPILER_STEP, COMPILER_STEP, RUNTIME_STEP]
-            expected_dependent_ets = "dependent_nat.ets"
-            expected_main_ets = "imports_nat.ets"
-            expected_dependent_ets_abc = f"{INTERMEDIATE}/dependent_nat.ets.abc"
-            expected_main_ets_abc = f"{INTERMEDIATE}/imports_nat.ets.abc"
+            expected_dependent_ets = "dependent_nat.ats"
+            expected_main_ets = "imports_nat.ats"
+            expected_dependent_ets_abc = f"{INTERMEDIATE}/dependent_nat.ats.abc"
+            expected_main_ets_abc = f"{INTERMEDIATE}/imports_nat.ats.abc"
             expected_stdlib = "stdlib"
 
             self.assertEqual(len(steps), len(expected_types))
@@ -165,12 +165,12 @@ class TestStepsTest(TestCase):
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @test_utils.parametrized_test_cases([
-        (["runner.sh", "workflow", "test_suite", "--test-file=imports_nat_co1.ets"],),
-        (["runner.sh", "workflow", "test_suite", "--test-file=imports_nat_co1.ets", "--gn-build"],),
+        (["runner.sh", "workflow", "test_suite", "--test-file=imports_nat_co1.ats"],),
+        (["runner.sh", "workflow", "test_suite", "--test-file=imports_nat_co1.ats", "--gn-build"],),
     ])
     def test_imports_nat_co1(self, argv: Callable) -> None:
         """
-        Feature: the main file 'imports_nat_co1.ets' imports a file 'depends_nat_co.ets' which
+        Feature: the main file 'imports_nat_co1.ats' imports a file 'depends_nat_co.ats' which
         is marked as 'compile-only' and 'not-a-test'
         Expected:
         - test 'imports_nat_co' should contain 3 steps - 2 compilation and 1 runtime
@@ -184,10 +184,10 @@ class TestStepsTest(TestCase):
             steps = self.get_steps(result.step_reports)
 
             expected_types = [COMPILER_STEP, COMPILER_STEP, RUNTIME_STEP]
-            expected_dependent_ets = "dependent_nat_co.ets"
-            expected_main_ets = "imports_nat_co1.ets"
-            expected_dependent_ets_abc = f"{INTERMEDIATE}/dependent_nat_co.ets.abc"
-            expected_main_ets_abc = f"{INTERMEDIATE}/imports_nat_co1.ets.abc"
+            expected_dependent_ets = "dependent_nat_co.ats"
+            expected_main_ets = "imports_nat_co1.ats"
+            expected_dependent_ets_abc = f"{INTERMEDIATE}/dependent_nat_co.ats.abc"
+            expected_main_ets_abc = f"{INTERMEDIATE}/imports_nat_co1.ats.abc"
             expected_stdlib = "stdlib"
 
             self.assertEqual(len(steps), len(expected_types))
@@ -213,12 +213,12 @@ class TestStepsTest(TestCase):
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @test_utils.parametrized_test_cases([
-        (["runner.sh", "workflow", "test_suite", "--test-file=imports_nat_co2.ets"],),
-        (["runner.sh", "workflow", "test_suite", "--test-file=imports_nat_co2.ets", "--gn-build"],),
+        (["runner.sh", "workflow", "test_suite", "--test-file=imports_nat_co2.ats"],),
+        (["runner.sh", "workflow", "test_suite", "--test-file=imports_nat_co2.ats", "--gn-build"],),
     ])
     def test_imports_nat_co2(self, argv: Callable) -> None:
         """
-        Feature: the main file 'imports_nat_co2.ets' imports a file 'imports_nat_co1.ets' which
+        Feature: the main file 'imports_nat_co2.ats' imports a file 'imports_nat_co1.ats' which
         is not marked as 'not-a-test' and which imports another file
         Expected:
         - test 'imports_nat_co' should contain 4 steps - 3 compilation and 1 runtime
@@ -233,12 +233,12 @@ class TestStepsTest(TestCase):
             steps = self.get_steps(result.step_reports)
 
             expected_types = [COMPILER_STEP, COMPILER_STEP, COMPILER_STEP, RUNTIME_STEP]
-            expected_dependent2_ets = "dependent_nat_co.ets"
-            expected_dependent1_ets = "imports_nat_co1.ets"
-            expected_main_ets = "imports_nat_co2.ets"
-            expected_dependent2_ets_abc = f"{INTERMEDIATE}/dependent_nat_co.ets.abc"
-            expected_dependent1_ets_abc = f"{INTERMEDIATE}/imports_nat_co1.ets.abc"
-            expected_main_ets_abc = f"{INTERMEDIATE}/imports_nat_co2.ets.abc"
+            expected_dependent2_ets = "dependent_nat_co.ats"
+            expected_dependent1_ets = "imports_nat_co1.ats"
+            expected_main_ets = "imports_nat_co2.ats"
+            expected_dependent2_ets_abc = f"{INTERMEDIATE}/dependent_nat_co.ats.abc"
+            expected_dependent1_ets_abc = f"{INTERMEDIATE}/imports_nat_co1.ats.abc"
+            expected_main_ets_abc = f"{INTERMEDIATE}/imports_nat_co2.ats.abc"
             expected_stdlib = "stdlib"
 
             self.assertEqual(len(steps), len(expected_types))
@@ -266,15 +266,15 @@ class TestStepsTest(TestCase):
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @test_utils.parametrized_test_cases([
-        (["runner.sh", "workflow", "test_suite", "--test-file=simple1.ets"],),
-        (["runner.sh", "workflow", "test_suite", "--test-file=simple1.ets", "--gn-build"],),
+        (["runner.sh", "workflow", "test_suite", "--test-file=simple1.ats"],),
+        (["runner.sh", "workflow", "test_suite", "--test-file=simple1.ats", "--gn-build"],),
     ])
     def test_simple1(self, argv: Callable) -> None:
         """
-        Feature: the main file 'simple1.ets' has return type 'void, doesn't import anything,
+        Feature: the main file 'simple1.ats' has return type 'void, doesn't import anything,
         doesn't have a markup
         Expected:
-        - test 'simple1.ets' should contain 2 steps - 1 compilation and 1 runtime
+        - test 'simple1.ats' should contain 2 steps - 1 compilation and 1 runtime
         - runtime option boot-panda-file should contain only main ets.abc file
         """
         with patch('sys.argv', argv):
@@ -283,7 +283,7 @@ class TestStepsTest(TestCase):
             # test
             steps = self.get_steps(result.step_reports)
             expected_types = [COMPILER_STEP, RUNTIME_STEP]
-            expected_main_ets = "simple1.ets"
+            expected_main_ets = "simple1.ats"
             expected_main_ets_abc = f"{INTERMEDIATE}/{expected_main_ets}.abc"
 
             self.assertEqual(len(steps), len(expected_types))
@@ -308,14 +308,14 @@ class TestStepsTest(TestCase):
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @test_utils.parametrized_test_cases([
-        (["runner.sh", "workflow", "test_suite", "--test-file=simple_co.ets"],),
-        (["runner.sh", "workflow", "test_suite", "--test-file=simple_co.ets", "--gn-build"],),
+        (["runner.sh", "workflow", "test_suite", "--test-file=simple_co.ats"],),
+        (["runner.sh", "workflow", "test_suite", "--test-file=simple_co.ats", "--gn-build"],),
     ])
     def test_simple_co(self, argv: Callable) -> None:
         """
-        Feature: the main file 'simple_co.ets' doesn't import anything, has a markup 'compile-only'
+        Feature: the main file 'simple_co.ats' doesn't import anything, has a markup 'compile-only'
         Expected:
-        - test 'simple1.ets' should contain 1 step - compilation
+        - test 'simple1.ats' should contain 1 step - compilation
         """
         with patch('sys.argv', argv):
             # preparation
@@ -323,7 +323,7 @@ class TestStepsTest(TestCase):
             # test
             steps = self.get_steps(result.step_reports)
             expected_types = [COMPILER_STEP]
-            expected_main_ets = "simple_co.ets"
+            expected_main_ets = "simple_co.ats"
             expected_main_ets_abc = f"{INTERMEDIATE}/{expected_main_ets}.abc"
 
             self.assertEqual(len(steps), len(expected_types))
@@ -343,12 +343,12 @@ class TestStepsTest(TestCase):
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @test_utils.parametrized_test_cases([
-        (["runner.sh", "workflow", "test_suite", "--test-file=simple_co_neg.ets"],),
-        (["runner.sh", "workflow", "test_suite", "--test-file=simple_co_neg.ets", "--gn-build"],),
+        (["runner.sh", "workflow", "test_suite", "--test-file=simple_co_neg.ats"],),
+        (["runner.sh", "workflow", "test_suite", "--test-file=simple_co_neg.ats", "--gn-build"],),
     ])
     def test_simple_co_neg(self, argv: Callable) -> None:
         """
-        Feature: the main file 'simple_co_neg.ets' doesn't import anything,
+        Feature: the main file 'simple_co_neg.ats' doesn't import anything,
         has a markup 'compile-only' and 'negative'
         Expected:
         - test should contain 1 step - compilation
@@ -359,7 +359,7 @@ class TestStepsTest(TestCase):
             # test
             steps = self.get_steps(result.step_reports)
             expected_types = [COMPILER_STEP]
-            expected_main_ets = "simple_co_neg.ets"
+            expected_main_ets = "simple_co_neg.ats"
             expected_main_ets_abc = f"{INTERMEDIATE}/{expected_main_ets}.abc"
 
             self.assertEqual(len(steps), len(expected_types))
@@ -379,12 +379,12 @@ class TestStepsTest(TestCase):
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @test_utils.parametrized_test_cases([
-        (["runner.sh", "workflow", "test_suite", "--test-file=simple_nat.ets"],),
-        (["runner.sh", "workflow", "test_suite", "--test-file=simple_nat.ets", "--gn-build"],),
+        (["runner.sh", "workflow", "test_suite", "--test-file=simple_nat.ats"],),
+        (["runner.sh", "workflow", "test_suite", "--test-file=simple_nat.ats", "--gn-build"],),
     ])
     def test_simple_nat(self, argv: Callable) -> None:
         """
-        Feature: the main file 'simple_nat.ets' doesn't import anything,
+        Feature: the main file 'simple_nat.ats' doesn't import anything,
         has a markup 'not-a-test'
         Expected:
         - test should not be executed at all
@@ -408,12 +408,12 @@ class TestStepsTest(TestCase):
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @test_utils.parametrized_test_cases([
-        (["runner.sh", "workflow", "test_suite", "--test-file=d_file_in_meta.ets"],),
-        (["runner.sh", "workflow", "test_suite", "--test-file=d_file_in_meta.ets", "--gn-build"],),
+        (["runner.sh", "workflow", "test_suite", "--test-file=d_file_in_meta.ats"],),
+        (["runner.sh", "workflow", "test_suite", "--test-file=d_file_in_meta.ats", "--gn-build"],),
     ])
     def test_dependent_d_ets(self, argv: Callable) -> None:
         """
-        Feature: the main file 'd_file_in_meta.ets' has a dependent .d.ets file
+        Feature: the main file 'd_file_in_meta.ats' has a dependent .d.ats file
         Expected:
         - exception should be raised
         """
@@ -449,9 +449,9 @@ class TestStepsTest(TestCase):
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @test_utils.parametrized_test_cases([
-        (["runner.sh", "workflow_bad_executables", "test_suite", "--test-file", "simple1.ets"],),
+        (["runner.sh", "workflow_bad_executables", "test_suite", "--test-file", "simple1.ats"],),
         (["runner.sh", "workflow_bad_executables", "test_suite", "--enable-es2panda", "false",
-          "--test-file", "simple1.ets"],),
+          "--test-file", "simple1.ats"],),
     ])
     def test_check_step_executable_path(self, argv: Callable) -> None:
         """
@@ -473,7 +473,7 @@ class TestStepsTest(TestCase):
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @test_utils.parametrized_test_cases([
-        (["runner.sh", "workflow_executable_from_path", "test_suite", "--test-file", "simple1.ets"],),
+        (["runner.sh", "workflow_executable_from_path", "test_suite", "--test-file", "simple1.ats"],),
     ])
     def test_check_step_executable_from_path(self, argv: Callable) -> None:
         """
@@ -496,7 +496,7 @@ class TestStepsTest(TestCase):
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @patch('sys.argv', ["runner.sh", "workflow_bad_executables", "test_suite", "--enable-es2panda", "false",
-                        "--enable-runtime", "false", "--test-file", "simple1.ets"])
+                        "--enable-runtime", "false", "--test-file", "simple1.ats"])
     def test_skip_executable_path_check_gtest(self) -> None:
         """
         workflow has 3 steps, the first two are disabled, the 3rd step is gtest runner without executable path
@@ -518,7 +518,7 @@ class TestStepsTest(TestCase):
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_cmake_build)
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
-    @patch('sys.argv', ["runner.sh", "workflow_bad_timeout", "test_suite", "--test-file", "simple1.ets"])
+    @patch('sys.argv', ["runner.sh", "workflow_bad_timeout", "test_suite", "--test-file", "simple1.ats"])
     def test_check_bad_timeout(self) -> None:
         """
         Feature: workflow file uses not correct timeout

@@ -71,4 +71,4 @@ function(add_extractor_test)
     add_dependencies(test_suite_symbol_extractor  ${target}_cpp_test_gtests)
 endfunction()
 
-add_extractor_test(FILE call_symbol_extractor.ets CPP_SOURCE call_symbol_extractor_test.cpp OPTIONS "")
+add_extractor_test(FILE call_symbol_extractor.ats CPP_SOURCE call_symbol_extractor_test.cpp OPTIONS "")

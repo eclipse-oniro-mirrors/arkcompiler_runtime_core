@@ -9,7 +9,7 @@
                 "../oh_modules/pkgMissing"
             ],
             "pkgMissing/Index": [
-                "../oh_modules/pkgMissing/Index.d.ets"
+                "../oh_modules/pkgMissing/Index.d.ats"
             ]
         }
     }

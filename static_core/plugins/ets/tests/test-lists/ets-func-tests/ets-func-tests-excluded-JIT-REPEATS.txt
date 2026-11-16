@@ -10,4 +10,4 @@ std/containers/BlockingQueue/AddAndPollStress.ets
 # End issue https://gitee.com/openharmony/arkcompiler_runtime_core/issues/IBUDOL
 
 # It is executed too long with repeats
-regression/mark_old_refs.ets
+regression/mark_old_refs.ats

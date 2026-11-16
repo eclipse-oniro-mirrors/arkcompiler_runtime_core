@@ -40,8 +40,8 @@ class Lang(LangBase):
 
     def __init__(self) -> None:
         super().__init__()
-        self.src = {'.ets'}
-        self.ext = '.ets'
+        self.src = {'.ets', '.ats'}
+        self.ext = '.ats'
         self.seamless_ext = '.d.ets'
 
     @property

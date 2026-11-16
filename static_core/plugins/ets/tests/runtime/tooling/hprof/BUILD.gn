@@ -58,7 +58,7 @@ ark_runtime_unittest("arkruntime_heap_dump_session_test") {
 static_dump_test_abc = "${target_gen_dir}/StaticDumpTest.abc"
 
 es2panda_gen("static_dump_test_abc") {
-  inputs = [ "StaticDumpTest.ets" ]
+  inputs = [ "StaticDumpTest.ats" ]
   outputs = [ static_dump_test_abc ]
   args = [
     "--extension=ets",

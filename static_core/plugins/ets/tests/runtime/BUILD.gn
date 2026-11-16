@@ -39,7 +39,7 @@ ark_runtime_unittest("async_stack_transport_test") {
 async_stack_promise_test_abc = "${target_gen_dir}/AsyncStackPromiseTest.abc"
 
 es2panda_gen("async_stack_promise_test_abc") {
-  inputs = [ "AsyncStackPromiseTest.ets" ]
+  inputs = [ "AsyncStackPromiseTest.ats" ]
   outputs = [ async_stack_promise_test_abc ]
   args = [
     "--extension=ets",

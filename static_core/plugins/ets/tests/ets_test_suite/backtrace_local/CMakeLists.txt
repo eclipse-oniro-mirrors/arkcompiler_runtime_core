@@ -70,4 +70,4 @@ function(add_backtrace_local_test)
     add_dependencies(test_suite_backtrace_local  ${target}_cpp_test_gtests)
 endfunction()
 
-add_backtrace_local_test(FILE call_backtrace_local.ets CPP_SOURCE call_backtrace_local_test.cpp OPTIONS "")
+add_backtrace_local_test(FILE call_backtrace_local.ats CPP_SOURCE call_backtrace_local_test.cpp OPTIONS "")

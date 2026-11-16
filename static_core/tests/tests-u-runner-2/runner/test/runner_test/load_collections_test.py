@@ -59,7 +59,7 @@ class CollectionsTest(TestCase):
             config = CollectionsTest.get_config()
             runner = RunnerStandardFlow(config)
             actual_tests = sorted(test.test_id for test in runner.tests)
-            expected_tests = ["test.ets"]
+            expected_tests = ["test.ats"]
             try:
                 self.assertEqual(actual_tests, expected_tests)
             finally:
@@ -80,7 +80,7 @@ class CollectionsTest(TestCase):
             config = CollectionsTest.get_config()
             runner = RunnerStandardFlow(config)
             actual_tests = sorted(test.test_id for test in runner.tests)
-            expected_tests = ["tests_folder/test1.ets", "tests_folder/test2.ets"]
+            expected_tests = ["tests_folder/test1.ats", "tests_folder/test2.ats"]
             try:
                 self.assertEqual(actual_tests, expected_tests)
             finally:
@@ -101,7 +101,7 @@ class CollectionsTest(TestCase):
             config = CollectionsTest.get_config()
             runner = RunnerStandardFlow(config)
             actual_tests = sorted(test.test_id for test in runner.tests)
-            expected_tests = ["test.ets", "tests_folder/test1.ets", "tests_folder/test2.ets"]
+            expected_tests = ["test.ats", "tests_folder/test1.ats", "tests_folder/test2.ats"]
             try:
                 self.assertEqual(actual_tests, expected_tests)
             finally:
@@ -130,7 +130,7 @@ class CollectionsTest(TestCase):
                 config = CollectionsTest.get_config()
                 runner = RunnerStandardFlow(config)
                 actual_tests = sorted(test.test_id for test in runner.tests)
-                expected_tests = ["tests_folder/test1.ets", "tests_folder/test2.ets"]
+                expected_tests = ["tests_folder/test1.ats", "tests_folder/test2.ats"]
                 try:
                     self.assertEqual(actual_tests, expected_tests)
                 finally:
@@ -171,14 +171,14 @@ class CollectionsTest(TestCase):
     @patch('runner.utils.get_config_test_suite_folder', lambda: CollectionsTest.data_folder)
     @patch.dict(os.environ, test_environ, clear=True)
     @patch('sys.argv', ["runner.sh", "panda", "test_suite_col_several",
-          "--filter", "*/test*.ets"])
+          "--filter", "*/test*.ats"])
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_utils.test_cmake_build)
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     def test_load_collection_with_filter(self) -> None:
         """
         test-suite test_suite_col_several contains 2 collections
-        expected result: loaded test1.ets, test2.ets
+        expected result: loaded test1.ats, test2.ats
         """
         with patch.object(TestSuite, 'list_roots', new_callable=PropertyMock) as mock_list_roots:
             mock_list_roots.return_value = [
@@ -187,7 +187,7 @@ class CollectionsTest(TestCase):
             config = CollectionsTest.get_config()
             runner = RunnerStandardFlow(config)
             actual_tests = sorted(test.test_id for test in runner.tests)
-            expected_tests = ["tests_folder/test1.ets", "tests_folder/test2.ets"]
+            expected_tests = ["tests_folder/test1.ats", "tests_folder/test2.ats"]
             try:
                 self.assertEqual(actual_tests, expected_tests)
             finally:

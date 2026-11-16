@@ -652,7 +652,7 @@ function(panda_ets_native_add_gtest)
     set(ETS_COMPILE_ARGUMENTS --gen-stdlib=false --extension=ets --opt-level=0)
 
     foreach(c ${ARG_ETS_SOURCE})
-        STRING(REPLACE ".ets" "" CLEAR_NAME ${c})
+        STRING(REPLACE ".ats" "" CLEAR_NAME ${c})
         if(NOT TARGET es2panda_${CLEAR_NAME})
             add_custom_target(es2panda_${CLEAR_NAME}
                 COMMAND ${es2panda_bin} ${ETS_COMPILE_ARGUMENTS} --output ${CMAKE_CURRENT_BINARY_DIR}/${CLEAR_NAME}.abc ${CMAKE_CURRENT_SOURCE_DIR}/${c}

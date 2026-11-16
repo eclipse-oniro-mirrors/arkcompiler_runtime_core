@@ -267,7 +267,8 @@ class StringCodeCompiler:
         )
 
     def _write_into_file(self, source_code: str, filename: str, extension: str) -> Path:
-        ets_file = self._tmp_path / f"{filename}.{extension}"
+        source_extension = "ats" if extension == "ets" else extension
+        ets_file = self._tmp_path / f"{filename}.{source_extension}"
         ets_file.write_text(source_code)
         return ets_file
 

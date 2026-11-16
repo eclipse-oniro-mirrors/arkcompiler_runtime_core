@@ -107,7 +107,7 @@ describe('handleResponseLogs thunk', () => {
     });
 
     it('preserves newlines in error messages', async () => {
-        const errorWithNewlines = '[test.ets:1:5] Error ESE0123: First error\n[test.ets:2:10] Error ESE0456: Second error\nSome output';
+        const errorWithNewlines = '[test.ats:1:5] Error ESE0123: First error\n[test.ats:2:10] Error ESE0456: Second error\nSome output';
 
         const apiResponse: IApiResponse = {
             data: {
@@ -176,7 +176,7 @@ describe('handleResponseLogs thunk', () => {
     });
 
     it('preserves newline at end of formatted error', async () => {
-        const formattedError = '[test.ets:5:3] Syntax error ESY0229: Unexpected token\n';
+        const formattedError = '[test.ats:5:3] Syntax error ESY0229: Unexpected token\n';
 
         const apiResponse: IApiResponse = {
             data: {
@@ -203,7 +203,7 @@ describe('handleResponseLogs thunk', () => {
     });
 
     it('handles errors without newlines correctly', async () => {
-        const errorNoNewline = '[test.ets:10:1] Error ESE0001: Missing semicolon';
+        const errorNoNewline = '[test.ats:10:1] Error ESE0001: Missing semicolon';
 
         const apiResponse: IApiResponse = {
             data: {
@@ -232,7 +232,7 @@ describe('handleResponseLogs thunk', () => {
     });
 
     it('does not lose empty lines between errors', async () => {
-        const errorWithEmptyLine = '[test.ets:1:1] Error ESE0123: First\n\n[test.ets:3:1] Error ESE0456: Second';
+        const errorWithEmptyLine = '[test.ats:1:1] Error ESE0123: First\n\n[test.ats:3:1] Error ESE0456: Second';
 
         const apiResponse: IApiResponse = {
             data: {

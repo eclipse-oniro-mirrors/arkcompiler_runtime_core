@@ -40,7 +40,7 @@ function main(): int {
 """
 
 ARKTSCONFIG_MODULE_NAME: Final[str] = "debugger_paths_alias"
-EXPECTED_DEBUG_URL: Final[str] = f"{ARKTSCONFIG_MODULE_NAME}.ets"
+EXPECTED_DEBUG_URL: Final[str] = f"{ARKTSCONFIG_MODULE_NAME}.ats"
 
 
 async def test_debugger_uses_arktsconfig_paths_key_as_source_file_url(
@@ -50,7 +50,7 @@ async def test_debugger_uses_arktsconfig_paths_key_as_source_file_url(
     nursery: trio.Nursery,
     debug_locator: DebugLocator,
 ) -> None:
-    source_file = tmp_path / "entry.ets"
+    source_file = tmp_path / "entry.ats"
     source_file.write_text(CODE)
 
     arktsconfig = tmp_path / "arktsconfig.paths.json"

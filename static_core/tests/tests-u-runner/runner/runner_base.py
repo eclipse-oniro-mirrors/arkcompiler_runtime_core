@@ -312,6 +312,9 @@ class Runner(ABC):
                 directory = str(path.normpath(path.join(self.test_root, directory)))
             test_files.extend(self.__load_test_files(directory, extension))  # type: ignore
 
+        if self.explicit_test is not None or self.explicit_list is not None:
+            test_files = [test for test in test_files if test.endswith(f".{extension}")]
+
         self._search_both_excluded_and_ignored_tests()
         self._search_not_used_ignored(test_files)
 

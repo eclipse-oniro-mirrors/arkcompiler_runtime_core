@@ -54,14 +54,14 @@ class ValidatorsChainTest(unittest.TestCase):
     @patch('runner.utils.get_config_workflow_folder', data_folder)
     @patch('runner.utils.get_config_test_suite_folder', data_folder)
     @patch.dict(os.environ, test_environ, clear=True)
-    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test1_compile_only.ets"])
+    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test1_compile_only.ats"])
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_utils.test_cmake_build)
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @patch("runner.suites.one_step_runner.subprocess.Popen")
     def test_compile_only_rt_fail(self, mock_popen: MagicMock) -> None:
         """
-        test-file: test1_compile_only.ets
+        test-file: test1_compile_only.ats
         validators: check_return_code - FAIL
         expected result - test fails because return code = 1
         """
@@ -76,14 +76,14 @@ class ValidatorsChainTest(unittest.TestCase):
     @patch('runner.utils.get_config_workflow_folder', data_folder)
     @patch('runner.utils.get_config_test_suite_folder', data_folder)
     @patch.dict(os.environ, test_environ, clear=True)
-    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test1_compile_only.ets"])
+    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test1_compile_only.ats"])
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_utils.test_cmake_build)
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @patch("runner.suites.one_step_runner.subprocess.Popen")
     def test_compile_only_rt_stderr_fail(self, mock_popen: MagicMock) -> None:
         """
-        test-file: test1_compile_only.ets
+        test-file: test1_compile_only.ats
         validators: check_return_code - OK, check_stderr - FAIL
         expected result - test fails as stderr is not empty
         """
@@ -98,14 +98,14 @@ class ValidatorsChainTest(unittest.TestCase):
     @patch('runner.utils.get_config_workflow_folder', data_folder)
     @patch('runner.utils.get_config_test_suite_folder', data_folder)
     @patch.dict(os.environ, test_environ, clear=True)
-    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test2_compile_only.ets"])
+    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test2_compile_only.ats"])
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_utils.test_cmake_build)
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @patch("runner.suites.one_step_runner.subprocess.Popen")
     def test_compile_only_rt_stderr_pass(self, mock_popen: MagicMock) -> None:
         """
-        test-file: test2_compile_only.ets
+        test-file: test2_compile_only.ats
         validators: check_return_code - OK,check_stderr - OK
         expected result: test passed, stderr is compared with expected stderr output from test's metadata
         """
@@ -120,7 +120,7 @@ class ValidatorsChainTest(unittest.TestCase):
     @patch('runner.utils.get_config_workflow_folder', data_folder)
     @patch('runner.utils.get_config_test_suite_folder', data_folder)
     @patch.dict(os.environ, test_environ, clear=True)
-    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test3_compile_only.ets"])
+    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test3_compile_only.ats"])
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_utils.test_cmake_build)
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
@@ -133,7 +133,7 @@ class ValidatorsChainTest(unittest.TestCase):
                                          mock_check_rt: MagicMock,
                                          mock_popen: MagicMock) -> None:
         """
-        test-file: test3_compile_only.ets
+        test-file: test3_compile_only.ats
         validators: check_return_code - OK, check_stderr - OK, check_stdout - OK
         expected result: test passes
         """
@@ -151,14 +151,14 @@ class ValidatorsChainTest(unittest.TestCase):
     @patch('runner.utils.get_config_workflow_folder', data_folder)
     @patch('runner.utils.get_config_test_suite_folder', data_folder)
     @patch.dict(os.environ, test_environ, clear=True)
-    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test4_runtime.ets"])
+    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test4_runtime.ats"])
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_utils.test_cmake_build)
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @patch("runner.suites.one_step_runner.subprocess.Popen")
     def test_runtime_pass(self, mock_popen: MagicMock) -> None:
         """
-        test-file: test4_runtime.ets, stdout for runtime step
+        test-file: test4_runtime.ats, stdout for runtime step
         validators:
             - compile/verifier steps: check_return_code - OK, check_stderr - OK
             - runtime(runtime/aot) steps: check_return_code - OK, check_stderr - OK
@@ -175,14 +175,14 @@ class ValidatorsChainTest(unittest.TestCase):
     @patch('runner.utils.get_config_workflow_folder', data_folder)
     @patch('runner.utils.get_config_test_suite_folder', data_folder)
     @patch.dict(os.environ, test_environ, clear=True)
-    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test4_runtime.ets"])
+    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test4_runtime.ats"])
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_utils.test_cmake_build)
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @patch("runner.suites.one_step_runner.subprocess.Popen")
     def test_runtime_rt_fail(self, mock_popen: MagicMock) -> None:
         """
-        test-file: test4_runtime.ets
+        test-file: test4_runtime.ats
         validators:
             - compiler/ verifier: check_return_code - OK, check_stderr - OK
             - aot: check_return_code - FAIL
@@ -214,7 +214,7 @@ class ValidatorsChainTest(unittest.TestCase):
     @patch("runner.suites.one_step_runner.subprocess.Popen")
     def test_runtime_stdout_fail(self, mock_popen: MagicMock) -> None:
         """
-        test-file: test5_runtime.ets, stdout in aot step
+        test-file: test5_runtime.ats, stdout in aot step
         validators:
             - compiler/ verifier: check_return_code - OK, check_stderr - OK
             - aot: check_return_code - OK, check_stderr - OK, check_stdout - fail
@@ -239,14 +239,14 @@ class ValidatorsChainTest(unittest.TestCase):
     @patch('runner.utils.get_config_workflow_folder', data_folder)
     @patch('runner.utils.get_config_test_suite_folder', data_folder)
     @patch.dict(os.environ, test_environ, clear=True)
-    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test5_runtime.ets"])
+    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test5_runtime.ats"])
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_utils.test_cmake_build)
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @patch("runner.suites.one_step_runner.subprocess.Popen")
     def test_runtime_stdout_last_step_fail(self, mock_popen: MagicMock) -> None:
         """
-        test-file: test5_runtime.ets, stdout in runtime step (last step)
+        test-file: test5_runtime.ats, stdout in runtime step (last step)
         validators:
             - compiler/ verifier: check_return_code - OK, check_stderr - OK
             - aot: check_return_code - OK, check_stderr - OK
@@ -272,7 +272,7 @@ class ValidatorsChainTest(unittest.TestCase):
     @patch('runner.utils.get_config_workflow_folder', data_folder)
     @patch('runner.utils.get_config_test_suite_folder', data_folder)
     @patch.dict(os.environ, test_environ, clear=True)
-    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test5_runtime.ets"])
+    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test5_runtime.ats"])
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_utils.test_cmake_build)
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
@@ -285,7 +285,7 @@ class ValidatorsChainTest(unittest.TestCase):
                                      mock_check_rc: MagicMock,
                                      mock_popen: MagicMock) -> None:
         """
-        test-file: test5_runtime.ets, stdout in runtime step (last step), expected to fail on comparison
+        test-file: test5_runtime.ats, stdout in runtime step (last step), expected to fail on comparison
         actual fail on compile step
         validators:
             - compiler: check_return_code - fail
@@ -320,7 +320,7 @@ class ValidatorsChainTest(unittest.TestCase):
     @patch("runner.suites.one_step_runner.subprocess.Popen")
     def test_runtime_stdout_pass(self, mock_popen: MagicMock) -> None:
         """
-        test-file: test5_runtime.ets, stdout in aot step
+        test-file: test5_runtime.ats, stdout in aot step
         validators:
             - compiler/ verifier: check_return_code - OK, check_stderr - OK
             - aot: check_return_code - OK, check_stderr - OK, check_stdout - OK
@@ -346,14 +346,14 @@ class ValidatorsChainTest(unittest.TestCase):
     @patch('runner.utils.get_config_workflow_folder', data_folder)
     @patch('runner.utils.get_config_test_suite_folder', data_folder)
     @patch.dict(os.environ, test_environ, clear=True)
-    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test5_runtime.ets"])
+    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test5_runtime.ats"])
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_utils.test_cmake_build)
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @patch("runner.suites.one_step_runner.subprocess.Popen")
     def test_runtime_no_stdout_fail(self, mock_popen: MagicMock) -> None:
         """
-        test-file: test5_runtime.ets, no stdout, but expected comparison with stdout
+        test-file: test5_runtime.ats, no stdout, but expected comparison with stdout
         validators:
             - compiler/ verifier: check_return_code - OK, check_stderr - OK
             - aot: check_return_code - OK, check_stderr - OK, check_stdout - FAIL( but ignore as there is one more step)
@@ -377,14 +377,14 @@ class ValidatorsChainTest(unittest.TestCase):
     @patch('runner.utils.get_config_workflow_folder', data_folder)
     @patch('runner.utils.get_config_test_suite_folder', data_folder)
     @patch.dict(os.environ, test_environ, clear=True)
-    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test7_runtime_with_exp.ets"])
+    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test7_runtime_with_exp.ats"])
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_utils.test_cmake_build)
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @patch("runner.suites.one_step_runner.subprocess.Popen")
     def test_runtime_expected_compile_step(self, mock_popen: MagicMock) -> None:
         """
-        test-file: test7_runtime.ets, stdout for compile step, expected_out for compile step set by step kind
+        test-file: test7_runtime.ats, stdout for compile step, expected_out for compile step set by step kind
         validators:
             - compile/verifier steps: check_return_code - OK, check_stderr - OK
             - runtime(runtime/aot) steps: check_stderr - OK
@@ -401,14 +401,14 @@ class ValidatorsChainTest(unittest.TestCase):
     @patch('runner.utils.get_config_workflow_folder', data_folder)
     @patch('runner.utils.get_config_test_suite_folder', data_folder)
     @patch.dict(os.environ, test_environ, clear=True)
-    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test7_runtime_with_exp.ets"])
+    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test7_runtime_with_exp.ats"])
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_utils.test_cmake_build)
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @patch("runner.suites.one_step_runner.subprocess.Popen")
     def test_runtime_expected_compile_step_fail(self, mock_popen: MagicMock) -> None:
         """
-        test-file: test7_runtime.ets, stdout for compile step, expected_out for compile step set by step kind
+        test-file: test7_runtime.ats, stdout for compile step, expected_out for compile step set by step kind
         validators:
             - compile/verifier steps: check_return_code - fail, check_stderr - OK
         expected result: test fails, stdout is compared after compile step
@@ -423,14 +423,14 @@ class ValidatorsChainTest(unittest.TestCase):
     @patch('runner.utils.get_config_workflow_folder', data_folder)
     @patch('runner.utils.get_config_test_suite_folder', data_folder)
     @patch.dict(os.environ, test_environ, clear=True)
-    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test8_runtime_with_exp.ets"])
+    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--test-file", "test8_runtime_with_exp.ats"])
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_utils.test_cmake_build)
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @patch("runner.suites.one_step_runner.subprocess.Popen")
     def test_runtime_expected_compile_by_step_name(self, mock_popen: MagicMock) -> None:
         """
-        test-file: test8_runtime.ets, stdout for compile step, expected_out refers to the step name
+        test-file: test8_runtime.ats, stdout for compile step, expected_out refers to the step name
         validators:
             - compile/verifier steps: check_return_code - OK, check_stderr - OK
             - runtime(runtime/aot) steps: check_stderr - OK
@@ -446,14 +446,14 @@ class ValidatorsChainTest(unittest.TestCase):
     @patch('runner.utils.get_config_workflow_folder', data_folder)
     @patch('runner.utils.get_config_test_suite_folder', data_folder)
     @patch.dict(os.environ, test_environ, clear=True)
-    @patch('sys.argv', ["runner.sh", "panda_extended", "test_suite1", "--test-file", "test9_runtime_with_exp.ets"])
+    @patch('sys.argv', ["runner.sh", "panda_extended", "test_suite1", "--test-file", "test9_runtime_with_exp.ats"])
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_utils.test_cmake_build)
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @patch("runner.suites.one_step_runner.subprocess.Popen")
     def test_runtime_two_compile_steps_pass(self, mock_popen: MagicMock) -> None:
         """
-        test-file: test9_runtime_with_exp.ets, stdout in the 2nd compile step
+        test-file: test9_runtime_with_exp.ats, stdout in the 2nd compile step
         expected_out for 2nd compile stp defined by step name
             - compiler-1/ verifier-1: check_stderr - OK
             - runtime-1: check_stderr - OK
@@ -479,14 +479,14 @@ class ValidatorsChainTest(unittest.TestCase):
     @patch('runner.utils.get_config_workflow_folder', data_folder)
     @patch('runner.utils.get_config_test_suite_folder', data_folder)
     @patch.dict(os.environ, test_environ, clear=True)
-    @patch('sys.argv', ["runner.sh", "panda_extended", "test_suite1", "--test-file", "test9_runtime_with_exp.ets"])
+    @patch('sys.argv', ["runner.sh", "panda_extended", "test_suite1", "--test-file", "test9_runtime_with_exp.ats"])
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_utils.test_cmake_build)
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @patch("runner.suites.one_step_runner.subprocess.Popen")
     def test_runtime_two_compile_steps_fail(self, mock_popen: MagicMock) -> None:
         """
-        test-file: test9_runtime_with_exp.ets, stdout in the 2nd verifier step
+        test-file: test9_runtime_with_exp.ats, stdout in the 2nd verifier step
         expected_out for 2nd compile step defined by step name
             - compiler-1/ verifier-1: check_stderr - OK
             - runtime-1: check_stderr - OK
@@ -511,14 +511,14 @@ class ValidatorsChainTest(unittest.TestCase):
     @patch('runner.utils.get_config_workflow_folder', data_folder)
     @patch('runner.utils.get_config_test_suite_folder', data_folder)
     @patch.dict(os.environ, test_environ, clear=True)
-    @patch('sys.argv', ["runner.sh", "panda_extended", "test_suite1", "--test-file", "test10_runtime_with_exp.ets"])
+    @patch('sys.argv', ["runner.sh", "panda_extended", "test_suite1", "--test-file", "test10_runtime_with_exp.ats"])
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_utils.test_cmake_build)
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @patch("runner.suites.one_step_runner.subprocess.Popen")
     def test_runtime_two_compile_steps_fail_2(self, mock_popen: MagicMock) -> None:
         """
-        test-file: test9_runtime_with_exp.ets, stdout fo compile-1 and runtime-2 steps
+        test-file: test9_runtime_with_exp.ats, stdout fo compile-1 and runtime-2 steps
         expected_out for 1st compile step, 2nd runtime defined by step name
         expected_out
             - compiler-1/ verifier-1: check_stderr - OK, chek_stdout - OK
@@ -543,8 +543,8 @@ class ValidatorsChainTest(unittest.TestCase):
         clear_after_test()
 
     @test_utils.parametrized_test_cases([
-        (["runner.sh", "panda_extended", "test_suite1", "--test-file", "test_negative_steps.ets"], True),
-        (["runner.sh", "panda_extended", "test_suite1", "--test-file", "test_negative_steps_fail.ets"], False),
+        (["runner.sh", "panda_extended", "test_suite1", "--test-file", "test_negative_steps.ats"], True),
+        (["runner.sh", "panda_extended", "test_suite1", "--test-file", "test_negative_steps_fail.ats"], False),
     ])
     @patch('runner.utils.get_config_workflow_folder', data_folder)
     @patch('runner.utils.get_config_test_suite_folder', data_folder)
@@ -583,14 +583,14 @@ class ValidatorsChainTest(unittest.TestCase):
     @patch('runner.utils.get_config_workflow_folder', data_folder)
     @patch('runner.utils.get_config_test_suite_folder', data_folder)
     @patch.dict(os.environ, test_environ, clear=True)
-    @patch('sys.argv', ["runner.sh", "panda_extended", "test_suite1", "--test-file", "test_several_negative_steps.ets"])
+    @patch('sys.argv', ["runner.sh", "panda_extended", "test_suite1", "--test-file", "test_several_negative_steps.ats"])
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_utils.test_cmake_build)
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @patch("runner.suites.one_step_runner.subprocess.Popen")
     def test_several_negative_steps(self, mock_popen: MagicMock) -> None:
         """
-        test-file: test_several_negative_steps.ets,
+        test-file: test_several_negative_steps.ats,
         verifier-2 step is expected to fail with stderr
         runtime-2 step is expected to fail
         both steps are in the negative_steps field

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 # Copyright (c) 2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -325,45 +326,45 @@ RULES: List[Rule] = [
     ),
     Rule(
         rule_id="ETS807", severity="Warning",
-        file_globs=["*.ets", "*.sts"],
+        file_globs=["*.ats", "*.ets", "*.sts"],
         message="Avoid 'typeof' operator; use 'instanceof' instead",
         pattern=re.compile(r"\btypeof\b"),
         path_filter=_not_test,
     ),
     Rule(
         rule_id="ETS502", severity="Error",
-        file_globs=["*.ets", "*.sts"],
+        file_globs=["*.ats", "*.ets", "*.sts"],
         message="Use 'instanceof' instead of 'typeof' in tests",
         pattern=re.compile(r"\btypeof\b"),
         path_filter=is_test_path,
     ),
     Rule(
         rule_id="ETS814", severity="Warning",
-        file_globs=["*.ets", "*.sts"],
+        file_globs=["*.ats", "*.ets", "*.sts"],
         message="Do not use 'overload' set syntax; declare overloaded functions explicitly",
         pattern=re.compile(r"\boverload\s+\w+\s*\{"),
     ),
     Rule(
         rule_id="ETS805", severity="Warning",
-        file_globs=["*.ets", "*.sts"],
+        file_globs=["*.ats", "*.ets", "*.sts"],
         message="Avoid 'for..of' loop; use traditional index-based 'for' loop",
         pattern=re.compile(r"\bfor\s*\([^)]*\bof\b"),
     ),
     Rule(
         rule_id="ETS806", severity="Warning",
-        file_globs=["*.ets", "*.sts"],
+        file_globs=["*.ats", "*.ets", "*.sts"],
         message="Do not use labeled statements on loops",
         pattern=re.compile(r"^\s*\w+\s*:\s*(for|while|do)\b"),
     ),
     Rule(
         rule_id="ETS812", severity="Warning",
-        file_globs=["*.ets", "*.sts"],
+        file_globs=["*.ats", "*.ets", "*.sts"],
         message="Use StringBuilder instead of '+' for string concatenation",
         pattern=re.compile(r'''(?:"[^"]*"|'[^']*')\s*\+|\+\s*(?:"[^"]*"|'[^']*')'''),
     ),
     Rule(
         rule_id="ETS813", severity="Warning",
-        file_globs=["*.ets", "*.sts"],
+        file_globs=["*.ats", "*.ets", "*.sts"],
         message="Do not use exponential notation for integer values; write in standard form",
         checker=check_ets813,
     ),
@@ -376,25 +377,25 @@ RULES: List[Rule] = [
     ),
     Rule(
         rule_id="ETS801", severity="Error",
-        file_globs=["*.ets", "*.sts"],
+        file_globs=["*.ats", "*.ets", "*.sts"],
         message="Exported function must use camelCase naming",
         checker=check_ets801,
     ),
     Rule(
         rule_id="ETS802", severity="Error",
-        file_globs=["*.ets", "*.sts"],
+        file_globs=["*.ats", "*.ets", "*.sts"],
         message="Public method must use camelCase naming",
         checker=check_ets802,
     ),
     Rule(
         rule_id="ETS803", severity="Error",
-        file_globs=["*.ets", "*.sts"],
+        file_globs=["*.ats", "*.ets", "*.sts"],
         message="Exported type must use PascalCase naming",
         checker=check_ets803,
     ),
     Rule(
         rule_id="ETS804", severity="Error",
-        file_globs=["*.ets", "*.sts"],
+        file_globs=["*.ats", "*.ets", "*.sts"],
         message="Global constant should use SCREAMING_SNAKE_CASE naming",
         checker=check_ets804,
     ),

@@ -1,157 +1,157 @@
 #24352
-algorithms/SampleAppTest.ets
+algorithms/SampleAppTest.ats
 
 #24358 Koala related issues
-koala-related-benchmarks/arkts-phase1.ets
+koala-related-benchmarks/arkts-phase1.ats
 
 #19807
-regression/12581_custom_class_Engine_array.ets
+regression/12581_custom_class_Engine_array.ats
 
 #25425
-regression/15278_1.ets
+regression/15278_1.ats
 
 #25911
-regression/25911_0.ets
-regression/25911_1.ets
-regression/25911_2.ets
-regression/25911_3.ets
+regression/25911_0.ats
+regression/25911_1.ats
+regression/25911_2.ats
+regression/25911_3.ats
 
 #26443
-regression/23659_0.ets
-regression/23659_1.ets
+regression/23659_0.ats
+regression/23659_1.ats
 
 #32441
-regression/32441.ets
+regression/32441.ats
 
 #32353
-regression/32353.ets
+regression/32353.ats
 
 #34667 Bytecode Optimizer: Opcode Compare not yet implemented
-regression/34667.ets
+regression/34667.ats
 
 #35187 Usage of ETSGLOBAL is not prohibited
-regression/35187_0.ets
-regression/35187_1.ets
-regression/35187_2.ets
-regression/35187_3.ets
-regression/35187_4.ets
+regression/35187_0.ats
+regression/35187_1.ats
+regression/35187_2.ats
+regression/35187_3.ats
+regression/35187_4.ats
 
 
 #35423 AstVerifier fail with INCORRECT_PARENT_REF
-regression/35423_0.ets
-regression/35423_1.ets
+regression/35423_0.ats
+regression/35423_1.ats
 
 #35428 String spread bug. Surrogate pair should not to be splitted
-regression/35428.ets
+regression/35428.ats
 
 #35444 Crash on instantiating anonimous class literal
-regression/35444.ets
+regression/35444.ats
 
 #19666  (Feature: Null safety tests)
-spec/03.types/References_Types/3.8.12.Nullish_Types/nullable-function-result_2.ets
-spec/03.types/References_Types/3.8.12.Nullish_Types/nullable-method-result_2.ets
+spec/03.types/References_Types/3.8.12.Nullish_Types/nullable-function-result_2.ats
+spec/03.types/References_Types/3.8.12.Nullish_Types/nullable-method-result_2.ats
 
 #19663 (Feature: Null safety tests)
-spec/03.types/References_Types/3.8.12.Nullish_Types/nullable-lambda-default-param_0.ets
-spec/03.types/References_Types/3.8.12.Nullish_Types/nullable-lambda-default-param_1.ets
-spec/03.types/References_Types/3.8.12.Nullish_Types/nullable-lambda-default-param_3.ets
-spec/03.types/References_Types/3.8.12.Nullish_Types/nullable-lambda-default-param_4.ets
-spec/03.types/References_Types/3.8.12.Nullish_Types/nullable-lambda-default-param_5.ets
-spec/03.types/References_Types/3.8.12.Nullish_Types/nullable-lambda-default-param_6.ets
+spec/03.types/References_Types/3.8.12.Nullish_Types/nullable-lambda-default-param_0.ats
+spec/03.types/References_Types/3.8.12.Nullish_Types/nullable-lambda-default-param_1.ats
+spec/03.types/References_Types/3.8.12.Nullish_Types/nullable-lambda-default-param_3.ats
+spec/03.types/References_Types/3.8.12.Nullish_Types/nullable-lambda-default-param_4.ats
+spec/03.types/References_Types/3.8.12.Nullish_Types/nullable-lambda-default-param_5.ats
+spec/03.types/References_Types/3.8.12.Nullish_Types/nullable-lambda-default-param_6.ats
 
 #19963
-spec/03.types/References_Types/Type_undefined/array-of-complex-type.ets
-spec/03.types/References_Types/Type_undefined/complex-type.ets
+spec/03.types/References_Types/Type_undefined/array-of-complex-type.ats
+spec/03.types/References_Types/Type_undefined/complex-type.ats
 
 #19936
-spec/03.types/References_Types/Type_undefined/array-of-type_0.ets
-spec/03.types/References_Types/Type_undefined/array-of-type_1.ets
+spec/03.types/References_Types/Type_undefined/array-of-type_0.ats
+spec/03.types/References_Types/Type_undefined/array-of-type_1.ats
 
 #19961
-spec/03.types/References_Types/Type_undefined/assign/assign-undefined-to-undefined_1.ets
-spec/03.types/References_Types/Type_undefined/assign/assign-undefined-to-untyped_1.ets
+spec/03.types/References_Types/Type_undefined/assign/assign-undefined-to-undefined_1.ats
+spec/03.types/References_Types/Type_undefined/assign/assign-undefined-to-untyped_1.ats
 
 #19960
-spec/03.types/References_Types/Type_undefined/set-add/add-undefined-to-undefined.ets
+spec/03.types/References_Types/Type_undefined/set-add/add-undefined-to-undefined.ats
 
 #19962
-spec/03.types/References_Types/Type_undefined/undefined-union-array-type_2.ets
-spec/03.types/References_Types/Type_undefined/undefined-union-array-type_3.ets
+spec/03.types/References_Types/Type_undefined/undefined-union-array-type_2.ats
+spec/03.types/References_Types/Type_undefined/undefined-union-array-type_3.ats
 
 ### tuples
-spec/03.types/References_Types/Tuples_type/tuple_as_rest_param_0.ets
+spec/03.types/References_Types/Tuples_type/tuple_as_rest_param_0.ats
 
 #19931
-spec/03.types/References_Types/Tuples_type/func_tuple_1.ets
+spec/03.types/References_Types/Tuples_type/func_tuple_1.ats
 
 #15394
-spec/03.types/References_Types/Tuples_type/tuple_write_6.ets
+spec/03.types/References_Types/Tuples_type/tuple_write_6.ats
 
 # Union issues: undefined not supported yet
-spec/03.types/References_Types/unions/union_generics_03.ets
+spec/03.types/References_Types/unions/union_generics_03.ats
 
 # Union issues: generics + unions not everything supported yet
-spec/03.types/References_Types/unions/union_generics_02.ets
+spec/03.types/References_Types/unions/union_generics_02.ats
 
 # Union issues: Negative tests
-spec/03.types/References_Types/unions/union_param_n_01.ets
-spec/03.types/References_Types/unions/union_param_n_02.ets
+spec/03.types/References_Types/unions/union_param_n_01.ats
+spec/03.types/References_Types/unions/union_param_n_02.ats
 
 #19952  Feature: Rest Params
-spec/04.Names_Declarations_and_Scopes/4.8.Function_Declarations/4.8.5.Rest_Parameter/RestParamsTest_PassInterfaceArgs.ets
-spec/04.Names_Declarations_and_Scopes/4.8.Function_Declarations/4.8.5.Rest_Parameter/RestParamsTest_PassLambdas_0.ets
-spec/04.Names_Declarations_and_Scopes/4.8.Function_Declarations/4.8.5.Rest_Parameter/RestParamsTest_PassLambdas_1.ets
+spec/04.Names_Declarations_and_Scopes/4.8.Function_Declarations/4.8.5.Rest_Parameter/RestParamsTest_PassInterfaceArgs.ats
+spec/04.Names_Declarations_and_Scopes/4.8.Function_Declarations/4.8.5.Rest_Parameter/RestParamsTest_PassLambdas_0.ats
+spec/04.Names_Declarations_and_Scopes/4.8.Function_Declarations/4.8.5.Rest_Parameter/RestParamsTest_PassLambdas_1.ats
 
 #16696
-spec/05.Generics/genericTypeArgumentWithDefaultParameterValue_07_04.ets
-spec/05.Generics/genericTypeArgumentWithDefaultParameterValue_08_00.ets
-spec/05.Generics/genericTypeArgumentWithDefaultParameterValue_08_01.ets
-spec/05.Generics/genericTypeArgumentWithDefaultParameterValue_08_02.ets
-spec/05.Generics/issue15089_05.ets
-spec/05.Generics/issue15089_06.ets
-spec/05.Generics/issue15089_08.ets
+spec/05.Generics/genericTypeArgumentWithDefaultParameterValue_07_04.ats
+spec/05.Generics/genericTypeArgumentWithDefaultParameterValue_08_00.ats
+spec/05.Generics/genericTypeArgumentWithDefaultParameterValue_08_01.ats
+spec/05.Generics/genericTypeArgumentWithDefaultParameterValue_08_02.ats
+spec/05.Generics/issue15089_05.ats
+spec/05.Generics/issue15089_06.ats
+spec/05.Generics/issue15089_08.ats
 
 #22831
-spec/05.Generics/function_as_type_generic_0010.ets
-spec/05.Generics/function_as_type_generic_0020.ets
-spec/05.Generics/function_as_type_generic_0030.ets
+spec/05.Generics/function_as_type_generic_0010.ats
+spec/05.Generics/function_as_type_generic_0020.ats
+spec/05.Generics/function_as_type_generic_0030.ats
 
 #20687
-spec/05.Generics/tuple_as_generic_args_0030.ets
+spec/05.Generics/tuple_as_generic_args_0030.ats
 
 #19932 (object-literals)
-spec/07.expressions/7.5.Object_Literal/issue14687.ets
+spec/07.expressions/7.5.Object_Literal/issue14687.ats
 
 ### Negative tests
-spec/07.expressions/7.19.Nullish-Coalescing_Expressions/issue14609_01.ets
+spec/07.expressions/7.19.Nullish-Coalescing_Expressions/issue14609_01.ats
 
 #16535
-spec/07.expressions/7.19.Nullish-Coalescing_Expressions/issue14609_02.ets
+spec/07.expressions/7.19.Nullish-Coalescing_Expressions/issue14609_02.ats
 
 ### Negative tests lambda issues
-spec/07.expressions/7.32.Lambda_Expressions/incorrectVariableDeclaration.ets
+spec/07.expressions/7.32.Lambda_Expressions/incorrectVariableDeclaration.ats
 
 #19958 lambda issues
-spec/07.expressions/7.32.Lambda_Expressions/propertyLookupWithTypeAlias_01.ets
-spec/07.expressions/7.32.Lambda_Expressions/propertyLookupWithTypeAlias_02.ets
-spec/07.expressions/7.32.Lambda_Expressions/propertyLookupWithTypeAlias_03.ets
+spec/07.expressions/7.32.Lambda_Expressions/propertyLookupWithTypeAlias_01.ats
+spec/07.expressions/7.32.Lambda_Expressions/propertyLookupWithTypeAlias_02.ats
+spec/07.expressions/7.32.Lambda_Expressions/propertyLookupWithTypeAlias_03.ats
 
 #24349 (accessors)
-spec/09.classes/Accessor_Declarations/issue-15142_7.ets
-spec/09.classes/Accessor_Declarations/issue-15142_8.ets
+spec/09.classes/Accessor_Declarations/issue-15142_7.ats
+spec/09.classes/Accessor_Declarations/issue-15142_8.ats
 
 #19722 (accessors)
-spec/09.classes/Accessor_Declarations/issue-15142_5.ets
+spec/09.classes/Accessor_Declarations/issue-15142_5.ats
 
 #19726 (Class constructor inheritance)
-spec/09.classes/constructor-inheritance/issue14720_2.ets
+spec/09.classes/constructor-inheritance/issue14720_2.ats
 
 #19811
-spec/09.classes/constructor-inheritance/issue14720_6.ets
+spec/09.classes/constructor-inheritance/issue14720_6.ats
 
 #24361
-spec/09.classes/constructor-inheritance/issue14720_4.ets
-spec/09.classes/constructor-inheritance/issue14720_5.ets
+spec/09.classes/constructor-inheritance/issue14720_4.ats
+spec/09.classes/constructor-inheritance/issue14720_5.ats
 
 ### Negative tests (Interfaces overriding issues)
 spec/09.classes/9.6.Method_Declarations/10.Overriding_by_Instance_Methods/interface_overriding_02.ets
@@ -162,133 +162,133 @@ spec/09.classes/9.6.Method_Declarations/10.Overriding_by_Instance_Methods/interf
 spec/09.classes/9.6.Method_Declarations/10.Overriding_by_Instance_Methods/interfaces_overriding/override_static_instance_0011.ets
 
 #19728 (Overriding issues)
-spec/09.classes/9.6.Method_Declarations/10.Overriding_by_Instance_Methods/override_optional_param_01_05.ets
+spec/09.classes/9.6.Method_Declarations/10.Overriding_by_Instance_Methods/override_optional_param_01_05.ats
 
 #19727
-spec/10.Interfaces/Interface_Methods_Declarations/method_overload1.ets
-spec/10.Interfaces/Interface_Methods_Declarations/method_overload2.ets
-spec/10.Interfaces/Interface_Methods_Declarations/method_overload3.ets
-spec/10.Interfaces/Interface_Methods_Declarations/method_overload4.ets
-spec/10.Interfaces/Interface_Methods_Declarations/method_overload7.ets
-spec/10.Interfaces/method_overload1.ets
-spec/10.Interfaces/method_overload2.ets
-spec/10.Interfaces/method_overload3.ets
-spec/10.Interfaces/method_overload4.ets
-spec/10.Interfaces/method_overload7.ets
+spec/10.Interfaces/Interface_Methods_Declarations/method_overload1.ats
+spec/10.Interfaces/Interface_Methods_Declarations/method_overload2.ats
+spec/10.Interfaces/Interface_Methods_Declarations/method_overload3.ats
+spec/10.Interfaces/Interface_Methods_Declarations/method_overload4.ats
+spec/10.Interfaces/Interface_Methods_Declarations/method_overload7.ats
+spec/10.Interfaces/method_overload1.ats
+spec/10.Interfaces/method_overload2.ats
+spec/10.Interfaces/method_overload3.ats
+spec/10.Interfaces/method_overload4.ats
+spec/10.Interfaces/method_overload7.ats
 
 #19954 enum issue
-spec/11.Enumerations/enumCallToStringFromAsyncLambda.ets
+spec/11.Enumerations/enumCallToStringFromAsyncLambda.ats
 
 #22825 enum issue
-spec/11.Enumerations/enum_const_expr_01_01.ets
-spec/11.Enumerations/enum_const_expr_01_02.ets
-spec/11.Enumerations/enum_const_expr_01_03.ets
-spec/11.Enumerations/enum_const_expr_01_04.ets
-spec/11.Enumerations/enum_const_expr_01_05.ets
-spec/11.Enumerations/enum_const_expr_01_06.ets
-spec/11.Enumerations/enum_const_expr_02_01.ets
-spec/11.Enumerations/enum_const_expr_02_02.ets
-spec/11.Enumerations/enum_const_expr_02_03.ets
+spec/11.Enumerations/enum_const_expr_01_01.ats
+spec/11.Enumerations/enum_const_expr_01_02.ats
+spec/11.Enumerations/enum_const_expr_01_03.ats
+spec/11.Enumerations/enum_const_expr_01_04.ats
+spec/11.Enumerations/enum_const_expr_01_05.ats
+spec/11.Enumerations/enum_const_expr_01_06.ats
+spec/11.Enumerations/enum_const_expr_02_01.ats
+spec/11.Enumerations/enum_const_expr_02_02.ats
+spec/11.Enumerations/enum_const_expr_02_03.ats
 
 ### cannot create runtime (compound tests not supported) (Import-export)
-spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/05.default_import_binding/default_import_binding.ets
+spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/05.default_import_binding/default_import_binding.ats
 
 #19935 (Import-export)
-spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/06.import_path/import_path_03.ets
-spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/non_linux_path_separators.ets
+spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/06.import_path/import_path_03.ats
+spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/non_linux_path_separators.ats
 
 # 19934 (Import-export)
-spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/t_isnt_exported_but_func_takes_t_as_param_exported.ets
+spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/t_isnt_exported_but_func_takes_t_as_param_exported.ats
 
 #19712 (Import-export)
-spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/t_is_proxed_through_chain_of_files.ets
-spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/t_is_proxed_through_chain_of_files_2.ets
+spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/t_is_proxed_through_chain_of_files.ats
+spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/t_is_proxed_through_chain_of_files_2.ats
 
 #34623 (Import-export)
-spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/05.default_import_binding/default_import_binding.ets
-spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/06.import_path/import_path_01.ets
-spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/t_isnt_exported_but_func_takes_t_as_return_value_exported.ets
-spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/t_isnt_exported_but_subtype_of_t_exported.ets
-spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/t_isnt_exported_but_var_of_t_exported.ets
-spec/13.Compilation_Units_Packages_and_Modules/06.Export_Directives/03.re-export_directives/re-export_directive_02.ets
-spec/13.Compilation_Units_Packages_and_Modules/06.Export_Directives/03.re-export_directives/re_export_directive_04.ets
+spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/05.default_import_binding/default_import_binding.ats
+spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/06.import_path/import_path_01.ats
+spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/t_isnt_exported_but_func_takes_t_as_return_value_exported.ats
+spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/t_isnt_exported_but_subtype_of_t_exported.ats
+spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/t_isnt_exported_but_var_of_t_exported.ats
+spec/13.Compilation_Units_Packages_and_Modules/06.Export_Directives/03.re-export_directives/re-export_directive_02.ats
+spec/13.Compilation_Units_Packages_and_Modules/06.Export_Directives/03.re-export_directives/re_export_directive_04.ats
 
 ### Negative tests (Import-export)
-spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/import_unexported_class.ets
-spec/13.Compilation_Units_Packages_and_Modules/06.Export_Directives/01.selective_export_directive/selective_export_directive_02.ets
+spec/13.Compilation_Units_Packages_and_Modules/03.import_directives/import_unexported_class.ats
+spec/13.Compilation_Units_Packages_and_Modules/06.Export_Directives/01.selective_export_directive/selective_export_directive_02.ats
 
 #19710
-spec/13.Compilation_Units_Packages_and_Modules/06.Export_Directives/02.export_type_directives/export_type_directive_01.ets
+spec/13.Compilation_Units_Packages_and_Modules/06.Export_Directives/02.export_type_directives/export_type_directive_01.ats
 
 #19933 (Import-export)
-spec/13.Compilation_Units_Packages_and_Modules/06.Export_Directives/03.re-export_directives/re-export_directive_01.ets
+spec/13.Compilation_Units_Packages_and_Modules/06.Export_Directives/03.re-export_directives/re-export_directive_01.ats
 
 #19715 (Import-export)
-spec/13.Compilation_Units_Packages_and_Modules/06.Export_Directives/03.re-export_directives/re_export_directive_03.ets
+spec/13.Compilation_Units_Packages_and_Modules/06.Export_Directives/03.re-export_directives/re_export_directive_03.ats
 
 # undefined functionality is not implemented
-spec/15.Semantic_Rules/Compatibility_Features/Extended_Conditional_Expressions/nullish_expr/loop/undefined-expression-loop-while.ets
+spec/15.Semantic_Rules/Compatibility_Features/Extended_Conditional_Expressions/nullish_expr/loop/undefined-expression-loop-while.ats
 
 #19953
-spec/15.Semantic_Rules/Compatibility_Features/Extended_Conditional_Expressions/numeric/expr/numeric-double-object-zero-expression.ets
+spec/15.Semantic_Rules/Compatibility_Features/Extended_Conditional_Expressions/numeric/expr/numeric-double-object-zero-expression.ats
 
 #14040 Annotations not yet implemented
-spec/16.Support_for_GUI_Programming/annotations/annotation_@Builder.ets
-spec/16.Support_for_GUI_Programming/annotations/annotation_@Builder_2.ets
-spec/16.Support_for_GUI_Programming/annotations/annotation_@Component.ets
-spec/16.Support_for_GUI_Programming/annotations/annotation_@Consume.ets
-spec/16.Support_for_GUI_Programming/annotations/annotation_@Entry.ets
-spec/16.Support_for_GUI_Programming/annotations/annotation_@Link.ets
-spec/16.Support_for_GUI_Programming/annotations/annotation_@Link_2.ets
-spec/16.Support_for_GUI_Programming/annotations/annotation_@LocalStorageLink.ets
-spec/16.Support_for_GUI_Programming/annotations/annotation_@ObjectLink.ets
-spec/16.Support_for_GUI_Programming/annotations/annotation_@Observed.ets
-spec/16.Support_for_GUI_Programming/annotations/annotation_@Prop.ets
-spec/16.Support_for_GUI_Programming/annotations/annotation_@Provide.ets
-spec/16.Support_for_GUI_Programming/annotations/annotation_@State.ets
-spec/16.Support_for_GUI_Programming/annotations/annotation_@StorageLink.ets
-spec/16.Support_for_GUI_Programming/annotations/annotation_@Watch.ets
-spec/16.Support_for_GUI_Programming/annotations/annotation_@Watch_2.ets
+spec/16.Support_for_GUI_Programming/annotations/annotation_@Builder.ats
+spec/16.Support_for_GUI_Programming/annotations/annotation_@Builder_2.ats
+spec/16.Support_for_GUI_Programming/annotations/annotation_@Component.ats
+spec/16.Support_for_GUI_Programming/annotations/annotation_@Consume.ats
+spec/16.Support_for_GUI_Programming/annotations/annotation_@Entry.ats
+spec/16.Support_for_GUI_Programming/annotations/annotation_@Link.ats
+spec/16.Support_for_GUI_Programming/annotations/annotation_@Link_2.ats
+spec/16.Support_for_GUI_Programming/annotations/annotation_@LocalStorageLink.ats
+spec/16.Support_for_GUI_Programming/annotations/annotation_@ObjectLink.ats
+spec/16.Support_for_GUI_Programming/annotations/annotation_@Observed.ats
+spec/16.Support_for_GUI_Programming/annotations/annotation_@Prop.ats
+spec/16.Support_for_GUI_Programming/annotations/annotation_@Provide.ats
+spec/16.Support_for_GUI_Programming/annotations/annotation_@State.ats
+spec/16.Support_for_GUI_Programming/annotations/annotation_@StorageLink.ats
+spec/16.Support_for_GUI_Programming/annotations/annotation_@Watch.ats
+spec/16.Support_for_GUI_Programming/annotations/annotation_@Watch_2.ats
 
 #19966 Feature: Callable classes
-spec/16.Support_for_GUI_Programming/callable-classes/type-call-instantiate_7.ets
+spec/16.Support_for_GUI_Programming/callable-classes/type-call-instantiate_7.ats
 
 #14040  ArkUI struct: Annotations not yet implemented
-spec/16.Support_for_GUI_Programming/struct-type/anno/test-builder-func_0.ets
-spec/16.Support_for_GUI_Programming/struct-type/anno/test-builder-func_1.ets
-spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-builder-param.ets
-spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-component.ets
-spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-entry.ets
-spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-field-consume.ets
-spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-field-link.ets
-spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-field-local-storage-link.ets
-spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-field-local-storage-prop.ets
-spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-field-prop.ets
-spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-field-provide.ets
-spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-field-state.ets
-spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-field-watch.ets
-spec/16.Support_for_GUI_Programming/struct-type/builder/test-struct-call-conditional-in-build.ets
-spec/16.Support_for_GUI_Programming/struct-type/builder/test-struct-call-function-in-build_2.ets
-spec/16.Support_for_GUI_Programming/struct-type/builder/test-struct-call-function-in-build_3.ets
-spec/16.Support_for_GUI_Programming/struct-type/test-struct-define-constructor.ets
-spec/16.Support_for_GUI_Programming/struct-type/test-struct-implements-interface.ets
-spec/16.Support_for_GUI_Programming/struct-type/test-struct-invoke_0.ets
-spec/16.Support_for_GUI_Programming/struct-type/test-struct-invoke_1.ets
-spec/16.Support_for_GUI_Programming/struct-type/test-use-struct-as-name_2.ets
+spec/16.Support_for_GUI_Programming/struct-type/anno/test-builder-func_0.ats
+spec/16.Support_for_GUI_Programming/struct-type/anno/test-builder-func_1.ats
+spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-builder-param.ats
+spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-component.ats
+spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-entry.ats
+spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-field-consume.ats
+spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-field-link.ats
+spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-field-local-storage-link.ats
+spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-field-local-storage-prop.ats
+spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-field-prop.ats
+spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-field-provide.ats
+spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-field-state.ats
+spec/16.Support_for_GUI_Programming/struct-type/anno/test-struct-field-watch.ats
+spec/16.Support_for_GUI_Programming/struct-type/builder/test-struct-call-conditional-in-build.ats
+spec/16.Support_for_GUI_Programming/struct-type/builder/test-struct-call-function-in-build_2.ats
+spec/16.Support_for_GUI_Programming/struct-type/builder/test-struct-call-function-in-build_3.ats
+spec/16.Support_for_GUI_Programming/struct-type/test-struct-define-constructor.ats
+spec/16.Support_for_GUI_Programming/struct-type/test-struct-implements-interface.ats
+spec/16.Support_for_GUI_Programming/struct-type/test-struct-invoke_0.ats
+spec/16.Support_for_GUI_Programming/struct-type/test-struct-invoke_1.ats
+spec/16.Support_for_GUI_Programming/struct-type/test-use-struct-as-name_2.ats
 
 #19719
-spec/17.Experimental_Features/17.3.Indexable_Types/idx-s01-0030.ets
-spec/17.Experimental_Features/17.3.Indexable_Types/idx-s01-0080.ets
+spec/17.Experimental_Features/17.3.Indexable_Types/idx-s01-0030.ats
+spec/17.Experimental_Features/17.3.Indexable_Types/idx-s01-0080.ats
 
 #19716
-spec/17.Experimental_Features/17.3.Indexable_Types/idx-s03-0000.ets
+spec/17.Experimental_Features/17.3.Indexable_Types/idx-s03-0000.ats
 
 ### for of is not implemented
-spec/17.Experimental_Features/Iterable_Types/for_of_08.ets
-spec/17.Experimental_Features/Iterable_Types/for_of_09.ets
-spec/17.Experimental_Features/Iterable_Types/for_of_10.ets
-spec/17.Experimental_Features/Iterable_Types/for_of_11.ets
-spec/17.Experimental_Features/Iterable_Types/for-of-s01-array-08.ets
+spec/17.Experimental_Features/Iterable_Types/for_of_08.ats
+spec/17.Experimental_Features/Iterable_Types/for_of_09.ats
+spec/17.Experimental_Features/Iterable_Types/for_of_10.ats
+spec/17.Experimental_Features/Iterable_Types/for_of_11.ats
+spec/17.Experimental_Features/Iterable_Types/for-of-s01-array-08.ats
 
 ### Type Erasure
 std/containers/BuiltinArrayMapTest.ets
@@ -348,11 +348,11 @@ std/core/std_core_char_instance_Char_toUpperCase.ats
 std/core/std_core_BigInt_instance_BigInt_toString_011.ats
 std/core/TypeCreateErasedBodyTest.ats
 std/core/NumberTest.ats
-regression/15278_0.ets
+regression/15278_0.ats
 
 #30585
 std/core/EAWorker_out_of_coro_creation.ats
 
 #31475
 std/concurrency/message_basic_interface.ets
-spec/15.Semantic_Rules/Compatibility_Features/Extended_Conditional_Expressions/string/expr/string-expression-assert.ets
+spec/15.Semantic_Rules/Compatibility_Features/Extended_Conditional_Expressions/string/expr/string-expression-assert.ats

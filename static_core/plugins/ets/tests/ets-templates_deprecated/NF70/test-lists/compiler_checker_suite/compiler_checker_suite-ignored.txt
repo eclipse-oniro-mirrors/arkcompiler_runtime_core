@@ -1,9 +1,9 @@
 #31608
-ets_tests/codegen_new_obj_call.ets
+ets_tests/codegen_new_obj_call.ats
 
 #24986
-ets_tests/optimize_load_object_boxed.ets
+ets_tests/optimize_load_object_boxed.ats
 
 #32664
-ets_tests/multiarray.ets
-ets_tests/lse_parameter_aliasing.ets
+ets_tests/multiarray.ats
+ets_tests/lse_parameter_aliasing.ats

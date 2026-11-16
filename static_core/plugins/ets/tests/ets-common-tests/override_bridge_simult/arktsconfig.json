@@ -5,7 +5,7 @@
         "rootDir": "${WORK_DIR}/${SUITE_NAME}/gen/ets-common-tests/override_bridge_simult"
     },
     "files": [
-        "./main.ets",
-        "./lib_dummy.ets"
+        "./main.ats",
+        "./lib_dummy.ats"
     ]
 }

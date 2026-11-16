@@ -9,7 +9,7 @@
                 "../oh_modules/pkgAmbiguous"
             ],
             "pkgAmbiguous/Index": [
-                "../oh_modules/pkgAmbiguous/Index.d.ets"
+                "../oh_modules/pkgAmbiguous/Index.d.ats"
             ],
             "pkgAmbiguous/src/main": [
                 "../build/declgenV2/pkgAmbiguous/src/main"

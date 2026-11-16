@@ -88,7 +88,7 @@ eval("require '#{__dir__}/src/script_module'", $user_binding)
 ScriptClass = Class.new.extend(eval('ScriptModule', $user_binding))
 
 $template_ts = ERB.new File.read("#{__dir__}/templates/template.ts.erb"), nil, '%'
-$template_ets = ERB.new File.read("#{__dir__}/templates/template.ets.erb"), nil, '%'
+$template_ets = ERB.new File.read("#{__dir__}/templates/template.ats.erb"), nil, '%'
 
 def deep_copy(a)
     Marshal.load(Marshal.dump(a))

@@ -25,7 +25,7 @@
  *                               RawHeap::TranslateRawheap -> .heapsnapshot graph.
  *                               No hand-written binary parser; assertions are
  *                               expressed at the translated heapsnapshot-graph level.
- *                               StaticDumpTest.ets declarations cover class
+ *                               StaticDumpTest.ats declarations cover class
  *                               metadata, primitive/reference/tagged values,
  *                               arrays, inheritance, and reachability.
  *
@@ -1368,7 +1368,7 @@ private:
 };
 
 // ============================================================================
-// Structure-driven helpers for StaticDumpTest.ets assertions.
+// Structure-driven helpers for StaticDumpTest.ats assertions.
 // Instance nodes are type "object" named "<pkg>.<ClassSimple>" (e.g.
 // "StaticDumpTest.Person"). Each instance carries one "hclass" property edge
 // (-> its class node) plus one PROPERTY edge per instance field (edge name
@@ -1784,13 +1784,13 @@ TEST_F(StaticDumpIntegrationTest, HeapsnapshotInstanceToClassEdgesValid)
 }
 
 // ============================================================================
-// Structure-driven tests: assertions tied to StaticDumpTest.ets declarations.
-// Each test maps a .ets construct (method/field/value) to a graph assertion
+// Structure-driven tests: assertions tied to StaticDumpTest.ats declarations.
+// Each test maps a .ats construct (method/field/value) to a graph assertion
 // (edge name == method/field name; value node name == the assigned value).
 // ============================================================================
 
 // Each test class's class node carries a PROPERTY edge (-> closure node) for
-// every method declared in the .ets, with the edge name == method name. The
+// every method declared in the .ats, with the edge name == method name. The
 // ETS compiler also emits implicit <ctor>/<cctor>; we only assert the
 // user-declared methods are present (not that the generated ones are absent).
 TEST_F(StaticDumpIntegrationTest, HeapsnapshotClassMethodEdgesMatchEts)
@@ -1871,7 +1871,7 @@ TEST_F(StaticDumpIntegrationTest, HeapsnapshotPopulatedInstanceFieldNamesMatchEt
             }
         }
         std::set<std::string> expected(c.fields.begin(), c.fields.end());
-        EXPECT_EQ(fieldEdges, expected) << "instance field edge names of " << c.simple << " do not match .ets";
+        EXPECT_EQ(fieldEdges, expected) << "instance field edge names of " << c.simple << " do not match .ats";
     }
 }
 

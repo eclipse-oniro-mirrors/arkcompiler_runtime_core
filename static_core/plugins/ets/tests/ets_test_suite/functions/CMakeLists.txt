@@ -23,7 +23,7 @@ add_custom_target(ets_test_suite_functions)
 foreach(test ${functions_tests})
     set(test_out_dir "${functions_tests_out_dir}/${test}")
 
-    set(test_in "${functions_tests_in_dir}/${test}.ets")
+    set(test_in "${functions_tests_in_dir}/${test}.ats")
     set(target ets_test_suite_functions_${test})
 
     run_int_jit_aot_ets_code(${test_in} ${test_out_dir} ${target})

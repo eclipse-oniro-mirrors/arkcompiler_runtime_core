@@ -22,4 +22,4 @@ parameters:
     load-runtimes: ets
     work-dir: ${WORK_DIR}
 collections:
-    test.ets: |-
+    test.ats: |-

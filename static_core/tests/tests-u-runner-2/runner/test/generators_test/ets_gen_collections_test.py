@@ -52,10 +52,10 @@ class EtsGeneratorCollectionsTest(TestCase):
         self.config = Config(args)
         _ = RunnerStandardFlow(self.config)
         gen_folder = Path(os.environ["WORK_DIR"]) / 'gen'
-        gen_tests = sorted(test.name for test in gen_folder.rglob("*") if test.is_file() and test.suffix == ".ets")
+        gen_tests = sorted(test.name for test in gen_folder.rglob("*") if test.is_file() and test.suffix == ".ats")
 
-        expected_tests = ['simple_test.ets',
-                          'simple_test_types.ets',
+        expected_tests = ['simple_test.ats',
+                          'simple_test_types.ats',
                           ]
         try:
             self.assertEqual(sorted(expected_tests), gen_tests)
@@ -78,9 +78,9 @@ class EtsGeneratorCollectionsTest(TestCase):
         self.config = Config(args)
         _ = RunnerStandardFlow(self.config)
         gen_folder = Path(os.environ["WORK_DIR"]) / 'gen'
-        gen_tests = sorted(test.name for test in gen_folder.rglob("*") if test.is_file() and test.suffix == ".ets")
+        gen_tests = sorted(test.name for test in gen_folder.rglob("*") if test.is_file() and test.suffix == ".ats")
 
-        expected_tests = ['simple_test_types.ets']
+        expected_tests = ['simple_test_types.ats']
         try:
             self.assertEqual(sorted(expected_tests), gen_tests)
         finally:
@@ -102,13 +102,13 @@ class EtsGeneratorCollectionsTest(TestCase):
         self.config = Config(args)
         _ = RunnerStandardFlow(self.config)
         gen_folder = Path(os.environ["WORK_DIR"]) / 'gen'
-        gen_tests = sorted(test.name for test in gen_folder.rglob("*") if test.is_file() and test.suffix == ".ets")
+        gen_tests = sorted(test.name for test in gen_folder.rglob("*") if test.is_file() and test.suffix == ".ats")
 
-        expected_tests = ['simple_test_types.ets',
-                          'simple_test.ets',
-                          'template_test_0.ets',
-                          'template_test_1.ets',
-                          'template_test_2.ets']
+        expected_tests = ['simple_test_types.ats',
+                          'simple_test.ats',
+                          'template_test_0.ats',
+                          'template_test_1.ats',
+                          'template_test_2.ats']
         try:
             self.assertEqual(sorted(expected_tests), gen_tests)
         finally:
@@ -120,7 +120,7 @@ class EtsGeneratorCollectionsTest(TestCase):
     @patch('runner.utils.get_config_test_suite_folder', data_folder)
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_utils.test_cmake_build)
     @patch('sys.argv', ["runner.sh", "config-1", "test_suite_3_col",
-                        "--test-file", "03.types/inner/simple_test_types.ets"])
+                        "--test-file", "03.types/inner/simple_test_types.ats"])
     def test_gen_for_collections_with_test_file(self) -> None:
         """
         test suite contains 3 collections (5 test in total), tst-fil is set explicitly.
@@ -130,9 +130,9 @@ class EtsGeneratorCollectionsTest(TestCase):
         self.config = Config(args)
         _ = RunnerStandardFlow(self.config)
         gen_folder = Path(os.environ["WORK_DIR"]) / 'gen'
-        gen_tests = sorted(test.name for test in gen_folder.rglob("*") if test.is_file() and test.suffix == ".ets")
+        gen_tests = sorted(test.name for test in gen_folder.rglob("*") if test.is_file() and test.suffix == ".ats")
 
-        expected_tests = ['simple_test_types.ets']
+        expected_tests = ['simple_test_types.ats']
         try:
             self.assertEqual(sorted(expected_tests), gen_tests)
         finally:

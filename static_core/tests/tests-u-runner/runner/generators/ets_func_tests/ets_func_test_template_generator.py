@@ -29,7 +29,7 @@ import runner.utils
 
 class EtsFuncTestsCodeGenerator:
     _TEST_SEPARATOR = "---"
-    _TEMPLATE_PATTERN = '/*.ets.j2'
+    _TEMPLATE_PATTERNS = ('/*.ets.j2', '/*.ats.j2')
 
 
     def __init__(self, template_root_path: pathlib.Path):
@@ -66,8 +66,11 @@ class EtsFuncTestsCodeGenerator:
 
     def __find_all_templates(self, current_dir: pathlib.Path) -> typing.List[str]:
         LOG.Log.all(self._logger, f"Start searching in : {current_dir}")
-        LOG.Log.all(self._logger, f"{str(current_dir) + self._TEMPLATE_PATTERN}")
-        templates_fname_list = glob.glob(str(current_dir) + self._TEMPLATE_PATTERN, recursive=False)
+        templates_fname_list = [
+            path
+            for pattern in self._TEMPLATE_PATTERNS
+            for path in glob.glob(str(current_dir) + pattern, recursive=False)
+        ]
         LOG.Log.all(self._logger, f"Found {len(templates_fname_list)} templates")
         return templates_fname_list
 
@@ -101,7 +104,8 @@ class EtsFuncTestsCodeGenerator:
 
         for test in content_list:
             test = self.__save_artefact_of_generator(test, template_fname, template_config_name)
-            output_fname = "test-" + fname + "-" + str(test_idx).zfill(4) + ".ets"
+            extension = path_parser.suffixes[-2]
+            output_fname = "test-" + fname + "-" + str(test_idx).zfill(4) + extension
             outpath_final = outpath / output_fname
             generated_tests_list.append(str(outpath))
             runner.utils.write_2_file(outpath_final, test)

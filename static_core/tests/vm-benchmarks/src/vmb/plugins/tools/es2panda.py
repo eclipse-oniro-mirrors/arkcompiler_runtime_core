@@ -45,7 +45,7 @@ def make_arktsconfig(configpath: Union[str, Path],
     dynamic_paths: dict = {}
     for path in extra_paths:
         lib_name = Path(path).stem
-        is_compilable = Path(path).suffix == '.ets' or Path(path).is_dir()
+        is_compilable = Path(path).suffix in {'.ets', '.ats'} or Path(path).is_dir()
         paths[lib_name] = [path]
         if is_compilable:
             continue

@@ -70,4 +70,4 @@ function(add_backtrace_test)
     add_dependencies(test_suite_backtrace  ${target}_cpp_test_gtests)
 endfunction()
 
-add_backtrace_test(FILE call_backtrace.ets CPP_SOURCE call_backtrace_test.cpp OPTIONS "")
+add_backtrace_test(FILE call_backtrace.ats CPP_SOURCE call_backtrace_test.cpp OPTIONS "")

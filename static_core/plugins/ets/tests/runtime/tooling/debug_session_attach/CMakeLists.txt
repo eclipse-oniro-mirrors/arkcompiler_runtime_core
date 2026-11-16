@@ -99,7 +99,7 @@ function(add_debug_session_attach_test ets_file)
     set(
         test_ets_source
         "${CMAKE_CURRENT_SOURCE_DIR}/${ets_file}"
-        "${CMAKE_CURRENT_SOURCE_DIR}/utils.ets"
+        "${CMAKE_CURRENT_SOURCE_DIR}/utils.ats"
     )
 
     set(impls "STACKFUL")
@@ -140,16 +140,16 @@ function(add_debug_session_attach_test ets_file)
     endforeach()
 endfunction()
 
-add_debug_session_attach_test(test_attach_main_and_throw.ets)
-add_debug_session_attach_test(test_attach_main_double_attach.ets)
-add_debug_session_attach_test(test_attach_main_loop.ets)
-add_debug_session_attach_test(test_attach_main_native_throw.ets)
-add_debug_session_attach_test(test_attach_main_prelinked_call.ets)
-add_debug_session_attach_test(test_attach_main_proxy.ets)
-add_debug_session_attach_test(test_attach_main_return.ets)
+add_debug_session_attach_test(test_attach_main_and_throw.ats)
+add_debug_session_attach_test(test_attach_main_double_attach.ats)
+add_debug_session_attach_test(test_attach_main_loop.ats)
+add_debug_session_attach_test(test_attach_main_native_throw.ats)
+add_debug_session_attach_test(test_attach_main_prelinked_call.ats)
+add_debug_session_attach_test(test_attach_main_proxy.ats)
+add_debug_session_attach_test(test_attach_main_return.ats)
 add_debug_session_attach_test(test_attach_main_via_ani.ets)
-add_debug_session_attach_test(test_attach_main_via_reflection.ets)
-add_debug_session_attach_test(test_attach_from_worker.ets USES_CONCURRENCY)
-add_debug_session_attach_test(test_attach_main_with_workers.ets USES_CONCURRENCY)
-add_debug_session_attach_test(test_attach_from_launch.ets USES_CONCURRENCY)
-add_debug_session_attach_test(test_attach_main_with_launch.ets USES_CONCURRENCY)
+add_debug_session_attach_test(test_attach_main_via_reflection.ats)
+add_debug_session_attach_test(test_attach_from_worker.ats USES_CONCURRENCY)
+add_debug_session_attach_test(test_attach_main_with_workers.ats USES_CONCURRENCY)
+add_debug_session_attach_test(test_attach_from_launch.ats USES_CONCURRENCY)
+add_debug_session_attach_test(test_attach_main_with_launch.ats USES_CONCURRENCY)

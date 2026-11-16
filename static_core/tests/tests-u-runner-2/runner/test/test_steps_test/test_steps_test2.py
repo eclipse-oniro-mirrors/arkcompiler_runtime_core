@@ -74,7 +74,7 @@ class TestStepsTest2(TestCase):
     @patch.dict(os.environ, test_environ, clear=True)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @patch.object(StepRequirements, 'check')
-    @patch('sys.argv', ["runner.sh", "workflow_step_pre_reqs", "test_suite", "--test-file=inner/simple.ets"])
+    @patch('sys.argv', ["runner.sh", "workflow_step_pre_reqs", "test_suite", "--test-file=inner/simple.ats"])
     def test_pre_reqs(self, check_mock: MagicMock) -> None:
         """
         Feature: the step contain 3 requirements
@@ -185,8 +185,8 @@ class TestStepsTest2(TestCase):
     @patch.dict(os.environ, test_environ, clear=True)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @test_utils.parametrized_test_cases([
-        (["runner.sh", "workflow_step_pre_reqs_failed_file", "test_suite", "--test-file=simple1.ets"],),
-        (["runner.sh", "workflow_step_post_reqs_failed_file", "test_suite", "--test-file=simple1.ets"],),
+        (["runner.sh", "workflow_step_pre_reqs_failed_file", "test_suite", "--test-file=simple1.ats"],),
+        (["runner.sh", "workflow_step_post_reqs_failed_file", "test_suite", "--test-file=simple1.ats"],),
     ])
     def test_reqs_failed_file(self, argv: Callable) -> None:
         """
@@ -217,8 +217,8 @@ class TestStepsTest2(TestCase):
     @patch.dict(os.environ, test_environ, clear=True)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @test_utils.parametrized_test_cases([
-        (["runner.sh", "workflow_step_pre_reqs_failed_folder", "test_suite", "--test-file=simple1.ets"],),
-        (["runner.sh", "workflow_step_post_reqs_failed_folder", "test_suite", "--test-file=simple1.ets"],),
+        (["runner.sh", "workflow_step_pre_reqs_failed_folder", "test_suite", "--test-file=simple1.ats"],),
+        (["runner.sh", "workflow_step_post_reqs_failed_folder", "test_suite", "--test-file=simple1.ats"],),
     ])
     def test_reqs_failed_folder(self, argv: Callable) -> None:
         """
@@ -248,8 +248,8 @@ class TestStepsTest2(TestCase):
     @patch.dict(os.environ, test_environ, clear=True)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @test_utils.parametrized_test_cases([
-        (["runner.sh", "workflow_step_out", "test_suite", "--test-file=simple1.ets"],),
-        (["runner.sh", "workflow_step_err", "test_suite", "--test-file=simple1.ets"],),
+        (["runner.sh", "workflow_step_out", "test_suite", "--test-file=simple1.ats"],),
+        (["runner.sh", "workflow_step_err", "test_suite", "--test-file=simple1.ats"],),
     ])
     def test_stdout_stderr(self, argv: Callable) -> None:
         """
@@ -264,8 +264,8 @@ class TestStepsTest2(TestCase):
             runner = RunnerStandardFlow(Config(args))
             result = cast(TestStandardFlow, next(iter(runner.tests))).do_run()
             expected_rep_path = result.test_env.work_dir.intermediate / "report"
-            expected_out_path = expected_rep_path / "simple1.ets-stdout.txt"
-            expected_err_path = expected_rep_path / "simple1.ets-stderr.txt"
+            expected_out_path = expected_rep_path / "simple1.ats-stdout.txt"
+            expected_err_path = expected_rep_path / "simple1.ats-stderr.txt"
             try:
                 self.assertTrue(expected_rep_path.exists(), f"Folder '{expected_rep_path}' not found")
                 self.assertTrue(expected_out_path.exists(), f"File with stdout '{expected_out_path}' not found")
@@ -287,7 +287,7 @@ class TestStepsTest2(TestCase):
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch.dict(os.environ, test_environ, clear=True)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
-    @patch('sys.argv', ["runner.sh", "workflow_step_validator", "test_suite", "--test-file=simple1.ets"])
+    @patch('sys.argv', ["runner.sh", "workflow_step_validator", "test_suite", "--test-file=simple1.ats"])
     def test_validator(self) -> None:
         """
         Feature: step with custom validator
@@ -312,7 +312,7 @@ class TestStepsTest2(TestCase):
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch.dict(os.environ, test_environ, clear=True)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
-    @patch('sys.argv', ["runner.sh", "workflow_step_post_reqs_not_allowed", "test_suite", "--test-file=simple1.ets"])
+    @patch('sys.argv', ["runner.sh", "workflow_step_post_reqs_not_allowed", "test_suite", "--test-file=simple1.ats"])
     def test_post_not_allowed(self) -> None:
         """
         Feature: step with not allowed requirement
@@ -335,7 +335,7 @@ class TestStepsTest2(TestCase):
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch.dict(os.environ, test_environ, clear=True)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
-    @patch('sys.argv', ["runner.sh", "workflow_step_full", "test_suite", "--test-file=simple1.ets"])
+    @patch('sys.argv', ["runner.sh", "workflow_step_full", "test_suite", "--test-file=simple1.ats"])
     def test_str_full(self) -> None:
         """
         Feature: step with all values explicitly specified

@@ -24,7 +24,7 @@ add_custom_target(ets_test_suite_strings)
 foreach(test ${strings_tests})
     set(test_out_dir "${strings_tests_out_dir}/${test}")
 
-    set(test_in "${strings_tests_in_dir}/${test}.ets")
+    set(test_in "${strings_tests_in_dir}/${test}.ats")
     set(target ets_test_suite_strings_${test})
 
     if (PANDA_TARGET_ARM32)
@@ -50,13 +50,13 @@ set(strings_concat_tests
 
 foreach(test ${strings_concat_tests})
     add_ets_test(ets_test_suite_strings_concat
-        FILE "${test}.ets"
+        FILE "${test}.ats"
         TEST_NAME "ets_test_suite_strings_concat_true_${test}"
         MODE "INT" "JIT" "AOT" "LLVMAOT" "JITOSR"
         COMPILER_EXTRA_OPTIONS "--ets-strings-concat=true"
     )
     add_ets_test(ets_test_suite_strings_concat
-        FILE "${test}.ets"
+        FILE "${test}.ats"
         TEST_NAME "ets_test_suite_strings_concat_false_${test}"
         MODE "INT" "JIT" "AOT" "LLVMAOT" "JITOSR"
         COMPILER_EXTRA_OPTIONS "--ets-strings-concat=false"

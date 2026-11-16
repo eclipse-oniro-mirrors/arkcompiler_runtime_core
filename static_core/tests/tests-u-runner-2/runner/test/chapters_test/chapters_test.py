@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2024-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -30,17 +30,17 @@ class ChapterTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.base_folder = Path()
         files_str = [
-            'folder1/file1.ets',
-            'folder1/file2.ets',
-            'folder1/file3.ets',
-            'folder2/file1.ets',
-            'folder2/file2.ets',
-            'folder2/file3.ets',
-            'folder3/file1.ets',
-            'folder3/file2.ets',
-            'folder3/test2.ets',
-            'folder4/file1.ets',
-            'fol-der 1/fi_le 1.ets',
+            'folder1/file1.ats',
+            'folder1/file2.ats',
+            'folder1/file3.ats',
+            'folder2/file1.ats',
+            'folder2/file2.ats',
+            'folder2/file3.ats',
+            'folder3/file1.ats',
+            'folder3/file2.ats',
+            'folder3/test2.ats',
+            'folder4/file1.ats',
+            'fol-der 1/fi_le 1.ats',
         ]
         cls.files = [Path(file_str) for file_str in files_str]
         cls.chapters = Chapters(cls.current_folder / 'chapters_test.yaml')
@@ -53,12 +53,12 @@ class ChapterTest(unittest.TestCase):
         )
         actual = {str(act) for act in raw}
         expected: set[str] = {
-            'folder1/file1.ets',
-            'folder2/file1.ets',
-            'folder2/file2.ets',
-            'folder2/file3.ets',
-            'folder3/file1.ets',
-            'folder3/file2.ets'
+            'folder1/file1.ats',
+            'folder2/file1.ats',
+            'folder2/file2.ats',
+            'folder2/file3.ats',
+            'folder3/file1.ats',
+            'folder3/file2.ats'
         }
         self.assertSetEqual(actual, expected)
 
@@ -70,12 +70,12 @@ class ChapterTest(unittest.TestCase):
         )
         actual = {str(act) for act in raw}
         expected: set[str] = {
-            'folder1/file1.ets',
-            'folder2/file1.ets',
-            'folder2/file2.ets',
-            'folder2/file3.ets',
-            'folder3/file1.ets',
-            'folder3/file2.ets'
+            'folder1/file1.ats',
+            'folder2/file1.ats',
+            'folder2/file2.ats',
+            'folder2/file3.ats',
+            'folder3/file1.ats',
+            'folder3/file2.ats'
         }
         self.assertSetEqual(actual, expected)
 
@@ -87,11 +87,11 @@ class ChapterTest(unittest.TestCase):
         )
         actual = {str(act) for act in raw}
         expected: set[str] = {
-            'folder1/file2.ets',
-            'folder1/file3.ets',
-            'folder3/test2.ets',
-            'folder4/file1.ets',
-            'fol-der 1/fi_le 1.ets'
+            'folder1/file2.ats',
+            'folder1/file3.ats',
+            'folder3/test2.ats',
+            'folder4/file1.ats',
+            'fol-der 1/fi_le 1.ats'
         }
         self.assertSetEqual(actual, expected)
 
@@ -103,7 +103,7 @@ class ChapterTest(unittest.TestCase):
         )
         actual = {str(act) for act in raw}
         expected: set[str] = {
-            'folder1/file1.ets',
+            'folder1/file1.ats',
         }
         self.assertSetEqual(actual, expected)
 
@@ -115,8 +115,8 @@ class ChapterTest(unittest.TestCase):
         )
         actual = {str(act) for act in raw}
         expected: set[str] = {
-            'folder1/file1.ets',
-            'folder1/file2.ets',
+            'folder1/file1.ats',
+            'folder1/file2.ats',
         }
         self.assertSetEqual(actual, expected)
 
@@ -128,8 +128,8 @@ class ChapterTest(unittest.TestCase):
         )
         actual = {str(act) for act in raw}
         expected: set[str] = {
-            'folder3/file1.ets',
-            'folder3/file2.ets',
+            'folder3/file1.ats',
+            'folder3/file2.ats',
         }
         self.assertSetEqual(actual, expected)
 
@@ -141,17 +141,17 @@ class ChapterTest(unittest.TestCase):
         )
         actual = {str(act) for act in raw}
         expected: set[str] = {
-            'folder1/file1.ets',
-            'folder1/file2.ets',
-            'folder1/file3.ets',
-            'folder2/file1.ets',
-            'folder2/file2.ets',
-            'folder2/file3.ets',
-            'folder3/file1.ets',
-            'folder3/file2.ets',
-            'folder3/test2.ets',
-            'folder4/file1.ets',
-            'fol-der 1/fi_le 1.ets'
+            'folder1/file1.ats',
+            'folder1/file2.ats',
+            'folder1/file3.ats',
+            'folder2/file1.ats',
+            'folder2/file2.ats',
+            'folder2/file3.ats',
+            'folder3/file1.ats',
+            'folder3/file2.ats',
+            'folder3/test2.ats',
+            'folder4/file1.ats',
+            'fol-der 1/fi_le 1.ats'
         }
         self.assertSetEqual(actual, expected)
 
@@ -173,11 +173,11 @@ class ChapterTest(unittest.TestCase):
         )
         actual = {str(act) for act in raw}
         expected: set[str] = {
-            'folder1/file1.ets',
-            'folder2/file2.ets',
-            'folder2/file3.ets',
-            'folder3/file1.ets',
-            'folder3/file2.ets'
+            'folder1/file1.ats',
+            'folder2/file2.ats',
+            'folder2/file3.ats',
+            'folder3/file1.ats',
+            'folder3/file2.ats'
         }
         self.assertSetEqual(actual, expected)
 
@@ -189,10 +189,10 @@ class ChapterTest(unittest.TestCase):
         )
         actual = {str(act) for act in raw}
         expected: set[str] = {
-            'folder1/file1.ets',
-            'folder3/file1.ets',
-            'folder3/file2.ets',
-            'folder4/file1.ets'
+            'folder1/file1.ats',
+            'folder3/file1.ats',
+            'folder3/file2.ats',
+            'folder4/file1.ats'
         }
         self.assertSetEqual(actual, expected)
 
@@ -204,7 +204,7 @@ class ChapterTest(unittest.TestCase):
         )
         actual = {str(act) for act in raw}
         expected: set[str] = {
-            'folder4/file1.ets'
+            'folder4/file1.ats'
         }
         self.assertSetEqual(actual, expected)
 
@@ -216,9 +216,9 @@ class ChapterTest(unittest.TestCase):
         )
         actual = {str(act) for act in raw}
         expected: set[str] = {
-            'folder1/file1.ets',
-            'folder3/file1.ets',
-            'folder3/file2.ets',
+            'folder1/file1.ats',
+            'folder3/file1.ats',
+            'folder3/file2.ats',
         }
         self.assertSetEqual(actual, expected)
 
@@ -270,7 +270,7 @@ class ChapterTest(unittest.TestCase):
         )
         actual = {str(act) for act in raw}
         expected: set[str] = {
-            'fol-der 1/fi_le 1.ets'
+            'fol-der 1/fi_le 1.ats'
         }
         self.assertSetEqual(actual, expected)
 

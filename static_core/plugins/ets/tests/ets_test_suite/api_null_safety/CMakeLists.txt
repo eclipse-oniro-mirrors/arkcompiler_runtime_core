@@ -24,7 +24,7 @@ panda_target_include_directories(unsafe_lib
 compile_ets_sources(${work_dir}
     additional_abc_target
     additional_abc_file
-    "${CMAKE_CURRENT_SOURCE_DIR}/AdditionalFile.ets")
+    "${CMAKE_CURRENT_SOURCE_DIR}/AdditionalFile.ats")
 add_custom_target(additional_dependencies DEPENDS unsafe_lib additional_abc_target)
 
 set(PANDA_RUN_PREFIX
@@ -32,7 +32,7 @@ set(PANDA_RUN_PREFIX
     ADDITIONAL_ABC_FILE=${additional_abc_file}
     ${PANDA_RUN_PREFIX})
 
-run_int_jit_aot_ets_code("${CMAKE_CURRENT_SOURCE_DIR}/NullSafetyTest.ets"
+run_int_jit_aot_ets_code("${CMAKE_CURRENT_SOURCE_DIR}/NullSafetyTest.ats"
     "${work_dir}"
     ets_api_null_safety_test)
 

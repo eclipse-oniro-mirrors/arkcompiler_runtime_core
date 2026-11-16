@@ -159,7 +159,7 @@ step: Step status: status"""
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @test_utils.parametrized_test_cases([
-        (["runner.sh", "workflow", "test_suite", "--test-file=simple1.ets"],),
+        (["runner.sh", "workflow", "test_suite", "--test-file=simple1.ats"],),
     ])
     def test_report_one_test(self, argv: Callable) -> None:
         """
@@ -176,7 +176,7 @@ step: Step status: status"""
 
                 first = result.step_reports[0]
                 work_dir = Path(os.environ["WORK_DIR"])
-                first_args = f"--output={work_dir.as_posix()}/intermediate/simple1.ets.abc simple1.ets"
+                first_args = f"--output={work_dir.as_posix()}/intermediate/simple1.ats.abc simple1.ats"
                 expected_first_step_report = StepReport(
                     name="echo-compiler",
                     step_kind=StepKind.COMPILER,
@@ -188,11 +188,11 @@ step: Step status: status"""
                 self.assert_step_report_equal(expected_first_step_report, first)
 
                 second = result.step_reports[1]
-                second_args = (f"--output={work_dir.as_posix()}/intermediate/simple1.ets.abc "
+                second_args = (f"--output={work_dir.as_posix()}/intermediate/simple1.ats.abc "
                                "--verification-mode=ahead-of-time "
-                               f"--panda-files={work_dir.as_posix()}/intermediate/simple1.ets.abc "
+                               f"--panda-files={work_dir.as_posix()}/intermediate/simple1.ats.abc "
                                "--boot-panda-files=stdlib "
-                               "simple1.ets")
+                               "simple1.ats")
                 expected_second_step_report = StepReport(
                     name="echo-runtime",
                     step_kind=StepKind.RUNTIME,
