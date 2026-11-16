@@ -1258,6 +1258,7 @@ static ani_status DoBindNativeFunctions(ani_env *env, ani_namespace ns, const an
     etsMethods.reserve(nrFunctions);
     for (const auto &fn : Span(functions, nrFunctions)) {
         const char *name = fn.name;
+        CHECK_PTR_ARG(name);
         const char *signature = fn.signature;
         std::optional<EtsMethodSignature> methodSignature;
         if (signature != nullptr) {
@@ -1479,6 +1480,7 @@ static ani_status BindNativeMethods(ani_env *env, ani_class cls, const ani_nativ
     etsMethods.reserve(nrMethods);
     for (const ani_native_function &m : Span(methods, nrMethods)) {
         const char *name = m.name;
+        CHECK_PTR_ARG(name);
         const char *signature = m.signature;
         std::optional<EtsMethodSignature> methodSignature;
         if (signature != nullptr) {
@@ -1526,6 +1528,7 @@ NO_UB_SANITIZE static ani_status Reference_Delete(ani_env *env, ani_ref lref)
 {
     ANI_DEBUG_TRACE(env);
     CHECK_PTR_ARG(env);
+    CHECK_PTR_ARG(lref);
 
     ScopedManagedCodeFix s(env);
     return s.DelLocalRef(lref);
@@ -2107,6 +2110,7 @@ NO_UB_SANITIZE static ani_status Class_SetStaticFieldByName_Ref(ani_env *env, an
 // NOLINTNEXTLINE(readability-identifier-naming)
 ani_status Class_FindSetter(ani_env *env, ani_class cls, const char *name, ani_method *result)
 {
+    CHECK_PTR_ARG(name);
     PandaString setterName("%%set-");
     setterName += name;
     return Class_FindMethod(env, cls, setterName.c_str(), nullptr, result);
@@ -2115,6 +2119,7 @@ ani_status Class_FindSetter(ani_env *env, ani_class cls, const char *name, ani_m
 // NOLINTNEXTLINE(readability-identifier-naming)
 ani_status Class_FindGetter(ani_env *env, ani_class cls, const char *name, ani_method *result)
 {
+    CHECK_PTR_ARG(name);
     PandaString getterName("%%get-");
     getterName += name;
     return Class_FindMethod(env, cls, getterName.c_str(), nullptr, result);
@@ -3273,14 +3278,14 @@ static ani_status GetErrorDescriptionLines(ani_env *env, ani_error error, ani_st
 
     LocalRef<ani_type> errorType(env);
     auto status = env->Object_GetType(error, &errorType.GetRef());
-    ASSERT(status == ANI_OK);
+    ANI_CHECK_RETURN_IF_NE(status, ANI_OK, status);
 
     // Get error message
     ani_ref errorMessage = nullptr;
 
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
     status = env->Object_CallMethod_Ref(error, cache->std_core_String_Builder_toString, &errorMessage);
-    ASSERT(status == ANI_OK);
+    ANI_CHECK_RETURN_IF_NE(status, ANI_OK, status);
 
     // Add newline between error message and stack trace
     LocalRef<ani_string> newlineString(env);
@@ -3293,17 +3298,17 @@ static ani_status GetErrorDescriptionLines(ani_env *env, ani_error error, ani_st
     // Get stack trace
     ani_method getterMethod = nullptr;
     status = env->Class_FindGetter(static_cast<ani_class>(errorType.GetRef()), "stack", &getterMethod);
-    ASSERT(status == ANI_OK);
+    ANI_CHECK_RETURN_IF_NE(status, ANI_OK, status);
 
     ani_ref stackTrace = nullptr;
 
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
     status = env->Object_CallMethod_Ref(error, getterMethod, &stackTrace);
-    ASSERT(status == ANI_OK);
+    ANI_CHECK_RETURN_IF_NE(status, ANI_OK, status);
 
     ani_boolean isUndefined = ANI_FALSE;
     status = env->Reference_IsUndefined(stackTrace, &isUndefined);
-    ASSERT(status == ANI_OK);
+    ANI_CHECK_RETURN_IF_NE(status, ANI_OK, status);
     if (isUndefined == ANI_TRUE) {
         std::string_view errorInfo = "unable to get stack trace";
         ani_string createdString;
@@ -3319,18 +3324,18 @@ static ani_status GetErrorDescriptionLines(ani_env *env, ani_error error, ani_st
         env->Object_New(cache->std_core_String_Builder, cache->std_core_String_Builder_default_ctor, &sbObj.GetRef());
     // NOLINTEND(cppcoreguidelines-pro-type-vararg)
 
-    ASSERT(status == ANI_OK);
+    ANI_CHECK_RETURN_IF_NE(status, ANI_OK, status);
 
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
     status = env->Object_CallMethod_Ref(sbObj.GetRef(), cache->std_core_String_Builder_append,
                                         reinterpret_cast<ani_ref *>(&sbObj.GetRef()), errorMessage,
                                         newlineString.GetRef(), stackTrace);
-    ASSERT(status == ANI_OK);
+    ANI_CHECK_RETURN_IF_NE(status, ANI_OK, status);
 
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
     status = env->Object_CallMethod_Ref(sbObj.GetRef(), cache->std_core_String_Builder_toString,
                                         reinterpret_cast<ani_ref *>(errDesc));
-    ASSERT(status == ANI_OK);
+    ANI_CHECK_RETURN_IF_NE(status, ANI_OK, status);
     return status;
 }
 
@@ -4992,7 +4997,10 @@ NO_UB_SANITIZE static ani_status TupleValue_GetNumberOfItems(ani_env *env, ani_t
 template <typename ValueType>
 static bool IsCorrectBoxType(EtsExecutionContext *executionCtx, EtsObject *element)
 {
-    ASSERT(element != nullptr);
+    // Element may be undefined, which is nullptr on the internal object layer.
+    if (UNLIKELY(element == nullptr)) {
+        return false;
+    }
     ASSERT(element->GetClass() != nullptr);
     auto *boxPrimitiveClass = EtsBoxPrimitive<ValueType>::GetBoxClass(executionCtx);
     return element->GetClass()->GetRuntimeClass() == boxPrimitiveClass;
@@ -5747,6 +5755,9 @@ NO_UB_SANITIZE static ani_status ArrayBuffer_GetInfo(ani_env *env, ani_arraybuff
     bool isMovableData = !EtsStdCoreArrayBuffer::IsNonMovableArray(executionCtx, internalArrayBuffer.GetPtr());
     if (isMovableData) {  // Should still return a valid pointer
         EtsStdCoreArrayBuffer::ReallocateNonMovableArray(executionCtx, internalArrayBuffer.GetPtr(), *lengthResult);
+        if (UNLIKELY(executionCtx->GetMT()->HasPendingException())) {
+            return ANI_PENDING_ERROR;
+        }
     }
     *dataResult = internalArrayBuffer->GetData();
     return ANI_OK;
@@ -6038,14 +6049,13 @@ NO_UB_SANITIZE static ani_status PromiseResolver_Resolve(ani_env *env, ani_resol
     EtsHandle<EtsPromise> promise(executionCtx, s.ToInternalType(resolver));
     EtsHandle<EtsObject> value(executionCtx, s.ToInternalType(resolution));
     ANI_CHECK_RETURN_IF_EQ(promise.GetPtr(), nullptr, ANI_INVALID_ARGS);
-    ani_status status = s.DelGlobalRef(reinterpret_cast<ani_ref>(resolver));
-    ANI_CHECK_RETURN_IF_NE(status, ANI_OK, status);
     EtsMutex::LockHolder lock(promise);
-    if (promise->IsPending()) {
-        promise->Resolve(executionCtx, value.GetPtr());
-    } else {
+    if (!promise->IsPending()) {
         return ANI_INVALID_ARGS;
     }
+    promise->Resolve(executionCtx, value.GetPtr());
+    ani_status status = s.DelGlobalRef(reinterpret_cast<ani_ref>(resolver));
+    ANI_CHECK_RETURN_IF_NE(status, ANI_OK, status);
     return ANI_OK;
 }
 
@@ -6063,14 +6073,13 @@ NO_UB_SANITIZE static ani_status PromiseResolver_Reject(ani_env *env, ani_resolv
     EtsHandle<EtsPromise> promise(executionCtx, s.ToInternalType(resolver));
     EtsHandle<EtsObject> error(executionCtx, s.ToInternalType(rejection));
     ANI_CHECK_RETURN_IF_EQ(promise.GetPtr(), nullptr, ANI_INVALID_ARGS);
-    ani_status status = s.DelGlobalRef(reinterpret_cast<ani_ref>(resolver));
-    ANI_CHECK_RETURN_IF_NE(status, ANI_OK, status);
     EtsMutex::LockHolder lock(promise);
-    if (promise->IsPending()) {
-        promise->Reject(executionCtx, error.GetPtr());
-    } else {
+    if (!promise->IsPending()) {
         return ANI_INVALID_ARGS;
     }
+    promise->Reject(executionCtx, error.GetPtr());
+    ani_status status = s.DelGlobalRef(reinterpret_cast<ani_ref>(resolver));
+    ANI_CHECK_RETURN_IF_NE(status, ANI_OK, status);
     return ANI_OK;
 }
 
