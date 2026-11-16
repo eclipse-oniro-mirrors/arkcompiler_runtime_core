@@ -5,7 +5,7 @@
 Warning
 
 ## Applies To
-/*.(ets|sts|ts)$
+/*.(ats|ets|sts|ts)$
 language: ts
 
 ## Detect

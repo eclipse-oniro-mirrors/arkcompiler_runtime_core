@@ -5,7 +5,7 @@ use the owning guides and focused docs.
 
 ## Current Caveats
 
-- `es2panda` compiles `.ets` into `.abc`; `ark` executes bytecode and may hand off hot code to JIT or AOT code
+- `es2panda` compiles `.ats` into `.abc`; `ark` executes bytecode and may hand off hot code to JIT or AOT code
 - `ark_aot` uses `--paoc-*` option names such as `--paoc-panda-files`, `--paoc-output`, `--paoc-location`, and
   `--paoc-mode`
 - `runtime/options.yaml` declares `--interpreter-type` with default `llvm`; the runtime may downgrade the effective

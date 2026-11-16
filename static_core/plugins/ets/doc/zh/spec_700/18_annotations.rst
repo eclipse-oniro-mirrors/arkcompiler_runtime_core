@@ -437,7 +437,7 @@
 .. code-block:: typescript
    :linenos:
 
-    // a.ets
+    // a.ats
     export @interface MyAnno {}
 
 如果注解作为已导入模块的一部分被导入，则通过其限定名访问该注解：
@@ -445,7 +445,7 @@
 .. code-block:: typescript
    :linenos:
 
-    // b.ets
+    // b.ats
     import * as ns from "./a"
 
     @ns.MyAnno
@@ -469,7 +469,7 @@
 .. code-block:: typescript
    :linenos:
 
-    // b.ets
+    // b.ats
     import { MyAnno } from "./a"
 
     @MyAnno
@@ -547,10 +547,10 @@
 .. code-block:: typescript
    :linenos:
 
-    // a.d.ets
+    // a.d.ats
     export declare @interface NameAnno{name: string = ""}
 
-    // a.ets
+    // a.ats
     export @interface NameAnno{name: string = ""} // OK
 
 下面示例中的代码不正确，因为环境声明与注解声明并不一致：
@@ -558,10 +558,10 @@
 .. code-block:: typescript
    :linenos:
 
-    // a.d.ets
+    // a.d.ats
     export declare @interface VersionAnno{version: number} // initialization is missing
 
-    // a.ets
+    // a.ats
     export @interface VersionAnno{version: number = 1}
 
 环境声明可以像普通注解一样被导入并使用：
@@ -569,22 +569,22 @@
 .. code-block:: typescript
    :linenos:
 
-    // a.d.ets
+    // a.d.ats
     export declare @interface MyAnno {}
 
-    // b.ets
+    // b.ats
     import { MyAnno } from "./a"
 
     @MyAnno
     class C {/*body*/}
 
-如果在 ``*.d.ets`` 文件中的环境声明上应用了注解（见下例），那么必须手动把该注解应用到实现声明上，
+如果在 ``*.d.ats`` 文件中的环境声明上应用了注解（见下例），那么必须手动把该注解应用到实现声明上，
 因为该注解不会自动应用到实现该环境声明的声明上：
 
 .. code-block:: typescript
    :linenos:
 
-    // a.d.ets
+    // a.d.ats
     export declare @interface MyAnno {}
 
     @MyAnno

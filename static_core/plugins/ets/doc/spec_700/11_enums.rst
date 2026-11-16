@@ -312,7 +312,7 @@ constant expression:
 .. code-block:: typescript
    :linenos:
 
-    // file1.ets
+    // file1.ats
     import { E } from "file2"
 
     enum E1 {
@@ -321,7 +321,7 @@ constant expression:
         Z = E.N | 1   // Compile-time error
     }
 
-    // file2.ets
+    // file2.ats
     export enum E { N = 1 }
 
 |

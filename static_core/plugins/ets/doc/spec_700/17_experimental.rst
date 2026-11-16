@@ -2975,13 +2975,13 @@ defines the receiver type. This is represented in the following example:
 .. code-block:: typescript
    :linenos:
 
-      // file a.ets
+      // file a.ats
       class A {
           foo() { ... }
       }
 
-      // file ext.ets
-      import {A} from "a.ets" // name 'A' is imported
+      // file ext.ats
+      import {A} from "a.ats" // name 'A' is imported
       function bar(this: A) () {
          this.foo() // Method foo() is called
       }

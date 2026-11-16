@@ -2742,13 +2742,13 @@ ForVariable（参见 :ref:`For-Of Statements`）允许显式类型注解：
 .. code-block:: typescript
    :linenos:
 
-      // file a.ets
+      // file a.ats
       class A {
           foo() { ... }
       }
 
-      // file ext.ets
-      import {A} from "a.ets" // name 'A' is imported
+      // file ext.ats
+      import {A} from "a.ats" // name 'A' is imported
       function bar(this: A) () {
          this.foo() // Method foo() is called
       }

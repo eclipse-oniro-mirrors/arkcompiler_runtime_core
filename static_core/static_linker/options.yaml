@@ -63,5 +63,5 @@ options:
   type: arg_list_t
   default: []
   description: Specifies the entry points(ets files, classes, methods) that should never be stripped. '--strip-unused-skiplist=*' means all classes skipped. Allow single config text file(start with character `@`).
-               i.e. '--strip-unused-skiplist={entry.ets,entryability/Myclass/,entryability/Myclass/func1}', '--strip-unused-skiplist=@entrylist.txt'.
+               i.e. '--strip-unused-skiplist={entry.ats,entryability/Myclass/,entryability/Myclass/func1}', '--strip-unused-skiplist=@entrylist.txt'.
 

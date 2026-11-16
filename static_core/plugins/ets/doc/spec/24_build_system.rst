@@ -150,14 +150,14 @@ below:
 .. code-block:: typescript
    :linenos:
 
-    // file1.ets
+    // file1.ats
     module "y"          // Internal module "y" (not exported)
     export class InternalClass1 {}
 
-    // file2.ets        // Internal module (not exported)
+    // file2.ats        // Internal module (not exported)
     export class InternalClass2 {}
 
-    // file3.ets
+    // file3.ats
     export module "x"   // Exported module "x"
     import { InternalClass1 } from "./file1"        // OK, import is allowed
     import { InternalClass2 } from "./file2"        // OK, import is allowed
@@ -224,7 +224,7 @@ Forming a runtime name is represented in the example below:
 
     // packageName: pkg1
 
-    // src/file1.ets
+    // src/file1.ats
     export module ""            // Runtime Name: "pkg1"
 
     export class A {}           // Runtime Name: "pkg1:A"
@@ -235,7 +235,7 @@ Forming a runtime name is represented in the example below:
         export class C {}       // Runtime Name: "pkg1:ns1.C"
     }
 
-    // src/file2.ets
+    // src/file2.ats
     export module "x"           // Runtime Name: "pkg1:x"
 
     export class A {}           // Runtime Name: "pkg1:x.A"
@@ -246,7 +246,7 @@ Forming a runtime name is represented in the example below:
         export class C {}       // Runtime Name: "pkg1:x.ns1.C"
     }
 
-    // src/file3.ets
+    // src/file3.ats
     export class A {}           // Runtime Name: "pkg1:src.file3.A"
     export namespace ns1 {      // Runtime Name: "pkg1:src.file3.ns1"
         export namespace ns2 {  // Runtime Name: "pkg1:src.file3.ns1.ns2"
@@ -310,18 +310,18 @@ below:
 
     // packageName: pkg1
 
-    // src/file1.ets
+    // src/file1.ats
     module "x"
     export function foo() {}
 
-    // src/file2.ets
+    // src/file2.ats
     export function foo() {}
 
-    // src/file3.ets
-    import {...} from "./file1"       // OK, importPath is resolved to "file1.ets" by the relative path
-    import {...} from "./file2"       // OK, importPath is resolved to "file2.ets" by the relative path
-    import {...} from "../src/file1"  // OK, importPath is resolved to "file1.ets" by the relative path
-    import {...} from "../src/file2"  // OK, importPath is resolved to "file2.ets" by the relative path
+    // src/file3.ats
+    import {...} from "./file1"       // OK, importPath is resolved to "file1.ats" by the relative path
+    import {...} from "./file2"       // OK, importPath is resolved to "file2.ats" by the relative path
+    import {...} from "../src/file1"  // OK, importPath is resolved to "file1.ats" by the relative path
+    import {...} from "../src/file2"  // OK, importPath is resolved to "file2.ats" by the relative path
     import {...} from "//x"           // OK, importPath is resolved to "x" by the module name
     import {...} from "//file2"       // Compile-time error, importPath refers to a non-existent module inside the package
     import {...} from "pkg1/x"        // OK, importPath is resolved to "x" by the full module name

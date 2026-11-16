@@ -35,31 +35,31 @@
 .. code-block:: typescript
    :linenos:
 
-    // source1.ets
+    // source1.ats
     export interface I {
       m(): void
     }
 
-    // source2.ets
+    // source2.ats
     export namespace N {
 
       // The type I must be loadable, otherwise the f and the whole N is not loadable.
       //
       // Example case: the definition of I is removed during the change in
-      // the source1.ets, while the code of function f was not recompiled.
+      // the source1.ats, while the code of function f was not recompiled.
       export function f(i: I) {
 
         // I.m must be resolvable for the actual type of I, otherwise an attempt
         // to call i.m will throw a runtime error.
         //
         // Example case: the class that was compiled with an older source code
-        // of source1.ets, where I does not declare the method m, does not provide
+        // of source1.ats, where I does not declare the method m, does not provide
         // an implementation of the method I.m.
         return i.m()
       }
     }
 
-    // app.ets
+    // app.ats
 
     class A implements I {
       m() { }
@@ -69,7 +69,7 @@
       N.f(new A())
     } catch (e) {
       // Some platform-specific errors may appear if the binary compatibility
-      // was broken by changes in source1.ets or source2.ets
+      // was broken by changes in source1.ats or source2.ats
       //
       // While the recovery for the running program may be possible in some
       // circumstances, this is a detail of the platform whether such

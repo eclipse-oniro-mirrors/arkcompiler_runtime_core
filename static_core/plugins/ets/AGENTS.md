@@ -72,7 +72,7 @@ See @../../AGENTS.md
 
 ## File Formats
 
-- **.ets**: ArkTS-Sta source code
+- **.ats**: ArkTS-Sta source code
 - **.abc**: Compiled bytecode (ArkTS-Sta Bytecode)
 - **.an**: AOT compiled code
 
