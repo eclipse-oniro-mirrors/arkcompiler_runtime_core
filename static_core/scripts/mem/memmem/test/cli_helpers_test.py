@@ -14,13 +14,21 @@
 # limitations under the License.
 
 import json
+import contextlib
+import io
 import pathlib
 import tempfile
 import unittest
 from unittest import mock
 
+from test.mock.device import FakeDevice
+from test.operation_hooks_test import logging_hook, trace
+
 from src.cli_helpers import (execute_iterations, load_config, load_device,
                              load_flow, view_destination)
+from src.evidence import validate_evidence
+from src.platform.ohos.hdc_device import HdcDevice
+from src.store import EvidenceStore
 
 import run
 import lib
@@ -58,68 +66,71 @@ class CliHelpersTest(unittest.TestCase):
             config = load_config(env_path)
             self.assertEqual(config.hdc_path, pathlib.Path("/bin/false"))
             self.assertIsNone(config.abd_path)
-            with mock.patch("src.cli_helpers.lib.get_hdc_device") as get_device:
-                load_device(env_path, "hdc")
-            get_device.assert_called_once()
+            self.assertIsInstance(load_device(env_path, "hdc"), HdcDevice)
             with self.assertRaisesRegex(ValueError, "ABD_PATH"):
                 load_device(env_path, "abd")
 
-    def test_execute_iterations_writes_one_flow_and_exact_destinations(self) -> None:
+    def test_execute_iterations_uses_exact_destinations_without_root_flow(self) -> None:
         flow = lib.flow([])
-        device = mock.create_autospec(lib.Device, instance=True)
+        device = FakeDevice()
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory) / "out"
-            with mock.patch("src.cli_helpers.lib.execute_flow",
-                            side_effect=lambda *_args, **_kwargs: _args[2]) as execute:
-                paths = execute_iterations(flow, device, root, 2, reboot=True,
-                                           device_log=False)
+            paths = execute_iterations(flow, device, root, 2, reboot=False,
+                                       device_log=False, pre_hooks=[], post_hooks=[])
 
             self.assertEqual(paths, [root / "iteration_0" / "evidence",
                                      root / "iteration_1" / "evidence"])
-            self.assertEqual([call.args[2]
-                             for call in execute.call_args_list], paths)
-            self.assertTrue(root.joinpath("flow.json").is_file())
-            self.assertEqual(json.loads(root.joinpath("flow.json").read_text()),
-                             flow.model_dump())
+            for path in paths:
+                evidence = validate_evidence(EvidenceStore(path))
+                self.assertEqual(evidence.flow, flow)
+                self.assertFalse(evidence.metadata.device_log)
+            self.assertFalse(root.joinpath("flow.json").exists())
 
-    def test_execute_iterations_rejects_existing_flow_before_execution(self) -> None:
+    def test_execute_iterations_preserves_unrelated_parent_flow(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             root.joinpath("flow.json").write_text("{}", encoding="utf-8")
-            with mock.patch("src.cli_helpers.lib.execute_flow") as execute:
-                with self.assertRaises(FileExistsError):
-                    execute_iterations(lib.flow([]), mock.create_autospec(
-                        lib.Device, instance=True), root, 1, reboot=False,
-                        device_log=True)
-            execute.assert_not_called()
+            paths = execute_iterations(lib.flow([]), FakeDevice(), root, 1,
+                                       reboot=False, device_log=False, pre_hooks=[], post_hooks=[])
+            self.assertEqual(paths, [root / "iteration_0" / "evidence"])
+            validate_evidence(EvidenceStore(paths[0]))
+            self.assertEqual(root.joinpath("flow.json").read_text(), "{}")
 
-    def test_execute_iterations_preflights_before_writing_provenance(self) -> None:
-        device = mock.create_autospec(lib.Device, instance=True)
-        device.is_command_supported.return_value = False
+    def test_execute_iterations_leaves_parent_without_evidence_for_unsupported_command(self) -> None:
         flow = lib.flow([lib.app_flow(
             "App", "com.example", "EntryAbility", False, [lib.text("text")])])
+        device = FakeDevice(unsupported_commands=flow.flow[0].commands)
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory).joinpath("out")
 
             with self.assertRaisesRegex(RuntimeError, "does not support command"):
                 execute_iterations(flow, device, root, 1, reboot=False,
-                                   device_log=True)
+                                   device_log=True, pre_hooks=[], post_hooks=[])
 
-            self.assertFalse(root.exists())
+            self.assertTrue(root.is_dir())
+            self.assertFalse((root / "iteration_0").exists())
 
-    def test_execute_iterations_retains_flow_and_successful_prefix_on_failure(self) -> None:
+    def test_execute_iterations_failure_does_not_write_root_flow(self) -> None:
         flow = lib.flow([])
-        device = mock.create_autospec(lib.Device, instance=True)
+
+        class FailSecondIteration(FakeDevice):
+            def disable_screen_timeout(self) -> None:
+                if self.screen_timeout_disabled:
+                    raise RuntimeError("second iteration failed")
+                super().disable_screen_timeout()
+
+        device = FailSecondIteration()
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory).joinpath("out")
-            with mock.patch("src.cli_helpers.lib.execute_flow", side_effect=[
-                    root / "iteration_0" / "evidence", RuntimeError("failed"),
-            ]):
-                with self.assertRaisesRegex(RuntimeError, "failed"):
-                    execute_iterations(flow, device, root, 2, reboot=False,
-                                       device_log=True)
+            with self.assertRaisesRegex(RuntimeError, "second iteration failed"):
+                execute_iterations(flow, device, root, 3, reboot=False,
+                                   device_log=False, pre_hooks=[], post_hooks=[])
 
-            self.assertTrue(root.joinpath("flow.json").is_file())
+            self.assertFalse(root.joinpath("flow.json").exists())
+            validate_evidence(EvidenceStore(root / "iteration_0" / "evidence"))
+            self.assertTrue(
+                (root / "iteration_1/evidence/metadata.json").is_file())
+            self.assertFalse((root / "iteration_2").exists())
 
     def test_view_destination_uses_timestamped_view_directory(self) -> None:
         self.assertEqual(view_destination(pathlib.Path("out"), "20260101_010203_000004"),
@@ -127,34 +138,58 @@ class CliHelpersTest(unittest.TestCase):
                          "view-20260101_010203_000004")
 
     def test_run_collects_all_evidence_before_rendering(self) -> None:
-        evidence = [pathlib.Path("/tmp/evidence-0"),
-                    pathlib.Path("/tmp/evidence-1")]
-        flow = lib.flow([])
-        with mock.patch("sys.argv", [
-                "run.py", "--flow", "flow.json", "--out-dir", "out", "--repeats", "2",
-        ]), mock.patch("run.load_flow", return_value=flow), mock.patch(
-                "run.load_device"), mock.patch("run.execute_iterations",
-                                               return_value=evidence) as collect, mock.patch(
-                "run.lib.create_view") as create:
-            self.assertEqual(run.main(), 0)
-
-        self.assertEqual(collect.call_count, 1)
-        self.assertEqual([call.args[0] for call in create.call_args_list],
-                         [[evidence[0]], [evidence[1]], evidence])
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            flow_path = root / "input.json"
+            flow_path.write_text(lib.flow([]).model_dump_json())
+            hook = logging_hook(root)
+            with mock.patch("run.load_device", return_value=FakeDevice()):
+                self.assertEqual(run.main([
+                    "--flow", str(flow_path), "--out-dir", str(root / "out"),
+                    "--repeats", "2", "--no-device-log", "--no-plots",
+                    "--pre-execute-flow-hook", str(
+                        hook), "--post-execute-flow-hook", str(hook),
+                    "--pre-create-view-hook", str(
+                        hook), "--post-create-view-hook", str(hook),
+                ]), 0)
+            entries = trace(root)
+            self.assertEqual([entry["context"]["event"] for entry in entries],
+                             ["pre_execute_flow", "post_execute_flow"] * 2 +
+                             ["pre_create_view", "post_create_view"] * 3)
+            evidence = [
+                str(root / "out" / f"iteration_{i}" / "evidence") for i in range(2)]
+            self.assertEqual([entries[i]["context"]["dirs"] for i in (4, 6, 8)],
+                             [[evidence[0]], [evidence[1]], evidence])
+            self.assertEqual(len({pathlib.Path(entries[i]["context"]["dst"]).name
+                                  for i in (4, 6, 8)}), 1)
 
     def test_run_stops_rendering_after_first_view_failure_and_resets_logger(self) -> None:
-        flow = lib.flow([])
-        with mock.patch("sys.argv", [
-                "run.py", "--flow", "flow.json", "--out-dir", "out",
-        ]), mock.patch("run.load_flow", return_value=flow), mock.patch(
-                "run.load_device"), mock.patch("run.execute_iterations",
-                                               return_value=[pathlib.Path("evidence")]), \
-                mock.patch("run.lib.create_view", side_effect=RuntimeError("render")) as create, \
-                mock.patch("run.lib.reset_logger") as reset:
-            self.assertEqual(run.main(), 1)
-
-        create.assert_called_once()
-        reset.assert_called_once()
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            flow_path = root / "input.json"
+            flow_path.write_text(lib.flow([]).model_dump_json())
+            hook = logging_hook(root)
+            # Make the view destination collide after collection, before rendering.
+            script = hook.read_text().replace(
+                "sys.exit(", "pathlib.Path(context['dst']).mkdir(parents=True)\nsys.exit(")
+            hook.write_text(script)
+            stderr = io.StringIO()
+            with mock.patch("run.load_device", return_value=FakeDevice()), \
+                    contextlib.redirect_stderr(stderr):
+                self.assertEqual(run.main([
+                    "--flow", str(flow_path), "--out-dir", str(root / "out"),
+                    "--repeats", "2", "--no-device-log", "--no-plots",
+                    "--pre-create-view-hook", str(hook),
+                    "--memmem-log-file", str(root / "log"),
+                ]), 1)
+                lib.get_logger().err("after reset")
+            lib.reset_logger()
+            self.assertEqual(len(trace(root)), 1)
+            self.assertIn("File exists", stderr.getvalue())
+            self.assertIn("error: after reset", stderr.getvalue())
+            self.assertNotIn("after reset", (root / "log").read_text())
+            self.assertFalse((root / "out/iteration_1/view").exists())
+            self.assertFalse((root / "out/view").exists())
 
 
 if __name__ == "__main__":

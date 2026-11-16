@@ -33,6 +33,12 @@ class EvidenceStore:
     def local_app_metadata_path(self) -> pathlib.Path:
         return self._local_root.joinpath("apps.json")
 
+    def local_metadata_path(self) -> pathlib.Path:
+        return self._local_root.joinpath("metadata.json")
+
+    def local_flow_path(self) -> pathlib.Path:
+        return self._local_root.joinpath("flow.json")
+
     def local_artifact_metadata_path(self, category: pathlib.Path) -> pathlib.Path:
         return category.joinpath("metadata.json")
 
@@ -107,6 +113,20 @@ class ViewStore:
 
     def local_summary_path(self) -> pathlib.Path:
         return self._root.joinpath("summary.csv")
+
+    def local_footprint_path(self) -> pathlib.Path:
+        return self._root.joinpath("footprint.csv")
+
+    def local_memdumps_dir(self) -> pathlib.Path:
+        return self._root.joinpath("memdumps")
+
+    def local_memdump_metadata_path(self) -> pathlib.Path:
+        return self.local_memdumps_dir().joinpath("metadata.json")
+
+    def local_memdump_path(self, snapshot_label: str,
+                           app_label: str) -> pathlib.Path:
+        return self.local_memdumps_dir().joinpath(
+            snapshot_label, f"{app_label}.csv")
 
     def local_outliers_path(self) -> pathlib.Path:
         return self._root.joinpath("outliers.csv")

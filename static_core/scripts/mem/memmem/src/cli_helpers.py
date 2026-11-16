@@ -22,6 +22,7 @@ import re
 from dotenv import dotenv_values
 
 from src.device import Device
+from src.hooks import ExecuteHookContext, ViewHookContext, run_hooks
 from src.path import absolutize
 from src.schema import Flow, UnprocessedFlow
 from src.types import positive_int
@@ -42,6 +43,12 @@ def add_logging_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def add_execution_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--pre-execute-flow-hook", action="append",
+                        type=pathlib.Path, default=[], metavar="PATH",
+                        help="executable hook; repeat to run in order")
+    parser.add_argument("--post-execute-flow-hook", action="append",
+                        type=pathlib.Path, default=[], metavar="PATH",
+                        help="executable hook; repeat to run in order")
     parser.add_argument("--flow", required=True, type=pathlib.Path)
     parser.add_argument("--backend", choices=["hdc", "abd"], default="hdc")
     parser.add_argument("--out-dir", type=pathlib.Path, default=None,
@@ -61,6 +68,12 @@ def add_execution_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def add_view_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--pre-create-view-hook", action="append",
+                        type=pathlib.Path, default=[], metavar="PATH",
+                        help="executable hook; repeat to run in order")
+    parser.add_argument("--post-create-view-hook", action="append",
+                        type=pathlib.Path, default=[], metavar="PATH",
+                        help="executable hook; repeat to run in order")
     parser.add_argument(
         "--smaps-filter",
         type=compile_smaps_filter,
@@ -68,6 +81,10 @@ def add_view_arguments(parser: argparse.ArgumentParser) -> None:
         help=("regex matched with re.match against each normalized smaps tag; "
               "only matching mappings are counted in views; e.g. '.*\\.so'"),
     )
+    plots_group = parser.add_mutually_exclusive_group()
+    plots_group.add_argument("--plots", dest="plots", action="store_true",
+                             default=True)
+    plots_group.add_argument("--no-plots", dest="plots", action="store_false")
 
 
 def compile_smaps_filter(value: str) -> re.Pattern[str]:
@@ -120,33 +137,78 @@ def execute_iterations(
     *,
     reboot: bool,
     device_log: bool,
+    pre_hooks: list[pathlib.Path],
+    post_hooks: list[pathlib.Path],
 ) -> list[pathlib.Path]:
+    pre_hooks = [absolutize(path) for path in pre_hooks]
+    post_hooks = [absolutize(path) for path in post_hooks]
     if repeats <= 0:
         raise ValueError("repeats must be positive")
-    for app_flow in flow.flow:
-        for command in app_flow.commands:
-            if not device.is_command_supported(command):
-                raise RuntimeError(
-                    "device does not support command: "
-                    f"app={app_flow.label} action={command.action}")
     root = absolutize(out_dir)
     destinations = [root / f"iteration_{index}" / "evidence"
                     for index in range(repeats)]
     root.mkdir(parents=True, exist_ok=True)
-    flow_path = root / "flow.json"
-    if flow_path.exists():
-        raise FileExistsError(f"flow provenance already exists: {flow_path}")
     for destination in destinations:
         if destination.exists():
             raise FileExistsError(
                 f"evidence destination already exists: {destination}")
-    with flow_path.open("x", encoding="utf-8") as stream:
-        json.dump(flow.model_dump(by_alias=True,
-                  exclude_none=True), stream, indent=2)
-        stream.write("\n")
-    return [lib.execute_flow(flow, device, destination, reboot=reboot,
-                             device_log=device_log)
-            for destination in destinations]
+    results = []
+    for destination in destinations:
+        results.append(_execute_flow_with_hooks(
+            flow, device, destination, reboot=reboot, device_log=device_log,
+            pre_hooks=pre_hooks, post_hooks=post_hooks))
+    return results
+
+
+def _execute_flow_with_hooks(
+    flow: Flow, device: Device, dst: pathlib.Path, *, reboot: bool,
+    device_log: bool, pre_hooks: list[pathlib.Path], post_hooks: list[pathlib.Path],
+) -> pathlib.Path:
+    cwd = pathlib.Path.cwd()
+
+    context_before = ExecuteHookContext(event="pre_execute_flow", flow=flow,
+                                        dst=dst, reboot=reboot, device_log=device_log)
+    run_hooks(pre_hooks, context_before, cwd)
+
+    result = lib.execute_flow(flow, device, dst,
+                              reboot=reboot, device_log=device_log)
+
+    context_after = ExecuteHookContext(event="post_execute_flow", flow=flow,
+                                       dst=dst, reboot=reboot, device_log=device_log)
+    run_hooks(post_hooks, context_after, cwd)
+
+    return result
+
+
+def create_view_with_hooks(
+    dirs: list[pathlib.Path],
+    dst: pathlib.Path,
+    *,
+    smaps_filter: re.Pattern[str],
+    plots: bool,
+    pre_hooks: list[pathlib.Path],
+    post_hooks: list[pathlib.Path],
+) -> pathlib.Path:
+    cwd = pathlib.Path.cwd()
+    sources = [absolutize(path) for path in dirs]
+    destination = absolutize(dst)
+    before = [absolutize(path) for path in pre_hooks]
+    after = [absolutize(path) for path in post_hooks]
+
+    context_before = ViewHookContext(event="pre_create_view", dirs=sources, dst=destination,
+                                     smaps_filter_pattern=smaps_filter.pattern,
+                                     smaps_filter_flags=smaps_filter.flags, plots=plots)
+    run_hooks(before, context_before, cwd)
+
+    result = lib.create_view(sources, destination,
+                             smaps_filter=smaps_filter, plots=plots)
+
+    context_after = ViewHookContext(event="post_create_view", dirs=sources, dst=destination,
+                                    smaps_filter_pattern=smaps_filter.pattern,
+                                    smaps_filter_flags=smaps_filter.flags, plots=plots)
+    run_hooks(after, context_after, cwd)
+
+    return result
 
 
 def view_destination(out_dir: pathlib.Path, timestamp: str) -> pathlib.Path:

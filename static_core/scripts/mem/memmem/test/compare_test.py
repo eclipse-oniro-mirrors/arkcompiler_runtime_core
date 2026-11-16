@@ -25,8 +25,8 @@ from unittest import mock
 import compare
 from compare import build_parser, compare_reports
 from src.path import absolutize
+from src.profile import FOOTPRINT_METRICS, SUMMARY_METRICS
 from src.report import SUMMARY_STATISTICS
-from src.smaps import SUMMARY_METRICS
 
 
 class CompareTest(unittest.TestCase):
@@ -36,13 +36,19 @@ class CompareTest(unittest.TestCase):
             base, change_0, change_1 = (root.joinpath(name) for name in
                                         ("base", "change-0", "change-1"))
             out_dir = root.joinpath("out")
-            self._write_view(base, {"size_kb": "100.00", "rss_kb": "0.00"},
+            self._write_view(base, {"size_kb": "100.00", "rss_kb": "0.00",
+                                    "footprint": "100.00", "pss_plus_swap_pss": "80.00",
+                                    "private_clean_kb": "0.00"},
                              {"present": {"size_kb": "100.00", "rss_kb": "0.00"},
                               "missing": {"size_kb": "10.00", "rss_kb": "5.00"}})
-            self._write_view(change_0, {"size_kb": "140", "rss_kb": "40"},
+            self._write_view(change_0, {"size_kb": "140", "rss_kb": "40",
+                                        "footprint": "140", "pss_plus_swap_pss": "110",
+                                        "private_clean_kb": "40"},
                              {"present": {"size_kb": "140", "rss_kb": "40"},
                               "extra": {"size_kb": "1", "rss_kb": "1"}})
-            self._write_view(change_1, {"size_kb": "80.00", "rss_kb": "20.00"},
+            self._write_view(change_1, {"size_kb": "80.00", "rss_kb": "20.00",
+                                        "footprint": "80.00", "pss_plus_swap_pss": "60.00",
+                                        "private_clean_kb": "20.00"},
                              {"present": {"size_kb": "80.00", "rss_kb": "20.00"},
                               "missing": {"size_kb": "20.00", "rss_kb": "10.00"}})
 
@@ -60,6 +66,21 @@ class CompareTest(unittest.TestCase):
             self.assertEqual(breakdown[2][:6], [
                              "missing", "10.00", "", "", "20.00", "100.00"])
             self.assertEqual(breakdown[3][:6], ["extra", "", "1", "", "", ""])
+            self.assertFalse(out_dir.joinpath("memdump.csv").exists())
+            memdump = self._read_csv(out_dir.joinpath(
+                "memdumps", "snapshot", "app.csv"))
+            self.assertEqual(len(memdump), 9)
+            self.assertEqual(memdump[1][0], "arkts-dyn-heap")
+            self.assertEqual(memdump[1][1:10], [
+                "100.00", "140", "40.00", "80.00", "-20.00",
+                "0.00", "40", "", "20.00",
+            ])
+            self.assertEqual(memdump[-1][0], "total")
+            footprint = self._read_csv(out_dir.joinpath("footprint.csv"))
+            self.assertEqual(footprint[1][:12], [
+                "app", "snapshot", "100.00", "140", "40.00", "80.00", "-20.00",
+                "80.00", "110", "37.50", "60.00", "-25.00",
+            ])
 
     def test_rejects_incompatible_view_before_creating_output(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -139,24 +160,23 @@ class CompareTest(unittest.TestCase):
         self.assertEqual(args.memmem_log_file, pathlib.Path("memmem.log"))
 
     def test_main_preserves_change_argument_order(self) -> None:
-        with mock.patch("sys.argv", [
-                "compare.py", "--base", "base", "--change", "first",
-                "--change", "second", "--out-dir", "out",
-        ]), mock.patch("compare.compare_reports") as cmp:
-            self.assertEqual(__import__("compare").main(), 0)
+        with mock.patch("compare.compare_reports") as cmp:
+            self.assertEqual(__import__("compare").main([
+                "--base", "base", "--change", "first", "--change",
+                "second", "--out-dir", "out",
+            ]), 0)
         self.assertEqual([path.name for path in cmp.call_args.args[1]], [
                          "first", "second"])
 
     def test_main_resets_logger_after_error(self) -> None:
-        with mock.patch("sys.argv", [
-                "compare.py", "--base", "base", "--change", "change",
-                "--out-dir", "out", "--memmem-log-level", "info",
-                "--memmem-log-file", "memmem.log",
-        ]), mock.patch("compare.compare_reports", side_effect=ValueError("failed")), \
+        with mock.patch("compare.compare_reports", side_effect=ValueError("failed")), \
                 mock.patch("compare.lib.configure_logger") as configure, \
                 mock.patch("compare.lib.reset_logger") as reset, \
                 contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(compare.main(), 1)
+            self.assertEqual(compare.main([
+                "--base", "base", "--change", "change", "--out-dir", "out",
+                "--memmem-log-level", "info", "--memmem-log-file", "memmem.log",
+            ]), 1)
 
         configure.assert_called_once_with(
             "info", absolutize(pathlib.Path("memmem.log")))
@@ -169,9 +189,10 @@ class CompareTest(unittest.TestCase):
         root.mkdir(parents=True)
         root.joinpath("plots").mkdir()
         root.joinpath("breakdowns", "snapshot").mkdir(parents=True)
+        root.joinpath("memdumps", "snapshot").mkdir(parents=True)
         root.joinpath("metadata.json").write_text(json.dumps({
             "dirs": ["/unavailable/evidence"], "smaps_filter": smaps_filter,
-            "smaps_filter_flags": 32,
+            "smaps_filter_flags": 32, "plots": True,
         }), encoding="utf-8")
         root.joinpath("outliers.csv").write_text(
             "discarded\n", encoding="utf-8")
@@ -179,7 +200,25 @@ class CompareTest(unittest.TestCase):
             self._header(["app_label", "snapshot_label", "n_samples"]),
             ["app", "snapshot", "1", *self._statistics(metrics)],
         ])
+        self._write_csv(root / "footprint.csv", [
+            self._footprint_header(),
+            ["app", "snapshot", "1", *self._footprint_statistics(metrics)],
+        ])
+        self._write_csv(root / "memdumps" / "snapshot" / "app.csv", [
+            self._header(["category", "n_samples"]),
+            *[[category, "1", *(
+                self._memdump_statistics(metrics)
+                if category == "arkts-dyn-heap" else self._zero_statistics())]
+              for category in ("arkts-dyn-heap", "arkts-sta-heap", "native-heap",
+                               ".hap", ".so", "jsvm-heap", "other")],
+            ["total", "1", *
+                self._memdump_statistics(metrics)],
+        ])
         root.joinpath("breakdowns", "metadata.json").write_text(json.dumps({
+            "artifacts": [{"label": "snapshot", "timestamp": "0",
+                           "files": ["snapshot/app.csv"]}],
+        }), encoding="utf-8")
+        root.joinpath("memdumps", "metadata.json").write_text(json.dumps({
             "artifacts": [{"label": "snapshot", "timestamp": "0",
                            "files": ["snapshot/app.csv"]}],
         }), encoding="utf-8")
@@ -195,6 +234,23 @@ class CompareTest(unittest.TestCase):
 
     def _statistics(self, metrics: dict[str, str]) -> list[str]:
         return [metrics.get(metric, "1") if statistic == "median" else "1"
+                for metric in SUMMARY_METRICS for statistic in SUMMARY_STATISTICS]
+
+    def _zero_statistics(self) -> list[str]:
+        return ["0" for _ in SUMMARY_METRICS for _ in SUMMARY_STATISTICS]
+
+    def _footprint_header(self) -> list[str]:
+        return ["app_label", "snapshot_label", "n_samples"] + [
+            f"{metric}_{stat}" for metric in FOOTPRINT_METRICS
+            for stat in SUMMARY_STATISTICS]
+
+    def _footprint_statistics(self, metrics: dict[str, str]) -> list[str]:
+        return [metrics.get(metric, "1") if statistic == "median" else "1"
+                for metric in FOOTPRINT_METRICS
+                for statistic in SUMMARY_STATISTICS]
+
+    def _memdump_statistics(self, metrics: dict[str, str]) -> list[str]:
+        return [metrics.get(metric, "0") if statistic in {"mean", "median"} else "0"
                 for metric in SUMMARY_METRICS for statistic in SUMMARY_STATISTICS]
 
     def _write_csv(self, path: pathlib.Path, rows: list[list[str]]) -> None:

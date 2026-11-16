@@ -46,7 +46,10 @@ class RunnerTest(unittest.TestCase):
                 store.local_snapshots_dir()).is_file())
             self.assertTrue(store.local_artifact_metadata_path(
                 store.local_screenshots_dir()).is_file())
-            validate_evidence(store)
+            validated = validate_evidence(store)
+            self.assertEqual(validated.flow, flow)
+            self.assertFalse(validated.metadata.reboot)
+            self.assertFalse(validated.metadata.device_log)
             self.assertFalse(device.dirs)
 
     def test_existing_destination_is_not_changed(self) -> None:
@@ -94,6 +97,8 @@ class RunnerTest(unittest.TestCase):
                     flow, options, create_evidence_store(options), device)
 
             self.assertEqual(pathlib.Path.cwd(), original_cwd)
+            self.assertEqual(Flow.model_validate_json(
+                destination.joinpath("flow.json").read_text()), flow)
             self.assertEqual(len(device.received), 1)
             self.assertFalse(device.dirs)
             self.assertTrue(destination.joinpath(

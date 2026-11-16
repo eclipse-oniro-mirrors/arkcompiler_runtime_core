@@ -18,19 +18,28 @@ import pathlib
 import re
 
 from src.metadata import (AppMetadataFile, AppSnapshotLabelPair,
-                          ArtifactMetadataFile)
+                          ArtifactMetadataFile, EvidenceMetadata)
+from src.schema import Flow
 from src.store import EvidenceStore
 from src.smaps import SmapsSummary, parse_smaps_text
 
 
 @dataclasses.dataclass(frozen=True)
 class ParsedEvidence:
-    """Parsed source data with its evidence root retained for view provenance."""
-
     source: pathlib.Path
     apps: AppMetadataFile
     snapshots: ArtifactMetadataFile
     measurements: dict[AppSnapshotLabelPair, SmapsSummary]
+    metadata: EvidenceMetadata
+    flow: Flow
+
+
+@dataclasses.dataclass(frozen=True)
+class ValidatedEvidence:
+    metadata: EvidenceMetadata
+    flow: Flow
+    apps: AppMetadataFile
+    snapshots: ArtifactMetadataFile
 
 
 def _load_apps(path: pathlib.Path) -> AppMetadataFile:
@@ -92,8 +101,15 @@ def _validate_screenshots(metadata: ArtifactMetadataFile,
             _validate_screenshot(category, artifact.label, file)
 
 
-def validate_evidence(store: EvidenceStore) -> tuple[AppMetadataFile, ArtifactMetadataFile]:
+def validate_evidence(store: EvidenceStore) -> ValidatedEvidence:
     """Validate layout only; callers own flow completion and content integrity."""
+    for path in (store.local_metadata_path(), store.local_flow_path()):
+        if not path.is_file():
+            raise RuntimeError(f"missing evidence metadata: {path}")
+    metadata = EvidenceMetadata.model_validate_json(
+        store.local_metadata_path().read_text(encoding="utf-8"))
+    flow = Flow.model_validate_json(
+        store.local_flow_path().read_text(encoding="utf-8"))
     apps = _load_apps(store.local_app_metadata_path())
     snapshots_path = store.local_artifact_metadata_path(
         store.local_snapshots_dir())
@@ -104,7 +120,7 @@ def validate_evidence(store: EvidenceStore) -> tuple[AppMetadataFile, ArtifactMe
     _validate_snapshots(snapshots, store.local_snapshots_dir(),
                         {app.label for app in apps.apps})
     _validate_screenshots(screenshots, store.local_screenshots_dir())
-    return apps, snapshots
+    return ValidatedEvidence(metadata, flow, apps, snapshots)
 
 
 def _parse_snapshot(store: EvidenceStore, snapshot_label: str, file: str,
@@ -118,7 +134,8 @@ def _parse_snapshot(store: EvidenceStore, snapshot_label: str, file: str,
 
 
 def parse_evidence(store: EvidenceStore, smaps_filter: re.Pattern[str]) -> ParsedEvidence:
-    apps, snapshots = validate_evidence(store)
+    validated = validate_evidence(store)
+    apps, snapshots = validated.apps, validated.snapshots
     measurements: dict[AppSnapshotLabelPair, SmapsSummary] = {}
     for artifact in snapshots.artifacts:
         for file in artifact.files:
@@ -126,7 +143,8 @@ def parse_evidence(store: EvidenceStore, smaps_filter: re.Pattern[str]) -> Parse
             if parsed is not None:
                 pair, summary = parsed
                 measurements[pair] = summary
-    return ParsedEvidence(store.local_root(), apps, snapshots, measurements)
+    return ParsedEvidence(store.local_root(), apps, snapshots, measurements,
+                          validated.metadata, validated.flow)
 
 
 def _same_ordered_artifacts(left: ArtifactMetadataFile,

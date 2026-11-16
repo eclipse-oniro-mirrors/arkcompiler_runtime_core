@@ -16,21 +16,7 @@
 import dataclasses
 import re
 
-
-@dataclasses.dataclass(frozen=True)
-class MemProfile:
-    size_kb: int
-    rss_kb: int
-    pss_kb: int
-    referenced_kb: int
-    shared_kb: int
-    private_kb: int
-    swap_kb: int
-    swap_pss_kb: int
-    anonymous_kb: int
-
-
-SUMMARY_METRICS = [field.name for field in dataclasses.fields(MemProfile)]
+from src.profile import MemProfile, add_profiles, empty_profile
 
 
 @dataclasses.dataclass(frozen=True)
@@ -61,11 +47,11 @@ def parse_smaps_text(
             return
         if tag_filter.match(current_tag) is None:
             return
-        breakdown[current_tag] = _add_profiles(
-            breakdown.get(current_tag, _empty_profile()),
+        breakdown[current_tag] = add_profiles(
+            breakdown.get(current_tag, empty_profile()),
             current_profile,
         )
-        total = current_profile if total is None else _add_profiles(
+        total = current_profile if total is None else add_profiles(
             total, current_profile)
 
     for raw_line in text.splitlines():
@@ -74,7 +60,7 @@ def parse_smaps_text(
         if header_match is not None:
             flush()
             current_tag = _normalize_tag(header_match.group("tag"))
-            current_profile = _empty_profile()
+            current_profile = empty_profile()
             continue
 
         if current_profile is None:
@@ -91,20 +77,6 @@ def parse_smaps_text(
     if total is None:
         return None
     return SmapsSummary(total=total, breakdown=breakdown)
-
-
-def _empty_profile() -> MemProfile:
-    return MemProfile(
-        size_kb=0,
-        rss_kb=0,
-        pss_kb=0,
-        referenced_kb=0,
-        shared_kb=0,
-        private_kb=0,
-        swap_kb=0,
-        swap_pss_kb=0,
-        anonymous_kb=0,
-    )
 
 
 def _normalize_tag(tag: str | None) -> str:
@@ -130,12 +102,22 @@ def _add_metric(profile: MemProfile, name: str, value: int) -> MemProfile:
     if name == "Referenced":
         return dataclasses.replace(
             profile, referenced_kb=profile.referenced_kb + value)
-    if name in {"Shared_Clean", "Shared_Dirty"}:
+    if name == "Shared_Clean":
         return dataclasses.replace(
-            profile, shared_kb=profile.shared_kb + value)
-    if name in {"Private_Clean", "Private_Dirty"}:
+            profile, shared_clean_kb=profile.shared_clean_kb + value,
+            shared_total_kb=profile.shared_total_kb + value)
+    if name == "Shared_Dirty":
         return dataclasses.replace(
-            profile, private_kb=profile.private_kb + value)
+            profile, shared_dirty_kb=profile.shared_dirty_kb + value,
+            shared_total_kb=profile.shared_total_kb + value)
+    if name == "Private_Clean":
+        return dataclasses.replace(
+            profile, private_clean_kb=profile.private_clean_kb + value,
+            private_total_kb=profile.private_total_kb + value)
+    if name == "Private_Dirty":
+        return dataclasses.replace(
+            profile, private_dirty_kb=profile.private_dirty_kb + value,
+            private_total_kb=profile.private_total_kb + value)
     if name == "Swap":
         return dataclasses.replace(profile, swap_kb=profile.swap_kb + value)
     if name == "SwapPss":
@@ -145,17 +127,3 @@ def _add_metric(profile: MemProfile, name: str, value: int) -> MemProfile:
         return dataclasses.replace(
             profile, anonymous_kb=profile.anonymous_kb + value)
     return profile
-
-
-def _add_profiles(left: MemProfile, right: MemProfile) -> MemProfile:
-    return MemProfile(
-        size_kb=left.size_kb + right.size_kb,
-        rss_kb=left.rss_kb + right.rss_kb,
-        pss_kb=left.pss_kb + right.pss_kb,
-        referenced_kb=left.referenced_kb + right.referenced_kb,
-        shared_kb=left.shared_kb + right.shared_kb,
-        private_kb=left.private_kb + right.private_kb,
-        swap_kb=left.swap_kb + right.swap_kb,
-        swap_pss_kb=left.swap_pss_kb + right.swap_pss_kb,
-        anonymous_kb=left.anonymous_kb + right.anonymous_kb,
-    )

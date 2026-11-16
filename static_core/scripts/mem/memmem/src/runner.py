@@ -28,7 +28,7 @@ from src.device import Device, DeviceHealth, ScreenBounds
 from src.evidence import validate_evidence
 from src.errors import CombinedError
 from src.log import get_logger
-from src.metadata import AppMetadataFile, AppMetadata, ArtifactMetadataFile
+from src.metadata import AppMetadataFile, AppMetadata, ArtifactMetadataFile, EvidenceMetadata
 from src.store import EvidenceStore
 from src.schema import AppFlow, Flow
 
@@ -98,7 +98,7 @@ def _pre_flow(
 ) -> None:
     logger = get_logger()
     logger.info(f"initializing local output: {store.local_root()}")
-    _initialize_local_output(store, options)
+    _initialize_local_output(store, options, flow)
     try:
         logger.info("preparing device")
         _prepare_device(device, options)
@@ -267,8 +267,13 @@ def _post_app_flow(
 def _initialize_local_output(
     store: EvidenceStore,
     options: BenchmarkOptions,
+    flow: Flow,
 ) -> None:
     store.local_root().mkdir(parents=True, exist_ok=False)
+    _dump_model_to_json(flow, store.local_flow_path())
+    _dump_model_to_json(EvidenceMetadata(
+        flow="flow.json", reboot=options.reboot, device_log=options.device_log),
+        store.local_metadata_path())
     store.local_snapshots_dir().mkdir()
     store.local_screenshots_dir().mkdir()
     if options.device_log:

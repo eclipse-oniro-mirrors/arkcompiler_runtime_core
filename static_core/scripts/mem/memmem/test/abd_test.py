@@ -34,13 +34,13 @@ class AbdTest(unittest.TestCase):
         device = AbdDevice(FakeHdc())  # type: ignore[arg-type]
         multi_touch = MultiTouchInputCommand(
             action="multi_touch_input",
-            payload=MultiTouchInputPayload(
-                finger_list=(
+            payload=MultiTouchInputPayload.model_validate({
+                "finger_list": [
                     {"x1_pct": 0, "y1_pct": 0, "x2_pct": 50, "y2_pct": 50},
                     {"x1_pct": 100, "y1_pct": 100, "x2_pct": 50, "y2_pct": 50},
-                ),
-                duration_ms=500,
-            ),
+                ],
+                "duration_ms": 500,
+            }),
         )
         swipe = SwipeCommand(
             action="swipe",

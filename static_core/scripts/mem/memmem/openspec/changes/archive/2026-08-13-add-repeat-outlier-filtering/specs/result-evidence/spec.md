@@ -77,4 +77,4 @@ When repeats is greater than `1`, the system SHALL generate raw and filtered agg
 
 #### Scenario: Column values are typed
 - **WHEN** an averaged summary report is generated
-- **THEN** `n_samples`, `min`, and `max` cells are integers and `mean`, `geomean`, `median`, `std`, and `variance` cells are floating-point numbers with two decimal places
+- **THEN** `n_samples`, `min`, and `max` cells are integers and `mean`, `geomean`, `median`, `std`, and `variance` cells are floating-point numbers with two decimal digits

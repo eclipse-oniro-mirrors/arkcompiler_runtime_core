@@ -176,4 +176,4 @@ When repeats is greater than `1`, the system SHALL generate `out_dir/summary/sum
 
 #### Scenario: Column values are typed
 - **WHEN** the averaged `summary.csv` is generated
-- **THEN** `n_samples`, `min`, and `max` cells are integers and `mean`, `geomean`, `median`, `std`, and `variance` cells are floating-point numbers with two decimal places
+- **THEN** `n_samples`, `min`, and `max` cells are integers and `mean`, `geomean`, `median`, `std`, and `variance` cells are floating-point numbers with two decimal digits

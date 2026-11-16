@@ -15,6 +15,7 @@
 
 import csv
 import dataclasses
+from decimal import Decimal
 import math
 import pathlib
 
@@ -23,10 +24,10 @@ import pydantic
 from src.evidence import _same_ordered_artifacts
 from src.metadata import ArtifactMetadataFile, ViewMetadata
 from src.path import normalize
-from src.report import SUMMARY_STATISTICS
+from src.profile import FOOTPRINT_METRICS, SUMMARY_METRICS
+from src.report import MEMDUMP_CATEGORIES, MEMDUMP_TOTAL, SUMMARY_STATISTICS
 from src.store import ViewStore
 from src.schema import Label
-from src.smaps import SUMMARY_METRICS
 
 
 @dataclasses.dataclass(frozen=True)
@@ -37,6 +38,8 @@ class ParsedView:
     metadata: ViewMetadata
     breakdowns: ArtifactMetadataFile
     summary_rows: list[dict[str, str]]
+    footprint_rows: list[dict[str, str]]
+    memdump_rows: dict[tuple[str, str], list[dict[str, str]]]
     breakdown_rows: dict[tuple[str, str], list[dict[str, str]]]
 
 
@@ -53,28 +56,31 @@ def _read_csv(path: pathlib.Path, header: list[str]) -> list[dict[str, str]]:
     return rows
 
 
-def _header(identity: list[str]) -> list[str]:
-    return identity + [f"{metric}_{stat}" for metric in SUMMARY_METRICS
+def _header(identity: list[str], metrics: list[str] = SUMMARY_METRICS) -> list[str]:
+    return identity + [f"{metric}_{stat}" for metric in metrics
                        for stat in SUMMARY_STATISTICS]
 
 
-def _validate_rows(rows: list[dict[str, str]], identities: list[str], path: pathlib.Path) -> None:
+def _validate_rows(rows: list[dict[str, str]], identities: list[str], path: pathlib.Path,
+                   metrics: list[str] = SUMMARY_METRICS) -> None:
     for row in rows:
-        _validate_row(row, identities, path)
+        _validate_row(row, identities, path, metrics)
 
 
-def _validate_row(row: dict[str, str], identities: list[str], path: pathlib.Path) -> None:
+def _validate_row(row: dict[str, str], identities: list[str], path: pathlib.Path,
+                  metrics: list[str]) -> None:
     if (any(not row[identity] for identity in identities)
             or not row["n_samples"].isdecimal() or int(row["n_samples"]) <= 0):
         raise ValueError(f"invalid value in view CSV: {path}")
     for identity in identities:
-        if identity != "tag":
+        if identity not in {"tag", "category"}:
             pydantic.TypeAdapter(Label).validate_python(row[identity])
-    _validate_metric_values(row, path)
+    _validate_metric_values(row, path, metrics)
 
 
-def _validate_metric_values(row: dict[str, str], path: pathlib.Path) -> None:
-    for metric in SUMMARY_METRICS:
+def _validate_metric_values(row: dict[str, str], path: pathlib.Path,
+                            metrics: list[str]) -> None:
+    for metric in metrics:
         for statistic in SUMMARY_STATISTICS:
             _validate_metric_value(
                 row[f"{metric}_{statistic}"], statistic, path)
@@ -111,17 +117,24 @@ def _declared_breakdown_identities(
 def _validate_view_layout(store: ViewStore) -> None:
     if (not store.local_root().is_dir() or not store.local_plots_dir().is_dir()
             or not store.local_breakdowns_dir().is_dir()
+            or not store.local_memdumps_dir().is_dir()
             or not store.local_metadata_path().is_file()
-            or not store.local_breakdown_metadata_path().is_file()):
+            or not store.local_breakdown_metadata_path().is_file()
+            or not store.local_memdump_metadata_path().is_file()
+            or not store.local_footprint_path().is_file()
+            or store.local_root().joinpath("memdump.csv").exists()):
         raise ValueError("invalid view directory layout")
 
 
-def _read_view_metadata(store: ViewStore) -> tuple[ViewMetadata, ArtifactMetadataFile]:
+def _read_view_metadata(store: ViewStore) -> tuple[ViewMetadata, ArtifactMetadataFile,
+                                                   ArtifactMetadataFile]:
     metadata = ViewMetadata.model_validate_json(
         store.local_metadata_path().read_text(encoding="utf-8"))
     breakdowns = ArtifactMetadataFile.model_validate_json(
         store.local_breakdown_metadata_path().read_text(encoding="utf-8"))
-    return metadata, breakdowns
+    memdumps = ArtifactMetadataFile.model_validate_json(
+        store.local_memdump_metadata_path().read_text(encoding="utf-8"))
+    return metadata, breakdowns, memdumps
 
 
 def _read_summary_rows(store: ViewStore,
@@ -135,6 +148,23 @@ def _read_summary_rows(store: ViewStore,
     if len(actual) != len(set(actual)):
         raise ValueError("duplicate summary identity")
     _validate_rows(rows, ["app_label", "snapshot_label"], path)
+    return rows
+
+
+def _read_footprint_rows(store: ViewStore, summary_rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    path = store.local_footprint_path()
+    rows = _read_csv(path, _header(
+        ["app_label", "snapshot_label", "n_samples"], FOOTPRINT_METRICS))
+    identities = [(row["app_label"], row["snapshot_label"]) for row in rows]
+    summary_identities = [(row["app_label"], row["snapshot_label"])
+                          for row in summary_rows]
+    if identities != summary_identities or len(identities) != len(set(identities)):
+        raise ValueError("footprint identities do not match summary")
+    if any(row["n_samples"] != summary_rows[index]["n_samples"]
+           for index, row in enumerate(rows)):
+        raise ValueError("footprint sample counts do not match summary")
+    _validate_rows(rows, ["app_label", "snapshot_label"],
+                   path, FOOTPRINT_METRICS)
     return rows
 
 
@@ -152,6 +182,28 @@ def _read_breakdown_rows(store: ViewStore,
     return rows
 
 
+def _read_memdump_rows(store: ViewStore, identities: list[tuple[str, str]]) -> dict[
+        tuple[str, str], list[dict[str, str]]]:
+    result = {}
+    for app, snapshot in identities:
+        path = store.local_memdump_path(snapshot, app)
+        category_rows = _read_csv(path, _header(["category", "n_samples"]))
+        actual = [row["category"] for row in category_rows]
+        if actual != MEMDUMP_CATEGORIES + [MEMDUMP_TOTAL]:
+            raise ValueError("memdump categories do not match expected order")
+        _validate_rows(category_rows, ["category"], path)
+        if any(row["n_samples"] != category_rows[0]["n_samples"] for row in category_rows):
+            raise ValueError("memdump sample counts do not match")
+        total = category_rows[-1]
+        for metric in SUMMARY_METRICS:
+            if Decimal(total[f"{metric}_mean"]) != sum(
+                    (Decimal(row[f"{metric}_mean"]) for row in category_rows[:-1]), Decimal(0)):
+                raise ValueError(
+                    "memdump total mean does not match categories")
+        result[(app, snapshot)] = category_rows
+    return result
+
+
 def _validate_outlier_audit(store: ViewStore, metadata: ViewMetadata) -> None:
     discarded = [row["discarded"] for row in _read_csv(
         store.local_outliers_path(), ["discarded"])]
@@ -166,12 +218,17 @@ def _validate_outlier_audit(store: ViewStore, metadata: ViewMetadata) -> None:
 def read_view(store: ViewStore) -> ParsedView:
     """Read a strict standalone view without accessing provenance directories."""
     _validate_view_layout(store)
-    metadata, breakdowns = _read_view_metadata(store)
+    metadata, breakdowns, memdumps = _read_view_metadata(store)
     identities = _declared_breakdown_identities(breakdowns)
+    if _declared_breakdown_identities(memdumps) != identities or memdumps != breakdowns:
+        raise ValueError("memdump metadata does not match breakdown metadata")
     summary_rows = _read_summary_rows(store, identities)
+    footprint_rows = _read_footprint_rows(store, summary_rows)
+    memdump_rows = _read_memdump_rows(store, identities)
     breakdown_rows = _read_breakdown_rows(store, identities)
     _validate_outlier_audit(store, metadata)
-    return ParsedView(store, metadata, breakdowns, summary_rows, breakdown_rows)
+    return ParsedView(store, metadata, breakdowns, summary_rows, footprint_rows,
+                      memdump_rows, breakdown_rows)
 
 
 def is_view_equivalent(left: ParsedView, right: ParsedView) -> bool:

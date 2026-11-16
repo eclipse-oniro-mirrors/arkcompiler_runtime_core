@@ -53,11 +53,10 @@ _SUPPORTED_RECORD = (
 class RecordTest(unittest.TestCase):
     def test_main_constructs_hdc_from_shared_config(self) -> None:
         config = Config(hdc_path=pathlib.Path("/bin/false"))
-        with mock.patch("sys.argv", ["record_hdc.py"]), mock.patch(
-                "record_hdc.load_config", return_value=config) as load_config, mock.patch(
+        with mock.patch("record_hdc.load_config", return_value=config) as load_config, mock.patch(
                 "record_hdc.Hdc") as hdc, mock.patch(
                 "record_hdc.convert_ui_inputs_into_flow", side_effect=RuntimeError("stop")):
-            self.assertEqual(record.main(), 1)
+            self.assertEqual(record.main([]), 1)
 
         load_config.assert_called_once_with(pathlib.Path(".env"))
         hdc.assert_called_once_with(config.hdc_path)
@@ -70,7 +69,7 @@ class RecordTest(unittest.TestCase):
                 with mock.patch("record_hdc.lib.configure_logger") as configure, \
                         mock.patch("record_hdc.lib.reset_logger") as reset, \
                         contextlib.redirect_stderr(io.StringIO()) as stderr:
-                    self.assertEqual(record.main(), 1)
+                    self.assertEqual(record.main([]), 1)
         self.assertIn("HDC_PATH is required", stderr.getvalue())
         configure.assert_called_once_with("err", None)
         reset.assert_called_once_with()

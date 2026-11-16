@@ -129,6 +129,52 @@ class SchemaTest(unittest.TestCase):
                 }
             )
 
+    def test_flow_builtin_fields_reject_coercion(self) -> None:
+        flow = {
+            "flow": [{
+                "label": "app",
+                "bundle": "com.example",
+                "ability": "EntryAbility",
+                "terminate": False,
+                "commands": [{"action": "wait", "payload": 1}],
+            }],
+        }
+        for invalid_flow in (
+            {"flow": [{**flow["flow"][0], "bundle": 1}]},
+            {"flow": [{**flow["flow"][0], "terminate": 1}]},
+            {"flow": [{**flow["flow"][0], "commands": [
+                {"action": "wait", "payload": "1"}]}]},
+        ):
+            with self.assertRaises(pydantic.ValidationError):
+                Flow.model_validate(invalid_flow)
+
+    def test_unprocessed_flow_builtin_fields_reject_coercion(self) -> None:
+        base_app = {
+            "label": "app",
+            "bundle": "com.example",
+            "ability": "EntryAbility",
+            "terminate": False,
+            "commands": [{"macro": "repeat", "payload": {
+                "iter_var": "i", "n_iter": 1, "commands": [],
+            }}],
+        }
+        with self.assertRaises(pydantic.ValidationError):
+            UnprocessedFlow.model_validate({"$desc": 1, "flow": [base_app]})
+        with self.assertRaises(pydantic.ValidationError):
+            UnprocessedFlow.model_validate({
+                "$desc": "description",
+                "flow": [{**base_app, "terminate": 1}],
+            })
+        with self.assertRaises(pydantic.ValidationError):
+            UnprocessedFlow.model_validate({
+                "$desc": "description",
+                "flow": [{**base_app, "commands": [{
+                    "macro": "repeat", "payload": {
+                        "iter_var": 1, "n_iter": 1, "commands": [],
+                    },
+                }]}],
+            })
+
     def test_complex_flow_with_mixed_commands_loads(self) -> None:
         flow = Flow.model_validate(
             {

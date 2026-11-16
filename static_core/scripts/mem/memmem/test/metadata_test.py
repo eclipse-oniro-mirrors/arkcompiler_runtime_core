@@ -15,6 +15,7 @@
 
 import pathlib
 import re
+import typing
 import unittest
 
 import pydantic
@@ -25,10 +26,23 @@ from src.metadata import (
     ArtifactMetadata,
     ArtifactMetadataFile,
     ViewMetadata,
+    EvidenceMetadata,
 )
 
 
 class MetadataTest(unittest.TestCase):
+    def test_execution_metadata_requires_exact_fields(self) -> None:
+        valid = {"flow": "flow.json", "reboot": False, "device_log": True}
+        self.assertEqual(EvidenceMetadata.model_validate(
+            valid).model_dump(), valid)
+        cases = [{key: value for key, value in valid.items() if key != missing}
+                 for missing in valid]
+        cases.extend([{**valid, "flow": "other.json"}, {**valid, "hooks": []},
+                      {**valid, "reboot": 1}, {**valid, "device_log": "true"}])
+        for case in cases:
+            with self.subTest(case=case), self.assertRaises(pydantic.ValidationError):
+                EvidenceMetadata.model_validate(case)
+
     def test_metadata_models_serialize(self) -> None:
         app = AppMetadata(
             pid=123,
@@ -94,12 +108,24 @@ class MetadataTest(unittest.TestCase):
             with self.assertRaises(pydantic.ValidationError):
                 ArtifactMetadata(label="snapshot", timestamp="1", files=[path])
 
+    def test_metadata_models_reject_coercible_values(self) -> None:
+        with self.assertRaises(pydantic.ValidationError):
+            AppMetadata(pid=typing.cast(int, "1"), label="App", bundle="bundle",
+                        ability="ability")
+        with self.assertRaises(pydantic.ValidationError):
+            ArtifactMetadata(label="snapshot", timestamp=typing.cast(str, 1), files=[
+                             "snapshot/App.smaps"])
+        with self.assertRaises(pydantic.ValidationError):
+            ArtifactMetadata(label="snapshot", timestamp="1",
+                             files=typing.cast(list[str], [1]))
+
     def test_view_metadata_normalizes_and_rejects_duplicates(self) -> None:
         pattern = re.compile("app", re.IGNORECASE)
         metadata = ViewMetadata(
             dirs=[pathlib.Path("/tmp/a/../evidence")],
             smaps_filter=pattern.pattern,
             smaps_filter_flags=re.IGNORECASE,
+            plots=True,
         )
         self.assertEqual(metadata.dirs, [pathlib.Path("/tmp/evidence")])
         self.assertEqual(metadata.smaps_filter_flags, pattern.flags)
@@ -111,12 +137,18 @@ class MetadataTest(unittest.TestCase):
                       pathlib.Path("/tmp/a/../evidence")],
                 smaps_filter=".*",
                 smaps_filter_flags=0,
+                plots=True,
             )
         for dirs, flags in (([pathlib.Path("relative")], re.UNICODE),
                             ([pathlib.Path("/tmp/evidence")], -1)):
             with self.assertRaises(pydantic.ValidationError):
                 ViewMetadata(dirs=dirs, smaps_filter=".*",
-                             smaps_filter_flags=flags)
+                             smaps_filter_flags=flags, plots=True)
+        for plots in (None, 1):
+            with self.assertRaises(pydantic.ValidationError):
+                ViewMetadata(dirs=[pathlib.Path("/tmp/evidence")],
+                             smaps_filter=".*", smaps_filter_flags=0,
+                             plots=typing.cast(bool, plots))
 
 
 if __name__ == "__main__":

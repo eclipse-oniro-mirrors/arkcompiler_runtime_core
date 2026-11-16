@@ -20,12 +20,13 @@ import unittest
 from unittest import mock
 
 from src.evidence import ParsedEvidence
-from src.metadata import AppMetadataFile, ArtifactMetadataFile
+from src.metadata import AppMetadataFile, ArtifactMetadataFile, EvidenceMetadata
+from src.schema import Flow
 from src.plot import generate_averaged_plots
 from src.plot import AveragedPlotRow, AveragedStatistics
 from src.report import write_view
 from src.store import ViewStore
-from src.smaps import SUMMARY_METRICS
+from src.profile import SUMMARY_METRICS
 
 
 class ViewOutputTest(unittest.TestCase):
@@ -33,6 +34,9 @@ class ViewOutputTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             destination = pathlib.Path(directory).joinpath("view")
             evidence = ParsedEvidence(
+                metadata=EvidenceMetadata(
+                    flow="flow.json", reboot=False, device_log=False),
+                flow=Flow(flow=[]),
                 source=pathlib.Path(directory).joinpath("evidence"),
                 apps=AppMetadataFile(apps=[]),
                 snapshots=ArtifactMetadataFile(artifacts=[]),

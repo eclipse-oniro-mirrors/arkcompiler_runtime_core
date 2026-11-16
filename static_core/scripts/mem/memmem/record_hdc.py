@@ -256,10 +256,10 @@ def _handle_pointer_multi_touch(raw: UIEvent, bounds: Bounds) -> Command:
     duration_ms = max(1, min(15000, round(duration_us / 1000)))
     return MultiTouchInputCommand(
         action="multi_touch_input",
-        payload=MultiTouchInputPayload(
-            finger_list=finger_list,
-            duration_ms=duration_ms,
-        ),
+        payload=MultiTouchInputPayload.model_validate({
+            "finger_list": finger_list,
+            "duration_ms": duration_ms,
+        }),
     )
 
 
@@ -558,8 +558,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> int:
-    args = build_parser().parse_args()
+def main(argv: list[str]) -> int:
+    args = build_parser().parse_args(argv)
     timeout: int | None = args.timeout
     log_file = (absolutize(args.memmem_log_file)
                 if args.memmem_log_file is not None else None)
@@ -588,4 +588,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))

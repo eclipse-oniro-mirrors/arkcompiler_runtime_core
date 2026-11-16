@@ -77,7 +77,7 @@ When repeats is greater than `1`, the system SHALL generate raw and filtered agg
 
 #### Scenario: Column values are typed
 - **WHEN** an averaged summary report is generated
-- **THEN** `n_samples`, `min`, and `max` cells are integers and `mean`, `geomean`, `median`, and `std` cells are floating-point numbers with two decimal places
+- **THEN** `n_samples`, `min`, and `max` cells are integers and `mean`, `geomean`, `median`, and `std` cells are floating-point numbers with two decimal digits
 
 ### Requirement: Breakdown CSV contains per-tag snapshot metrics
 The system SHALL generate one breakdown CSV per collected snapshot under `breakdowns/<snapshot_label>/<app_label>.csv` containing tag-level Size, Rss, Pss, Referenced, Shared, Private, Swap, and Anonymous totals. The header SHALL be `tag,size_kb,rss_kb,pss_kb,referenced_kb,shared_kb,private_kb,swap_kb,anonymous_kb`, matching the metric column names used by `summary.csv`. Breakdown data rows SHALL be sorted by `size_kb` descending, with tag ascending as a deterministic tie-breaker.

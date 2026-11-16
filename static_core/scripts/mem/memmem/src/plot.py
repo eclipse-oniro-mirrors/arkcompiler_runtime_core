@@ -21,7 +21,7 @@ import matplotlib
 import matplotlib.ticker
 
 from src.store import ViewStore
-from src.smaps import SUMMARY_METRICS
+from src.profile import SUMMARY_METRICS
 
 
 matplotlib.use("Agg")

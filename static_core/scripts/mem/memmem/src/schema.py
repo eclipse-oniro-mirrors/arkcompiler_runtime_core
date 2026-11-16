@@ -39,7 +39,6 @@ PayloadT = typing.TypeVar("PayloadT")
 
 
 class _CommandBase(PydanticModel, typing.Generic[PayloadT]):
-
     payload: PayloadT
 
 
@@ -56,13 +55,11 @@ class ScreenshotCommand(_CommandBase[Label]):
 
 
 class TapPayload(PydanticModel):
-
     x_pct: Percentile
     y_pct: Percentile
 
 
 class Displacement(PydanticModel):
-
     x1_pct: Percentile
     y1_pct: Percentile
     x2_pct: Percentile
@@ -78,7 +75,6 @@ class FlingPayload(SwipePayload):
 
 
 class DirectionalFlingPayload(PydanticModel):
-
     direction: typing.Literal["left", "right", "up", "down"]
     velocity: Velocity
     step_length: StepLength
@@ -89,7 +85,6 @@ class InputTextPayload(TapPayload):
 
 
 class MultiTouchInputPayload(PydanticModel):
-
     finger_list: (
         tuple[Displacement, Displacement]
         | tuple[Displacement, Displacement, Displacement]
@@ -97,9 +92,14 @@ class MultiTouchInputPayload(PydanticModel):
     duration_ms: typing.Annotated[
         int, pydantic.Field(ge=1, le=15000, strict=True)]
 
+    @pydantic.field_validator("finger_list", mode="before")
+    @classmethod
+    def convert_json_finger_list(cls, value: object) -> object:
+        # JSON arrays represent the tuple-shaped public payload.
+        return tuple(value) if isinstance(value, list) else value
+
 
 class NamedKeyPayload(PydanticModel):
-
     key: typing.Literal["Home", "Back", "Power"]
 
 
@@ -167,7 +167,6 @@ Command = typing.Annotated[
 
 
 class AppFlow(PydanticModel):
-
     label: Label
     bundle: str
     ability: str
@@ -179,7 +178,7 @@ class Flow(PydanticModel):
     model_config = pydantic.ConfigDict(
         serialize_by_alias=True, validate_by_name=True)
 
-    desc: pydantic.StrictStr | None = pydantic.Field(
+    desc: str | None = pydantic.Field(
         default=None,
         validation_alias="$desc",
         serialization_alias="$desc",
@@ -241,12 +240,10 @@ UnprocessedCommand = typing.Annotated[
 
 
 class _MacroBase(PydanticModel, typing.Generic[PayloadT]):
-
     payload: PayloadT
 
 
 class RepeatMacroPayload(PydanticModel):
-
     iter_var: IterVar
     n_iter: typing.Annotated[int, pydantic.Field(ge=0, strict=True)]
     commands: list[UnprocessedCommand]
@@ -260,7 +257,6 @@ Macro = typing.Annotated[RepeatMacro, pydantic.Field(discriminator="macro")]
 
 
 class UnprocessedAppFlow(PydanticModel):
-
     label: str
     bundle: str
     ability: str
@@ -272,7 +268,7 @@ class UnprocessedFlow(PydanticModel):
     model_config = pydantic.ConfigDict(
         serialize_by_alias=True, validate_by_name=True)
 
-    desc: pydantic.StrictStr | None = pydantic.Field(
+    desc: str | None = pydantic.Field(
         default=None,
         validation_alias="$desc",
         serialization_alias="$desc",
