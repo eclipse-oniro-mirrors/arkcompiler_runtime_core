@@ -22,7 +22,7 @@ generator-class: runner.extensions.generators.ets_cts.ets_templates_generator.Et
 workflows: [panda-bin-compat]
 
 parameters:
-    extension: ets
+    extension: ats
     test-extensions: [ats]
     load-runtimes: ets
     work-dir: ${WORK_DIR}/ets-cts

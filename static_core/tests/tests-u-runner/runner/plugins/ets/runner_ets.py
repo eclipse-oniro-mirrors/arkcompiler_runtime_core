@@ -54,7 +54,7 @@ class RunnerETS(RunnerFileBased):
         self.test_env.es2panda_args.extend([
             f"--arktsconfig={self.arktsconfig}",
             "--gen-stdlib=false",
-            "--extension=ets",
+            "--extension=ats",
             f"--opt-level={self.config.es2panda.opt_level}"
         ])
         if self.config.es2panda.debug_info:
