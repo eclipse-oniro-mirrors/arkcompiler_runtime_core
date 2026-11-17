@@ -404,20 +404,20 @@ void StackfulCoroutineWorker::CompleteAllAffinedCoroutines()
     }
 }
 
-bool StackfulCoroutineWorker::HasPendingLocalJobs()
+bool StackfulCoroutineWorker::HasUnExpiredTimer()
 {
-    os::memory::ScopedLock lock(waitersLock_, runnablesLock_);
-    if (!waiters_.empty()) {
-        return true;
-    }
-
-    bool hasPendingLocalJobs = false;
-    runnables_.IterateOverElements([&hasPendingLocalJobs](Coroutine *co) {
-        if (!hasPendingLocalJobs && co->GetType() != Coroutine::Type::SCHEDULER) {
-            hasPendingLocalJobs = true;
+    os::memory::LockHolder lock(waitersLock_);
+    auto curTime = coroManager_->GetCurrentTime();
+    for (const auto &[evt, _] : waiters_) {
+        if (evt->GetType() != JobEvent::Type::TIMER) {
+            continue;
         }
-    });
-    return hasPendingLocalJobs;
+        auto *timerEvent = static_cast<TimerEvent *>(evt);
+        if (timerEvent->GetExpirationTime() > curTime) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void StackfulCoroutineWorker::OnNewCoroutineStartup(Coroutine *co)
@@ -862,7 +862,7 @@ void StackfulCoroutineWorker::ProcessTimerEvents()
         auto curTime = coroManager_->GetCurrentTime();
         for (auto &[evt, _] : waiters_) {
             // NOTE(alimovilya, #33386) generalize working with events
-            if (evt->GetType() == JobEvent::Type::TIMER) {
+            if (evt->DrivesExpiration()) {
                 auto *timerEvent = static_cast<TimerEvent *>(evt);
                 timerEvent->SetCurrentTime(curTime);
                 if (timerEvent->IsExpired()) {
@@ -883,7 +883,7 @@ std::pair<bool, uint64_t> StackfulCoroutineWorker::CalculateShortestTimerDelay()
     uint64_t minTimerDelay = std::numeric_limits<uint64_t>::max();
     os::memory::LockHolder lh(waitersLock_);
     for (auto &[evt, _] : waiters_) {
-        if (evt->GetType() == JobEvent::Type::TIMER) {
+        if (evt->DrivesExpiration()) {
             auto *timerEvent = static_cast<TimerEvent *>(evt);
             auto delay = timerEvent->GetDelay();
             if (timerEvent->IsExpired()) {

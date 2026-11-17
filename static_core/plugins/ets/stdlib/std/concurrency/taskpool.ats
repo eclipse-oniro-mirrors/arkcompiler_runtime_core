@@ -695,7 +695,7 @@ export namespace taskpool {
             if (currentTasksSize != 0 || this.executingTaskBodyStartTime.load() != 0) {
                 return true;
             }
-            return currentWorkerHasPendingLocalJobs();
+            return currentWorkerHasUnExpiredTimer();
         }
 
         private hasVisibleGlobalTask(): boolean {
@@ -4600,7 +4600,7 @@ export namespace taskpool {
     native function isUsingLaunch(): boolean;
     native function isSupportingInterop(): boolean;
     native function getDefaultTaskPoolWorkersLimit(): int;
-    native function currentWorkerHasPendingLocalJobs(): boolean;
+    native function currentWorkerHasUnExpiredTimer(): boolean;
     native function getTaskId(): int;
     native function setTaskId(taskid: int): void;
     native function getSubmissionId(): int;

@@ -4662,15 +4662,15 @@ intrinsics:
       args: []
     impl: ark::ets::intrinsics::taskpool::GetDefaultTaskPoolWorkersLimit
 
-  - name: TaskpoolCurrentWorkerHasPendingLocalJobs
+  - name: TaskpoolCurrentWorkerHasUnExpiredTimer
     space: ets
     class_name: std.concurrency.taskpool
-    method_name: currentWorkerHasPendingLocalJobs
+    method_name: currentWorkerHasUnExpiredTimer
     static: true
     signature:
       ret: u1
       args: []
-    impl: ark::ets::intrinsics::taskpool::CurrentWorkerHasPendingLocalJobs
+    impl: ark::ets::intrinsics::taskpool::CurrentWorkerHasUnExpiredTimer
 
   - name: TaskpoolSetCurrentWorkerPriority
     space: ets
