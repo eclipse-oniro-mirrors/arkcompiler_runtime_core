@@ -493,7 +493,12 @@ bool ANIVerifier::IsValidStackRef(VRef *vref)
         return false;
     }
 
-    auto stack = StackWalker::Create(ManagedThread::GetCurrent());
+    auto *thread = ManagedThread::GetCurrent();
+    if (thread == nullptr) {
+        return false;
+    }
+
+    auto stack = StackWalker::Create(thread);
     if (!stack.HasFrame()) {
         return false;
     }

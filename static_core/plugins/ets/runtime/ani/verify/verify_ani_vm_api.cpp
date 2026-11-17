@@ -40,7 +40,8 @@ static const __ani_vm_api *g_vmApi = GetVMAPI();
 NO_UB_SANITIZE static ani_status DestroyVM(VVm *vvm)
 {
     VERIFY_ANI_ARGS(ANIArg::MakeForVm(vvm, "vm"));
-    return g_vmApi->DestroyVM(vvm->GetVm());
+    ani_vm *vm = vvm != nullptr ? vvm->GetVm() : nullptr;
+    return g_vmApi->DestroyVM(vm);
 }
 
 NO_UB_SANITIZE static ani_status GetEnv(VVm *vvm, uint32_t version, VEnv **vresult)
