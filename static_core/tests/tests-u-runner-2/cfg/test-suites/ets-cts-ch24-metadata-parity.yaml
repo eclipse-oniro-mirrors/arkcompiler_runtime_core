@@ -23,7 +23,7 @@ list-roots:
 workflows: [panda-metadata-parity]
 
 parameters:
-    extension: ets
+    extension: ats
     test-extensions: [ats]
     load-runtimes: ets
     # Isolated work-dir to avoid intersection with tests
