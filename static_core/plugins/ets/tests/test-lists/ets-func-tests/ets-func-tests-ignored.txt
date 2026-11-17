@@ -294,24 +294,24 @@ spec/17.Experimental_Features/Iterable_Types/for-of-s01-array-08.ets
 std/containers/BuiltinArrayMapTest.ets
 
 #25264
-std/core/ConsoleArrayTest.ets
+std/core/ConsoleArrayTest.ats
 
 #11468
-std/core/std_core_array_forEach_boolean_array_func_boolean.ets
-std/core/std_core_array_forEach_byte_array_func_byte.ets
-std/core/std_core_array_forEach_char_array_func_char.ets
-std/core/std_core_array_forEach_char_array_func_char_int_char_array.ets
-std/core/std_core_array_forEach_double_array_func_double.ets
-std/core/std_core_array_forEach_float_array_func_float.ets
-std/core/std_core_array_forEach_int_array_func_int.ets
-std/core/std_core_array_forEach_long_array_func_long.ets
-std/core/std_core_array_forEach_short_array_func_short.ets
+std/core/std_core_array_forEach_boolean_array_func_boolean.ats
+std/core/std_core_array_forEach_byte_array_func_byte.ats
+std/core/std_core_array_forEach_char_array_func_char.ats
+std/core/std_core_array_forEach_char_array_func_char_int_char_array.ats
+std/core/std_core_array_forEach_double_array_func_double.ats
+std/core/std_core_array_forEach_float_array_func_float.ats
+std/core/std_core_array_forEach_int_array_func_int.ats
+std/core/std_core_array_forEach_long_array_func_long.ats
+std/core/std_core_array_forEach_short_array_func_short.ats
 
 #23988
-escompat/escompat_typedarrays_bignum__BigInt64Array.ets
+escompat/escompat_typedarrays_bignum__BigInt64Array.ats
 
 #23989
-escompat/escompat_typedarrays_bignum__BigUint64Array.ets
+escompat/escompat_typedarrays_bignum__BigUint64Array.ats
 
 ### Negative tests (Import-export)
 spec/import_export/05.export_directives/02.export_type_directives/to_export_negative.ets
@@ -329,15 +329,15 @@ spec/import_export/05.export_directives/03.re-export_directives/to_export_2.ets
 spec/import_export/05.export_directives/02.export_type_directives/to_export_for_import_type_alias_with_qualified_access.ets
 
 #21382 - fixed array -> T[] casts
-std/core/ArrayTest1.ets
-std/core/ArrayTest2.ets
-std/core/ArrayTest3.ets
-std/core/ArrayTest4.ets
-std/core/ArrayTest5.ets
-std/core/ArrayTest6.ets
+std/core/ArrayTest1.ats
+std/core/ArrayTest2.ats
+std/core/ArrayTest3.ats
+std/core/ArrayTest4.ats
+std/core/ArrayTest5.ats
+std/core/ArrayTest6.ats
 
 #21382 - instance method on primitive
-std/core/std_core_char_instance_Char_toUpperCase.ets
+std/core/std_core_char_instance_Char_toUpperCase.ats
 
 ############
 # temporary place for the tests related to primitive types refactoring
@@ -345,13 +345,13 @@ std/core/std_core_char_instance_Char_toUpperCase.ets
 
 # 9.
 # other fails
-std/core/std_core_BigInt_instance_BigInt_toString_011.ets
-std/core/TypeCreateErasedBodyTest.ets
-std/core/NumberTest.ets
+std/core/std_core_BigInt_instance_BigInt_toString_011.ats
+std/core/TypeCreateErasedBodyTest.ats
+std/core/NumberTest.ats
 regression/15278_0.ets
 
 #30585
-std/core/EAWorker_out_of_coro_creation.ets
+std/core/EAWorker_out_of_coro_creation.ats
 
 #31475
 std/concurrency/message_basic_interface.ets

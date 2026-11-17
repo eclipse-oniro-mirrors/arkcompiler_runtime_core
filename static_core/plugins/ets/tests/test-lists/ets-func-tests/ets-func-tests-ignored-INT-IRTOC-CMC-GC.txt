@@ -2,4 +2,4 @@
 ets_func_tests/std/debug/CountInstancesOfClass.ets
 
 #32998
-ets_func_tests/std/core/get_hash.ets
+ets_func_tests/std/core/get_hash.ats

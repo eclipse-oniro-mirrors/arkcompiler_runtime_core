@@ -1,5 +1,5 @@
 # Process test causes failure on timeout - see issue https://gitee.com/openharmony/arkcompiler_runtime_core/issues/I9W32L
-std/core/ProcessTest.ets
+std/core/ProcessTest.ats
 
 # End issue https://gitee.com/openharmony/arkcompiler_runtime_core/issues/I9W32L
 

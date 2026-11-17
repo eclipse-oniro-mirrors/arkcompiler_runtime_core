@@ -5,4 +5,4 @@ ets_func_tests/std/concurrency/AsyncLockTimeoutTest.ets
 std/containers/BlockingQueue/LinkedBlockingQueue_getEnd.ets
 
 #32998
-std/core/get_hash.ets
+std/core/get_hash.ats
