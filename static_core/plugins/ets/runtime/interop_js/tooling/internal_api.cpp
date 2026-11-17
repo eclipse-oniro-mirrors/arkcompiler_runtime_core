@@ -53,6 +53,9 @@ bool UnionStackIsEmpty(bool *isEmpty)
     auto &callStack = ctx->GetOrCreateCallStack();
     *isEmpty = (!ctx->GetInteropHybridStackEnabled()) ||
                ((callStack.GetRecords().Size() == 0) && (callStack.GetStaticTopFrame() == nullptr));
+    if (!*isEmpty) {
+        *isEmpty = callStack.GetDynamicTopFrameSP() == nullptr;
+    }
     return true;
 }
 

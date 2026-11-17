@@ -71,13 +71,31 @@ export function dyST1(): void {
     module.namespaceInvokeFunction('staSTfun1', 'C{std.core.Function0}:', [staFun]);
 }
 
+// Sta-to-Dyn: observed from the dynamic side via the napi callback registered
+// by the gtest runner. The topmost segment of the union stack is dynamic here.
+export function dyLeaf(): void {
+    ASSERT_TRUE(unionStackChecks.checkStaToDynStack());
+}
+
+// Pure dynamic chain: no ETS static frame is involved at all. UnionStackIsEmpty
+// reports an empty union stack (the static part of the union stack is empty,
+// so the dynamic-side refinement is never reached).
+function dyPure2(): void {
+    ASSERT_TRUE(unionStackChecks.checkPureDynamicStack());
+}
+
+function dyPure1(): void {
+    dyPure2();
+}
+
 function dyST2(): void {
     module.namespaceInvokeFunction('staSTfun2', ':', []);
 }
 
 function main(): void {
     testAll();
-    dyST2()
+    dyST2();
+    dyPure1();
 }
 
 main();
