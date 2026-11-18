@@ -14,6 +14,7 @@
  */
 
 #include "include/class.h"
+#include "libarkbase/os/mutex.h"
 #include "plugins/ets/runtime/ets_platform_types.h"
 #include "include/mem/panda_containers.h"
 #include "include/method.h"
@@ -28,6 +29,20 @@ extern "C" void CallJSProxyBridge(Method *method, ...);
 extern "C" void CallJSFunctionBridge(Method *method, ...);
 
 using MethodMap = std::unordered_map<uint8_t const *, Method *, utf::Mutf8Hash, utf::Mutf8Equal>;
+
+// NOLINTNEXTLINE(fuchsia-statically-constructed-objects)
+static os::memory::Mutex g_proxyClassInitLock;
+
+static void InitializeProxyClass(Class *proxyCls)
+{
+    os::memory::LockHolder lock(g_proxyClassInitLock);
+
+    if (!proxyCls->IsInitialized()) {
+        proxyCls->SetState(Class::State::INITIALIZING);
+        proxyCls->SetState(Class::State::INITIALIZED);
+    }
+    ASSERT(proxyCls->IsInitialized());
+}
 
 // Create JSProxy class descriptor that will respond to IsProxyClass
 // NOLINTNEXTLINE(modernize-avoid-c-arrays)
@@ -148,6 +163,8 @@ JSProxy *JSProxy::CreateInterfaceProxy(const PandaSet<Class *> &interfaces, std:
 
     ASSERT(IsProxyClass(proxyCls));
 
+    InitializeProxyClass(proxyCls);
+
     auto jsProxy = Runtime::GetCurrent()->GetInternalAllocator()->New<JSProxy>(EtsClass::FromRuntimeClass(proxyCls));
     return jsProxy;
 }
@@ -194,6 +211,8 @@ JSProxy *JSProxy::CreateFunctionProxy(EtsClass *functionInterface)
 
     ASSERT(IsProxyClass(proxyFunctionCls));
 
+    InitializeProxyClass(proxyFunctionCls);
+
     auto functionProxy =
         Runtime::GetCurrent()->GetInternalAllocator()->New<JSProxy>(EtsClass::FromRuntimeClass(proxyFunctionCls));
     return functionProxy;
@@ -222,11 +241,8 @@ JSProxy *JSProxy::CreateProxy(const uint8_t *descriptor, Class *baseClass, Span<
         ASSERT(EtsExecutionContext::GetCurrent()->GetMT()->HasPendingException());
         return nullptr;
     }
-    if (!proxyCls->IsInitialized()) {
-        proxyCls->SetState(Class::State::INITIALIZING);
-        proxyCls->SetState(Class::State::INITIALIZED);
-    }
-    ASSERT(proxyCls->IsInitialized());
+
+    InitializeProxyClass(proxyCls);
 
     // make the proxy class a xref class
     proxyCls->SetXRefClass();

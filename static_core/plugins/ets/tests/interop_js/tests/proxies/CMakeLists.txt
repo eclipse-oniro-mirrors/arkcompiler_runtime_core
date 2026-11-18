@@ -14,4 +14,5 @@
 add_subdirectory(ets_proxy)
 add_subdirectory(ets_function_proxy)
 add_subdirectory(js_extend_ets)
+add_subdirectory(js_proxy_thread_safety)
 add_subdirectory(mem)
