@@ -22,3 +22,5 @@ export declare let dyLambdaFun2: () => void;
 
 export declare function dyST1(): void;
 
+export declare function dyLeaf(): void;
+

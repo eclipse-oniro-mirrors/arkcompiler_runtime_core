@@ -15,12 +15,13 @@
 
 import { dyFun1, dyFun2, dyFun3 } from 'testDecl'
 import { dyLambdaFun1, dyLambdaFun2 } from 'testDecl'
-import { dyST1 } from 'testDecl'
+import { dyST1, dyLeaf } from 'testDecl'
 
 native function testHybridTest(): boolean;
 native function testHybridTestLambda(): boolean;
 native function testHybridTestESValue(): boolean;
 native function testHybridTestSTValue(): boolean;
+native function testPureStaticStack(): boolean;
 
 function staFun0(): void {
     arktest.assertTrue(testHybridTest());
@@ -40,6 +41,22 @@ function staFun3(): void {
 
 function staFun3_3(): void {
     staFun3();
+}
+
+// Pure static chain above the JS bottom: the union stack observed from
+// testPureStaticStack consists of a single static segment.
+function staPure2(): void {
+    arktest.assertTrue(testPureStaticStack());
+}
+
+function staPure1(): void {
+    staPure2();
+}
+
+// Sta-to-Dyn crossing observed from the dynamic side: dyLeaf (JS) calls back
+// into a registered napi callback while only staStaToDyn is below it.
+export function staStaToDyn(): void {
+    dyLeaf();
 }
 
 let staLambdaFun1: () => void = () => {
@@ -78,4 +95,6 @@ function testAll(): void {
     staFun3_3();
     staLambdaFun2();
     staESFun2();
+    staStaToDyn();
+    staPure1();
 }
