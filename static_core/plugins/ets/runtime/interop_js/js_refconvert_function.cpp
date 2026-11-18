@@ -84,15 +84,17 @@ napi_value JSRefConvertFunction::WrapImpl(InteropCtx *ctx, EtsObject *obj)
     auto env = ctx->GetJSEnv();
     [[maybe_unused]] EtsHandleScope s(executionCtx);
 
-    ASSERT(obj->GetClass() == klass_);
+    EtsHandle<EtsObject> objHandle(executionCtx, obj);
+    ASSERT(objHandle->GetClass() == klass_);
 
     JSValue *jsValue;
     {
         NapiScope jsHandleScope(env);
 
         ets_proxy::SharedReferenceStorage *storage = ctx->GetSharedRefStorage();
-        if (LIKELY(storage->HasReference(obj, env))) {
-            jsValue = JSValue::CreateRefValue(executionCtx, ctx, storage->GetJsObject(obj, env), napi_function);
+        if (LIKELY(storage->HasReference(objHandle.GetPtr(), env))) {
+            jsValue = JSValue::CreateRefValue(executionCtx, ctx, storage->GetJsObject(objHandle.GetPtr(), env),
+                                              napi_function);
         } else {
             napi_value jsFn;
             auto preInitCallback = [&env, &jsFn](ets_proxy::SharedReference **uninitializedRef) {
@@ -102,7 +104,6 @@ napi_value JSRefConvertFunction::WrapImpl(InteropCtx *ctx, EtsObject *obj)
                 return jsFn;
             };
 
-            EtsHandle<EtsObject> objHandle(executionCtx, obj);
             ets_proxy::SharedReference *sharedRef = storage->CreateETSObjectRef(ctx, objHandle, jsFn, preInitCallback);
             if (UNLIKELY(sharedRef == nullptr)) {
                 ASSERT(InteropCtx::SanityJSExceptionPending());

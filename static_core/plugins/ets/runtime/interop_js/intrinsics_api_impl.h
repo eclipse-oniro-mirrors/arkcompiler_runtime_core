@@ -17,7 +17,9 @@
 #define PANDA_PLUGINS_ETS_RUNTIME_INTEROP_JS_INTRINSICS_API_IMPL_H_
 
 #include "code_scopes.h"
+#include "plugins/ets/runtime/ets_handle.h"
 #include "plugins/ets/runtime/interop_js/js_convert.h"
+#include "plugins/ets/runtime/interop_js/js_value.h"
 #include "plugins/ets/runtime/interop_js/interop_common.h"
 #include "plugins/ets/runtime/interop_js/interop_context.h"
 #include "plugins/ets/runtime/types/ets_std_core_array.h"
@@ -39,7 +41,7 @@ EtsString *JSRuntimeGetValueString(JSValue *etsJsValue);
 EtsObject *JSRuntimeGetValueObject(EtsObject *etsValue, EtsClass *clsObj);
 JSValue *JSRuntimeGetUndefined();
 JSValue *JSRuntimeGetNull();
-JSValue *JSRuntimeGetGlobal();
+EtsHandle<JSValue> JSRuntimeGetGlobal();
 JSValue *JSRuntimeCreateObject();
 EtsObject *JSRuntimeCreateArray();
 uint8_t JSRuntimeInstanceOf(JSValue *object, JSValue *ctor);
