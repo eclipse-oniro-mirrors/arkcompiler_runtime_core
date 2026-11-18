@@ -53,21 +53,6 @@ public:
         }
     }
 
-    bool IsInOld() const
-    {
-        return state_.IsInOld();
-    }
-
-    bool IsInYoung() const
-    {
-        return state_.IsInYoung();
-    }
-
-    void SetObjectState(ObjectState state)
-    {
-        state_.SetObjectState(state);
-    }
-
     inline bool IsValidObject() const
     {
         return GetOperator()->IsValidObject(this);
@@ -211,7 +196,7 @@ public:
 
     void SetFullBaseClassWithoutBarrier(BaseClass *cls)
     {
-        state_ = 0; //  todo why set0 here
+        state_ = 0;
         state_.SetFullBaseClassAddress(reinterpret_cast<common::StateWordType>(cls));
     }
 

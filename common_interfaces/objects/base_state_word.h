@@ -37,21 +37,15 @@ enum class LanguageType : uint64_t {
     STATIC = 1,
 };
 
-enum class ObjectState : uint64_t {
-    OLD = 0,
-    YOUNG = 1
-};
 // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
 class BaseStateWord {
 public:
 #ifdef PANDA_32_BIT_MANAGED_POINTER
     static constexpr size_t BASECLASS_WIDTH = 32;
-    static constexpr size_t OBJ_STATE_WIDTH = 8;
-    static constexpr size_t PADDING_WIDTH = 20;
+    static constexpr size_t PADDING_WIDTH = 28;
 #else
     static constexpr size_t BASECLASS_WIDTH = 48;
-    static constexpr size_t OBJ_STATE_WIDTH = 8;
-    static constexpr size_t PADDING_WIDTH = 4;
+    static constexpr size_t PADDING_WIDTH = 12;
 #endif
     static constexpr size_t FORWARD_WIDTH = 2;
     static constexpr size_t LANGUAGE_WIDTH = 2;
@@ -60,21 +54,6 @@ public:
 
     BaseStateWord() = default;
     BaseStateWord(MAddress header) : header_(header) {};
-
-    bool IsInOld() const
-    {
-        return state_.objState_ == ObjectState::OLD;
-    }
-
-    bool IsInYoung() const
-    {
-        return state_.objState_ == ObjectState::YOUNG;
-    }
-
-    void SetObjectState(ObjectState state)
-    {
-        state_.objState_  = state;
-    }
 
     enum class ForwardState : uint64_t {
         NORMAL,
@@ -143,7 +122,6 @@ private:
     // Little endian
     struct State {
         StateWordType bascClass_   : BASECLASS_WIDTH;
-        ObjectState objState_      : OBJ_STATE_WIDTH;
         StateWordType padding_     : PADDING_WIDTH;
         LanguageType language_     : LANGUAGE_WIDTH;
         ForwardState forwardState_ : FORWARD_WIDTH;
