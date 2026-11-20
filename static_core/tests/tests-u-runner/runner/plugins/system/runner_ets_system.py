@@ -47,15 +47,7 @@ class RunnerETSSystem(RunnerJS):
     def __init__(self, config: Config) -> None:
         super().__init__(config, "system")
 
-        symlink_es2panda_test = (Path(config.general.static_core_root) /
-                                 "plugins" / "ets" / "tests" / "ets_warnings_tests")
-        if symlink_es2panda_test.exists():
-            es2panda_test = symlink_es2panda_test.resolve()
-        else:
-            es2panda_test = Path(config.general.static_core_root).parent.parent / "plugins" \
-                            / "runtime_core" / "static_core" / "ets" / "tests" / "ets_warnings_tests"
-            if not es2panda_test.exists():
-                raise Exception(f'There is no path {es2panda_test}')
+        es2panda_test = self._get_es2panda_test_root(config)
         self.default_list_root = es2panda_test / 'test-lists'
 
         if self.list_root:
@@ -98,11 +90,28 @@ class RunnerETSSystem(RunnerJS):
                 TestDirectory("warnings_suppresion_tests", "ets", flags=suppression_tests),
                 TestDirectory("werror_tests", "ets", flags=werror_tests),
             ]
-            self.add_directories(test_dirs)
+            self.add_directories([
+                TestDirectory(directory.directory, extension, directory.flags)
+                for directory in test_dirs
+                for extension in ("ets", "ats")
+            ])
 
     @property
     def default_work_dir_root(self) -> Path:
         return Path("/tmp") / "ets_warnings_tests"
+
+    @staticmethod
+    def _get_es2panda_test_root(config: Config) -> Path:
+        symlink_es2panda_test = (Path(config.general.static_core_root) /
+                                 "plugins" / "ets" / "tests" / "ets_warnings_tests")
+        if symlink_es2panda_test.exists():
+            es2panda_test = symlink_es2panda_test.resolve()
+        else:
+            es2panda_test = Path(config.general.static_core_root).parent.parent / "plugins" \
+                            / "runtime_core" / "static_core" / "ets" / "tests" / "ets_warnings_tests"
+            if not es2panda_test.exists():
+                raise Exception(f'There is no path {es2panda_test}')
+        return es2panda_test
 
     def create_test(self, test_file: str, flags: List[str], is_ignored: bool) -> TestETSSystem:
         test = TestETSSystem(self.test_env, test_file, flags, get_test_id(test_file, self.test_root))

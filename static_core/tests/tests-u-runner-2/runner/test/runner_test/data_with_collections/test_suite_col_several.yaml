@@ -23,4 +23,4 @@ parameters:
     work-dir: ${WORK_DIR}
 collections:
     tests_folder: |-
-    test.ets: |-
+    test.ats: |-

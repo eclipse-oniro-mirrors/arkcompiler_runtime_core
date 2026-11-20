@@ -82,5 +82,5 @@ endfunction()
 
 # issue: 34560
 if(NOT USE_GCOV_TOOLS AND NOT USE_LLVM_COV_TOOLS)
-    add_backtrace_native_test(FILE call_backtrace_native.ets CPP_SOURCE call_backtrace_native_test.cpp OPTIONS "")
+    add_backtrace_native_test(FILE call_backtrace_native.ats CPP_SOURCE call_backtrace_native_test.cpp OPTIONS "")
 endif()

@@ -128,9 +128,9 @@ class OptionsTest(TestCase):
         # test
         test = TestStandardFlow(
             test_env=test_env,
-            test_path=test_root / "test1.ets",
+            test_path=test_root / "test1.ats",
             params=IOptions({}),
-            test_id="test1.ets"
+            test_id="test1.ats"
         )
         try:
             self.assertTrue(test.is_panda)
@@ -144,10 +144,10 @@ class OptionsTest(TestCase):
                         self.assertListEqual(step.args, new_step.args)
                     case StepKind.AOT:
                         new_step = test.prepare_aot_step(step)
-                        self.check_parameter("--paoc-panda-files=intermediate/test1.ets.abc", new_step.args)
+                        self.check_parameter("--paoc-panda-files=intermediate/test1.ats.abc", new_step.args)
                     case StepKind.RUNTIME:
                         new_step = test.prepare_runtime_step(step)
-                        self.check_parameter("--panda-files=intermediate/test1.ets.abc", new_step.args)
+                        self.check_parameter("--panda-files=intermediate/test1.ats.abc", new_step.args)
 
         finally:
             clear_after_test()
@@ -168,11 +168,11 @@ class OptionsTest(TestCase):
         # test
         test = TestStandardFlow(
             test_env=test_env,
-            test_path=test_root / "test1.ets",
+            test_path=test_root / "test1.ats",
             params=IOptions({}),
-            test_id="test1.ets"
+            test_id="test1.ats"
         )
-        expected_args = ['--boot-panda-files=stdlib', 'test1.ets', 'test1']
+        expected_args = ['--boot-panda-files=stdlib', 'test1.ats', 'test1']
         try:
             for step in test_env.config.workflow.steps:
                 match step.step_kind:
@@ -197,9 +197,9 @@ class OptionsTest(TestCase):
         test_env, test_root = self.prepare()
         test = TestStandardFlow(
             test_env=test_env,
-            test_path=test_root / "test1.ets",
+            test_path=test_root / "test1.ats",
             params=IOptions({}),
-            test_id="test1.ets"
+            test_id="test1.ats"
         )
         test.metadata.es2panda_options = ['emit-declaration']
         try:
@@ -226,9 +226,9 @@ class OptionsTest(TestCase):
         test_env, test_root = self.prepare()
         test = TestStandardFlow(
             test_env=test_env,
-            test_path=test_root / "test1.ets",
+            test_path=test_root / "test1.ats",
             params=IOptions({}),
-            test_id="test1.ets"
+            test_id="test1.ats"
         )
         test.metadata.es2panda_options = ['emit-metadata']
         try:
@@ -255,9 +255,9 @@ class OptionsTest(TestCase):
         test_env, test_root = self.prepare()
         test = TestStandardFlow(
             test_env=test_env,
-            test_path=test_root / "test1.ets",
+            test_path=test_root / "test1.ats",
             params=IOptions({}),
-            test_id="test1.ets"
+            test_id="test1.ats"
         )
         test.metadata.es2panda_options = ['simultaneous']
         try:
@@ -284,9 +284,9 @@ class OptionsTest(TestCase):
         test_env, test_root = self.prepare()
         test = TestStandardFlow(
             test_env=test_env,
-            test_path=test_root / "test1.ets",
+            test_path=test_root / "test1.ats",
             params=IOptions({}),
-            test_id="test1.ets"
+            test_id="test1.ats"
         )
         test.metadata.es2panda_options = ['read-metadata']
         try:
@@ -315,9 +315,9 @@ class OptionsTest(TestCase):
         # test
         test = TestStandardFlow(
             test_env=test_env,
-            test_path=test_root / "test1.ets",
+            test_path=test_root / "test1.ats",
             params=IOptions({}),
-            test_id="test1.ets"
+            test_id="test1.ats"
         )
         try:
             self.assertFalse(test.is_panda)
@@ -331,11 +331,11 @@ class OptionsTest(TestCase):
                         self.assertListEqual(step.args, new_step.args)
                     case StepKind.AOT:
                         new_step = test.prepare_aot_step(step)
-                        self.check_parameter("--paoc-panda-files=intermediate/test1.ets.abc", new_step.args,
+                        self.check_parameter("--paoc-panda-files=intermediate/test1.ats.abc", new_step.args,
                                              is_present=False)
                     case StepKind.RUNTIME:
                         new_step = test.prepare_runtime_step(step)
-                        self.check_parameter("--panda-files=intermediate/test1.ets.abc", new_step.args,
+                        self.check_parameter("--panda-files=intermediate/test1.ats.abc", new_step.args,
                                              is_present=False)
 
         finally:
@@ -357,20 +357,20 @@ class OptionsTest(TestCase):
         # test
         test = TestStandardFlow(
             test_env=test_env,
-            test_path=test_root / "test2.ets",
+            test_path=test_root / "test2.ats",
             params=IOptions({}),
-            test_id="test2.ets"
+            test_id="test2.ats"
         )
 
         dependent_tests = test.dependent_tests
         try:
             self.assertEqual(len(dependent_tests), 1)
             dependent_test = dependent_tests[0]
-            self.assertEqual(dependent_test.test_id, "dependent_test2.ets")
+            self.assertEqual(dependent_test.test_id, "dependent_test2.ats")
             self.assertFalse(dependent_test.is_valid_test)
-            self.assertEqual(dependent_test.parent_test_id, "test2.ets")
-            self.assertEqual(dependent_test.test_abc.name, "dependent_test2.ets.abc")
-            self.assertEqual(dependent_test.test_an.name, "dependent_test2.ets.an")
+            self.assertEqual(dependent_test.parent_test_id, "test2.ats")
+            self.assertEqual(dependent_test.test_abc.name, "dependent_test2.ats.abc")
+            self.assertEqual(dependent_test.test_an.name, "dependent_test2.ats.an")
 
             self.assertTrue(test.is_panda)
             for step in test_env.config.workflow.steps:
@@ -384,7 +384,7 @@ class OptionsTest(TestCase):
                             if len(arg := [arg for arg in new_step.args if arg.startswith("--boot-panda-files=")]) > 0 \
                             else ""
                         self.check_boot_panda_files(
-                            ['intermediate/dependent_test2.ets.abc'],
+                            ['intermediate/dependent_test2.ats.abc'],
                             boot_panda_files)
                     case StepKind.AOT:
                         new_step = test.prepare_aot_step(step)
@@ -392,8 +392,8 @@ class OptionsTest(TestCase):
                             if len(arg := [arg for arg in new_step.args if arg.startswith("--boot-panda-files=")]) > 0 \
                             else ""
                         self.check_boot_panda_files([], boot_panda_files)
-                        self.check_parameter("--paoc-panda-files=intermediate/dependent_test2.ets.abc", new_step.args)
-                        self.check_parameter("--paoc-panda-files=intermediate/test2.ets.abc", new_step.args)
+                        self.check_parameter("--paoc-panda-files=intermediate/dependent_test2.ats.abc", new_step.args)
+                        self.check_parameter("--paoc-panda-files=intermediate/test2.ats.abc", new_step.args)
                     case StepKind.RUNTIME:
                         new_step = test.prepare_runtime_step(step)
                         boot_panda_files = arg[0] \
@@ -420,9 +420,9 @@ class OptionsTest(TestCase):
         # test
         test = TestStandardFlow(
             test_env=test_env,
-            test_path=test_root / "test1.ets",
+            test_path=test_root / "test1.ats",
             params=IOptions({}),
-            test_id="test1.ets"
+            test_id="test1.ats"
         )
 
         short_cli = test.get_short_cli()
@@ -463,9 +463,9 @@ class OptionsTest(TestCase):
         # test
         test = TestStandardFlow(
             test_env=test_env,
-            test_path=test_root / "test1.ets",
+            test_path=test_root / "test1.ats",
             params=IOptions({}),
-            test_id="test1.ets"
+            test_id="test1.ats"
         )
 
         full_cli = test.get_full_cli()
@@ -495,9 +495,9 @@ class OptionsTest(TestCase):
         # test
         test = TestStandardFlow(
             test_env=test_env,
-            test_path=test_root / "test1.ets",
+            test_path=test_root / "test1.ats",
             params=IOptions({}),
-            test_id="test1.ets",
+            test_id="test1.ats",
         )
 
         short_cli = test.get_short_cli()
@@ -527,9 +527,9 @@ class OptionsTest(TestCase):
         # test
         test = TestStandardFlow(
             test_env=test_env,
-            test_path=test_root / "test1.ets",
+            test_path=test_root / "test1.ats",
             params=IOptions({}),
-            test_id="test1.ets",
+            test_id="test1.ats",
         )
 
         short_cli = test.get_short_cli()
@@ -559,9 +559,9 @@ class OptionsTest(TestCase):
         # test
         test = TestStandardFlow(
             test_env=test_env,
-            test_path=test_root / "test1.ets",
+            test_path=test_root / "test1.ats",
             params=IOptions({}),
-            test_id="test1.ets",
+            test_id="test1.ats",
         )
 
         full_cli = test.get_full_cli()
@@ -602,9 +602,9 @@ class OptionsTest(TestCase):
             # test
             test = TestStandardFlow(
                 test_env=test_env,
-                test_path=test_root / "test1.ets",
+                test_path=test_root / "test1.ats",
                 params=IOptions({}),
-                test_id="test1.ets"
+                test_id="test1.ats"
             )
 
             full_cli = test.get_full_cli()

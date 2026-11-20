@@ -70,7 +70,7 @@ class AstcheckerValidatorTest(TestCase):
         Test expects node
         Expected: test passed
         """
-        mock_test.path = self.data_folder / "test2.ets"
+        mock_test.path = self.data_folder / "test2.ats"
         actual_output = (self.data_folder / "test2-expected-stdout.txt").read_text(encoding="utf-8")
         actual_error = ""
         actual_return_code = 0
@@ -136,7 +136,7 @@ class AstcheckerValidatorTest(TestCase):
         Test gets expected error message but with other coordinates
         Expected: test failed
         """
-        mock_test.path = self.data_folder / "test4.ets"
+        mock_test.path = self.data_folder / "test4.ats"
         actual_output = (self.data_folder / "test4-expected-stdout.txt").read_text(encoding="utf-8")
         actual_error = ""
         actual_return_code = 0
@@ -154,7 +154,7 @@ class AstcheckerValidatorTest(TestCase):
         Test gets expected error message but with other coordinates
         Expected: test failed
         """
-        mock_test.path = self.data_folder / "test4-not-all-warn.ets"
+        mock_test.path = self.data_folder / "test4-not-all-warn.ats"
         actual_output = (self.data_folder / "test4-expected-stdout.txt").read_text(encoding="utf-8")
         actual_error = ""
         actual_return_code = 0
@@ -172,7 +172,7 @@ class AstcheckerValidatorTest(TestCase):
         Test gets expected error message but with other coordinates
         Expected: test failed
         """
-        mock_test.path = self.data_folder / "test4-incorrect-warn.ets"
+        mock_test.path = self.data_folder / "test4-incorrect-warn.ats"
         actual_output = (self.data_folder / "test4-expected-stdout.txt").read_text(encoding="utf-8")
         actual_error = ""
         actual_return_code = 0
@@ -190,7 +190,7 @@ class AstcheckerValidatorTest(TestCase):
         Test doesn't specify either expected message or expected node but returns 1
         Expected: test failed because in such case we expect 0 return code, but get 1
         """
-        mock_test.path = self.data_folder / "test3.ets"
+        mock_test.path = self.data_folder / "test3.ats"
         actual_output = (self.data_folder / "test3-expected-stdout.txt").read_text(encoding="utf-8")
         actual_error = ""
         actual_return_code = 1
@@ -208,7 +208,7 @@ class AstcheckerValidatorTest(TestCase):
         Test doesn't specify either expected message or expected node and returns 0
         Expected: test passed
         """
-        mock_test.path = self.data_folder / "test3.ets"
+        mock_test.path = self.data_folder / "test3.ats"
         actual_output = (self.data_folder / "test3-expected-stdout.txt").read_text(encoding="utf-8")
         actual_error = ""
         actual_return_code = 0
@@ -226,7 +226,7 @@ class AstcheckerValidatorTest(TestCase):
         Test expects node, but does not find it
         Expected: test failed
         """
-        mock_test.path = self.data_folder / "test2.ets"
+        mock_test.path = self.data_folder / "test2.ats"
         actual_output = """{
           "type": "Program",
           "statements": [

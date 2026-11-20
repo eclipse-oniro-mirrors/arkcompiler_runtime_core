@@ -14,7 +14,7 @@
 add_custom_target(ets_test_suite_any)
 
 add_ets_test(ets_test_suite_any
-    FILE relaxed_any.ets
+    FILE relaxed_any.ats
     TEST_NAME ets_test_suite_any
     MODE "INT" "JIT" "AOT"
     COMPILER_EXTRA_OPTIONS "--permit-relaxed-any=true"

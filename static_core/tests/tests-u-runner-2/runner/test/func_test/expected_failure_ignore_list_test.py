@@ -75,12 +75,12 @@ class FailuresFromIgnoreTest(TestCase):
         """
         with patch('sys.argv', argv):
             ExpectedTest = namedtuple('ExpectedTest', 'test_id ignored last_failure')
-            test1 = ExpectedTest("test1.ets", True, "test failure")
-            test2 = ExpectedTest("test2.ets", False, "")
-            test3 = ExpectedTest("test3.ets", True, "test failed.*?error")
-            test4 = ExpectedTest("test4.ets", True, "")
-            test5 = ExpectedTest("test5_compile_only_neg.ets", False, "")
-            test6 = ExpectedTest("test1.console.ets", False, "")
+            test1 = ExpectedTest("test1.ats", True, "test failure")
+            test2 = ExpectedTest("test2.ats", False, "")
+            test3 = ExpectedTest("test3.ats", True, "test failed.*?error")
+            test4 = ExpectedTest("test4.ats", True, "")
+            test5 = ExpectedTest("test5_compile_only_neg.ats", False, "")
+            test6 = ExpectedTest("test1.console.ats", False, "")
             expected_tests = [test1, test2, test3, test4, test5, test6]
 
             config = self.get_config()
@@ -106,10 +106,10 @@ class FailuresFromIgnoreTest(TestCase):
     def test_results_with_expected_failure_pass(self, argv: Callable) -> None:
         with patch('sys.argv', argv):
             test_output = "test failure"
-            test_output_test3 = "test failed failure failed blabala3 hbs[dsfds.ets]fail error"
+            test_output_test3 = "test failed failure failed blabala3 hbs[dsfds.ats]fail error"
             err_output = ""
-            expected_result = {("test1.ets", True), ("test2.ets", True), ("test3.ets", True), ("test4.ets", True),
-                               ("test5_compile_only_neg.ets", True), ("test1.console.ets", True)}
+            expected_result = {("test1.ats", True), ("test2.ats", True), ("test3.ats", True), ("test4.ats", True),
+                               ("test5_compile_only_neg.ats", True), ("test1.console.ats", True)}
             expected_stat = {"passed": 0, "ignored": 3, "failed": 3, "excluded": 0}
 
             config = self.get_config()
@@ -119,7 +119,7 @@ class FailuresFromIgnoreTest(TestCase):
             for test in actual_tests:
                 test.passed = False
                 test.reports[ReportFormat.LOG] = "failure"
-                if test.test_id == "test3.ets":
+                if test.test_id == "test3.ats":
                     _ = BaseValidator.check_return_code(cast(TestStandardFlow, test),
                                                         FailuresFromIgnoreTest.step_fields, test_output_test3,
                                                         err_output, 0)
@@ -154,8 +154,8 @@ class FailuresFromIgnoreTest(TestCase):
         with patch('sys.argv', argv):
             test_output = "test unexpected failure"
             err_output = ""
-            expected_result = {("test1.ets", False), ("test2.ets", True), ("test3.ets", False), ("test4.ets", True),
-                               ("test5_compile_only_neg.ets", True), ("test1.console.ets", True)}
+            expected_result = {("test1.ats", False), ("test2.ats", True), ("test3.ats", False), ("test4.ats", True),
+                               ("test5_compile_only_neg.ats", True), ("test1.console.ats", True)}
             expected_stat = {"passed": 0, "ignored": 1, "failed": 5, "excluded": 0}
             config = self.get_config()
             runner = RunnerStandardFlow(config)

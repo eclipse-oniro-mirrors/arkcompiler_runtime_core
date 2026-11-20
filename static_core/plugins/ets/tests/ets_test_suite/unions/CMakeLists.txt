@@ -25,7 +25,7 @@ add_custom_target(ets_test_suite_unions)
 foreach(test ${unions_tests})
     set(test_out_dir "${unions_tests_out_dir}/${test}")
 
-    set(test_in "${unions_tests_in_dir}/${test}.ets")
+    set(test_in "${unions_tests_in_dir}/${test}.ats")
     set(target ets_test_suite_unions_${test})
 
     if (PANDA_TARGET_ARM32)

@@ -47,7 +47,7 @@ class ParserValidatorTest(TestCase):
         Test checks simple passed way: no output, expected file is empty, return code = 0
         Expected: test passed
         """
-        mock_test.path = self.data_folder / "test1.ets"
+        mock_test.path = self.data_folder / "test1.ats"
         actual_output = ""
         actual_error = ""
         actual_return_code = 0
@@ -66,7 +66,7 @@ class ParserValidatorTest(TestCase):
         Input: no output, expected file is absent
         Expected: test failed
         """
-        mock_test.path = self.data_folder / "test2.ets"
+        mock_test.path = self.data_folder / "test2.ats"
         actual_output = ""
         actual_error = ""
         actual_return_code = 0
@@ -87,7 +87,7 @@ class ParserValidatorTest(TestCase):
         Input: there is an output, expected file contains matching content, return code = 0
         Expected: test passed
         """
-        mock_test.path = self.data_folder / "test3.ets"
+        mock_test.path = self.data_folder / "test3.ats"
         actual_output = "hello\nworld"
         actual_error = ""
         actual_return_code = 0
@@ -109,7 +109,7 @@ class ParserValidatorTest(TestCase):
         they should be stripped and do not affect the result
         Expected: test passed
         """
-        mock_test.path = self.data_folder / "test3.ets"
+        mock_test.path = self.data_folder / "test3.ats"
         actual_output = "\nhello\nworld\n"
         actual_error = ""
         actual_return_code = 0
@@ -131,7 +131,7 @@ class ParserValidatorTest(TestCase):
         they should be stripped and do not affect the result
         Expected: test passed
         """
-        mock_test.path = self.data_folder / "test4.ets"
+        mock_test.path = self.data_folder / "test4.ats"
         actual_output = "hello\nworld"
         actual_error = ""
         actual_return_code = 0
@@ -151,7 +151,7 @@ class ParserValidatorTest(TestCase):
         Input: there is an output, expected file contains non-matching content.
         Expected: test failed
         """
-        mock_test.path = self.data_folder / "test3.ets"
+        mock_test.path = self.data_folder / "test3.ats"
         actual_output = "hello\nword"
         actual_error = ""
         actual_return_code = 0
@@ -172,7 +172,7 @@ class ParserValidatorTest(TestCase):
         Input: there is an output, expected file contains matching content, but return code = 1
         Expected: test passed
         """
-        mock_test.path = self.data_folder / "test3.ets"
+        mock_test.path = self.data_folder / "test3.ats"
         actual_output = "hello\nworld"
         actual_error = ""
         actual_return_code = 1
@@ -191,7 +191,7 @@ class ParserValidatorTest(TestCase):
         Input: there is an output, expected file contains matching content, but return code = 2
         Expected: test failed, as return code is neither 0 nor 1
         """
-        mock_test.path = self.data_folder / "test3.ets"
+        mock_test.path = self.data_folder / "test3.ats"
         actual_output = "hello\nworld"
         actual_error = ""
         actual_return_code = 2
@@ -213,11 +213,11 @@ class ParserValidatorTest(TestCase):
         input_str = (
             "Error Message: Type '\"string\"' cannot be assigned to type 'Double' "
             "At File: /home/user/project/ets-warnings-tests/gen/"
-            "diagnostic_format_custom_tests/diagnostic_format_custom_1.ets:21:21"
+            "diagnostic_format_custom_tests/diagnostic_format_custom_1.ats:21:21"
         )
         expected = (
             "Error Message: Type '\"string\"' cannot be assigned to type 'Double' "
-            "At File: diagnostic_format_custom_1.ets:21:21"
+            "At File: diagnostic_format_custom_1.ats:21:21"
         )
         result = utils.normalize_build_system_path(input_str)
         self.assertEqual(result, expected)
@@ -229,11 +229,11 @@ class ParserValidatorTest(TestCase):
         input_str = (
             "Error Message: Type '\"string\"' cannot be assigned to type 'Double' "
             "At File: C:\\Users\\user\\project\\ets-warnings-tests\\gen\\"
-            "diagnostic_format_custom_tests\\diagnostic_format_custom_1.ets:21:21"
+            "diagnostic_format_custom_tests\\diagnostic_format_custom_1.ats:21:21"
         )
         expected = (
             "Error Message: Type '\"string\"' cannot be assigned to type 'Double' "
-            "At File: diagnostic_format_custom_1.ets:21:21"
+            "At File: diagnostic_format_custom_1.ats:21:21"
         )
         result = utils.normalize_build_system_path(input_str)
         self.assertEqual(result, expected)
@@ -245,11 +245,11 @@ class ParserValidatorTest(TestCase):
         input_str = (
             "Error Message: Type '\"string\"' cannot be assigned to type 'Double' "
             "At File: D:/workspace/project/ets-warnings-tests/gen/"
-            "diagnostic_format_custom_tests/diagnostic_format_custom_1.ets:21:21"
+            "diagnostic_format_custom_tests/diagnostic_format_custom_1.ats:21:21"
         )
         expected = (
             "Error Message: Type '\"string\"' cannot be assigned to type 'Double' "
-            "At File: diagnostic_format_custom_1.ets:21:21"
+            "At File: diagnostic_format_custom_1.ats:21:21"
         )
         result = utils.normalize_build_system_path(input_str)
         self.assertEqual(result, expected)
@@ -258,8 +258,8 @@ class ParserValidatorTest(TestCase):
         """
         Test normalize_build_system_path with short path
         """
-        input_str = "Error Message: Type '\"string\"' cannot be assigned to type 'Double' At File: /tmp/test.ets:10:5"
-        expected = "Error Message: Type '\"string\"' cannot be assigned to type 'Double' At File: test.ets:10:5"
+        input_str = "Error Message: Type '\"string\"' cannot be assigned to type 'Double' At File: /tmp/test.ats:10:5"
+        expected = "Error Message: Type '\"string\"' cannot be assigned to type 'Double' At File: test.ats:10:5"
         result = utils.normalize_build_system_path(input_str)
         self.assertEqual(result, expected)
 
@@ -280,19 +280,19 @@ class ParserValidatorTest(TestCase):
             "1 ERROR: Semantic error ESE0318\n"
             "Error Message: Type '\"string\"' cannot be assigned to type 'Double' "
             "At File: /home/user/project/ets-warnings-tests/gen/"
-            "diagnostic_format_custom_tests/diagnostic_format_custom_1.ets:21:21\n"
+            "diagnostic_format_custom_tests/diagnostic_format_custom_1.ats:21:21\n"
             "2 ERROR: Semantic error ESE0344\n"
             "Error Message: Invalid destination type for floating-point constant value "
             "At File: /home/user/project/ets-warnings-tests/gen/"
-            "diagnostic_format_custom_tests/diagnostic_format_custom_1.ets:25:12"
+            "diagnostic_format_custom_tests/diagnostic_format_custom_1.ats:25:12"
         )
         expected = (
             "1 ERROR: Semantic error ESE0318\n"
             "Error Message: Type '\"string\"' cannot be assigned to type 'Double' "
-            "At File: diagnostic_format_custom_1.ets:21:21\n"
+            "At File: diagnostic_format_custom_1.ats:21:21\n"
             "2 ERROR: Semantic error ESE0344\n"
             "Error Message: Invalid destination type for floating-point constant value "
-            "At File: diagnostic_format_custom_1.ets:25:12"
+            "At File: diagnostic_format_custom_1.ats:25:12"
         )
         result = utils.normalize_build_system_path(input_str)
         self.assertEqual(result, expected)

@@ -86,7 +86,7 @@ class IUpdaterTest(TestCase):
         config = self._make_config()
         updater = ConcreteUpdater(config)
 
-        test_file = Path("/some/path/test.ets")
+        test_file = Path("/some/path/test.ats")
         report = StepReport(name="step", command_line="cmd")
         data = [report]
 
@@ -105,7 +105,7 @@ class IUpdaterTest(TestCase):
         config = self._make_config()
         updater = ConcreteUpdater(config)
 
-        updater.process(Path("/tmp/test.ets"), [])
+        updater.process(Path("/tmp/test.ats"), [])
 
         _, _, recorded_meta = updater.processed[0]
         self.assertFalse(recorded_meta)
@@ -118,7 +118,7 @@ class IUpdaterTest(TestCase):
         config = self._make_config()
         updater = ConcreteUpdater(config)
 
-        files = [Path(f"/tmp/test{i}.ets") for i in range(3)]
+        files = [Path(f"/tmp/test{i}.ats") for i in range(3)]
         for f in files:
             updater.process(f, [])
 

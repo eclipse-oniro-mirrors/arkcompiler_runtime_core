@@ -601,7 +601,7 @@ def make_gtest_name(file_path: Path, test_pref: str | None, rule: NamingRule | N
     if test_pref is None:
         test_pref = ""
 
-    for s in (".ets.abc", ".abc", ".ets"):
+    for s in (".ats.abc", ".ets.abc", ".abc", ".ats", ".ets"):
         if name.endswith(s):
             name = name[:-len(s)]
             break

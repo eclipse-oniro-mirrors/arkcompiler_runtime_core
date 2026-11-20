@@ -14,7 +14,7 @@
 ---
 cases:
     # internal access modifier, same-package cases
-    - files: './pkg_int_A1/file_A.ets'
+    - files: './pkg_int_A1/file_A.ats'
       tags: 'compile-only, negative'
       decl: |-
           import { A } from './pkg_int_A1';
@@ -22,21 +22,21 @@ cases:
           // package module, negative case with internal constructor
           arktest.assertEQ( new A(42).fld, 42 )
 
-    - files: './pkg_int_A1/file_A.ets'
+    - files: './pkg_int_A1/file_A.ats'
       decl: |-
           import { C } from './pkg_int_A1';
       use: |-
           // package module, positive case with internal constructor, from same-package subclass
           arktest.assertEQ( new C(42).fld, 43 )
 
-    - files: './pkg_int_A2/file_A.ets, ./pkg_int_A2/file_B.ets'
+    - files: './pkg_int_A2/file_A.ats, ./pkg_int_A2/file_B.ats'
       decl: |-
           import { B } from './pkg_int_A2';
       use: |-
           // package module, positive case with internal constructor, from same-package subclass
           arktest.assertEQ( new B(42).fld, 52 )
 
-    - files: './pkg_int_A2/file_A.ets, ./pkg_int_A2/file_B.ets'
+    - files: './pkg_int_A2/file_A.ats, ./pkg_int_A2/file_B.ats'
       decl: |-
           import { D } from './pkg_int_A2';
       use: |-
@@ -44,7 +44,7 @@ cases:
           arktest.assertEQ( new D(42).fld, 143 )
 
     # internal access modifier, other-package cases
-    - files: './pkg_int_A1/file_A.ets, ./pkg_int_B1/file.ets'
+    - files: './pkg_int_A1/file_A.ats, ./pkg_int_B1/file.ats'
       tags: 'compile-only, negative'
       decl: |-
           import { K } from './pkg_int_B1';
@@ -52,7 +52,7 @@ cases:
           // package module, negative case with internal constructor, from other-package subclass
           arktest.assertEQ( new K(42).fld, 142 )
 
-    - files: './pkg_int_A1/file_A.ets, ./pkg_int_B2/file.ets'
+    - files: './pkg_int_A1/file_A.ats, ./pkg_int_B2/file.ats'
       decl: |-
           import { L } from './pkg_int_B2';
       use: |-

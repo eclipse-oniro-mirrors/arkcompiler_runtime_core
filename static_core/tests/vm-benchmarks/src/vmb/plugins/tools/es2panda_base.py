@@ -38,7 +38,7 @@ class Es2PandaToolBase(ToolBase):
         self.etsstdlib = ""
 
     def update_config(self, bu: BenchUnit) -> str:
-        static: Iterable[Path] = bu.libs('.ets')
+        static: Iterable[Path] = bu.libs('.ats', '.ets')
         dynamic: Iterable[Path] = bu.libs('.ts')  # Note: no js; no mjs
         if not dynamic and not static:
             return self.default_arktsconfig
@@ -66,7 +66,7 @@ class Es2PandaToolBase(ToolBase):
         return str(conf)
 
     def exec(self, bu: BenchUnit) -> None:
-        for lib in bu.libs('.ets'):  # compile ETS imports
+        for lib in bu.libs('.ats', '.ets'):  # compile ETS imports
             abc = lib.with_suffix('.abc')
             if abc.is_file():
                 continue
@@ -74,7 +74,7 @@ class Es2PandaToolBase(ToolBase):
         # check if arktsconfig should be updated
         conf = self.update_config(bu)
         # compile bench
-        src = bu.src('.ets')
+        src = bu.src('.ats', '.ets')
         abc = src.with_suffix('.abc')
         res = self.run_es2panda(src, abc, self.opts, bu, conf)
         abc_size = self.sh.get_filesize(abc)

@@ -14,7 +14,7 @@
 
 panda_add_gtest_with_ani(ets_coroutine_dfx_test
     CPP_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/ets_test_suite/coroutines/dfx/coroutine_dfx_test.cpp
-    ETS_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/ets_test_suite/coroutines/dfx/coroutine_dfx_test.ets
+    ETS_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/ets_test_suite/coroutines/dfx/coroutine_dfx_test.ats
     INCLUDE_DIRS ${PANDA_ETS_PLUGIN_SOURCE}/runtime
     LIBRARIES arkbase arkfile arkruntime
 )

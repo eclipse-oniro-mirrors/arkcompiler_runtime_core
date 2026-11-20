@@ -66,7 +66,7 @@ set(testing_dir "${CMAKE_CURRENT_BINARY_DIR}")
 
 # Compile Ets tests
 add_custom_target(sampler_ani_es2panda
-    COMMAND ${es2panda_bin} ${ETS_COMPILE_ARGUMENTS} --output ${testing_dir}/SamplerAniTest.abc ${CMAKE_CURRENT_SOURCE_DIR}/SamplerAniTest.ets
+    COMMAND ${es2panda_bin} ${ETS_COMPILE_ARGUMENTS} --output ${testing_dir}/SamplerAniTest.abc ${CMAKE_CURRENT_SOURCE_DIR}/SamplerAniTest.ats
     WORKING_DIRECTORY "${testing_dir}"
     DEPENDS ${es2panda_target}
 )

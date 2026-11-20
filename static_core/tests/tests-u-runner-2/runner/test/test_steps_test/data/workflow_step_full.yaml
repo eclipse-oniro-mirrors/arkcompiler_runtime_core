@@ -21,7 +21,7 @@ steps:
     echo-stdout:
         pre-reqs:
             - req: FileExist
-              value: "${parameters.work-dir}/gen/simple_co.ets"
+              value: "${parameters.work-dir}/gen/simple_co.ats"
             - req: FolderExist
               value: "${parameters.work-dir}/gen"
             - req: ParentExistCreate

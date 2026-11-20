@@ -9,7 +9,7 @@
         }
     },
     "include": [
-        "./**/*.ets"
+        "./**/*.ats"
     ],
     "references": [
         { "path": "../src" },

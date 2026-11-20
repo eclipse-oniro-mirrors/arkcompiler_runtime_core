@@ -1,16 +1,16 @@
 # The package keyword is not used anylonger
 # Issue: https://gitcode.com/openharmony/arkcompiler_ets_frontend/issues/8924
-regression/22981/22981.ets
+regression/22981/22981.ats
 
 #24986 (still failing tests)
 std/math/std_math_sign_double.ets
 std/core/IntlPluralRulesTest.ets
 std/core/TypeAssignableFromTest.ets
 std/core/std_core_type_numeric_type_numeric_type.ets
-regression/15867_spread_in_arrayof_segfaut.ets
-spec/05.Generics/callFromAsyncLambda.ets
-spec/17.Experimental_Features/17.3.Indexable_Types/idx-s02-0020.ets
-spec/17.Experimental_Features/17.3.Indexable_Types/idx-s02-0030.ets
+regression/15867_spread_in_arrayof_segfaut.ats
+spec/05.Generics/callFromAsyncLambda.ats
+spec/17.Experimental_Features/17.3.Indexable_Types/idx-s02-0020.ats
+spec/17.Experimental_Features/17.3.Indexable_Types/idx-s02-0030.ats
 # extended
 std/containers/ArrayTestChecked.ets
 std/core/NumberTest.ets
@@ -68,7 +68,7 @@ std/core/std_core_short_static_Short_valueOf.ets
 std/math/TestClz64Function.ets
 
 # TODO(dkofanov): Should be negative, CTE expected.
-spec/13.Compilation_Units_Packages_and_Modules/06.Export_Directives/13.6.3.Re-Export_Directives/issue_15669_04.ets
+spec/13.Compilation_Units_Packages_and_Modules/06.Export_Directives/13.6.3.Re-Export_Directives/issue_15669_04.ats
 
 ############
 # temporary place for the tests related to primitive types refactoring

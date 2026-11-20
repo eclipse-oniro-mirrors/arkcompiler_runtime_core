@@ -15,26 +15,26 @@
 overload_function_import_tests:
   test01:
     decl: |-
-      import {foo} from './overload_function_export_[loop.index0].ets'
+      import {foo} from './overload_function_export_[loop.index0].ats'
     call: |-
       foo()
 
   test02:
     decl: |-
-      import {foo} from './overload_function_export_[loop.index0].ets'
+      import {foo} from './overload_function_export_[loop.index0].ats'
     call: |-
       foo("abcd")
 
   test03:
     decl: |-
-      import {foo} from './overload_function_export_[loop.index0].ets'
+      import {foo} from './overload_function_export_[loop.index0].ats'
     call: |-
       foo(321)
       foo("abcd")
 
   test04:
     decl: |-
-      import {foo} from './overload_function_export_[loop.index0].ets'
+      import {foo} from './overload_function_export_[loop.index0].ats'
     call: |-
       let res_num = foo(231)
       let res_str = foo("efg")
@@ -45,7 +45,7 @@ overload_function_import_tests:
 
   test05:
     decl: |-
-      import {foo} from './overload_function_export_[loop.index0].ets'
+      import {foo} from './overload_function_export_[loop.index0].ats'
     call: |-
       let res1 = foo("abc")
       let res2 = foo("efg")
@@ -56,8 +56,8 @@ overload_function_import_tests:
 
   test06:
     decl: |-
-      import {Results} from './overload_function_export_[loop.index0].ets'
-      import {foo} from './overload_function_export_[loop.index0].ets'
+      import {Results} from './overload_function_export_[loop.index0].ats'
+      import {foo} from './overload_function_export_[loop.index0].ats'
     call: |-
       let res_num = foo(123)
       let res_str = foo("defg")
@@ -68,7 +68,7 @@ overload_function_import_tests:
 
   test07:
     decl: |-
-      import {foo} from './overload_function_export_[loop.index0].ets'
+      import {foo} from './overload_function_export_[loop.index0].ats'
     call: |-
       let res_1arg = foo(123)
       let res_3args = foo(456, 789.0, "321")
@@ -79,7 +79,7 @@ overload_function_import_tests:
 
   test08:
     decl: |-
-      import {foo} from './overload_function_export_[loop.index0].ets'
+      import {foo} from './overload_function_export_[loop.index0].ats'
     call: |-
       let res = foo("abcd")
       arktest.assertTrue(res instanceof Array)
@@ -90,7 +90,7 @@ overload_function_import_tests:
 
   test09:
     decl: |-
-      import {foo} from './overload_function_export_[loop.index0].ets'
+      import {foo} from './overload_function_export_[loop.index0].ats'
     call: |-
       let res1 = foo(3)
       arktest.assertTrue(res1 instanceof Array)
@@ -107,7 +107,7 @@ overload_function_import_tests:
 
   test10:
     decl: |-
-      import {foo} from './overload_function_export_[loop.index0].ets'
+      import {foo} from './overload_function_export_[loop.index0].ats'
     call: |-
       let res1 = foo([321, 476])
       arktest.assertTrue(res1 instanceof int)
@@ -124,7 +124,7 @@ overload_function_import_tests:
 
   test11:
     decl: |-
-      import {foo} from './overload_function_export_[loop.index0].ets'
+      import {foo} from './overload_function_export_[loop.index0].ats'
     call: |-
       let res1 = foo(456, true)
       arktest.assertTrue(res1 instanceof int)
@@ -141,10 +141,10 @@ overload_function_import_tests:
 
   test12:
     decl: |-
-      import {A} from './overload_function_export_[loop.index0].ets'
-      import {B} from './overload_function_export_[loop.index0].ets'
-      import {C} from './overload_function_export_[loop.index0].ets'
-      import {foo} from './overload_function_export_[loop.index0].ets'
+      import {A} from './overload_function_export_[loop.index0].ats'
+      import {B} from './overload_function_export_[loop.index0].ats'
+      import {C} from './overload_function_export_[loop.index0].ats'
+      import {foo} from './overload_function_export_[loop.index0].ats'
     call: |-
       let res1 = foo(new B())
       let res2 = foo(new C())
@@ -158,19 +158,19 @@ overload_function_import_tests:
 
   test13:
     decl: |-
-      import {A} from './overload_function_export_[loop.index0].ets'
-      import {B} from './overload_function_export_[loop.index0].ets'
-      import {C} from './overload_function_export_[loop.index0].ets'
-      import {foo} from './overload_function_export_[loop.index0].ets'
+      import {A} from './overload_function_export_[loop.index0].ats'
+      import {B} from './overload_function_export_[loop.index0].ats'
+      import {C} from './overload_function_export_[loop.index0].ats'
+      import {foo} from './overload_function_export_[loop.index0].ats'
     call: |-
       let res = foo(new B())
       arktest.assertTrue(res instanceof C)
 
   test14:
     decl: |-
-      import {A} from './overload_function_export_[loop.index0].ets'
-      import {B} from './overload_function_export_[loop.index0].ets'
-      import {foo} from './overload_function_export_[loop.index0].ets'
+      import {A} from './overload_function_export_[loop.index0].ats'
+      import {B} from './overload_function_export_[loop.index0].ats'
+      import {foo} from './overload_function_export_[loop.index0].ats'
       type HandlerAInt = (a: A, b: int) => int
       const handlerAInt: HandlerAInt = (a: A, b: int): int => {
         if (a instanceof B){
@@ -207,9 +207,9 @@ overload_function_import_tests:
 
   test15:
     decl: |-
-      import {A} from './overload_function_export_[loop.index0].ets'
-      import {B} from './overload_function_export_[loop.index0].ets'
-      import {foo} from './overload_function_export_[loop.index0].ets'
+      import {A} from './overload_function_export_[loop.index0].ats'
+      import {B} from './overload_function_export_[loop.index0].ats'
+      import {foo} from './overload_function_export_[loop.index0].ats'
       type HandlerA = (a: A) => B
       const handlerA: HandlerA = (a: A): B => {
         if (a instanceof B){
@@ -235,9 +235,9 @@ overload_function_import_tests:
 
   test16:
     decl: |-
-      import {A} from './overload_function_export_[loop.index0].ets'
-      import {B} from './overload_function_export_[loop.index0].ets'
-      import {foo} from './overload_function_export_[loop.index0].ets'
+      import {A} from './overload_function_export_[loop.index0].ats'
+      import {B} from './overload_function_export_[loop.index0].ats'
+      import {foo} from './overload_function_export_[loop.index0].ats'
     call: |-
       let i: int = 10
       const lambda1 = (a: B, b: int) => a.b_method() + b + i

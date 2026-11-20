@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2023-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2023-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -52,7 +52,7 @@ protected:
     PtLocation location1 = PtLocation("test.abc", panda_file::File::EntityId(1), 1);
     PtLocation location2 = PtLocation("test.abc", panda_file::File::EntityId(1), 2);
     PtLocation location3 = PtLocation("test.abc", panda_file::File::EntityId(1), 3);
-    const char *source = "/test.ets";
+    const char *source = "/test.ats";
 };
 
 TEST_F(ThreadStateTest, BreakOnStart)

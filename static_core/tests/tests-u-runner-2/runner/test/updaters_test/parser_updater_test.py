@@ -37,7 +37,7 @@ class ParserUpdaterTest(TestCase):
         return StepReport(
             name="es2panda",
             step_kind=StepKind.COMPILER,
-            command_line="es2panda test.ets",
+            command_line="es2panda test.ats",
             cmd_output=output,
         )
 
@@ -46,7 +46,7 @@ class ParserUpdaterTest(TestCase):
         return StepReport(
             name="ark",
             step_kind=StepKind.RUNTIME,
-            command_line="ark test.ets",
+            command_line="ark test.ats",
             cmd_output=output,
         )
 
@@ -61,7 +61,7 @@ class ParserUpdaterTest(TestCase):
         """
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp = Path(tmp_dir)
-            test_file = tmp / "mytest.ets"
+            test_file = tmp / "mytest.ats"
             test_file.touch()
 
             compiler_output = "SyntaxError: unexpected token\n"
@@ -82,18 +82,18 @@ class ParserUpdaterTest(TestCase):
         """
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp = Path(tmp_dir)
-            test_file = tmp / "diagnostic.ets"
+            test_file = tmp / "diagnostic.ats"
             test_file.touch()
 
             raw_output = (
                 "1 ERROR: Semantic error ESE0318\n"
                 "Error Message: Type '\"string\"' cannot be assigned to type 'Double' "
-                "At File: /home/user/project/ets2panda/test/diagnostic.ets:21:21"
+                "At File: /home/user/project/ets2panda/test/diagnostic.ats:21:21"
             )
             expected_content = (
                 "1 ERROR: Semantic error ESE0318\n"
                 "Error Message: Type '\"string\"' cannot be assigned to type 'Double' "
-                "At File: diagnostic.ets:21:21"
+                "At File: diagnostic.ats:21:21"
             )
 
             report = self._make_compiler_report(raw_output)
@@ -111,7 +111,7 @@ class ParserUpdaterTest(TestCase):
         """
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp = Path(tmp_dir)
-            test_file = tmp / "multi.ets"
+            test_file = tmp / "multi.ats"
             test_file.touch()
 
             first_output = "first compiler output\n"
@@ -135,7 +135,7 @@ class ParserUpdaterTest(TestCase):
         """
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp = Path(tmp_dir)
-            test_file = tmp / "overwrite.ets"
+            test_file = tmp / "overwrite.ats"
             test_file.touch()
 
             expected_path = tmp / "overwrite-expected.txt"
@@ -157,7 +157,7 @@ class ParserUpdaterTest(TestCase):
         """
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp = Path(tmp_dir)
-            test_file = tmp / "lineend.ets"
+            test_file = tmp / "lineend.ats"
             test_file.touch()
 
             output = "line1\nline2\nline3\n"
@@ -180,7 +180,7 @@ class ParserUpdaterTest(TestCase):
         """
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp = Path(tmp_dir)
-            test_file = tmp / "empty.ets"
+            test_file = tmp / "empty.ats"
             test_file.touch()
 
             updater = ParserUpdater(self._make_config())
@@ -196,7 +196,7 @@ class ParserUpdaterTest(TestCase):
         """
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp = Path(tmp_dir)
-            test_file = tmp / "runtime_only.ets"
+            test_file = tmp / "runtime_only.ats"
             test_file.touch()
 
             report = self._make_runtime_report("some runtime output")
@@ -213,7 +213,7 @@ class ParserUpdaterTest(TestCase):
         """
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp = Path(tmp_dir)
-            test_file = tmp / "meta.ets"
+            test_file = tmp / "meta.ats"
             test_file.touch()
 
             output = "compiler output\n"
@@ -235,7 +235,7 @@ class ParserUpdaterTest(TestCase):
         """
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp = Path(tmp_dir)
-            test_file = tmp / "empty_output.ets"
+            test_file = tmp / "empty_output.ats"
             test_file.touch()
 
             report = self._make_compiler_report("")

@@ -20,7 +20,7 @@ file(REAL_PATH "${CMAKE_BINARY_DIR}" CMAKE_BINARY_ROOT)
 
 set(DEFAULT_CACHE_DIR "${CMAKE_BINARY_ROOT}/plugins/ets/stdlib/decls")
 file(MAKE_DIRECTORY "${DEFAULT_CACHE_DIR}")
-set(LIB_SOURCE_ETS ${CURRENT_SOURCE_DIR}/lib/index.ets)
+set(LIB_SOURCE_ETS ${CURRENT_SOURCE_DIR}/lib/index.ats)
 set(LIB_SOURCE_ABC ${CURRENT_BINARY_DIR}/index.abc)
 set(LIB_SOURCE_ABC_TARGET compile_lib_abc)
 
@@ -35,7 +35,7 @@ set(ETS_CONFIG ${CURRENT_BINARY_DIR}/arktsconfig.json)
 configure_file(${CURRENT_SOURCE_DIR}/entry/arktsconfig.in.json ${ETS_CONFIG})
 
 run_int_ets_code(import_from_abc ${CURRENT_BINARY_DIR}
-                 SOURCES ${CURRENT_SOURCE_DIR}/entry/entry.ets
+                 SOURCES ${CURRENT_SOURCE_DIR}/entry/entry.ats
                  ARKTS_CONFIGS ${ETS_CONFIG}
                  ENTRYPOINT "Entry.entry"
                  RUNTIME_EXTRA_OPTIONS --panda-files=${LIB_SOURCE_ABC})

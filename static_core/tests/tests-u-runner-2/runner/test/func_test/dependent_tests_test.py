@@ -66,7 +66,7 @@ class DependentTestsTest(TestCase):
         Test: no dependent tests exist.
         Checks: all *dependent* properties are empty
         """
-        main_instance = get_test_instance("test_no_dep.ets")
+        main_instance = get_test_instance("test_no_dep.ats")
 
         self.assertListEqual([], main_instance.dependent_abc_files)
         self.assertListEqual([], main_instance.search_dependent_tests())
@@ -77,19 +77,19 @@ class DependentTestsTest(TestCase):
         Test: one dependent test and no nested dependencies.
         Checks: all *dependent* properties contains by one dependent test
         """
-        main_instance = get_test_instance("test_single_dep.ets")
+        main_instance = get_test_instance("test_single_dep.ats")
 
         self.assertEqual(len(list(main_instance.dependent_tests)), 1)
         dep_instance = main_instance.dependent_tests[0]
-        self.assertEqual("test_dep1.ets", dep_instance.test_id)
+        self.assertEqual("test_dep1.ats", dep_instance.test_id)
 
         self.assertEqual(len(list(main_instance.search_dependent_tests())), 1)
         dep_instance = main_instance.search_dependent_tests()[0]
-        self.assertEqual("test_dep1.ets", dep_instance.test_id)
+        self.assertEqual("test_dep1.ats", dep_instance.test_id)
 
         self.assertEqual(len(list(main_instance.dependent_abc_files)), 1)
         dep_abc = main_instance.dependent_abc_files[0]
-        self.assertEqual("/tmp/test_dep1.ets.abc", dep_abc)
+        self.assertEqual("/tmp/test_dep1.ats.abc", dep_abc)
 
     def test_multiple_dependent_tests_no_nested_dependencies(self) -> None:
         """
@@ -97,18 +97,18 @@ class DependentTestsTest(TestCase):
         Structure: test_mult_dep1 -> test_dep2, test_dep1
         Checks: all *dependent* properties contains by 2 dependent tests
         """
-        main_instance = get_test_instance("test_mult_dep1.ets")
+        main_instance = get_test_instance("test_mult_dep1.ats")
 
         self.assertEqual(len(list(main_instance.dependent_tests)), 2)
         dep_instances = [test.test_id for test in main_instance.dependent_tests]
-        self.assertListEqual(["test_dep1.ets", "test_dep2.ets"], dep_instances)
+        self.assertListEqual(["test_dep1.ats", "test_dep2.ats"], dep_instances)
 
         self.assertEqual(len(list(main_instance.search_dependent_tests())), 2)
         dep_instances = [test.test_id for test in main_instance.search_dependent_tests()]
-        self.assertListEqual(["test_dep1.ets", "test_dep2.ets"], dep_instances)
+        self.assertListEqual(["test_dep1.ats", "test_dep2.ats"], dep_instances)
 
         self.assertEqual(len(list(main_instance.dependent_abc_files)), 2)
-        self.assertEqual(["/tmp/test_dep1.ets.abc", "/tmp/test_dep2.ets.abc"],
+        self.assertEqual(["/tmp/test_dep1.ats.abc", "/tmp/test_dep2.ats.abc"],
                          main_instance.dependent_abc_files)
 
     def test_dependent_test_with_nested_dependencies(self) -> None:
@@ -118,18 +118,18 @@ class DependentTestsTest(TestCase):
         Checks: search_dependent_tests and  dependent_tests contains by 1 direct dependent test
         dependent_abc_files returns 2 abc files
         """
-        main_instance = get_test_instance("test_mult_dep3.ets")
+        main_instance = get_test_instance("test_mult_dep3.ats")
 
         self.assertEqual(len(list(main_instance.search_dependent_tests())), 1)
         dep_instances = [test.test_id for test in main_instance.search_dependent_tests()]
-        self.assertListEqual(["test_dep3.ets"], dep_instances)
+        self.assertListEqual(["test_dep3.ats"], dep_instances)
 
         self.assertEqual(len(list(main_instance.dependent_tests)), 1)
         dep_instances = [test.test_id for test in main_instance.dependent_tests]
-        self.assertListEqual(["test_dep3.ets"], dep_instances)
+        self.assertListEqual(["test_dep3.ats"], dep_instances)
 
         self.assertEqual(len(list(main_instance.dependent_abc_files)), 2)
-        self.assertEqual(["/tmp/test_dep2.ets.abc", "/tmp/test_dep3.ets.abc"],
+        self.assertEqual(["/tmp/test_dep2.ats.abc", "/tmp/test_dep3.ats.abc"],
                          main_instance.dependent_abc_files)
 
     def test_duplicate_removal1(self) -> None:
@@ -141,18 +141,18 @@ class DependentTestsTest(TestCase):
         Checks: search_dependent_tests and  dependent_tests contains by 2 direct dependent tests
         dependent_abc_files returns 2 abc files
         """
-        main_instance = get_test_instance("test_mult_dep2.ets")
+        main_instance = get_test_instance("test_mult_dep2.ats")
 
         self.assertEqual(len(list(main_instance.search_dependent_tests())), 2)
         dep_instances = [test.test_id for test in main_instance.search_dependent_tests()]
-        self.assertListEqual(["test_dep2.ets", "test_dep3.ets"], dep_instances)
+        self.assertListEqual(["test_dep2.ats", "test_dep3.ats"], dep_instances)
 
         self.assertEqual(len(list(main_instance.dependent_tests)), 2)
         dep_instances = [test.test_id for test in main_instance.dependent_tests]
-        self.assertListEqual(["test_dep2.ets", "test_dep3.ets"], dep_instances)
+        self.assertListEqual(["test_dep2.ats", "test_dep3.ats"], dep_instances)
 
         self.assertEqual(len(list(main_instance.dependent_abc_files)), 2)
-        self.assertEqual(["/tmp/test_dep2.ets.abc", "/tmp/test_dep3.ets.abc"],
+        self.assertEqual(["/tmp/test_dep2.ats.abc", "/tmp/test_dep3.ats.abc"],
                          main_instance.dependent_abc_files)
 
     def test_duplicate_removal2(self) -> None:
@@ -165,16 +165,16 @@ class DependentTestsTest(TestCase):
         Checks: search_dependent_tests and  dependent_tests contains by 2 direct dependent tests
         dependent_abc_files returns 3 abc files
         """
-        main_instance = get_test_instance("test_mult_dep4.ets")
+        main_instance = get_test_instance("test_mult_dep4.ats")
 
         self.assertEqual(len(list(main_instance.search_dependent_tests())), 2)
         dep_instances = [test.test_id for test in main_instance.search_dependent_tests()]
-        self.assertListEqual(["test_dep3.ets", "test_dep4.ets"], dep_instances)
+        self.assertListEqual(["test_dep3.ats", "test_dep4.ats"], dep_instances)
 
         self.assertEqual(len(list(main_instance.dependent_tests)), 2)
         dep_instances = [test.test_id for test in main_instance.dependent_tests]
-        self.assertListEqual(["test_dep3.ets", "test_dep4.ets"], dep_instances)
+        self.assertListEqual(["test_dep3.ats", "test_dep4.ats"], dep_instances)
 
         self.assertEqual(len(list(main_instance.dependent_abc_files)), 3)
-        self.assertEqual(["/tmp/test_dep2.ets.abc", "/tmp/test_dep3.ets.abc", "/tmp/test_dep4.ets.abc"],
+        self.assertEqual(["/tmp/test_dep2.ats.abc", "/tmp/test_dep3.ats.abc", "/tmp/test_dep4.ats.abc"],
                          main_instance.dependent_abc_files)

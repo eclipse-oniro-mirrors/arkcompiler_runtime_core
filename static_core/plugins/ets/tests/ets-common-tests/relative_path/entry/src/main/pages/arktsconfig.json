@@ -9,24 +9,24 @@
                 "../oh_modules/pkgA"
             ],
             "pkgA/Index": [
-                "../oh_modules/pkgA/Index.d.ets"
+                "../oh_modules/pkgA/Index.d.ats"
             ],
             "@test/pkgB": [
                 "../oh_modules/@test/pkgB"
             ],
             "@test/pkgB/Index": [
-                "../oh_modules/@test/pkgB/Index.d.ets"
+                "../oh_modules/@test/pkgB/Index.d.ats"
             ]
         },
         "dependencies": {
             "pkgA/src/main/pkgADynamic": {
                 "language": "js",
-                "path": "../build/declgenV2/pkgA/src/main/pkgADynamic.d.ets",
+                "path": "../build/declgenV2/pkgA/src/main/pkgADynamic.d.ats",
                 "ohmUrl": "pkgA/src/main/pkgADynamic"
             },
             "@test/pkgB/src/main/scopedPkgBDynamic": {
                 "language": "js",
-                "path": "../build/declgenV2/@test/pkgB/src/main/scopedPkgBDynamic.d.ets",
+                "path": "../build/declgenV2/@test/pkgB/src/main/scopedPkgBDynamic.d.ats",
                 "ohmUrl": "@test/pkgB/src/main/scopedPkgBDynamic"
             }
         }

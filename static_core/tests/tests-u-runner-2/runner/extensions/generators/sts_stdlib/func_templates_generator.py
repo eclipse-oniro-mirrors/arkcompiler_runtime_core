@@ -34,7 +34,7 @@ _LOGGER = Log.get_logger(__file__)
 
 class FuncTestsCodeGenerator(IGenerator):
     _TEST_SEPARATOR = "---"
-    _TEMPLATE_PATTERN = '*.ets.j2'
+    _TEMPLATE_PATTERNS = ('*.ets.j2', '*.ats.j2')
 
     def __init__(self, source: Path, target: Path, config: Config) -> None:
         super().__init__(source, target, config)
@@ -80,8 +80,11 @@ class FuncTestsCodeGenerator(IGenerator):
 
     def _find_all_templates(self, current_dir: Path) -> Generator[Path, None, None]:
         _LOGGER.all(f"Start searching in : {current_dir}")
-        _LOGGER.all(f"{str(current_dir) + self._TEMPLATE_PATTERN}")
-        return current_dir.rglob(self._TEMPLATE_PATTERN)
+        return (
+            template
+            for pattern in self._TEMPLATE_PATTERNS
+            for template in current_dir.rglob(pattern)
+        )
 
     def _get_template_config(self, template_path: Path) -> Path:
         template_basename = self._get_file_basename(template_path)
@@ -105,7 +108,7 @@ class FuncTestsCodeGenerator(IGenerator):
 
         for test in content_list:
             test = self._add_generator_artefact(test, template_path, template_config_path)
-            output_fname = "test-" + template_name + "-" + str(test_idx).zfill(4) + ".ets"
+            output_fname = f"test-{template_name}-{test_idx:04}{template_path.suffixes[-2]}"
             outpath_final = outpath / template_relative_path.with_name(output_fname)
             write_2_file(outpath_final, test, disallow_overwrite=True)
             test_idx += 1

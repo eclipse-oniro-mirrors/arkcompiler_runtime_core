@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -- coding: utf-8 --
-# Copyright (c) 2025 Huawei Device Co., Ltd.
+# Copyright (c) 2025-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -29,7 +29,7 @@ class TestDeclgen(TestFileBased):
     def __init__(self, test_env: TestEnv, test_path: str, flags: List[str], test_id: str) -> None:
         super().__init__(test_env, test_path, flags, test_id)
         base_path = path.splitext(self.path)[0]
-        self.source_path = f"{base_path}.ets"
+        self.source_path = self.path
         self.expected_path = f"{base_path}-expected.txt"
 
     @property
@@ -44,7 +44,7 @@ class TestDeclgen(TestFileBased):
     def do_run(self) -> TestFileBased:
         self._prepare_work_dirs()
 
-        decl_filename = f"{Path(self.source_path).stem}.d.ets"
+        decl_filename = f"{Path(self.source_path).stem}.d{Path(self.source_path).suffix}"
         abc_filename = f"{Path(self.source_path).stem}.abc"
 
         generated_decl_path = self.default_work_dir_root / decl_filename
@@ -71,7 +71,7 @@ class TestDeclgen(TestFileBased):
         return self
 
     def compare_decl_output(self, _: str, __: Any, ___: int) -> bool:
-        decl_path = self.default_work_dir_root / f"{Path(self.source_path).stem}.d.ets"
+        decl_path = self.default_work_dir_root / f"{Path(self.source_path).stem}.d{Path(self.source_path).suffix}"
         try:
             with open(self.expected_path, encoding="utf-8") as expected_file:
                 expected = expected_file.read()

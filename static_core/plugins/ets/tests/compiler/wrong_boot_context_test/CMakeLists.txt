@@ -13,5 +13,5 @@
 
 compiler_add_gtest(compiler_wrong_boot_context_test
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/wrong_boot_context_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/wrong_boot_context_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/wrong_boot_context_test.ats
 )

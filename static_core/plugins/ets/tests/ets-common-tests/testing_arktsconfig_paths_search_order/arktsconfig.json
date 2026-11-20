@@ -16,24 +16,24 @@
                 "${PANDA_ROOT}/plugins/ets/stdlib/escompat"
             ],
             "dynamic_import_tests/xxx": [
-                "./test_path/aaa/c.d.ets"
+                "./test_path/aaa/c.d.ats"
             ]
         },
         "dependencies": {
             "dynamic_import_tests/a": {
                 "language": "js",
-                "path": "./test_path/aaa/a.d.ets",
-                "ohmUrl": "./test_path/aaa/a.d.ets"
+                "path": "./test_path/aaa/a.d.ats",
+                "ohmUrl": "./test_path/aaa/a.d.ats"
             },
             "HarC/bar": {
                 "language": "js",
-                "path": "./test_path/ccc/src/bar.d.ets",
-                "ohmUrl": "./test_path/ccc/src/bar.d.ets"
+                "path": "./test_path/ccc/src/bar.d.ats",
+                "ohmUrl": "./test_path/ccc/src/bar.d.ats"
             },
             "dynamic_import_tests/xxx": {
                 "language": "js",
-                "path": "./test_path/aaa/foo.d.ets",
-                "ohmUrl": "./test_path/aaa/foo.d.ets"
+                "path": "./test_path/aaa/foo.d.ats",
+                "ohmUrl": "./test_path/aaa/foo.d.ats"
             }
         }
     }

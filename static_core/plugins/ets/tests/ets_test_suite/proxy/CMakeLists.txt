@@ -13,7 +13,7 @@
 
 ets_native_test_helper(ani_test_proxy_invoke
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/proxy_invoke_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/proxy_invoke_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/proxy_invoke_test.ats
     ETS_GTEST_ABC_PATH "ANI_GTEST_ABC_PATH"
     VERIFY_SOURCES true
 )

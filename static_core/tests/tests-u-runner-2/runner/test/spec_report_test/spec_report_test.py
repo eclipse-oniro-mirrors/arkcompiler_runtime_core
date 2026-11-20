@@ -52,7 +52,7 @@ class SpecReportCounterTest(unittest.TestCase):
         """
         report = _make_report_shell()
         node = SpecNode("Ch1", "1", "", None)
-        test = _make_test("05.generics/file.ets", passed=True, ignored=False, excluded=False)
+        test = _make_test("05.generics/file.ats", passed=True, ignored=False, excluded=False)
         report._SpecReport__update_counters(test, node)  # type: ignore[attr-defined]
         self.assertEqual(node.total_acc, 1)
         self.assertEqual(node.passed_acc, 1)
@@ -66,7 +66,7 @@ class SpecReportCounterTest(unittest.TestCase):
         """
         report = _make_report_shell()
         node = SpecNode("Ch1", "1", "", None)
-        test = _make_test("file.ets", passed=False, ignored=False, excluded=False)
+        test = _make_test("file.ats", passed=False, ignored=False, excluded=False)
         report._SpecReport__update_counters(test, node)  # type: ignore[attr-defined]
         self.assertEqual(node.total_acc, 1)
         self.assertEqual(node.failed_acc, 1)
@@ -80,7 +80,7 @@ class SpecReportCounterTest(unittest.TestCase):
         """
         report = _make_report_shell()
         node = SpecNode("Ch1", "1", "", None)
-        test = _make_test("file.ets", passed=True, ignored=True)
+        test = _make_test("file.ats", passed=True, ignored=True)
         report._SpecReport__update_counters(test, node)  # type: ignore[attr-defined]
         self.assertEqual(node.ignored_but_passed_acc, 1)
         self.assertEqual(node.passed_acc, 0)
@@ -93,7 +93,7 @@ class SpecReportCounterTest(unittest.TestCase):
         """
         report = _make_report_shell()
         node = SpecNode("Ch1", "1", "", None)
-        test = _make_test("file.ets", passed=False, ignored=True)
+        test = _make_test("file.ats", passed=False, ignored=True)
         report._SpecReport__update_counters(test, node)  # type: ignore[attr-defined]
         self.assertEqual(node.ignored_acc, 1)
         self.assertEqual(node.failed_acc, 0)
@@ -106,7 +106,7 @@ class SpecReportCounterTest(unittest.TestCase):
         """
         report = _make_report_shell()
         node = SpecNode("Ch1", "1", "", None)
-        test = _make_test("file.ets", passed=False, excluded=True)
+        test = _make_test("file.ats", passed=False, excluded=True)
         report._SpecReport__update_counters(test, node)  # type: ignore[attr-defined]
         self.assertEqual(node.excluded_after_acc, 1)
         self.assertTrue(report.has_excluded)
@@ -119,7 +119,7 @@ class SpecReportCounterTest(unittest.TestCase):
         """
         report = _make_report_shell()
         node = SpecNode("Ch1", "1", "", None)
-        test = _make_test("file.ets", passed=None, ignored=False)
+        test = _make_test("file.ats", passed=None, ignored=False)
         report._SpecReport__update_counters(test, node)  # type: ignore[attr-defined]
         self.assertEqual(node.failed_acc, 1)
 
@@ -131,7 +131,7 @@ class SpecReportCounterTest(unittest.TestCase):
         """
         report = _make_report_shell()
         node = SpecNode("Ch1", "1", "", None)
-        test = _make_test("file.ets", passed=True)
+        test = _make_test("file.ats", passed=True)
         report._SpecReport__update_last_node_counters(test, node)  # type: ignore[attr-defined]
         self.assertEqual(node.total, 1)
         self.assertEqual(node.passed, 1)
@@ -146,11 +146,11 @@ class SpecReportCounterTest(unittest.TestCase):
         report = _make_report_shell()
         node = SpecNode("Ch1", "1", "", None)
         report._SpecReport__update_counters(  # type: ignore[attr-defined]
-            _make_test("a.ets", passed=True), node)
+            _make_test("a.ats", passed=True), node)
         report._SpecReport__update_counters(  # type: ignore[attr-defined]
-            _make_test("b.ets", passed=False), node)
+            _make_test("b.ats", passed=False), node)
         report._SpecReport__update_counters(  # type: ignore[attr-defined]
-            _make_test("c.ets", passed=True, ignored=True), node)
+            _make_test("c.ats", passed=True, ignored=True), node)
         self.assertEqual(node.total_acc, 3)
         self.assertEqual(node.passed_acc, 1)
         self.assertEqual(node.failed_acc, 1)
@@ -168,12 +168,12 @@ class SpecReportCalculateTest(unittest.TestCase):
 
     def test_single_level_path(self) -> None:
         """
-        Feature: map a test with a single-level directory path (e.g. "05.generics/file.ets")
+        Feature: map a test with a single-level directory path (e.g. "05.generics/file.ats")
         Expected:
         - root and chapter 5 both get total_acc=1; chapter 5 gets total=1 and dir set
         """
         report = _make_report_with_chapters()
-        test = _make_test("05.generics/file.ets", passed=True)
+        test = _make_test("05.generics/file.ats", passed=True)
         report._SpecReport__calculate_one_test(test)  # type: ignore[attr-defined]
         self.assertEqual(report.spec.total_acc, 1)
         ch5 = report.spec.children[4]
@@ -183,7 +183,7 @@ class SpecReportCalculateTest(unittest.TestCase):
 
     def test_two_level_path(self) -> None:
         """
-        Feature: map a test with a two-level directory path (e.g. "05.generics/03.utility_types/file.ets")
+        Feature: map a test with a two-level directory path (e.g. "05.generics/03.utility_types/file.ats")
         Expected:
         - counters propagated to root, chapter 5, and subsection 5.3; dir set on deepest node
         """
@@ -191,7 +191,7 @@ class SpecReportCalculateTest(unittest.TestCase):
         SpecNode("Utility Types", "5.1", "", report.spec.children[4])
         SpecNode("Generic Inst", "5.2", "", report.spec.children[4])
         SpecNode("Utility Types", "5.3", "", report.spec.children[4])
-        test = _make_test("05.generics/03.utility_types/file.ets", passed=True)
+        test = _make_test("05.generics/03.utility_types/file.ats", passed=True)
         report._SpecReport__calculate_one_test(test)  # type: ignore[attr-defined]
         self.assertEqual(report.spec.total_acc, 1)
         ch5 = report.spec.children[4]
@@ -209,7 +209,7 @@ class SpecReportCalculateTest(unittest.TestCase):
         - third node gets the test counters and dir
         """
         report = _make_report_shell()
-        test = _make_test("03.types/file.ets", passed=True)
+        test = _make_test("03.types/file.ats", passed=True)
         report._SpecReport__calculate_one_test(test)  # type: ignore[attr-defined]
         self.assertEqual(len(report.spec.children), 3)
         self.assertEqual(report.spec.children[0].title, "?")
@@ -225,9 +225,9 @@ class SpecReportCalculateTest(unittest.TestCase):
         """
         report = _make_report_with_chapters()
         report._SpecReport__calculate_one_test(  # type: ignore[attr-defined]
-            _make_test("05.generics/file1.ets", passed=True))
+            _make_test("05.generics/file1.ats", passed=True))
         report._SpecReport__calculate_one_test(  # type: ignore[attr-defined]
-            _make_test("05.generics/file2.ets", passed=False))
+            _make_test("05.generics/file2.ats", passed=False))
         self.assertEqual(report.spec.total_acc, 2)
         ch5 = report.spec.children[4]
         self.assertEqual(ch5.total_acc, 2)
@@ -242,9 +242,9 @@ class SpecReportCalculateTest(unittest.TestCase):
         """
         report = _make_report_with_chapters()
         report._SpecReport__calculate_one_test(  # type: ignore[attr-defined]
-            _make_test("05.generics/file.ets", passed=True))
+            _make_test("05.generics/file.ats", passed=True))
         report._SpecReport__calculate_one_test(  # type: ignore[attr-defined]
-            _make_test("07.expressions/file.ets", passed=True))
+            _make_test("07.expressions/file.ats", passed=True))
         self.assertEqual(report.spec.total_acc, 2)
         self.assertEqual(report.spec.children[4].total_acc, 1)
         self.assertEqual(report.spec.children[6].total_acc, 1)

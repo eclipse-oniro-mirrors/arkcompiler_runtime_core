@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Huawei Device Co., Ltd.
+# Copyright (c) 2025-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,7 +18,7 @@ endif()
 set(profiler_test_in_dir "${CMAKE_CURRENT_SOURCE_DIR}")
 set(profiler_test_out_dir "${CMAKE_CURRENT_BINARY_DIR}")
 add_custom_target(ets_test_suite_tooling_profiler)
-function(add_ets_tooling_profiler_test)
+function(add_ets_tooling_profile_test)
 set(prefix ARG)
 set(singleValues FILE CPP_SOURCE)
 set(multiValues OPTIONS)
@@ -54,5 +54,5 @@ endfunction()
 # NOTE(@srokashevich, #30218): enable with tsan after fix
 if(NOT PANDA_ENABLE_THREAD_SANITIZER)
 # Running tests via API calls
-add_ets_tooling_profiler_test(FILE profile_arkapi_test.ets CPP_SOURCE profile_arkapi_test.cpp OPTIONS "")
+add_ets_tooling_profile_test(FILE profile_arkapi_test.ats CPP_SOURCE profile_arkapi_test.cpp OPTIONS "")
 endif()

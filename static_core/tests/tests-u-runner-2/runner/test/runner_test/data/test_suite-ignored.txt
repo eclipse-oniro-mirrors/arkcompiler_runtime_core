@@ -1,1 +1,1 @@
-test1_ignored.ets
+test1_ignored.ats

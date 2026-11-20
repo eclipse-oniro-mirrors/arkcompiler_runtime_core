@@ -230,11 +230,11 @@
 02.lexical_elements/09.literals/05.boolean_literals/bool_literals_n2.ets
 02.lexical_elements/09.literals/05.boolean_literals/bool_literals_n3.ets
 02.lexical_elements/09.literals/05.boolean_literals/bool_literals_n4.ets
-02.lexical_elements/09.literals/08.regex_literal/regex_anchor_boundaries.ets
-02.lexical_elements/09.literals/08.regex_literal/regex_basic_literal.ets
-02.lexical_elements/09.literals/08.regex_literal/regex_example_literals.ets
-02.lexical_elements/09.literals/08.regex_literal/regex_flags_literal.ets
-02.lexical_elements/09.literals/08.regex_literal/regex_groups_capturing.ets
+02.lexical_elements/09.literals/08.regex_literal/regex_anchor_boundaries.ats
+02.lexical_elements/09.literals/08.regex_literal/regex_basic_literal.ats
+02.lexical_elements/09.literals/08.regex_literal/regex_example_literals.ats
+02.lexical_elements/09.literals/08.regex_literal/regex_flags_literal.ats
+02.lexical_elements/09.literals/08.regex_literal/regex_groups_capturing.ats
 02.lexical_elements/09.literals/08.regex_literal/regex_literal_n_0.ets
 02.lexical_elements/09.literals/08.regex_literal/regex_literal_n_1.ets
 02.lexical_elements/09.literals/08.regex_literal/regex_literal_n_10.ets
@@ -261,8 +261,8 @@
 02.lexical_elements/09.literals/08.regex_literal/regex_literal_n_7.ets
 02.lexical_elements/09.literals/08.regex_literal/regex_literal_n_8.ets
 02.lexical_elements/09.literals/08.regex_literal/regex_literal_n_9.ets
-02.lexical_elements/09.literals/08.regex_literal/regex_lookaround_literal.ets
-02.lexical_elements/09.literals/08.regex_literal/regex_quantifier_literal.ets
+02.lexical_elements/09.literals/08.regex_literal/regex_lookaround_literal.ats
+02.lexical_elements/09.literals/08.regex_literal/regex_quantifier_literal.ats
 03.types/01.predefined_types/primitive_types/pt_type_7.ets
 03.types/01.predefined_types/using_value_types_names_0.ets
 03.types/01.predefined_types/using_value_types_names_1.ets

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2024-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -31,7 +31,8 @@ class PathConverter:
         os.makedirs(os.path.join(self.artefacts, os.path.dirname(self.test_id)), exist_ok=True)
 
     def dumped_src_path(self) -> str:
-        return f"{os.path.splitext(os.path.join(self.artefacts, self.test_id))[0]}_dumped.ets"
+        stem, extension = os.path.splitext(os.path.join(self.artefacts, self.test_id))
+        return f"{stem}_dumped{extension}"
 
 
 class AstComparator:

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 # Copyright (c) 2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +21,7 @@ Run from the scripts directory:
 """
 
 import os
+import re
 import tempfile
 import textwrap
 import unittest
@@ -48,7 +50,6 @@ from review_linter import (
     run_full_scan,
     RULES,
 )
-import re
 
 
 # ---------------------------------------------------------------------------
@@ -121,8 +122,8 @@ class TestMatchesGlob(unittest.TestCase):
         self.assertTrue(matches_glob("anything.txt", ["*"]))
 
     def test_ets(self):
-        self.assertTrue(matches_glob("module.ets", ["*.ets", "*.sts"]))
-        self.assertFalse(matches_glob("module.ts", ["*.ets", "*.sts"]))
+        self.assertTrue(matches_glob("module.ats", ["*.ats", "*.sts"]))
+        self.assertFalse(matches_glob("module.ts", ["*.ats", "*.sts"]))
 
 
 class TestReadFileSafe(unittest.TestCase):
@@ -234,73 +235,73 @@ class TestCheckEts099(unittest.TestCase):
 
 class TestCheckEts801(unittest.TestCase):
     def test_valid_export(self):
-        self.assertEqual(check_ets801("f.ets", "export function doStuff() {}"), [])
+        self.assertEqual(check_ets801("f.ats", "export function doStuff() {}"), [])
 
     def test_invalid_export(self):
-        results = check_ets801("f.ets", "export function DoStuff() {}")
+        results = check_ets801("f.ats", "export function DoStuff() {}")
         self.assertEqual(len(results), 1)
         self.assertIn("DoStuff", results[0][1])
 
     def test_no_export(self):
-        self.assertEqual(check_ets801("f.ets", "function doStuff() {}"), [])
+        self.assertEqual(check_ets801("f.ats", "function doStuff() {}"), [])
 
 
 class TestCheckEts802(unittest.TestCase):
     def test_valid_method(self):
-        self.assertEqual(check_ets802("f.ets", "public doSomething() {"), [])
+        self.assertEqual(check_ets802("f.ats", "public doSomething() {"), [])
 
     def test_invalid_method(self):
-        results = check_ets802("f.ets", "public DoSomething() {")
+        results = check_ets802("f.ats", "public DoSomething() {")
         self.assertEqual(len(results), 1)
         self.assertIn("DoSomething", results[0][1])
 
     def test_constructor_skipped(self):
-        self.assertEqual(check_ets802("f.ets", "public constructor() {"), [])
+        self.assertEqual(check_ets802("f.ats", "public constructor() {"), [])
 
     def test_static_native(self):
-        self.assertEqual(check_ets802("f.ets", "public static native myMethod("), [])
-        results = check_ets802("f.ets", "public static native MyMethod(")
+        self.assertEqual(check_ets802("f.ats", "public static native myMethod("), [])
+        results = check_ets802("f.ats", "public static native MyMethod(")
         self.assertEqual(len(results), 1)
 
 
 class TestCheckEts803(unittest.TestCase):
     def test_valid_class(self):
-        self.assertEqual(check_ets803("f.ets", "export class MyClass {"), [])
+        self.assertEqual(check_ets803("f.ats", "export class MyClass {"), [])
 
     def test_invalid_class(self):
-        results = check_ets803("f.ets", "export class myClass {")
+        results = check_ets803("f.ats", "export class myClass {")
         self.assertEqual(len(results), 1)
         self.assertIn("myClass", results[0][1])
 
     def test_interface(self):
-        results = check_ets803("f.ets", "export interface myInterface {")
+        results = check_ets803("f.ats", "export interface myInterface {")
         self.assertEqual(len(results), 1)
 
     def test_abstract_class(self):
-        self.assertEqual(check_ets803("f.ets", "export abstract class MyBase {"), [])
+        self.assertEqual(check_ets803("f.ats", "export abstract class MyBase {"), [])
 
     def test_enum(self):
-        results = check_ets803("f.ets", "export enum color {")
+        results = check_ets803("f.ats", "export enum color {")
         self.assertEqual(len(results), 1)
 
 
 class TestCheckEts804(unittest.TestCase):
     def test_screaming_snake(self):
-        self.assertEqual(check_ets804("f.ets", "const MAX_SIZE = 10"), [])
+        self.assertEqual(check_ets804("f.ats", "const MAX_SIZE = 10"), [])
 
     def test_camel_case_allowed(self):
-        self.assertEqual(check_ets804("f.ets", "const maxSize = 10"), [])
+        self.assertEqual(check_ets804("f.ats", "const maxSize = 10"), [])
 
     def test_invalid_name(self):
-        results = check_ets804("f.ets", "const Max_size = 10")
+        results = check_ets804("f.ats", "const Max_size = 10")
         self.assertEqual(len(results), 1)
 
     def test_export_const(self):
-        self.assertEqual(check_ets804("f.ets", "export const MY_VAL = 1"), [])
+        self.assertEqual(check_ets804("f.ats", "export const MY_VAL = 1"), [])
 
     def test_not_top_level(self):
         # Indented const should not match (pattern uses ^)
-        self.assertEqual(check_ets804("f.ets", "  const BAD_Name = 1"), [])
+        self.assertEqual(check_ets804("f.ats", "  const BAD_Name = 1"), [])
 
 
 class TestCheckEts490Added(unittest.TestCase):
@@ -386,6 +387,25 @@ class TestCheckFileWithRule(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestRunDiffScan(unittest.TestCase):
+    def test_source_rules_through_scan(self):
+        cases = [
+            ("ETS502", "tests/f", "let value = typeof obj;"),
+            ("ETS801", "src/f", "export function Bad_name(): void {}"),
+            ("ETS802", "src/f", "public Bad_name(): void {}"),
+            ("ETS803", "src/f", "export class bad_name {}"),
+            ("ETS804", "src/f", "const Bad_name = 1;"),
+            ("ETS813", "src/f", "let value = 1e10;"),
+        ]
+        for rule_id, basename, content in cases:
+            for extension in ("ats", "ets", "sts"):
+                with self.subTest(rule=rule_id, extension=extension):
+                    filename = f"{basename}.{extension}"
+                    diff = (f"diff --git a/{filename} b/{filename}\n"
+                            f"--- /dev/null\n+++ b/{filename}\n"
+                            f"@@ -0,0 +1 @@\n+{content}\n")
+                    violations = run_diff_scan(diff, RULES)
+                    self.assertIn(rule_id, [v.rule_id for v in violations])
+
     def test_added_line_violation(self):
         diff = textwrap.dedent("""\
             diff --git a/foo.cpp b/foo.cpp
@@ -430,6 +450,18 @@ class TestRunDiffScan(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestRunFullScan(unittest.TestCase):
+    def test_source_rules_through_scan(self):
+        with tempfile.TemporaryDirectory() as directory:
+            for extension in ("ats", "ets", "sts"):
+                filename = f"invalid.{extension}"
+                with open(os.path.join(directory, filename), "w", encoding="utf-8") as source:
+                    source.write("export function Bad_name(): void {}\n")
+            violations = run_full_scan(directory, RULES)
+            self.assertEqual(
+                {v.file for v in violations if v.rule_id == "ETS801"},
+                {f"invalid.{extension}" for extension in ("ats", "ets", "sts")},
+            )
+
     def test_finds_violation(self):
         with tempfile.TemporaryDirectory() as d:
             fpath = os.path.join(d, "bad.cpp")
@@ -530,40 +562,42 @@ class TestPatternRules(unittest.TestCase):
         self._check("ETS403", "a.cpp", "ScopedAllocator x;", False)
 
     def test_ets807_match(self):
-        self._check("ETS807", "f.ets", "if (typeof x === 'string')", True)
+        self._check("ETS807", "f.ats", "if (typeof x === 'string')", True)
 
     def test_ets807_no_match(self):
-        self._check("ETS807", "f.ets", "if (x instanceof String)", False)
+        self._check("ETS807", "f.ats", "if (x instanceof String)", False)
 
     def test_ets814_match(self):
-        self._check("ETS814", "f.ets", "overload myFunc {", True)
+        self._check("ETS814", "f.ats", "overload myFunc {", True)
 
     def test_ets814_no_match(self):
-        self._check("ETS814", "f.ets", "function myFunc() {", False)
+        self._check("ETS814", "f.ats", "function myFunc() {", False)
 
     def test_ets805_match(self):
-        self._check("ETS805", "f.ets", "for (let x of arr)", True)
+        self._check("ETS805", "f.ats", "for (let x of arr)", True)
 
     def test_ets805_no_match(self):
-        self._check("ETS805", "f.ets", "for (let i = 0; i < n; i++)", False)
+        self._check("ETS805", "f.ats", "for (let i = 0; i < n; i++)", False)
 
     def test_ets806_match(self):
-        self._check("ETS806", "f.ets", "  outer: for (let i = 0;", True)
+        self._check("ETS806", "f.ats", "  outer: for (let i = 0;", True)
 
     def test_ets806_no_match(self):
-        self._check("ETS806", "f.ets", "for (let i = 0;", False)
+        self._check("ETS806", "f.ats", "for (let i = 0;", False)
 
     def test_ets812_match(self):
-        self._check("ETS812", "f.ets", 'let s = "hello" + x', True)
+        self._check("ETS812", "f.ats", 'let s = "hello" + x', True)
 
     def test_ets812_no_match(self):
-        self._check("ETS812", "f.ets", "let x = a + b", False)
+        self._check("ETS812", "f.ats", "let x = a + b", False)
 
     def test_ets813_match(self):
-        self._check("ETS813", "f.ets", "let x = 1e10", True)
+        rule = next(r for r in RULES if r.rule_id == "ETS813")
+        self.assertTrue(check_file_with_rule("f.ats", "let x = 1e10", rule))
 
     def test_ets813_no_match(self):
-        self._check("ETS813", "f.ets", "let x = 10000000000", False)
+        rule = next(r for r in RULES if r.rule_id == "ETS813")
+        self.assertFalse(check_file_with_rule("f.ats", "let x = 10000000000", rule))
 
     def test_ets011_removed_line(self):
         # ETS011 is diff_removed_only; check that the pattern matches

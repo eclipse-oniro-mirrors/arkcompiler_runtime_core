@@ -7,7 +7,7 @@
         }
     },
     "include": [
-        "./**/*.ets"
+        "./**/*.ats"
     ],
     "references": [
         { "path": "../old" }

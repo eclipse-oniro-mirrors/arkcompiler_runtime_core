@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2024-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -30,8 +30,8 @@ pytestmark = mark.evaluate
 
 
 @fixture
-def arkts_file_extension() -> str:
-    return "ets"
+def arkts_file_extension(base_ets_file: Path) -> str:
+    return base_ets_file.suffix[1:]
 
 
 def replace_suffixes(ets_file_path: Path, new_suffixes: str):
@@ -76,7 +76,7 @@ def get_verifier(args: GetVerifierArgs):
         for test_dir in (Path(__file__).parent / Path(__file__).stem).iterdir()
         if test_dir.is_dir()
         for file in test_dir.iterdir()
-        if file.is_file() and file.name.endswith(".base.ets")
+        if file.is_file() and file.name.endswith((".base.ets", ".base.ats"))
     ],
 )
 # CC-OFFNXT(G.FNM.03) temporary: reduce parameters list

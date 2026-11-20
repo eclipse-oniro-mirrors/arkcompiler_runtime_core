@@ -1,1 +1,1 @@
-test6_excluded_repeats.ets
+test6_excluded_repeats.ats

@@ -37,23 +37,23 @@ class FailKindTest(TestCase):
     test_environ: ClassVar[dict[str, str]] = test_utils.test_environ(
         'TESTS_LOADING_TEST_ROOT', data_folder().as_posix())
     sys_argv: ClassVar = [
-        ["runner.sh", "panda", "test_suite1", "--test-file", "test4.ets"],
-        ["runner.sh", "panda", "test_suite1", "--test-file", "test4.ets", "--gn-build"]
+        ["runner.sh", "panda", "test_suite1", "--test-file", "test4.ats"],
+        ["runner.sh", "panda", "test_suite1", "--test-file", "test4.ats", "--gn-build"]
     ]
     sys_argv_test5: ClassVar = [
-        ["runner.sh", "panda", "test_suite1", "--test-file", "test5_compile_only_neg.ets"],
-        ["runner.sh", "panda", "test_suite1", "--test-file", "test5_compile_only_neg.ets", "--gn-build"]
+        ["runner.sh", "panda", "test_suite1", "--test-file", "test5_compile_only_neg.ats"],
+        ["runner.sh", "panda", "test_suite1", "--test-file", "test5_compile_only_neg.ats", "--gn-build"]
     ]
     sys_argv_test1: ClassVar = [
-        ["runner.sh", "panda", "test_suite1", "--test-file", "test1.console.ets"],
-        ["runner.sh", "panda", "test_suite1", "--test-file", "test1.console.ets", "--gn-build"]
+        ["runner.sh", "panda", "test_suite1", "--test-file", "test1.console.ats"],
+        ["runner.sh", "panda", "test_suite1", "--test-file", "test1.console.ats", "--gn-build"]
     ]
     sys_argv_test12: ClassVar = [
-        ["runner.sh", "call_sh", "test_suite1", "--test-file", "test1.console.ets"],
+        ["runner.sh", "call_sh", "test_suite1", "--test-file", "test1.console.ats"],
     ]
     sys_argv_test13: ClassVar = [
-        ["runner.sh", "panda", "test_suite1", "--test-file", "test4.ets"],
-        ["runner.sh", "panda", "test_suite1", "--test-file", "test4.ets", "--retrieve-log-timeout", "111"],
+        ["runner.sh", "panda", "test_suite1", "--test-file", "test4.ats"],
+        ["runner.sh", "panda", "test_suite1", "--test-file", "test4.ats", "--retrieve-log-timeout", "111"],
     ]
 
     @staticmethod
@@ -236,8 +236,8 @@ class FailKindTest(TestCase):
     @patch("runner.suites.one_step_runner.subprocess.Popen")
     def test_fail_kind_expected_stderr_not_empty_fail(self, mock_popen: MagicMock) -> None:
         sys_argv = [
-            ["runner.sh", "panda", "test_suite1", "--test-file", "test1.ets"],
-            ["runner.sh", "panda", "test_suite1", "--test-file", "test1.ets", "--gn-build"]
+            ["runner.sh", "panda", "test_suite1", "--test-file", "test1.ats"],
+            ["runner.sh", "panda", "test_suite1", "--test-file", "test1.ats", "--gn-build"]
         ]
         for argv in sys_argv:
             with self.subTest(argv=argv):
@@ -340,14 +340,14 @@ class FailKindTest(TestCase):
     @patch('runner.utils.get_config_workflow_folder', data_folder)
     @patch('runner.utils.get_config_test_suite_folder', data_folder)
     @patch.dict(os.environ, test_environ, clear=True)
-    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--continue-if-failed", "--test-file", "test1.ets"])
+    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--continue-if-failed", "--test-file", "test1.ats"])
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_utils.test_cmake_build)
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @patch("runner.suites.one_step_runner.subprocess.Popen")
     def test_all_steps_pass(self, mock_popen: MagicMock) -> None:
         """
-        test-file: test1.ets
+        test-file: test1.ats
         all steps passed
         status: passed
         fail_kind: last_wf_step_PASSED
@@ -373,14 +373,14 @@ class FailKindTest(TestCase):
     @patch('runner.utils.get_config_workflow_folder', data_folder)
     @patch('runner.utils.get_config_test_suite_folder', data_folder)
     @patch.dict(os.environ, test_environ, clear=True)
-    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--continue-if-failed", "--test-file", "test1.ets"])
+    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--continue-if-failed", "--test-file", "test1.ats"])
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_utils.test_cmake_build)
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @patch("runner.suites.one_step_runner.subprocess.Popen")
     def test_one_step_failure(self, mock_popen: MagicMock) -> None:
         """
-        test-file: test1.ets
+        test-file: test1.ats
         there are 4 steps in workflow, verifier step failed
         Expecting:  the following 2 steps were executed
         status: failed
@@ -409,14 +409,14 @@ class FailKindTest(TestCase):
     @patch('runner.utils.get_config_workflow_folder', data_folder)
     @patch('runner.utils.get_config_test_suite_folder', data_folder)
     @patch.dict(os.environ, test_environ, clear=True)
-    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--continue-if-failed", "--test-file", "test1.ets"])
+    @patch('sys.argv', ["runner.sh", "panda", "test_suite1", "--continue-if-failed", "--test-file", "test1.ats"])
     @patch('runner.suites.test_lists.TestLists._cmake_build_properties', test_utils.test_cmake_build)
     @patch('runner.suites.test_lists.TestLists._gn_build_properties', test_utils.test_gn_build)
     @patch('runner.options.local_env.LocalEnv.get_instance_id', get_instance_id)
     @patch("runner.suites.one_step_runner.subprocess.Popen")
     def test_two_steps_failure(self, mock_popen: MagicMock) -> None:
         """
-        test-file: test1.ets
+        test-file: test1.ats
         there are 4 steps in workflow, verifier step failed, ark step failed
         Expecting:  the following 1 step was executed
         status: failed

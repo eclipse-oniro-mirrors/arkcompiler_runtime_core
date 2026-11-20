@@ -51,7 +51,7 @@ panda_ets_add_gtest(
 if (NOT PANDA_ENABLE_THREAD_SANITIZER)
     panda_add_gtest_with_ani(ets_vm_init_prealloc_runtime_test
         CPP_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/runtime/prealloc_test/ets_vm_init_prealloc_test.cpp
-        ETS_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/runtime/prealloc_test/ets_vm_init_prealloc_test.ets
+        ETS_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/runtime/prealloc_test/ets_vm_init_prealloc_test.ats
         INCLUDE_DIRS ${PANDA_ETS_PLUGIN_SOURCE}/runtime
         LIBRARIES arkbase arkfile arkruntime
         TEST_GROUP ets_tests_runtime_gtests
@@ -60,7 +60,7 @@ endif()
 
 panda_add_gtest_with_ani(entrypoint_return_runtime_test
     CPP_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/runtime/entrypoint_return_test.cpp
-    ETS_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/runtime/entrypoint_return_test.ets
+    ETS_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/runtime/entrypoint_return_test.ats
     INCLUDE_DIRS ${PANDA_ETS_PLUGIN_SOURCE}/runtime
     LIBRARIES arkbase arkfile arkruntime
     TEST_GROUP ets_tests_runtime_gtests
@@ -68,7 +68,7 @@ panda_add_gtest_with_ani(entrypoint_return_runtime_test
 
 panda_add_gtest_with_ani(async_stack_promise_runtime_test
     CPP_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/runtime/async_stack_promise_test.cpp
-    ETS_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/runtime/AsyncStackPromiseTest.ets
+    ETS_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/runtime/AsyncStackPromiseTest.ats
     INCLUDE_DIRS ${PANDA_ETS_PLUGIN_SOURCE}/runtime
     LIBRARIES arkbase arkfile arkruntime
     TEST_GROUP ets_tests_runtime_gtests
@@ -76,7 +76,7 @@ panda_add_gtest_with_ani(async_stack_promise_runtime_test
 
 panda_add_gtest_with_ani(ets_vm_oom_runtime_test
     CPP_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/runtime/ets_vm_outofmemory_test.cpp
-    ETS_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/runtime/ets_vm_outofmemory_test.ets
+    ETS_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/runtime/ets_vm_outofmemory_test.ats
     INCLUDE_DIRS ${PANDA_ETS_PLUGIN_SOURCE}/runtime
     LIBRARIES arkbase arkfile arkruntime
     TEST_GROUP ets_tests_runtime_gtests
@@ -108,7 +108,7 @@ panda_ets_add_gtest(
 # because it takes a long time to overflow IterCouner without hacking.
 panda_add_gtest_with_ani(map_iter_overflow_runtime_test
     CPP_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/runtime/map_iter_overflow_test.cpp
-    ETS_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/runtime/map_iter_overflow_test.ets
+    ETS_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/runtime/map_iter_overflow_test.ats
     INCLUDE_DIRS ${PANDA_ETS_PLUGIN_SOURCE}/runtime
     LIBRARIES arkbase arkfile arkruntime
     TEST_GROUP ets_tests_runtime_gtests
@@ -116,7 +116,7 @@ panda_add_gtest_with_ani(map_iter_overflow_runtime_test
 
 panda_add_gtest_with_ani(is_assignable_from_union_runtime_test
     CPP_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/runtime/is_assignable_from_union_test.cpp
-    ETS_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/runtime/is_assignable_from_union_test.ets
+    ETS_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/runtime/is_assignable_from_union_test.ats
     INCLUDE_DIRS ${PANDA_ETS_PLUGIN_SOURCE}/runtime
     LIBRARIES arkbase arkfile arkruntime
     TEST_GROUP ets_tests_runtime_gtests

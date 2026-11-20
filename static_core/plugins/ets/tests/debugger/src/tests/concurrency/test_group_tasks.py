@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2025 Huawei Device Co., Ltd.
+# Copyright (c) 2025-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -31,7 +31,7 @@ from arkdb.source_meta import parse_source_meta
 
 @mark.parametrize(
     "test_file",
-    [param(Path(__file__).with_suffix(".ets"))],
+    [param(Path(__file__).with_suffix(".ats"))],
 )
 async def test_execution_without_pauses(
     tmp_path: Path,
@@ -62,7 +62,7 @@ async def test_execution_without_pauses(
 
 @mark.parametrize(
     "test_file",
-    [param(Path(__file__).parent.joinpath("test_coroutines.ets"))],
+    [param(Path(__file__).parent.joinpath("test_coroutines.ats"))],
 )
 async def test_coroutines(
     tmp_path: Path,

@@ -106,7 +106,7 @@ class RunnerSRCDumper(RunnerJS):
                 (Path(root) / file, source_dir)
                 for root, _, files in os.walk(source_dir)
                 for file in files
-                if file.endswith('.ets')
+                if file.endswith(f".{test_dir.extension}")
             ]
 
             # Copy each file

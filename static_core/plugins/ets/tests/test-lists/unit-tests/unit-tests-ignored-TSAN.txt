@@ -2,7 +2,7 @@
 ets-common-tests/atomics/concurrent_compare_exchange.ets
 
 #30702
-ets-common-tests/intrinsics/copyTo.ets
+ets-common-tests/intrinsics/copyTo.ats
 
 #32837
 ets-common-tests/taskpool/asyncrunner_tasks.ets

@@ -21,7 +21,7 @@ steps:
     echo-runtime:
         pre-reqs:
             - req: FileExist
-              value: "${parameters.work-dir}/gen/not_exist.ets"
+              value: "${parameters.work-dir}/gen/not_exist.ats"
         executable-path: /usr/bin/echo
         step-type: runtime
         args:

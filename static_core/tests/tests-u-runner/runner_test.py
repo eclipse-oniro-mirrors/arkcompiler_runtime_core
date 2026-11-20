@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2021-2024 Huawei Device Co., Ltd.
+# Copyright (c) 2021-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -21,6 +21,9 @@ from runner.test.chapters_test.chapters_test import ChapterTest
 from runner.test.chapters_test.chapters_neg_test import ChapterNegativeCases
 # pylint: disable=unused-import
 from runner.test.multiple_config_test.multiple_config_test import MultipleConfigTest
+
+# pylint: disable=unused-import
+from runner.test.runner_base_test import RunnerSourceSelectionTest
 
 if __name__ == '__main__':
     unittest.main()

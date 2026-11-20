@@ -58,7 +58,7 @@ function(coldreload_add_case NAME)
 
     set(program_stem ${COLDRELOAD_FIXTURE_STEM_${ARG_PROGRAM}})
     set(program_abc ${out}/${ARG_PROGRAM}.abc)
-    compile_ets_code(${fixtures}/${ARG_PROGRAM}/${program_stem}.ets ${program_abc} ${NAME}-${ARG_PROGRAM}-abc)
+    compile_ets_code(${fixtures}/${ARG_PROGRAM}/${program_stem}.ats ${program_abc} ${NAME}-${ARG_PROGRAM}-abc)
 
     set(run_deps ${NAME}-${ARG_PROGRAM}-abc ani_coldreload_app etsstdlib)
 
@@ -75,14 +75,14 @@ function(coldreload_add_case NAME)
         set(patch_arg ${out}/does-not-exist.hqf)
     elseif (ARG_PATCH)
         set(patch_arg ${out}/${ARG_PATCH}.abc)
-        compile_ets_code(${fixtures}/${ARG_PATCH}/${COLDRELOAD_FIXTURE_STEM_${ARG_PATCH}}.ets ${patch_arg} ${NAME}-${ARG_PATCH}-abc)
+        compile_ets_code(${fixtures}/${ARG_PATCH}/${COLDRELOAD_FIXTURE_STEM_${ARG_PATCH}}.ats ${patch_arg} ${NAME}-${ARG_PATCH}-abc)
         list(APPEND run_deps ${NAME}-${ARG_PATCH}-abc)
     endif()
 
     set(patch2_arg "-")
     if (DEFINED ARG_SECOND_PATCH)
         set(patch2_arg ${out}/${ARG_SECOND_PATCH}.abc)
-        compile_ets_code(${fixtures}/${ARG_SECOND_PATCH}/${COLDRELOAD_FIXTURE_STEM_${ARG_SECOND_PATCH}}.ets ${patch2_arg} ${NAME}-${ARG_SECOND_PATCH}-abc)
+        compile_ets_code(${fixtures}/${ARG_SECOND_PATCH}/${COLDRELOAD_FIXTURE_STEM_${ARG_SECOND_PATCH}}.ats ${patch2_arg} ${NAME}-${ARG_SECOND_PATCH}-abc)
         list(APPEND run_deps ${NAME}-${ARG_SECOND_PATCH}-abc)
     endif()
 

@@ -115,8 +115,10 @@ class CustomGeneratorTestPreparationStep(TestPreparationStep):
             except Exception as ex:  # pylint: disable=broad-except
                 Log.exception_and_raise(_LOGGER, f"Generation failed by unknown reason: {ex}")
             finally:
-                glob_expression = os.path.join(self.test_gen_path, f"**/*.{self.extension}")
-                result.extend(glob(glob_expression, recursive=True))
+                extensions = ("ets", "ats") if self.extension == "ets" else (self.extension,)
+                for extension in extensions:
+                    glob_expression = os.path.join(self.test_gen_path, f"**/*.{extension}")
+                    result.extend(glob(glob_expression, recursive=True))
 
         return result
 

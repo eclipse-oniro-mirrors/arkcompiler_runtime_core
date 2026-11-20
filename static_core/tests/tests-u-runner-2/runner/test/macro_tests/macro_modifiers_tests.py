@@ -26,7 +26,7 @@ class MacroModifiersTests(TestCase):
             ("example", True),
             ("/path/to/test.txt", True),
             (r"C:\folder\example.py", True),
-            ("src/file.ets", True),
+            ("src/file.ats", True),
             ("a/b/c/d/final.abc", True),
             ("not a file at all", True),
             ("first\nsecond", False),
@@ -47,7 +47,7 @@ class MacroModifiersTests(TestCase):
             ("example", "example"),
             ("/path/to/test.txt", "test.txt"),
             (r"C:\folder\example.py", "example.py"),
-            ("src/file.ets", "file.ets"),
+            ("src/file.ats", "file.ats"),
             ("a/b/c/d/final.abc", "final.abc"),
             ("not a file at all", "not a file at all"),
         ]
@@ -63,7 +63,7 @@ class MacroModifiersTests(TestCase):
             ("example", "example"),
             ("/path/to/test.txt", "test"),
             ("C:\\folder\\example.py", "example"),
-            ("src/file.ets", "file"),
+            ("src/file.ats", "file"),
             ("path/to/archive.tar.gz", "archive.tar"),
             ("R.E.A.D.M.E", "R.E.A.D.M"),
         ]
@@ -79,7 +79,7 @@ class MacroModifiersTests(TestCase):
             ("example", "."),
             ("/path/to/test.txt", "/path/to"),
             (r"C:\folder\example.py", "C:/folder"),
-            ("src/file.ets", "src"),
+            ("src/file.ats", "src"),
             ("a/b/c/d/final.abc", "a/b/c/d"),
             ("/file.txt", "/"),
         ]

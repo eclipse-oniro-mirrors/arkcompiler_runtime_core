@@ -20,7 +20,7 @@ set(profiler_test_out_dir "${CMAKE_CURRENT_BINARY_DIR}")
 
 add_custom_target(ets_test_suite_profiler)
 
-function(add_profiler_saver_test)
+function(add_profile_saver_test)
     set(prefix ARG)
     set(singleValues FILE CPP_SOURCE)
     set(multiValues OPTIONS)
@@ -54,4 +54,4 @@ endfunction()
 
 # Running tests via API calls
 
-add_profiler_saver_test(FILE profile_saver_test.ets CPP_SOURCE profile_saver_test.cpp OPTIONS "")
+add_profile_saver_test(FILE profile_saver_test.ats CPP_SOURCE profile_saver_test.cpp OPTIONS "")

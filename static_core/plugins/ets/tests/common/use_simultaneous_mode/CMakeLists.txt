@@ -27,7 +27,7 @@ set(PACKAGE_CONFIG ${CURRENT_BINARY_DIR}/arktsconfig_package.json)
 configure_file(${CURRENT_SOURCE_DIR}/lib/arktsconfig.in.json ${PACKAGE_CONFIG})
 
 add_custom_target(use_simultaneous_mode_z COMMENT "Generating interface library declaration"
-    COMMAND ${PANDA_BINARY_ROOT}/bin/es2panda ${CMAKE_CURRENT_SOURCE_DIR}/lib/z.ets
+    COMMAND ${PANDA_BINARY_ROOT}/bin/es2panda ${CMAKE_CURRENT_SOURCE_DIR}/lib/z.ats
     --arktsconfig=${PACKAGE_CONFIG}
     --emit-declaration
     --opt-level=2 --extension=ets --gen-stdlib=false --output=${CMAKE_CURRENT_BINARY_DIR}/z.abc
@@ -36,16 +36,16 @@ add_custom_target(use_simultaneous_mode_z COMMENT "Generating interface library 
 set(ENTRY_CONFIG ${CURRENT_BINARY_DIR}/arktsconfig_entry.json)
 configure_file(${CURRENT_SOURCE_DIR}/arktsconfig.in.json ${ENTRY_CONFIG})
 
-add_custom_target(use_simultaneous_mode_x1 COMMENT "Using interface literal in dir1/x.ets"
+add_custom_target(use_simultaneous_mode_x1 COMMENT "Using interface literal in dir1/x.ats"
     COMMAND ${PANDA_BINARY_ROOT}/bin/es2panda --opt-level=2 --extension=ets --gen-stdlib=false
     --arktsconfig=${ENTRY_CONFIG} --emit-declaration --simultaneous=true
-    --output=${CMAKE_CURRENT_BINARY_DIR}/x1.abc ${CMAKE_CURRENT_SOURCE_DIR}/dir1/x.ets
+    --output=${CMAKE_CURRENT_BINARY_DIR}/x1.abc ${CMAKE_CURRENT_SOURCE_DIR}/dir1/x.ats
     DEPENDS es2panda etsstdlib)
 
-add_custom_target(use_simultaneous_mode_x2 COMMENT "Using interface literal in dir1/dir2/x.ets"
+add_custom_target(use_simultaneous_mode_x2 COMMENT "Using interface literal in dir1/dir2/x.ats"
     COMMAND ${PANDA_BINARY_ROOT}/bin/es2panda --opt-level=2 --extension=ets --gen-stdlib=false
     --arktsconfig=${ENTRY_CONFIG} --emit-declaration --simultaneous=true
-    --output=${CMAKE_CURRENT_BINARY_DIR}/x2.abc ${CMAKE_CURRENT_SOURCE_DIR}/dir1/dir2/x.ets
+    --output=${CMAKE_CURRENT_BINARY_DIR}/x2.abc ${CMAKE_CURRENT_SOURCE_DIR}/dir1/dir2/x.ats
     DEPENDS es2panda etsstdlib)
 
 add_custom_target(use_simultaneous_mode_link COMMENT "Using interface literal in different sources"

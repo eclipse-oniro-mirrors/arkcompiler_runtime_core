@@ -64,13 +64,13 @@ class TestsLoadingTest(TestCase):
             runner = RunnerStandardFlow(config)
             actual_tests = sorted(test.test_id for test in runner.tests)
             expected_tests = [
-                "test1_ignored.ets",
-                "test2.ets",
-                "test3_co.ets",
-                "test5_ignored_asan.ets",
-                'test6_excluded_repeats.ets',
-                'test7_excluded_asan_repeats.ets',
-                'test8_co_neg.ets'
+                "test1_ignored.ats",
+                "test2.ats",
+                "test3_co.ats",
+                "test5_ignored_asan.ats",
+                'test6_excluded_repeats.ats',
+                'test7_excluded_asan_repeats.ats',
+                'test8_co_neg.ats'
             ]
             self.assertListEqual(actual_tests, expected_tests)
             # clear up
@@ -100,12 +100,12 @@ class TestsLoadingTest(TestCase):
             runner = RunnerStandardFlow(config)
             actual_tests = sorted(test.test_id for test in runner.tests)
             expected_tests = [
-                "test1_ignored.ets",
-                "test2.ets",
-                "test3_co.ets",
-                "test5_ignored_asan.ets",
-                'test6_excluded_repeats.ets',
-                'test7_excluded_asan_repeats.ets'
+                "test1_ignored.ats",
+                "test2.ats",
+                "test3_co.ats",
+                "test5_ignored_asan.ats",
+                'test6_excluded_repeats.ats',
+                'test7_excluded_asan_repeats.ats'
             ]
             self.assertListEqual(actual_tests, expected_tests)
             # clear up
@@ -134,10 +134,10 @@ class TestsLoadingTest(TestCase):
             runner = RunnerStandardFlow(config)
             actual_tests = sorted(test.test_id for test in runner.tests)
             expected_tests = [
-                "test2.ets",
-                "test3_co.ets",
-                "test7_excluded_asan_repeats.ets",
-                "test8_co_neg.ets"
+                "test2.ats",
+                "test3_co.ats",
+                "test7_excluded_asan_repeats.ats",
+                "test8_co_neg.ats"
             ]
             self.assertListEqual(actual_tests, expected_tests)
             # clear up
@@ -168,12 +168,12 @@ class TestsLoadingTest(TestCase):
             runner = RunnerStandardFlow(config)
             actual_tests = sorted(test.test_id for test in runner.tests)
             expected_tests = [
-                "test1_ignored.ets",
-                "test2.ets",
-                "test3_co.ets",
-                "test6_excluded_repeats.ets",
-                "test7_excluded_asan_repeats.ets",
-                "test8_co_neg.ets"
+                "test1_ignored.ats",
+                "test2.ats",
+                "test3_co.ats",
+                "test6_excluded_repeats.ats",
+                "test7_excluded_asan_repeats.ats",
+                "test8_co_neg.ats"
             ]
             self.assertListEqual(actual_tests, expected_tests)
             # clear up
@@ -194,7 +194,7 @@ class TestsLoadingTest(TestCase):
     def test_exclude_ignored_one_list_regex(self, argv: Callable) -> None:
         """
         Expected:
-        Tests from ignored test list (test5_ignored_asan) is excluded like test4_excluded.ets (from excluded list)
+        Tests from ignored test list (test5_ignored_asan) is excluded like test4_excluded.ats (from excluded list)
         """
         with patch('sys.argv', argv):
             # preparation
@@ -203,12 +203,12 @@ class TestsLoadingTest(TestCase):
             runner = RunnerStandardFlow(config)
             actual_tests = sorted(test.test_id for test in runner.tests)
             expected_tests = [
-                "test1_ignored.ets",
-                "test2.ets",
-                "test3_co.ets",
-                "test6_excluded_repeats.ets",
-                "test7_excluded_asan_repeats.ets",
-                "test8_co_neg.ets"
+                "test1_ignored.ats",
+                "test2.ats",
+                "test3_co.ats",
+                "test6_excluded_repeats.ats",
+                "test7_excluded_asan_repeats.ats",
+                "test8_co_neg.ats"
             ]
             self.assertListEqual(actual_tests, expected_tests)
             # clear up
@@ -244,11 +244,11 @@ class TestsLoadingTest(TestCase):
             runner = RunnerStandardFlow(config)
             actual_tests = sorted(test.test_id for test in runner.tests)
             expected_tests = [
-                "test1_ignored.ets",
-                "test2.ets",
-                "test3_co.ets",
-                'test7_excluded_asan_repeats.ets',
-                'test8_co_neg.ets'
+                "test1_ignored.ats",
+                "test2.ats",
+                "test3_co.ats",
+                'test7_excluded_asan_repeats.ats',
+                'test8_co_neg.ats'
             ]
             self.assertListEqual(actual_tests, expected_tests)
             # clear up
@@ -285,9 +285,9 @@ class TestsLoadingTest(TestCase):
             runner = RunnerStandardFlow(config)
             actual_tests = sorted(test.test_id for test in runner.tests)
             expected_tests = [
-                "test2.ets",
-                "test3_co.ets",
-                'test7_excluded_asan_repeats.ets'
+                "test2.ats",
+                "test3_co.ats",
+                'test7_excluded_asan_repeats.ats'
             ]
             self.assertListEqual(actual_tests, expected_tests)
             # clear up
@@ -315,14 +315,14 @@ class TestsLoadingTest(TestCase):
             runner = RunnerStandardFlow(config)
             actual_tests = sorted(test.test_id for test in runner.tests)
             expected_tests = [
-                "test1_ignored.ets",
-                "test2.ets",
-                "test3_co.ets",
-                "test4_excluded.ets",
-                "test5_ignored_asan.ets",
-                'test6_excluded_repeats.ets',
-                'test7_excluded_asan_repeats.ets',
-                'test8_co_neg.ets'
+                "test1_ignored.ats",
+                "test2.ats",
+                "test3_co.ats",
+                "test4_excluded.ats",
+                "test5_ignored_asan.ats",
+                'test6_excluded_repeats.ats',
+                'test7_excluded_asan_repeats.ats',
+                'test8_co_neg.ats'
             ]
             self.assertListEqual(actual_tests, expected_tests)
             # clear up
@@ -345,16 +345,16 @@ class TestsLoadingTest(TestCase):
             report_dir = work_dir / "report"
             report_dir.mkdir(parents=True, exist_ok=True)
             (report_dir / "failures.txt").write_text(
-                "test2.ets /tmp/report/test2.log\n"
-                "test8_co_neg.ets /tmp/report/test8.log\n",
+                "test2.ats /tmp/report/test2.log\n"
+                "test8_co_neg.ats /tmp/report/test8.log\n",
                 encoding="utf-8")
 
             config = self.get_config()
             runner = RunnerStandardFlow(config)
             actual_tests = sorted(test.test_id for test in runner.tests)
             expected_tests = [
-                "test2.ets",
-                "test8_co_neg.ets"
+                "test2.ats",
+                "test8_co_neg.ats"
             ]
             self.assertListEqual(actual_tests, expected_tests)
 
@@ -401,11 +401,11 @@ class TestsLoadingTest(TestCase):
             runner = RunnerStandardFlow(config)
             actual_tests = sorted(test.test_id for test in runner.tests)
             expected_tests = [
-                "test1_ignored.ets",
-                "test2.ets",
-                "test3_co.ets",
-                "test5_ignored_asan.ets",
-                "test8_co_neg.ets"
+                "test1_ignored.ats",
+                "test2.ats",
+                "test3_co.ats",
+                "test5_ignored_asan.ats",
+                "test8_co_neg.ats"
             ]
             self.assertListEqual(actual_tests, expected_tests)
             # clear up
@@ -437,9 +437,9 @@ class TestsLoadingTest(TestCase):
             runner = RunnerStandardFlow(config)
             actual_tests = sorted(test.test_id for test in runner.tests)
             expected_tests = [
-                "test2.ets",
-                "test3_co.ets",
-                "test8_co_neg.ets"
+                "test2.ats",
+                "test3_co.ats",
+                "test8_co_neg.ats"
             ]
             self.assertListEqual(actual_tests, expected_tests)
             # clear up

@@ -1,4 +1,4 @@
 # 33648
-ets-common-tests/intrinsics/stringbuilder_oom.ets
+ets-common-tests/intrinsics/stringbuilder_oom.ats
 ets-common-tests/taskpool/CurrentTaskTest.ets
 ets-common-tests/taskpool/seqrunner_tasks.ets
