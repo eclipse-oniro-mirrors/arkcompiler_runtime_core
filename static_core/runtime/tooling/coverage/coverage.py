@@ -62,6 +62,8 @@ class Constants:
 
     # File extensions
     EXT_ETS = ".ets"
+    EXT_ATS = ".ats"
+    SOURCE_EXTENSIONS = (EXT_ETS, EXT_ATS)
     EXT_JSON = ".json"
     EXT_PA = ".pa"
     EXT_INFO = ".info"
@@ -1100,12 +1102,12 @@ class HapCoverageInfo(CoverageInfo):
         return self._function_pattern
 
     def _trans_source_path(self, src_file_path: str):
-        match = re.search(r'entry/.+?\.ets$', src_file_path)
+        match = re.search(r'entry/.+?\.(?:ets|ats)$', src_file_path)
         if match:
             file_path = Path(match.group())
-            file_part = file_path.name
+            file_part = file_path.stem
             dir_part = '.'.join(file_path.parent.parts)
-            return f"{dir_part}.{file_part.replace('.ets', '')}"
+            return f"{dir_part}.{file_part}"
         else:
             print("src path is not expected")
             return None
@@ -1140,12 +1142,12 @@ class HostMultiCoverageInfo(HapCoverageInfo):
     """HostMulti coverage information class"""
 
     def _trans_source_path(self, src_file_path: str):
-        match = re.search(r'.+?\.ets$', src_file_path)
+        match = re.search(r'.+?\.(?:ets|ats)$', src_file_path)
         if match:
-            file_part = Path(match.group()).name
+            file_part = Path(match.group()).stem
             dir_part = '.'.join(Path(match.group()).parent.parts)
             dir_part = dir_part.lstrip('.')
-            return f"{dir_part}.{file_part.replace('.ets', '')}"
+            return f"{dir_part}.{file_part}"
         else:
             print("src path is not expected")
             return None
@@ -1157,7 +1159,9 @@ def create_file_mapping(src_dir: str, ast_dir: str, pa_dir: str) -> List[Dict]:
     src_path = Path(src_dir)
     data = []
 
-    for ets_file in src_path.rglob(f"*{Constants.EXT_ETS}"):
+    for ets_file in sorted(src_path.rglob("*")):
+        if not ets_file.is_file() or ets_file.suffix not in Constants.SOURCE_EXTENSIONS:
+            continue
         relative_path = ets_file.relative_to(src_path)
 
         if (
@@ -1506,8 +1510,7 @@ class ArktsconfigGenerator:
         return os.path.splitext(file_name)[0]
 
     def _is_target_file(self, file_name: str) -> bool:
-        target_extensions = [".d.ets", ".ets"]
-        return any(file_name.endswith(ext) for ext in target_extensions)
+        return file_name.endswith(Constants.SOURCE_EXTENSIONS)
 
     def _scan_directory_for_paths(self, directory: str) -> Dict[str, List[str]]:
         paths = {}
@@ -1575,12 +1578,15 @@ class GenAst:
         self.ast_dir.mkdir(parents=True, exist_ok=True)
         self.abc_dir.mkdir(parents=True, exist_ok=True)
 
-        self.ets_files = list(self.src_path.rglob(f"*{Constants.EXT_ETS}"))
+        self.ets_files = sorted(
+            path for path in self.src_path.rglob("*")
+            if path.is_file() and path.suffix in Constants.SOURCE_EXTENSIONS
+        )
         if not self.ets_files:
-            print(f"Warning: No .ets files found in '{self.src_path}'")
+            print(f"Warning: No .ats or .ets files found in '{self.src_path}'")
             return True
 
-        print(f"Found {len(self.ets_files)} .ets files, Mode: {self.mode}")
+        print(f"Found {len(self.ets_files)} .ats/.ets files, Mode: {self.mode}")
 
         # Always use multithreaded processing
         max_workers = min(os.cpu_count() or 4, len(self.ets_files))
@@ -1837,7 +1843,7 @@ def main():
     report_group.add_argument('--diff', '-d', action='store_true', help='Incremental coverage report')
 
     # Add gen_ast subcommand
-    gen_ast_parser = subparsers.add_parser('gen_ast', help='Generate AST and ABC files from .ets source files')
+    gen_ast_parser = subparsers.add_parser('gen_ast', help='Generate AST and ABC files from .ats/.ets source files')
     gen_ast_parser.add_argument('--src', required=True, help='Source code directory path')
     gen_ast_parser.add_argument('--es2panda', required=True, help='Path to es2panda executable')
     gen_ast_parser.add_argument('--ark-link', help='Path to ark_link executable')

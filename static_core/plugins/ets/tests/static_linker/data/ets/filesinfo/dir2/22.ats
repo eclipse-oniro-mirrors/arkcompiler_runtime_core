@@ -13,8 +13,7 @@
  * limitations under the License.
  */
 
-import { print } from './3'
-
-export function test(): void {
-    print('2.ets', 0)
+export function main(): void {
+    // CC-OFFNXT(G.AOD.03) for test purposes
+    console.log('22.ats')
 }

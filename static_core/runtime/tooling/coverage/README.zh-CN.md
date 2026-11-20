@@ -25,9 +25,9 @@
 │   └── coverageBytecodeInfo.csv
 └── src
     ├── mypackage1
-    │   └── hello.ets
+    │   └── hello.ats
     └── mypackage2
-        └── world.ets
+        └── world.ats
 ```
 
 ## 指令说明

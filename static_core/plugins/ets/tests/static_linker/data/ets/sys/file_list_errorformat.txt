@@ -1,2 +1,2 @@
-data/ets/sys/noexist_1.ets.abc
+data/ets/sys/noexist_1.ats.abc
 data/ets/sys/error_format.abc

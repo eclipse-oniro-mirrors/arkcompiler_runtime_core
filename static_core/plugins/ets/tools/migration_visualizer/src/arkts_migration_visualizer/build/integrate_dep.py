@@ -34,7 +34,7 @@ DEBUG_ENABLED = True
 SOURCE_PRIMARY_MARKERS = ("src", "source")
 SOURCE_SECONDARY_MARKERS = ("resources",)
 SOURCE_TERTIARY_MARKERS = ("test", "tests")
-DECLARATION_FILE_SUFFIXES = (".d.ts", ".d.ets")
+DECLARATION_FILE_SUFFIXES = (".d.ts", ".d.ets", ".d.ats")
 
 
 GraphNodeId = str | int
@@ -146,7 +146,7 @@ def normalize_har_name(raw_name: str) -> str:
 
     candidate = last_path_part(name)
     lower_candidate = candidate.lower()
-    for suffix in (".z.so", ".har", ".hsp", ".hap", ".ets", ".ts", ".js", ".so"):
+    for suffix in (".z.so", ".har", ".hsp", ".hap", ".ets", ".ats", ".ts", ".js", ".so"):
         if lower_candidate.endswith(suffix):
             return candidate[: -len(suffix)]
     return candidate
@@ -492,6 +492,9 @@ def resolve_source_variants(relative_parts: Sequence[str]) -> List[List[str]]:
         ets_parts = list(parts)
         ets_parts[-1] = last_name[:-3] + ".ets"
         variants.insert(0, ets_parts)
+        ats_parts = list(parts)
+        ats_parts[-1] = last_name[:-3] + ".ats"
+        variants.insert(1, ats_parts)
     return variants
 
 
@@ -630,7 +633,7 @@ def collect_hapray_file_data(
       using max
     - raw: keep the legacy view by summing fileEvents directly per item, which
       is useful for comparing duplication amplification
-    - backsource: try to map build/cache/*.ts back to src/*.ets and merge the
+    - backsource: try to map build/cache/*.ts back to src/*.ets or src/*.ats and merge the
       timing into source files directly
     """
 

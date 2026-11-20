@@ -24,7 +24,7 @@ sources_dir=$(realpath "$1")
 
 EXIT_CODE=0
 
-check_num=$(find "${sources_dir}"/plugins/ets/tests/checked -name "*.ets" | wc -l)
+check_num=$(find "${sources_dir}"/plugins/ets/tests/checked -type f \( -name "*.ets" -o -name "*.ats" \) | wc -l)
 expected_num=6
 
 if [[ $check_num -ne $expected_num ]]; then

@@ -35,18 +35,18 @@ class IntegrateDepTest(unittest.TestCase):
         )
         self.assertEqual(
             integrate_dep.extract_external_declaration_dependency_name(
-                "C:\\SDK\\default\\openharmony\\ets\\kits\\@kit.AbilityKit.d.ets"
+                "C:\\SDK\\default\\openharmony\\ets\\kits\\@kit.AbilityKit.d.ats"
             ),
             "@kit.AbilityKit",
         )
         self.assertEqual(
-            integrate_dep.extract_external_declaration_dependency_name("workspace/project/entry/src/main/ets/pages/Index.ets"),
+            integrate_dep.extract_external_declaration_dependency_name("workspace/project/entry/src/main/ets/pages/Index.ats"),
             "",
         )
 
     def test_build_cache_file_is_mapped_back_to_source(self) -> None:
         integrate_dep = load_module("integrate_dep", "src/arkts_migration_visualizer/build/integrate_dep.py")
-        source_path = "workspace/project/entry/src/main/ets/pages/Index.ets"
+        source_path = "workspace/project/entry/src/main/ets/pages/Index.ats"
         build_cache_path = (
             "workspace/project/entry/build/default/cache/default/default@CompileArkTS/"
             "esmodule/debug/entry/src/main/ets/pages/Index.ts"
@@ -72,8 +72,8 @@ class IntegrateDepTest(unittest.TestCase):
 
     def test_collect_hapray_file_data_deduplicates_and_backsources(self) -> None:
         integrate_dep = load_module("integrate_dep", "src/arkts_migration_visualizer/build/integrate_dep.py")
-        source_path = "workspace/project/entry/src/main/ets/pages/Index.ets"
-        helper_path = "workspace/project/utils/src/main/ets/utils/Helper.ets"
+        source_path = "workspace/project/entry/src/main/ets/pages/Index.ats"
+        helper_path = "workspace/project/utils/src/main/ets/utils/Helper.ats"
         file_graph = {
             "categories": [{"id": 1, "name": "FILE"}],
             "nodes": [
@@ -162,12 +162,12 @@ class IntegrateDepTest(unittest.TestCase):
             "nodes": [
                 {
                     "id": "entry",
-                    "name": "home/dev/project/entry/src/main/ets/pages/Index.ets",
+                    "name": "home/dev/project/entry/src/main/ets/pages/Index.ats",
                     "kind": 1,
                 },
                 {
                     "id": "utils",
-                    "name": "home/dev/project/utils/src/main/ets/utils/Helper.ets",
+                    "name": "home/dev/project/utils/src/main/ets/utils/Helper.ats",
                     "kind": 1,
                 },
             ],
@@ -187,11 +187,11 @@ class IntegrateDepTest(unittest.TestCase):
         self.assertEqual(module_hars, ["entry", "utils"])
         self.assertEqual(inferred_hars, [])
         self.assertEqual(
-            file_to_har["home/dev/project/entry/src/main/ets/pages/Index.ets"],
+            file_to_har["home/dev/project/entry/src/main/ets/pages/Index.ats"],
             "entry",
         )
         self.assertEqual(
-            file_to_har["home/dev/project/utils/src/main/ets/utils/Helper.ets"],
+            file_to_har["home/dev/project/utils/src/main/ets/utils/Helper.ats"],
             "utils",
         )
         self.assertTrue({"home", "dev", "project"}.issubset(path_leakage))
@@ -209,12 +209,12 @@ class IntegrateDepTest(unittest.TestCase):
                 "nodes": [
                     {
                         "id": "src_index",
-                        "name": "C:\\OH\\FrameAndPropertyAnimation\\entry\\src\\main\\ets\\pages\\Index.ets",
+                        "name": "C:\\OH\\FrameAndPropertyAnimation\\entry\\src\\main\\ets\\pages\\Index.ats",
                         "kind": 0,
                     },
                     {
                         "id": "src_helper",
-                        "name": "C:\\OH\\FrameAndPropertyAnimation\\entry\\src\\main\\ets\\pages\\Helper.ets",
+                        "name": "C:\\OH\\FrameAndPropertyAnimation\\entry\\src\\main\\ets\\pages\\Helper.ats",
                         "kind": 0,
                     },
                     {
@@ -322,12 +322,12 @@ class IntegrateDepTest(unittest.TestCase):
                 "nodes": [
                     {
                         "id": "src_index",
-                        "name": "workspace/project/entry/src/main/ets/pages/Index.ets",
+                        "name": "workspace/project/entry/src/main/ets/pages/Index.ats",
                         "kind": 0,
                     },
                     {
                         "id": "src_helper",
-                        "name": "workspace/project/entry/src/main/ets/pages/Helper.ets",
+                        "name": "workspace/project/entry/src/main/ets/pages/Helper.ats",
                         "kind": 0,
                     },
                     {

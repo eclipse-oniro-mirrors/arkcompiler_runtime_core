@@ -25,9 +25,9 @@ The directory structure is as follows:
 │   └── coverageBytecodeInfo.csv
 └── src
     ├── mypackage1
-    │   └── hello.ets
+    │   └── hello.ats
     └── mypackage2
-        └── world.ets
+        └── world.ats
 ```
 
 ## Command Instructions

@@ -953,7 +953,7 @@ bool Context::FileFind(const std::string &fileName, std::map<std::string, panda_
         return found;
     }
     auto suffix = fileName.substr(dotPos + 1);
-    if (suffix != "ets" && suffix != "sts") {
+    if (suffix != "ats" && suffix != "ets" && suffix != "sts") {
         return found;
     }
 

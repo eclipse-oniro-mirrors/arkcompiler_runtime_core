@@ -38,9 +38,9 @@ while read file_to_check; do
         fi
     fi
 
-done <<< $(git diff --name-only "${BASE_BRANCH}" | grep -E '\.cpp$|\.c$|\.hpp$|\.h$|\.js$|\.ts$|\.ets$|\.py$|\.sh$|\.groovy$|\.Jenkinsfile$')
+done <<< $(git diff --name-only "${BASE_BRANCH}" | grep -E '\.cpp$|\.c$|\.hpp$|\.h$|\.js$|\.ts$|\.ets$|\.ats$|\.py$|\.sh$|\.groovy$|\.Jenkinsfile$')
 
-num_checked=$(git diff --name-only "${BASE_BRANCH}" | grep -E '\.cpp$|\.c$|\.hpp$|\.h$|\.js$|\.ts$|\.ets$|\.py$|\.sh$|\.groovy$|\.Jenkinsfile$' | wc -l)
+num_checked=$(git diff --name-only "${BASE_BRANCH}" | grep -E '\.cpp$|\.c$|\.hpp$|\.h$|\.js$|\.ts$|\.ets$|\.ats$|\.py$|\.sh$|\.groovy$|\.Jenkinsfile$' | wc -l)
 echo "Checked ${num_checked} file(s)"
 
 exit $EXIT_CODE

@@ -5,7 +5,7 @@ The ArkTS runtime code coverage tools is designed for ArkTS 1.2.
 
 ## 2. Design Objectives
 
-The ArkTS Runtime Coverage Tools is implemented to collect line coverage, branch coverage, and method coverage statistics for `*.ets` files during runtime, generating corresponding coverage reports.
+The ArkTS Runtime Coverage Tools is implemented to collect line coverage, branch coverage, and method coverage statistics for `*.ats` files during runtime, generating corresponding coverage reports.
 
 ## 3. Working Principle
 
@@ -15,7 +15,7 @@ The collection mechanism for ArkTS runtime coverage (including line, method, and
 
 ## 4. Process Design
 
-Taking the test.ets file as an example, the runtime coverage workflow is illustrated below:
+Taking the test.ats file as an example, the runtime coverage workflow is illustrated below:
 
 ![process_flow_diagram](images/coverage_flowchart.png)
 
@@ -40,12 +40,12 @@ Example of the output JSON file:
             "start": {
               "line": 1,
               "column": 1,
-              "program": "test.ets"
+              "program": "test.ats"
             },
             "end": {
               "line": 1,
               "column": 1,
-              "program": "test.ets"
+              "program": "test.ats"
             }
           }
         },
@@ -267,7 +267,7 @@ Input Data Directory Structure:
 ├── runtime_info
 │   └── coverageBytecodeInfo.csv
 └── src
-    └── test.ets
+    └── test.ats
 ```
 Prior to execution, the source code must be placed in the `src` directory. The JSON files dumped during compilation should be stored in the `ast` directory, while the disassembled PA files should be located in the `pa` directory. All directory structures must maintain consistency with the src directory. Executing the `coverage.py` script will generate the `result.info` file, which subsequently serves as input for producing the coverage report.
 

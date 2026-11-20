@@ -122,7 +122,7 @@ def check_code(panda_root, language, code):
 def compile_ets_code(panda_root, code):
     es2panda = ensure_file(panda_root, "bin", "es2panda")
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".ets", delete=False) as source:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".ats", delete=False) as source:
         source.write(code)
     source_path = source.name
     output = str(Path(source_path).with_suffix(".abc"))
