@@ -19,8 +19,8 @@
 #     ABC_FILE
 #       path/to/file0.abc
 #     ETS_SOURCE
-#       path/to/file0.ets
-#       path/to/file1.ets
+#       path/to/file0.ats
+#       path/to/file1.ats
 #     OUTPUT_DIRECTORY
 #       path/to/output_director
 #     ETS_CONFIG
@@ -79,22 +79,22 @@ function(do_panda_ets_package TARGET)
 
     set(BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/${TARGET})
 
-    # Convert *.ets -> classes.abc
+    # Convert *.ats -> classes.abc
     set(OUTPUT_ABC ${BUILD_DIR}/src/classes.abc)
     if(DEFINED ARG_ETS_SOURCES)
         list(LENGTH ARG_ETS_SOURCES list_length)
 
         if (list_length EQUAL 1)
-            # Compile one .ets file to OUTPUT_ABC
+            # Compile one .ats file to OUTPUT_ABC
             add_custom_command(
                 OUTPUT ${OUTPUT_ABC}
-                COMMENT "${TARGET}: Convert ets files to ${OUTPUT_ABC}"
+                COMMENT "${TARGET}: Convert ArkTS source files to ${OUTPUT_ABC}"
                 COMMAND mkdir -p ${BUILD_DIR}/src
                 COMMAND ${es2panda_bin} ${ES2PANDA_ARGUMENTS} --output=${OUTPUT_ABC} ${ARG_ETS_SOURCES}
                 DEPENDS ${PANDA_BINARY_ROOT}/plugins/ets/etsstdlib.abc ${es2panda_target} ${ARG_ETS_SOURCES} ${ETS_CONFIG_TARGET}
             )
         else()
-            # Compile several .ets files and link them to OUTPUT_ABC
+            # Compile several .ats files and link them to OUTPUT_ABC
             set(ABC_FILES)
             foreach(ETS_SOURCE ${ARG_ETS_SOURCES})
                 get_filename_component(CLEAR_NAME ${ETS_SOURCE} NAME_WE)
@@ -103,7 +103,7 @@ function(do_panda_ets_package TARGET)
 
                 add_custom_command(
                     OUTPUT ${CUR_OUTPUT_ABC}
-                    COMMENT "${TARGET}: Convert ets files to ${CUR_OUTPUT_ABC}"
+                    COMMENT "${TARGET}: Convert ArkTS source files to ${CUR_OUTPUT_ABC}"
                     COMMAND mkdir -p ${BUILD_DIR}/src
                     COMMAND ${es2panda_bin} ${ES2PANDA_ARGUMENTS} --output=${CUR_OUTPUT_ABC} ${ETS_SOURCE}
                     DEPENDS ${PANDA_BINARY_ROOT}/plugins/ets/etsstdlib.abc ${es2panda_target} ${ETS_SOURCE} ${ETS_CONFIG_TARGET}
@@ -173,8 +173,8 @@ endfunction(do_panda_ets_package)
 #     ABC_FILE
 #       path/to/file0.abc
 #     ETS_SOURCES
-#       path/to/file0.ets
-#       path/to/file1.ets
+#       path/to/file0.ats
+#       path/to/file1.ats
 #     ETS_CONFIG
 #       path/to/arktsconfig.json
 #   )
@@ -191,8 +191,8 @@ endfunction(panda_ets_package)
 # Example usage:
 #   panda_ets_package_gtest(package_name
 #     ETS_SOURCES
-#       path/to/file0.ets
-#       path/to/file1.ets
+#       path/to/file0.ats
+#       path/to/file1.ats
 #     ETS_CONFIG
 #       path/to/arktsconfig.json
 #   )

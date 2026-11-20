@@ -877,7 +877,7 @@ are represented by the following code:
 .. code-block:: typescript
    :linenos:
 
-    // File module.ets
+    // File module.ats
     console.log ("Module initialization code")
 
     export class Class1 {/*body*/}
@@ -885,10 +885,10 @@ are represented by the following code:
     class Class2 {}
     export type {Class2}
 
-    // MainProgram.ets
+    // MainProgram.ats
 
-    import {Class1} from "./module.ets"
-    import type {Class2} from "./module.ets"
+    import {Class1} from "./module.ats"
+    import type {Class2} from "./module.ats"
 
     let c1 = new Class1() // OK
     let c2 = new Class2() // Compile-time error in TypeScript, OK in ArkTS
@@ -899,16 +899,16 @@ binding. This allows mixing general import and ``type`` import.
 .. code-block:: typescript
    :linenos:
 
-    // File module.ets
+    // File module.ats
     console.log ("Module initialization code")
 
     class Class1 {/*body*/}
     class Class2 {}
     export {Class1, type Class2}
 
-    // MainProgram.ets
+    // MainProgram.ats
 
-    import {Class1, type Class2 } from "./module.ets"
+    import {Class1, type Class2 } from "./module.ats"
 
     let c1 = new Class1() // OK
     let c2 = new Class2() // Compile-time error in TypeScript, OK in ArkTS
@@ -1203,10 +1203,10 @@ in the example below:
 .. code-block:: typescript
    :linenos:
 
-    // file1.ets
+    // file1.ats
     export class A {}
 
-    // file2.ets
+    // file2.ats
     export class A {}
 
     // Another file
@@ -1779,76 +1779,76 @@ The re-exporting practices are represented in the following examples:
     export {default as name} from "path_to_the_module"
        // re-export default declaration from the other module under 'name'
 
-    // a.ets
-    export interface Item {} // Item from a.ets exported
+    // a.ats
+    export interface Item {} // Item from a.ats exported
 
-    // b.ets
-    export interface Item {} // Item from b.ets exported
+    // b.ats
+    export interface Item {} // Item from b.ats exported
 
-    // c.ets
-    export {Item} from "./a.ets" // Item from a.ets re-exported
+    // c.ats
+    export {Item} from "./a.ats" // Item from a.ats re-exported
 
-    // d.ets
-    export function AnotherItem() { // AnotherItem from d.ets exported
+    // d.ats
+    export function AnotherItem() { // AnotherItem from d.ats exported
         console.log ("AnotherItem")
     }
-    export function foo() { // foo from d.ets exported
+    export function foo() { // foo from d.ats exported
         console.log ("foo")
     }
 
-    // re-export1.ets
-    export * from "./a.ets"
-    export * from "./b.ets"
+    // re-export1.ats
+    export * from "./a.ats"
+    export * from "./b.ats"
       /* Compile-time error as two different re-exported declarations are not
          distinguishable */
 
-    // re-export2.ets
-    export * from "./a.ets"
-    export * from "./b.ets"
-    export {Item} from "./a.ets" 
-      /* Item from ./a.ets supersedes conflicting Items from the star re-exports
+    // re-export2.ats
+    export * from "./a.ats"
+    export * from "./b.ats"
+    export {Item} from "./a.ats"
+      /* Item from ./a.ats supersedes conflicting Items from the star re-exports
          from a and b modules */
 
-    // re-export3.ets
-    export * from "./a.ets"
-    export * from "./b.ets"
+    // re-export3.ats
+    export * from "./a.ats"
+    export * from "./b.ats"
     export class Item {}
       /* Item declared in the current module supersedes conflicting Items from
          the star re-exports from a and b modules */
 
-    // re-export4.ets
-    export {Item} from "./a.ets"
-    export {Item} from "./b.ets"
+    // re-export4.ats
+    export {Item} from "./a.ats"
+    export {Item} from "./b.ats"
       /* Compile-time error as two different re-exported declarations are not
          distinguishable */
 
-    // re-export5.ets
-    export * from "./a.ets"
-    export * from "./c.ets"
+    // re-export5.ats
+    export * from "./a.ats"
+    export * from "./c.ats"
       // The same and only Item is re-exported from a and c modules
 
-    // re-export6.ets
-    export * from "./a.ets"
-    export * from "./b.ets"
-    export {Item as AnotherItem} from "./a.ets" 
+    // re-export6.ats
+    export * from "./a.ats"
+    export * from "./b.ats"
+    export {Item as AnotherItem} from "./a.ats"
       /* Compile-time error as two different re-exported declarations are not
          distinguishable, and then Item renamed as AnotherItem does not affect
          the name clash created by the star export */ 
 
-    // re-export7.ets
-    export * from "./d.ets"
-    export {Item as AnotherItem} from "./a.ets" 
-      /* Item from a.ets renamed as AnotherItem supersedes AnotherItem from
-         d.ets */ 
+    // re-export7.ats
+    export * from "./d.ats"
+    export {Item as AnotherItem} from "./a.ats"
+      /* Item from a.ats renamed as AnotherItem supersedes AnotherItem from
+         d.ats */
 
-    // re-export8.ets
-    export * from "./d.ets"
-    export {foo as AnotherItem} from "./d.ets" 
-      /* foo from d.ets renamed as AnotherItem supersedes AnotherItem from
-         d.ets */ 
+    // re-export8.ats
+    export * from "./d.ats"
+    export {foo as AnotherItem} from "./d.ats"
+      /* foo from d.ats renamed as AnotherItem supersedes AnotherItem from
+         d.ats */
 
-    // re-export9.ets
-    import * as x from "./re-export8.ets"
+    // re-export9.ats
+    import * as x from "./re-export8.ats"
     x.foo()          // foo is printed
     x.AnotherItem()  // foo is printed
 

@@ -4,7 +4,7 @@
 Error
 
 ## Applies To
-/*.(ets|sts|cpp|h|ts)$
+/*.(ats|ets|sts|cpp|h|ts)$
 
 ## Detect
 

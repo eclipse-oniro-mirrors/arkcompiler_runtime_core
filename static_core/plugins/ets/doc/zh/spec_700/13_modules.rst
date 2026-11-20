@@ -815,7 +815,7 @@ Import Type 指令
 .. code-block:: typescript
    :linenos:
 
-    // File module.ets
+    // File module.ats
     console.log ("Module initialization code")
 
     export class Class1 {/*body*/}
@@ -823,10 +823,10 @@ Import Type 指令
     class Class2 {}
     export type {Class2}
 
-    // MainProgram.ets
+    // MainProgram.ats
 
-    import {Class1} from "./module.ets"
-    import type {Class2} from "./module.ets"
+    import {Class1} from "./module.ats"
+    import type {Class2} from "./module.ats"
 
     let c1 = new Class1() // OK
     let c2 = new Class2() // Compile-time error in |TS|, OK in |LANG|
@@ -837,16 +837,16 @@ Import Type 指令
 .. code-block:: typescript
    :linenos:
 
-    // File module.ets
+    // File module.ats
     console.log ("Module initialization code")
 
     class Class1 {/*body*/}
     class Class2 {}
     export {Class1, type Class2}
 
-    // MainProgram.ets
+    // MainProgram.ats
 
-    import {Class1, type Class2 } from "./module.ets"
+    import {Class1, type Class2 } from "./module.ats"
 
     let c1 = new Class1() // OK
     let c2 = new Class2() // Compile-time error in |TS|, OK in |LANG|
@@ -1220,10 +1220,10 @@ Import Type 指令
 .. code-block:: typescript
    :linenos:
 
-    // file1.ets
+    // file1.ats
     export class A {}
 
-    // file2.ets
+    // file2.ats
     export class A {}
 
     // Another file

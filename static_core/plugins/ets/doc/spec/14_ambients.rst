@@ -468,13 +468,13 @@ example:
 .. code-block:: typescript
    :linenos:
 
-   // sdk_file.d.ets, declaration file
+   // sdk_file.d.ats, declaration file
    export declare class C {
       (x: string): void
       (x: number): void
    }
 
-   // sdk_file.ets, implementation file
+   // sdk_file.ats, implementation file
    export class C {
       static $_invoke(x: string): void {
          console.log('string')
@@ -484,7 +484,7 @@ example:
       }
    }
 
-   // app.ets
+   // app.ats
    import { C } from './sdk_file'
 
    C(123)    // log: number
@@ -731,14 +731,14 @@ all declarations and top-level statements of the current module.
 .. code-block:: typescript
    :linenos:
 
-    // File1.d.ets
+    // File1.d.ats
     export declare namespace A { // namespace itself must be exported
         function foo(): void
         type X = Array<number>
     }
 
-    // File2.ets
-    import {A} from 'File1.d.ets'
+    // File2.ats
+    import {A} from 'File1.d.ats'
 
     A.foo() // Valid function call, as 'foo' is accessible for top-level statements
     function foo () {

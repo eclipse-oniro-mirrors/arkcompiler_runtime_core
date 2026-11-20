@@ -6,7 +6,7 @@
 es2panda \
     [--extension=ets] \
     [--arktsconfig path/to/your/arktsconfig.json] \
-    application.ets
+    application.ats
 ```
 
 2. Build the `libarkinspector.so` and required binaries:

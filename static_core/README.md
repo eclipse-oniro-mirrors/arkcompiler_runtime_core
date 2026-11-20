@@ -70,11 +70,11 @@ ninja ark ark_aot es2panda
 ### Launch "Hello world!" on ArkVM
 
 ```bash
-echo 'console.log("Hello world!");' > hello.ets
+echo 'console.log("Hello world!");' > hello.ats
 
 BUILD=<PATH_TO_BUILD>
 # Generate .abc files from source code
-${BUILD}/bin/es2panda --extension=ets --output hello.abc hello.ets
+${BUILD}/bin/es2panda --extension=ets --output hello.abc hello.ats
 
 # Launch Virtual Machine
 ${BUILD}/bin/ark --load-runtimes=ets --boot-panda-files=${BUILD}/plugins/ets/etsstdlib.abc hello.abc hello.ETSGLOBAL::main
@@ -104,10 +104,10 @@ These tables are quick-start subsets, not exhaustive option references. Current 
 |--opt-level| number | 1 | Compiler optimization level |
 |--output| string | ""* | Path to output file |
 
-Compile `ets` file:
+Compile an `.ats` source file:
 
 ```bash
-./bin/es2panda --extension=ets <file>.ets
+./bin/es2panda --extension=ets <file>.ats
 ```
 
 You can see more options by pass `--help`.

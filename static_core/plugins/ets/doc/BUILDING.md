@@ -129,7 +129,7 @@ File `etsstdlib.abc` should be generated.
 
 ### Build dummy file and run it
 
-Feed file `x.ets` with code:
+Feed file `x.ats` with code:
 
 ```
 function main(): void {
@@ -139,7 +139,7 @@ function main(): void {
 and compile it
 
 ```
-./bin/es2panda [--arktsconfig path/to/your/arktsconfig.json] --extension=ets --output=x.abc --opt-level=0 x.ets
+./bin/es2panda [--arktsconfig path/to/your/arktsconfig.json] --extension=ets --output=x.abc --opt-level=0 x.ats
 ```
 
 Now run things out:
