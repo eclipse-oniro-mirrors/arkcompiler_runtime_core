@@ -19,6 +19,6 @@ panda_target_include_directories(ani_clib
 
 ani_add_gtest(ani_test_clib
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/ani_ctest.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/ani_ctest.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/ani_ctest.ats
     LIBRARIES ani_clib
 )

@@ -13,12 +13,12 @@
 
 ani_add_gtest(ani_test_namespace_find_function
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/namespace_find_function_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/namespace_find_function_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/namespace_find_function_test.ats
 )
 
 ani_add_gtest(ani_test_namespace_find_variable
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/namespace_find_variable_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/namespace_find_variable_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/namespace_find_variable_test.ats
 )
 
 # NOTE(ypigunova) enable tests. Issue: #23593
@@ -28,5 +28,5 @@ endif()
 
 ani_add_gtest(ani_test_namespace_combinatorial
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/namespace_combinatorial_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/namespace_combinatorial_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/namespace_combinatorial_test.ats
 )

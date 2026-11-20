@@ -22,7 +22,7 @@ add_custom_target(ani_verify_tests COMMENT "Common target to run VerifyANI tests
 #       tests/unit1_test.cpp
 #       tests/unit2_test.cpp
 #     ETS_SOURCES
-#       tests/unit1_test.ets
+#       tests/unit1_test.ats
 #     LIBRARIES
 #       lib_target1
 #       lib_target2
@@ -64,7 +64,7 @@ endfunction(ani_verify_add_gtest)
 #     J2_CPP_SOURCE
 #       tests/unit1_test.cpp.j2
 #     J2_ETS_SOURCE
-#       tests/unit1_test.ets.j2
+#       tests/unit1_test.ats.j2
 #     PARAMS
 #       "test_name_suffix1: arg1=1,arg2=utf8"
 #       "test_name_suffix2: arg1=2,arg2=utf16"
@@ -115,7 +115,7 @@ function(ani_verify_add_generated_tests TARGET_PREF)
 
         if(NOT ${ARG_J2_ETS_SOURCE} STREQUAL "")
             get_filename_component(OUTPUT_ETS ${ARG_J2_ETS_SOURCE} NAME_WE)
-            set(OUTPUT_ETS_FILE "${OUTPUT_DIR}/${TARGET_PREF}_${TARGET_SUFF}.ets")
+            set(OUTPUT_ETS_FILE "${OUTPUT_DIR}/${TARGET_PREF}_${TARGET_SUFF}.ats")
             list(APPEND GEN_FILES "${OUTPUT_ETS_FILE}")
             list(APPEND PYTHON_PARAMS "--j2_ets_source" ${ARG_J2_ETS_SOURCE})
             list(APPEND PYTHON_PARAMS "--output_ets" ${OUTPUT_ETS_FILE})

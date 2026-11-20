@@ -13,7 +13,7 @@
 
 ani_verify_add_gtest(ani_verify_test_reference_delete
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_reference_delete_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_reference_delete_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_reference_delete_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_global_reference_create
@@ -44,7 +44,7 @@ ani_verify_add_generated_tests(ani_verify_test_get
 
 ani_verify_add_generated_tests(ani_verify_test_reference_is
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_reference_is_test.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_reference_is_test.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_reference_is_test.ats.j2
     PARAMS "null: suff=null,Suff=Null,type=null,get_suff=Null"
            "nullish_value: suff=nullish_value,Suff=NullishValue,type=null,get_suff=Null"
            "undefined: suff=undefined,Suff=Undefined,type=undefined,get_suff=Undefined"
@@ -52,7 +52,7 @@ ani_verify_add_generated_tests(ani_verify_test_reference_is
 
 ani_verify_add_generated_tests(ani_verify_test_reference
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_reference_equals.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_reference_equals.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_reference_equals.ats.j2
     PARAMS "equals: Suff=Equals,suff=equals"
            "strict_equals: Suff=StrictEquals,suff=strict_equals"
 )

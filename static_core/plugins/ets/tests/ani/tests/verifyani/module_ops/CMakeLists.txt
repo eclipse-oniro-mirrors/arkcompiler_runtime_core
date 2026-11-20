@@ -13,5 +13,5 @@
 
 ani_verify_add_gtest(ani_verify_test_module_namespace_find_member
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_module_namespace_find_member_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_module_namespace_find_member_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_module_namespace_find_member_test.ats
 )

@@ -18,7 +18,7 @@ endif()
 
 ani_verify_add_gtest(ani_verify_test_native_library_constructor
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_native_library_constructor_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_native_library_constructor_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_native_library_constructor_test.ats
 )
 
 panda_add_library(verify_ani_ctor_local_scope_test SHARED verify_ani_ctor_local_scope_test.cpp)

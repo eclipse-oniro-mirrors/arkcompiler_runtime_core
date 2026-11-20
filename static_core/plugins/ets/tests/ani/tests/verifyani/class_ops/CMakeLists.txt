@@ -13,58 +13,58 @@
 
 ani_verify_add_gtest(ani_verify_test_class_call_static_method_boolean
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_call_static_method_boolean_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_call_static_method_boolean_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_call_static_method_boolean_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_class_find_field
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_field_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_field_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_field_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_class_find_static_field
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_static_field_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_static_field_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_static_field_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_class_find_method
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_method_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_method_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_method_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_class_find_static_method
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_static_method_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_static_method_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_static_method_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_class_find_setter
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_setter_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_setter_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_setter_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_class_find_getter
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_getter_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_getter_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_getter_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_class_find_indexable_getter
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_indexable_getter_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_indexable_getter_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_indexable_getter_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_class_find_indexable_setter
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_indexable_setter_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_indexable_setter_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_indexable_setter_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_class_find_iterator
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_iterator_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_iterator_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_find_iterator_test.ats
 )
 
 # Generated tests for Class_GetStaticField APIs
 ani_verify_add_generated_tests(ani_verify_test_class_static_field_get
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_static_field_get_test.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_static_field_get_test.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_static_field_get_test.ats.j2
     PARAMS "boolean: Type=Boolean,type=boolean,field=booleanField,wrong_field=staticIntField,ets_type=boolean,wrong_ets_type=int"
            "byte: Type=Byte,type=byte,field=byteField,wrong_field=staticIntField,ets_type=byte,wrong_ets_type=int"
            "char: Type=Char,type=char,field=charField,wrong_field=staticIntField,ets_type=char,wrong_ets_type=int"
@@ -79,7 +79,7 @@ ani_verify_add_generated_tests(ani_verify_test_class_static_field_get
 # Generated tests for Class_SetStaticField APIs
 ani_verify_add_generated_tests(ani_verify_test_class_static_field_set
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_static_field_set_test.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_static_field_set_test.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_static_field_set_test.ats.j2
     PARAMS "boolean: Type=Boolean,type=boolean,field=booleanField,wrong_field=staticIntField,ets_type=boolean,wrong_ets_type=int,test_value=ANI_TRUE"
            "byte: Type=Byte,type=byte,field=byteField,wrong_field=staticIntField,ets_type=byte,wrong_ets_type=int,test_value=1"
            "char: Type=Char,type=char,field=charField,wrong_field=staticIntField,ets_type=char,wrong_ets_type=int,test_value=97"
@@ -94,7 +94,7 @@ ani_verify_add_generated_tests(ani_verify_test_class_static_field_set
 # Generated tests for Class_GetStaticFieldByName APIs
 ani_verify_add_generated_tests(ani_verify_test_class_get_static_field_by_name
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_get_static_field_by_name_test.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_get_static_field_by_name_test.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_get_static_field_by_name_test.ats.j2
     PARAMS "boolean: Type=Boolean,type=boolean,ret_type=boolean,wrong_ret=int,value=true"
            "byte: Type=Byte,type=byte,ret_type=byte,wrong_ret=int,value=1"
            "char: Type=Char,type=char,ret_type=char,wrong_ret=int,value=c'a'"
@@ -109,7 +109,7 @@ ani_verify_add_generated_tests(ani_verify_test_class_get_static_field_by_name
 # Generated tests for Class_SetStaticFieldByName APIs
 ani_verify_add_generated_tests(ani_verify_test_class_set_static_field_by_name
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_set_static_field_by_name_test.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_set_static_field_by_name_test.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_set_static_field_by_name_test.ats.j2
     PARAMS "boolean: Type=Boolean,type=boolean,ret_type=boolean,wrong_ret=int,value=false,cpp_value=ANI_TRUE"
            "byte: Type=Byte,type=byte,ret_type=byte,wrong_ret=int,value=1,cpp_value=2"
            "char: Type=Char,type=char,ret_type=char,wrong_ret=int,value=c'a',cpp_value='Z'"
@@ -124,7 +124,7 @@ ani_verify_add_generated_tests(ani_verify_test_class_set_static_field_by_name
 # Generated tests for Class_CallStaticMethodByName APIs
 ani_verify_add_generated_tests(ani_verify_test_class_call_static_method_by_name
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_call_static_method_by_name_test.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_call_static_method_by_name_test.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_class_call_static_method_by_name_test.ats.j2
     PARAMS "boolean: Type=Boolean,type=boolean,ret_type=boolean,ret=z,wrong_ret=int,wrong_ret_short=i,value=true,cpp_value=true"
            "char: Type=Char,type=char,ret_type=char,ret=c,wrong_ret=int,wrong_ret_short=i,value=c'a',cpp_value='a'"
            "byte: Type=Byte,type=byte,ret_type=byte,ret=b,wrong_ret=int,wrong_ret_short=i,value=1,cpp_value=1"

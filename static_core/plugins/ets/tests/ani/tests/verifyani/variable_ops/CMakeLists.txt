@@ -13,7 +13,7 @@
 
 ani_verify_add_generated_tests(ani_verify_test_variable_set_value
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_variable_set_value_test.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_variable_set_value_test.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_variable_set_value_test.ats.j2
     PARAMS "boolean: Type=Boolean,type=boolean,test_value=ANI_TRUE,alt_value=ANI_FALSE,const_init=true"
            "char: Type=Char,type=char,test_value=97,alt_value=122,const_init=c'c'"
            "byte: Type=Byte,type=byte,test_value=18,alt_value=19,const_init=5"
@@ -27,7 +27,7 @@ ani_verify_add_generated_tests(ani_verify_test_variable_set_value
 
 ani_verify_add_generated_tests(ani_verify_test_variable_get_value
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_variable_get_value_test.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_variable_get_value_test.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_variable_get_value_test.ats.j2
     PARAMS "boolean: Type=Boolean,type=boolean,ets_init=true,expected_cpp=ANI_TRUE"
            "char: Type=Char,type=char,ets_init=c'a',expected_cpp=97"
            "byte: Type=Byte,type=byte,ets_init=18,expected_cpp=18"

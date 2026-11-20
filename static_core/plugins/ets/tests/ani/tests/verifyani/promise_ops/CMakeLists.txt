@@ -21,5 +21,5 @@ ani_verify_add_gtest(ani_verify_test_promise_resolver_resolve
 
 ani_verify_add_gtest(ani_verify_test_promise_resolver_reject
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_promise_resolver_reject_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_promise_resolver_reject_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_promise_resolver_reject_test.ats
 )

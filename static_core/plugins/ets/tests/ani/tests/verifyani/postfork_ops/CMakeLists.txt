@@ -13,7 +13,7 @@
 
 ani_verify_add_gtest(ani_verify_test_postfork_initialize
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_postfork_initialize_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_postfork_initialize_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_postfork_initialize_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_postfork_raw_weak_ref

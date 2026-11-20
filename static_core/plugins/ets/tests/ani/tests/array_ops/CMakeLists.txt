@@ -17,15 +17,15 @@ ani_add_gtest(ani_test_array_get_length
 
 ani_add_gtest(ani_test_array_get_set
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/array_get_set_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/array_get_set_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/array_get_set_test.ats
 )
 
 ani_add_gtest(ani_test_array_push_pop
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/array_push_pop_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/array_push_pop_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/array_push_pop_test.ats
 )
 
 ani_add_gtest(ani_test_array_managed
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/array_managed_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/array_managed_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/array_managed_test.ats
 )

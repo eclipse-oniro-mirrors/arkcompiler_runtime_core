@@ -13,5 +13,5 @@
 
 ani_add_gtest(ani_test_frame_iterator
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/cframe_iterator_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/cframe_iterator_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/cframe_iterator_test.ats
 )

@@ -13,12 +13,12 @@
 
 ani_verify_add_gtest(ani_verify_test_tuplevalue_get_number_of_items
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_tuplevalue_get_number_of_items_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_tuplevalue_get_number_of_items_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_tuplevalue_get_number_of_items_test.ats
 )
 
 ani_verify_add_generated_tests(ani_verify_test_tuplevalue_get_item
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_tuplevalue_get_item_test.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_tuplevalue_get_item_test.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_tuplevalue_get_item_test.ats.j2
     PARAMS "boolean: Type=Boolean,type=boolean,expected_cpp_value=ANI_TRUE"
            "char: Type=Char,type=char,expected_cpp_value='x'"
            "byte: Type=Byte,type=byte,expected_cpp_value=1"
@@ -32,7 +32,7 @@ ani_verify_add_generated_tests(ani_verify_test_tuplevalue_get_item
 
 ani_verify_add_generated_tests(ani_verify_test_tuplevalue_set_item
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_tuplevalue_set_item_test.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_tuplevalue_set_item_test.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_tuplevalue_set_item_test.ats.j2
     PARAMS "boolean: Type=Boolean,type=boolean,valid_cpp_value=ANI_TRUE,updated_cpp_value=ANI_FALSE"
            "char: Type=Char,type=char,valid_cpp_value='x',updated_cpp_value='q'"
            "byte: Type=Byte,type=byte,valid_cpp_value=1,updated_cpp_value=9"

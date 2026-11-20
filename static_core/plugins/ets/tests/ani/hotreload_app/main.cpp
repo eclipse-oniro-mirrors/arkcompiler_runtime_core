@@ -37,7 +37,7 @@
  * context (the second instance keeps calling the old body), and a second reload through
  * the other receiver must then update its own context the same way. The entry is
  * protected -- native code calling it by name is exactly how the framework reaches it,
- * and the reason this scenario lives here and not in the .ets smoke suite.
+ * and the reason this scenario lives here and not in the .ats smoke suite.
  *
  * Environment:
  *   ARK_ETS_STDLIB_PATH        etsstdlib.abc

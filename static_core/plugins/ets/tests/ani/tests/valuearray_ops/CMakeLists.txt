@@ -21,45 +21,45 @@ ani_add_gtest(ani_test_valuearray_new
 
 ani_add_gtest(ani_test_valuearray_compatibility
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/array_compatibility_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/array_compatibility_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/array_compatibility_test.ats
 )
 
 ani_add_gtest(ani_test_valuearray_region_boolean
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_boolean_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_boolean_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_boolean_test.ats
 )
 
 ani_add_gtest(ani_test_valuearray_region_byte
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_byte_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_byte_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_byte_test.ats
 )
 
 ani_add_gtest(ani_test_valuearray_region_char
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_char_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_char_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_char_test.ats
 )
 
 ani_add_gtest(ani_test_valuearray_region_short
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_short_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_short_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_short_test.ats
 )
 
 ani_add_gtest(ani_test_valuearray_region_int
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_int_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_int_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_int_test.ats
 )
 
 ani_add_gtest(ani_test_valuearray_region_long
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_long_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_long_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_long_test.ats
 )
 
 ani_add_gtest(ani_test_valuearray_region_float
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_float_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_float_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_float_test.ats
 )
 
 ani_add_gtest(ani_test_valuearray_region_double
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_double_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_double_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/valuearray_region_double_test.ats
 )

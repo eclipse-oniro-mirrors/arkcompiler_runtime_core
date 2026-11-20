@@ -14,65 +14,65 @@
 ani_add_gtest(ani_test_function_call_short
     ETS_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_short_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_short_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_short_test.ats
 )
 
 ani_add_gtest(ani_test_function_call_int
     ETS_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_int_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_int_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_int_test.ats
 )
 
 ani_add_gtest(ani_test_function_call_long
     ETS_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_long_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_long_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_long_test.ats
 )
 
 ani_add_gtest(ani_test_function_call_ref
     ETS_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_ref_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_ref_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_ref_test.ats
 )
 
 ani_add_gtest(ani_test_function_call_boolean
     ETS_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_boolean_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_boolean_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_boolean_test.ats
 )
 
 ani_add_gtest(ani_test_function_call_byte
     ETS_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_byte_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_byte_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_byte_test.ats
 )
 
 ani_add_gtest(ani_test_function_call_double
     ETS_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_double_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_double_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_double_test.ats
 )
 
 ani_add_gtest(ani_test_function_call_float
     ETS_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_float_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_float_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_float_test.ats
 )
 
 ani_add_gtest(ani_test_function_call_void
     ETS_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_void_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_void_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_void_test.ats
 )
 
 ani_add_gtest(ani_test_function_call_char
     ETS_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_char_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_char_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_char_test.ats
 )
 
 ani_add_gtest(ani_test_function_call_mismatch
     ETS_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_mismatch_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_mismatch_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/function_call_mismatch_test.ats
 )

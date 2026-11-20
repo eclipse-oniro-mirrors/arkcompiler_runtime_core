@@ -19,10 +19,10 @@ endif()
 
 ani_add_gtest(ani_test_example_gc_guard_native
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/gc_guard_native_demo_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/gc_guard_native_demo.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/gc_guard_native_demo.ats
 )
 
-# This is the native library loaded by gc_guard_native_demo.ets.  Linking it
+# This is the native library loaded by gc_guard_native_demo.ats.  Linking it
 # to ani_helpers models how an internal ArkUI/Web native library consumes
 # arkts::GCGuard from the SDK runtime helper library.
 panda_add_library(gc_guard_native_demo SHARED gc_guard_native_demo_library.cpp)

@@ -14,5 +14,5 @@
 ani_verify_add_gtest(ani_verify_test_bind_native_functions
     ETS_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_bind_native_functions_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_bind_native_functions_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_bind_native_functions_test.ats
 )

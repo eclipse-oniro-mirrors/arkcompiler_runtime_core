@@ -25,13 +25,13 @@ def main() -> None:
     parser.add_argument('--j2_cpp_source', required=True,
                         type=str, help='.cpp source')
     parser.add_argument('--j2_ets_source', required=False,
-                        type=str, help='.ets source')
+                        type=str, help='.ats source')
     parser.add_argument('--info', required=True, type=str,
                         help='Params for templates and target name')
     parser.add_argument('--output_cpp', required=True,
                         type=str, help='.cpp file path for generated test')
     parser.add_argument('--output_ets', required=False,
-                        type=str, help='.ets file path for generated test')
+                        type=str, help='.ats file path for generated test')
 
     args = parser.parse_args()
 

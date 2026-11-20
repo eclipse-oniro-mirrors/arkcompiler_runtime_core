@@ -16,7 +16,7 @@
 /*
  * Native driver for the hotreload smoke suite.
  *
- * The test variants (tests/hotreload/<variant>/<stem>.ets) declare the static native
+ * The test variants (tests/hotreload/<variant>/<stem>.ats) declare the static native
  * `hotReloadNative` and drive everything from `HotReloadBridge.run`; this driver loads the
  * program and calls `run` with three plain string arguments whose meaning each variant
  * defines itself. The implementation of `hotReloadNative` runs the transaction the way the
