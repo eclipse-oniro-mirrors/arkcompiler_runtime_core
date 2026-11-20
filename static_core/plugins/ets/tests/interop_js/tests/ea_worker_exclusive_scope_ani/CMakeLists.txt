@@ -18,7 +18,7 @@ set(TEST_MODULE_DIR ${CMAKE_CURRENT_BINARY_DIR}/module)
 set(TEST_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${TEST_TARGET}_output.txt)
 
 panda_ets_package(${TEST_PACKAGE}
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/exclusive_scope_plan.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/exclusive_scope_plan.ats
 )
 
 compile_dynamic_file(${TEST_TARGET}_js_modules

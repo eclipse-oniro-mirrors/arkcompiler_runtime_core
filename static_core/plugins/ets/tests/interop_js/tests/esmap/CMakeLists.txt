@@ -16,7 +16,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.in.json ${ETS_CONFIG})
 
 panda_ets_interop_js_gtest(ets_interop_js__esmap
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/esmap.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/esmap_static.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/esmap_static.ats
     TS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/esmap_dynamic.ts
     ETS_CONFIG ${ETS_CONFIG}
 )

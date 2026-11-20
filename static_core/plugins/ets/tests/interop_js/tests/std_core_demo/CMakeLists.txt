@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2021-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -12,7 +12,7 @@
 # limitations under the License.
 
 panda_ets_interop_js_test(ets_interop_js__test_std_core_demo
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/foo.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/foo.ats
     JS_LAUNCHER ${CMAKE_CURRENT_SOURCE_DIR}/out/main.js
     JS_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/out/demo.js

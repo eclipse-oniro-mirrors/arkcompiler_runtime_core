@@ -13,6 +13,6 @@
 
 panda_ets_interop_js_gtest(ets_interop_js_test_tojsonstring_ets_to_ts
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_tojsonstring.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_tojsonstring.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_tojsonstring.ats
     JS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_tojsonstring.ts
 )

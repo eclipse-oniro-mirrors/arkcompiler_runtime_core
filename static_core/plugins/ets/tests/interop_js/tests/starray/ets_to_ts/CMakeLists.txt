@@ -13,6 +13,6 @@
 
 panda_ets_interop_js_gtest(ets_interop_js__starray_ets_to_ts
 	CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_starray.cpp
-	ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/starray.ets
+	ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/starray.ats
 	TS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_starray.ts
 )

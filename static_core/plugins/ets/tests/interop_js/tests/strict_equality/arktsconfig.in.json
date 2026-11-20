@@ -6,7 +6,7 @@
 			"escompat": ["${PANDA_ROOT}/plugins/ets/stdlib/escompat"]
 		},
 		"dependencies": {
-			"strict_equality": { "language": "js", "path": "${CMAKE_CURRENT_SOURCE_DIR}/strict_equality.d.ets", "ohmUrl": "${CMAKE_CURRENT_BINARY_DIR}/strict_equality" }
+			"strict_equality": { "language": "js", "path": "${CMAKE_CURRENT_SOURCE_DIR}/strict_equality.d.ats", "ohmUrl": "${CMAKE_CURRENT_BINARY_DIR}/strict_equality" }
 		}
 	}
 }

@@ -9,13 +9,13 @@
           "${PANDA_ROOT}/plugins/ets/stdlib/escompat"
         ],
         "@mytest": [
-          "${CMAKE_CURRENT_SOURCE_DIR}/mytest.ets"
+          "${CMAKE_CURRENT_SOURCE_DIR}/mytest.ats"
         ]
       },
       "dependencies": {
         "testDecl" : {
             "language": "js",
-            "path": "${CMAKE_CURRENT_SOURCE_DIR}/testDecl.d.ets",
+            "path": "${CMAKE_CURRENT_SOURCE_DIR}/testDecl.d.ats",
             "ohmUrl": "${CMAKE_CURRENT_BINARY_DIR}/test_esvalue_load_dynamic"
         }
       }

@@ -12,7 +12,7 @@
         "dependencies": {
             "special_function_ts": {
                 "language": "js",
-                "path": "${CMAKE_CURRENT_SOURCE_DIR}/special_function.d.ets",
+                "path": "${CMAKE_CURRENT_SOURCE_DIR}/special_function.d.ats",
                 "ohmUrl": "${CMAKE_CURRENT_BINARY_DIR}/special_function"
             }
         }

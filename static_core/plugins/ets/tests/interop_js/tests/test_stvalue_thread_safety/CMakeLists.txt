@@ -13,6 +13,6 @@
 
 panda_ets_interop_js_gtest(ets_interop_js_stvalue_thread_safety
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_stvalue_thread_safety.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/stvalue_thread_safety.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/stvalue_thread_safety.ats
     TS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_stvalue_thread_safety.ts
 )

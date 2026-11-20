@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2024-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,7 +13,7 @@
 
 panda_ets_interop_js_gtest(ets_interop_js__generic_static_sts_to_ts
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/generic_static.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/generic_static.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/generic_static.ats
     JS_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/check_class_extends.js
         ${CMAKE_CURRENT_SOURCE_DIR}/check_generic_static_extra_set.js

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -20,7 +20,7 @@ namespace ark::ets::interop::js::testing {
 
 class EtsImportFunctionTsToEtsTest : public EtsInteropTest {};
 
-// disable untial lambda function works in .d.ets files
+// disable untial lambda function works in .d.ats files
 TEST_F(EtsImportFunctionTsToEtsTest, DISABLED_checkChangeFunction)
 {
     ASSERT_EQ(true, CallEtsFunction<bool>(GetPackageName(), "checkChangeFunction"));

@@ -12,7 +12,7 @@
         "dependencies": {
             "test_function_ts": {
                 "language": "js",
-                "path": "${CMAKE_CURRENT_SOURCE_DIR}/ts_function.d.ets",
+                "path": "${CMAKE_CURRENT_SOURCE_DIR}/ts_function.d.ats",
                 "ohmUrl": "${CMAKE_CURRENT_BINARY_DIR}/ts_function"
             }
         }

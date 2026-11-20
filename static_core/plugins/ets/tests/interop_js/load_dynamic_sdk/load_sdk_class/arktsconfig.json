@@ -10,7 +10,7 @@
         "dependencies": {
             "@ohos.util.hashmap": {
                 "language": "js",
-                "path": "plugins/ets/tests/interop_js/load_dynamic_sdk/load_sdk_class/sdkDecl.d.ets",
+                "path": "plugins/ets/tests/interop_js/load_dynamic_sdk/load_sdk_class/sdkDecl.d.ats",
                 "ohmUrl": "@ohos:load_dynamic_sdk_class_test_module"
             }
         }

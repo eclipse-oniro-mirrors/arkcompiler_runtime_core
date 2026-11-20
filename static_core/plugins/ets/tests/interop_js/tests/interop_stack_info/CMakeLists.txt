@@ -14,7 +14,7 @@
 if(PANDA_JS_ETS_HYBRID_MODE)
     panda_ets_interop_js_gtest(ets_interop_js_interop_stack_info
         CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/interop_stack_info_test.cpp
-        ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/interop_stack_info_test.ets
+        ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/interop_stack_info_test.ats
         JS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/interop_stack_info_helpers.js
         TS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/interop_stack_info_test.ts
     )

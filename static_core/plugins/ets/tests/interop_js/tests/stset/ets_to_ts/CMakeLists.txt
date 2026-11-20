@@ -13,6 +13,6 @@
 
 panda_ets_interop_js_gtest(ets_interop_js__stset_ets_to_ts
 	CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_stset.cpp
-	ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/stset.ets
+	ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/stset.ats
 	TS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_stset.ts
 )

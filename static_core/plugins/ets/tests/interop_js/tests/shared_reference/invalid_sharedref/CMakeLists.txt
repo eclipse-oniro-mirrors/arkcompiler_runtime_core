@@ -16,7 +16,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.in.json ${ETS_CONFIG})
 
 panda_ets_interop_js_gtest(ets_interop_js__shared_reference_invalid_sharedref
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/ets_invalid_sharedref.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/ets_invalid_sharedref.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/ets_invalid_sharedref.ats
     TS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_ts_invalid_sharedref.ts
     ETS_CONFIG ${ETS_CONFIG}
 )

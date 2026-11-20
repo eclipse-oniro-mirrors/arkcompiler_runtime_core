@@ -8,7 +8,7 @@
 		"dependencies": {
 			"js": {
                 "language": "js",
-                "path": "${CMAKE_CURRENT_SOURCE_DIR}/js/index.ets",
+                "path": "${CMAKE_CURRENT_SOURCE_DIR}/js/index.ats",
                 "ohmUrl": "${CMAKE_CURRENT_BINARY_DIR}/js/index"
             }
 		}

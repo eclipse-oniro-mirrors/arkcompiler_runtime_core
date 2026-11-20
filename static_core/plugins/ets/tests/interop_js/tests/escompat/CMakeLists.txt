@@ -17,7 +17,7 @@ panda_ets_interop_js_gtest(ets_interop_js_test__compat
         ${CMAKE_CURRENT_SOURCE_DIR}/compat_error.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/compat_array_buffer.cpp
     ETS_SOURCES
-        ${CMAKE_CURRENT_SOURCE_DIR}/compat_test.ets
+        ${CMAKE_CURRENT_SOURCE_DIR}/compat_test.ats
     JS_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/array_buffer_js_suites/test_is_view.js
         ${CMAKE_CURRENT_SOURCE_DIR}/array_buffer_js_suites/test_length.js

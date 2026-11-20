@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2024-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,14 +16,14 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.in.json ${ETS_CONFIG})
 
 panda_ets_interop_js_gtest(ets_interop_js_operator_new
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/operator_new.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/operator_new_test/operator_new.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/operator_new_test/operator_new.ats
     JS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/operator_new.js
     ETS_CONFIG ${ETS_CONFIG}
 )
 
 panda_ets_interop_js_gtest(ets_interop_js_operator_new_ets_to_js
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/operator_new_ets_to_js.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/operator_new_ets_to_js_test/operator_new_ets_to_js.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/operator_new_ets_to_js_test/operator_new_ets_to_js.ats
     JS_SOURCES 
         ${CMAKE_CURRENT_SOURCE_DIR}/operator_new_many_arg.js
         ${CMAKE_CURRENT_SOURCE_DIR}/operator_new_no_arg.js

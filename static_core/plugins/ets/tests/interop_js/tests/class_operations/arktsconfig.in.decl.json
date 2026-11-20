@@ -9,7 +9,7 @@
 			"module": {
 				"language": "js",
 				"ohmUrl": "${CMAKE_CURRENT_BINARY_DIR}/module",
-				"path": "${CMAKE_CURRENT_SOURCE_DIR}/module.ets"
+				"path": "${CMAKE_CURRENT_SOURCE_DIR}/module.ats"
 			}
 		}
 	}

@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2024-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -19,7 +19,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.in.decl.json ${ETS_CONFIG
 
 panda_ets_interop_js_gtest(ets_interop_js__class_composite
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/class_composite.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/class_composite.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/class_composite.ats
     JS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/js/index.js
     ETS_CONFIG ${ETS_CONFIG}
     PACKAGE_NAME "class_composite"
@@ -27,7 +27,7 @@ panda_ets_interop_js_gtest(ets_interop_js__class_composite
 
 panda_ets_interop_js_gtest(ets_interop_js__class_composite_decl
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/class_composite.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/class_composite_decl.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/class_composite_decl.ats
     JS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/js/index.js
     ETS_CONFIG ${ETS_CONFIG_DECL}
     PACKAGE_NAME "class_composite_decl"

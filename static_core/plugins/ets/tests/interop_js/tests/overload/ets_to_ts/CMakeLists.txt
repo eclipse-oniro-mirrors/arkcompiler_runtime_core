@@ -13,7 +13,7 @@
 
 panda_ets_interop_js_gtest(ets_interop_js__overload_ets_to_ts
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_overload.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_overload.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_overload.ats
     TS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_overload.ts
     ETS_CONFIG ${ETS_CONFIG}
 )

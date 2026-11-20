@@ -12,7 +12,7 @@
         "dependencies": {
             "testDecl" : {
                 "language": "js",
-                "path": "${CMAKE_CURRENT_SOURCE_DIR}/testDecl.d.ets",
+                "path": "${CMAKE_CURRENT_SOURCE_DIR}/testDecl.d.ats",
                 "ohmUrl": "${CMAKE_CURRENT_BINARY_DIR}/entry_stack"
             }
         }

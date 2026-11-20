@@ -12,7 +12,7 @@
         "dependencies": {
             "array_with_symbol_iterator_js": {
                 "language": "js",
-                "path": "${CMAKE_CURRENT_SOURCE_DIR}/objects_with_symbol_iterator.d.ets",
+                "path": "${CMAKE_CURRENT_SOURCE_DIR}/objects_with_symbol_iterator.d.ats",
                 "ohmUrl": "${CMAKE_CURRENT_BINARY_DIR}/objects_with_symbol_iterator"
             }
         }

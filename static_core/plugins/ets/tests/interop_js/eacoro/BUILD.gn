@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Huawei Device Co., Ltd.
+# Copyright (c) 2025-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -17,14 +17,14 @@ import("$ark_root/plugins/ets/tests/interop_js/interop_tests.gni")
 interop_test("attach_thread_test") {
   js = [ "attach_thread_test.js" ]
   js_module = [ "helpers.js" ]
-  ets = "attach_test.ets"
+  ets = "attach_test.ats"
   sources = [ "attach_thread_test.cpp" ]
 }
 
 interop_test("eaworker_test") {
   js = [ "eaworker_test.js" ]
   js_module = [ "helpers.js" ]
-  ets = "eaworker_test.ets"
+  ets = "eaworker_test.ats"
 }
 
 group("eacoro_tests") {

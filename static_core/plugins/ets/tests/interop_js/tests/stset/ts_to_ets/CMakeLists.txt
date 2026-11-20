@@ -16,7 +16,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.in.json ${ETS_CONFIG})
 
 panda_ets_interop_js_gtest(ets_interop_js__stset_ts_to_ets
 	CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_stset.cpp
-	ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_stset.ets
+	ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_stset.ats
 	TS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/stset.ts
 	ETS_CONFIG ${ETS_CONFIG}
 )

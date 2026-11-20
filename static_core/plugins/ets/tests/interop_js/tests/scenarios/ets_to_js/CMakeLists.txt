@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2023-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,7 +13,7 @@
 
 panda_ets_interop_js_gtest(ets_interop_js_test__scenarios
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/scenarios.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/scenarios.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/scenarios.ats
     JS_SOURCES 
         ${CMAKE_CURRENT_SOURCE_DIR}/scenarios.test.js
         ${CMAKE_CURRENT_SOURCE_DIR}/js_suites/negative_test_function_arg_type_primitive.js

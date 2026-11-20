@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2024-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,13 +16,13 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.in.json ${ETS_CONFIG})
 
 panda_ets_interop_js_gtest(ets_interop_js_implement_interfaces
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/implement_interfaces.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/implement_interfaces.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/implement_interfaces.ats
     JS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_class.js
     ETS_CONFIG ${ETS_CONFIG}
 )
 panda_ets_interop_js_gtest(ets_interop_js_implement_interfaces_ets
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/implement_interfaces_ets.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/implement_interfaces_ets.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/implement_interfaces_ets.ats
     JS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/arkts_class.js
     ETS_CONFIG ${ETS_CONFIG}
 )

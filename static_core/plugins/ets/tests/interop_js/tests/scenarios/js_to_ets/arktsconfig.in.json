@@ -9,7 +9,7 @@
 			"decl_js": {
 				"language": "js",
 				"ohmUrl": "${CMAKE_CURRENT_BINARY_DIR}/js_suites/scenarios",
-				"path": "${CMAKE_CURRENT_SOURCE_DIR}/js_suites/scenarios.ets"
+				"path": "${CMAKE_CURRENT_SOURCE_DIR}/js_suites/scenarios.ats"
 			},
 			"pure_js": {
 				"language": "js",
