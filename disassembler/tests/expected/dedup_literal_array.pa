@@ -1,14 +1,14 @@
 # source binary: dedup_literal_array.abc
 
-0 0x2d6 { 3 [ i32:1, i32:2, i32:3, ]}
-2 0x2e9 
-4 0x2ae 
-1 0x2ed { 1 [
+0 0x2ae 
+2 0x2d6 { 3 [ i32:1, i32:2, i32:3, ]}
+3 0x2e9 
+1 0x2b2 { 1 [
 	MODULE_REQUEST_ARRAY: {
 	};
 	ModuleTag: LOCAL_EXPORT, local_name: arr, export_name: arr;
 ]}
-3 0x2b2 { 1 [
+4 0x2ed { 1 [
 	MODULE_REQUEST_ARRAY: {
 	};
 	ModuleTag: LOCAL_EXPORT, local_name: arr, export_name: arr;

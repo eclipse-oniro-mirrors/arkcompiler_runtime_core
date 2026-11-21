@@ -92,6 +92,8 @@ bool EmitFunctionsJob::EmitFunctions()
         const_cast<Function &>(func).local_variable_debug.shrink_to_fit();
         const_cast<Function &>(func).ins.clear();
         const_cast<Function &>(func).ins.shrink_to_fit();
+        const_cast<Function &>(func).catch_blocks.clear();
+        const_cast<Function &>(func).catch_blocks.shrink_to_fit();
     }
     return true;
 }
@@ -110,8 +112,10 @@ void EmitFunctionsJob::EmitDebugInfo(const std::vector<uint8_t> *bytes, const pa
     std::string record_name = GetOwnerName(name);
     std::string record_source_file;
     if (!record_name.empty()) {
-        auto &rec = program_.record_table.find(record_name)->second;
-        record_source_file = rec.source_file;
+        auto it = program_.record_source_files.find(record_name);
+        if (it != program_.record_source_files.cend()) {
+            record_source_file = it->second;
+        }
     }
 
     if (!func.source_file.empty() && func.source_file != record_source_file) {

@@ -684,7 +684,17 @@ void Parser::ParseResetFunctionLabelsAndParams()
                 auto &ins =  curr_func_->ins[v.first - 1];
                 auto reg = ins->Regs()[v.second];
                 reg += static_cast<uint16_t>(curr_func_->value_of_first_param + 1);
-                ins->SetReg(v.second, reg);
+                // The argument-register renumbering may push the value beyond
+                // the encoding width of the (mnemonic, format) subclass chosen
+                // at parse time. Rebuild the instruction through Ins::CreateIns
+                // so the narrowest fitting subclass is re-selected for the new
+                // operand values, instead of SetReg which would truncate.
+                auto opcode = ins->GetOpcode();
+                auto regs = ins->Regs();
+                auto imms = ins->Imms();
+                auto ids = ins->Ids();
+                regs[v.second] = reg;
+                Ins::Reassign(ins, Ins::CreateIns(opcode, regs, imms, ids));
                 size_t max_reg_number = (1 << ins->MaxRegEncodingWidth());
                 if (reg >= max_reg_number) {
                     const auto &debug = ins->ins_debug;
@@ -726,7 +736,10 @@ void Parser::ParseResetFunctionTable()
                         SetError();
                         break;
                     } else {
-                        (*insn_it)->GetId(0) = program_.function_synonyms.at(func_name)[0];
+                        // SetId re-interns the resolved name. Assigning through the
+                        // non-const GetId() would instead mutate the shared intern-pool
+                        // node key in place (UB and pollutes every other reference).
+                        (*insn_it)->SetId(0, program_.function_synonyms.at(func_name)[0]);
                     }
                 }
 

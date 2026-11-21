@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -68,9 +68,12 @@ bool WorkerQueue::Worker(WorkerQueue *queue)
 
         lock.unlock();
         if (!queue->Consume()) {
+            // A job failed: still wake the waiter so Wait() does not hang on the
+            // departed worker's activeWorkers_ slot, and propagate the failure.
+            queue->jobsFinished_.notify_one();
             return false;
         }
-        
+
         queue->jobsFinished_.notify_one();
         return true;
     }
@@ -87,6 +90,14 @@ bool WorkerQueue::Consume()
 
         lock.unlock();
         if (!job.Run()) {
+            // Keep the bookkeeping balanced and record the failure: Wait() waits for
+            // activeWorkers_ == 0, so an early return on failure would deadlock the
+            // caller waiting forever; the failed_ flag lets the queue owner observe
+            // that at least one job failed and abort the pipeline.
+            lock.lock();
+            failed_ = true;
+            activeWorkers_--;
+            lock.unlock();
             return false;
         }
         lock.lock();

@@ -19,8 +19,10 @@
 #include "utils/logger.h"
 #include "utils/const_value.h"
 
+#include <algorithm>
 #include <iomanip>
 #include <type_traits>
+#include <vector>
 
 #include "get_language_specific_metadata.inc"
 
@@ -386,8 +388,13 @@ void Disassembler::GetLiteralArrays()
         panda::libpandafile::CollectUtil collect_util;
         std::unordered_set<uint32_t> literal_array_ids;
         collect_util.CollectLiteralArray(*file_, literal_array_ids);
+        // The dump numbers literal arrays ("index 0xoffset") in iteration order and golden tests
+        // compare the output line-by-line, so iterate in ascending-offset order to keep the
+        // numbering deterministic across stdlib implementations.
+        std::vector<uint32_t> sorted_literal_array_ids(literal_array_ids.cbegin(), literal_array_ids.cend());
+        std::sort(sorted_literal_array_ids.begin(), sorted_literal_array_ids.end());
         size_t index = 0;
-        for (uint32_t literal_array_id : literal_array_ids) {
+        for (uint32_t literal_array_id : sorted_literal_array_ids) {
             panda_file::File::EntityId id {literal_array_id};
             FillLiteralArrayTable(id, index);
             index++;

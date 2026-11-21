@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -16,6 +16,7 @@
 #ifndef ASSEMBLER_ASSEMBLY_TYPE_H
 #define ASSEMBLER_ASSEMBLY_TYPE_H
 
+#include "assembly-string-pool.h"
 #include "define.h"
 #include "file_items.h"
 #include "isa.h"
@@ -38,10 +39,10 @@ public:
     ~Type() = default;
 
     Type(const std::string_view &component_name, size_t rank, bool ignore_primitive = false)
-        : component_name_(component_name), rank_(rank)
+        : component_name_(InternString(component_name)), rank_(rank)
     {
-        name_ = GetName(component_name_, rank_);
-        type_id_ = GetId(name_, ignore_primitive);
+        name_ = InternString(GetName(*component_name_, rank_));
+        type_id_ = GetId(*name_, ignore_primitive);
     }
 
     Type(const Type &component_type, size_t rank)
@@ -53,19 +54,19 @@ public:
 
     std::string GetName() const
     {
-        return name_;
+        return std::string(NameView());
     }
 
     std::string GetPandasmName() const
     {
-        std::string name_pa {name_};
+        std::string name_pa {NameView()};
         std::replace(name_pa.begin(), name_pa.end(), '/', '.');
         return name_pa;
     }
 
     std::string GetComponentName() const
     {
-        return component_name_;
+        return std::string(ComponentNameView());
     }
 
     size_t GetRank() const
@@ -75,7 +76,7 @@ public:
 
     Type GetComponentType() const
     {
-        return Type(component_name_, rank_ > 0 ? rank_ - 1 : 0);
+        return Type(ComponentNameView(), rank_ > 0 ? rank_ - 1 : 0);
     }
 
     panda_file::Type::TypeId GetId() const
@@ -85,13 +86,13 @@ public:
 
     bool IsArrayContainsPrimTypes() const
     {
-        auto elem = GetId(component_name_);
+        auto elem = GetId(ComponentNameView());
         return elem != panda_file::Type::TypeId::REFERENCE;
     }
 
     bool IsValid() const
     {
-        return !component_name_.empty();
+        return component_name_ != nullptr && !component_name_->empty();
     }
 
     bool IsArray() const
@@ -160,7 +161,7 @@ public:
 
     bool operator==(const Type &type) const
     {
-        return name_ == type.name_;
+        return NameView() == type.NameView();
     }
 
     static PANDA_PUBLIC_API Type FromDescriptor(std::string_view descriptor);
@@ -173,9 +174,19 @@ public:
 private:
     static PANDA_PUBLIC_API std::string GetName(std::string_view component_name, size_t rank);
 
-    std::string component_name_;
+    std::string_view NameView() const
+    {
+        return name_ != nullptr ? std::string_view(*name_) : std::string_view();
+    }
+
+    std::string_view ComponentNameView() const
+    {
+        return component_name_ != nullptr ? std::string_view(*component_name_) : std::string_view();
+    }
+
+    const std::string *component_name_ {nullptr};
     size_t rank_ {0};
-    std::string name_;
+    const std::string *name_ {nullptr};
     panda_file::Type::TypeId type_id_ {panda_file::Type::TypeId::VOID};
 };
 

@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -75,8 +75,8 @@ std::vector<std::string> Abc2ProgramTestUtils::helloworld_expected_literal_array
 
 std::set<size_t> Abc2ProgramTestUtils::helloworld_expected_literals_sizes_ = {2, 6, 8, 10, 21};
 
-template <typename T>
-bool Abc2ProgramTestUtils::ValidateStrings(const T &strings, const T &expected_strings)
+template <typename T, typename U>
+bool Abc2ProgramTestUtils::ValidateStrings(const T &strings, const U &expected_strings)
 {
     if (strings.size() != expected_strings.size()) {
         return false;
@@ -105,6 +105,8 @@ bool Abc2ProgramTestUtils::ValidateLiteralArrayKeys(const std::vector<std::strin
     if (literal_array_keys.size() != helloworld_expected_literal_array_keys_.size()) {
         return false;
     }
+    // Keys carry an offset suffix; compare against the expected prefixes positionally since
+    // literalarray_table iterates in a deterministic (key-ordered) sequence.
     for (size_t i = 0; i < literal_array_keys.size(); ++i) {
         if (literal_array_keys[i].find(helloworld_expected_literal_array_keys_[i]) != 0) {
             return false;

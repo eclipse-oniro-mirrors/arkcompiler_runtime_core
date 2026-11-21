@@ -3,9 +3,9 @@
 # ====================
 # LITERALS
 
-_ESModuleRecord_974 { 6 [ i32:0, i32:0, i32:0, i32:0, i32:0, i32:0, ]}
+_ESModuleRecord_989 { 6 [ i32:0, i32:0, i32:0, i32:0, i32:0, i32:0, ]}
 
-_ESScopeNamesRecord_970 
+_ESScopeNamesRecord_985 
 
 
 
@@ -19,13 +19,13 @@ _ESScopeNamesRecord_970
 
 .language ECMAScript
 .record _ESModuleRecord {
-	u32 arkcompiler/runtime_core/abc2program/tests/ts/release-column-number/ReleaseEnableColumnNumberCallargs.ts _ESModuleRecord_974
+	u32 arkcompiler/runtime_core/abc2program/tests/ts/release-column-number/ReleaseEnableColumnNumberCallargs.ts _ESModuleRecord_989
 }
 .record.source_file 
 
 .language ECMAScript
 .record _ESScopeNamesRecord {
-	u32 arkcompiler/runtime_core/abc2program/tests/ts/release-column-number/ReleaseEnableColumnNumberCallargs.ts _ESScopeNamesRecord_970
+	u32 arkcompiler/runtime_core/abc2program/tests/ts/release-column-number/ReleaseEnableColumnNumberCallargs.ts _ESScopeNamesRecord_985
 }
 .record.source_file 
 

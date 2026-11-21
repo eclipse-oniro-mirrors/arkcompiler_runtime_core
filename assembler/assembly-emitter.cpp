@@ -984,12 +984,12 @@ bool AsmEmitter::HandleFunctionParams(
 bool AsmEmitter::HandleFunctionLocalVariables(ItemContainer *items, const Function &func, const std::string &name)
 {
     for (const auto &v : func.local_variable_debug) {
-        if (v.name.empty()) {
+        if (v.Name().empty()) {
             SetLastError("Function '" + name + "' has an empty local variable name");
             return false;
         }
 
-        items->GetOrCreateStringItem(v.name);
+        items->GetOrCreateStringItem(v.Name());
         // Skip signature and signature type for parameters
         ASSERT(v.reg >= 0);
         if (func.IsParameter(v.reg)) {
@@ -1178,7 +1178,7 @@ void AsmEmitter::SetCodeAndDebugInfo(ItemContainer *items, MethodItem *method, c
         for (const auto &v : func.local_variable_debug) {
             ASSERT(v.reg >= 0);
             if (func.IsParameter(v.reg)) {
-                debug_info->AddParameter(items->GetOrCreateStringItem(v.name));
+                debug_info->AddParameter(items->GetOrCreateStringItem(v.Name()));
             }
         }
     } else {
@@ -1374,7 +1374,7 @@ bool AsmEmitter::MakeItemsForSingleProgram(
     return true;
 }
 
-static void EmitFunctionsParallel(ItemContainer &items, AsmEmitter::AsmEntityCollections &entities,
+static bool EmitFunctionsParallel(ItemContainer &items, AsmEmitter::AsmEntityCollections &entities,
                                   const std::vector<Program *> &progs, const int file_thread_count,
                                   bool emit_debug_info)
 {
@@ -1383,6 +1383,7 @@ static void EmitFunctionsParallel(ItemContainer &items, AsmEmitter::AsmEntityCol
     queue_emit->Schedule();
     queue_emit->Consume();
     queue_emit->Wait();
+    return !queue_emit->HasFailedJobs();
 }
 
 static bool WriteToFile(ItemContainer &items, const std::string &filename)
@@ -1504,23 +1505,105 @@ static void CollectAndResolveDuplicates(const Program &prog,
     }
 }
 
+// Rewrites the buffer instructions of one program to their canonical arrays and
+// removes the aliased entries from the table.
+static void DeduplicateProgramLiteralArrays(Program &prog,
+                                            std::unordered_map<std::string, std::string> &contentToCanonical)
+{
+    std::vector<Ins *> bufferInsns;
+    std::unordered_map<std::string, std::string> aliases;
+    CollectAndResolveDuplicates(prog, contentToCanonical, bufferInsns, aliases);
+    for (auto *insn : bufferInsns) {
+        auto it = aliases.find(insn->GetId(0));
+        if (it != aliases.end()) {
+            insn->SetId(0, it->second);
+        }
+    }
+    for (const auto &alias : aliases) {
+        prog.literalarray_table.erase(alias.first);
+    }
+}
+
 void AsmEmitter::DeduplicateLiteralArrays(const std::vector<Program *> &progs)
 {
     std::unordered_map<std::string, std::string> contentToCanonical;
     for (auto *prog : progs) {
-        std::vector<Ins *> bufferInsns;
-        std::unordered_map<std::string, std::string> aliases;
-        CollectAndResolveDuplicates(*prog, contentToCanonical, bufferInsns, aliases);
-        for (auto *insn : bufferInsns) {
-            auto it = aliases.find(insn->GetId(0));
-            if (it != aliases.end()) {
-                insn->SetId(0, it->second);
-            }
+        DeduplicateProgramLiteralArrays(*prog, contentToCanonical);
+    }
+}
+
+bool AsmEmitter::CollectProgramItems(
+    panda_file::ItemContainer &items, const std::vector<Program *> &progs, bool emit_debug_info,
+    AsmEmitter::AsmEntityCollections &entities,
+    const std::unordered_map<panda_file::Type::TypeId, panda_file::PrimitiveTypeItem *> &primitive_types)
+{
+    panda::Timer::ScopeTimer timer(panda::EVENT_MAKE_ITEMS_FOR_SINGLE_PROGRAM);
+    for (auto *prog : progs) {
+        if (!MakeItemsForSingleProgram(&items, *prog, emit_debug_info, entities, primitive_types)) {
+            return false;
         }
-        for (const auto &alias : aliases) {
-            prog->literalarray_table.erase(alias.first);
+        prog->strings.clear();
+        prog->literalarray_table.clear();
+        prog->array_types.clear();
+    }
+    return true;
+}
+
+// Releases the function/record tables of one program after its debug info and
+// annotations are built: drops function source buffers, label tables and
+// metadata value data, then shrinks the record table to the side table that
+// EmitDebugInfo still needs while emitting functions.
+static void ReleaseProgramDataForEmission(Program &prog)
+{
+    for (auto &[name, func] : prog.function_table) {
+        auto record_name = GetOwnerName(name);
+        auto record_it = prog.record_table.find(record_name);
+        if (record_it != prog.record_table.end() && func.source_file == record_it->second.source_file) {
+            // Release the heap buffer as well, not just the size: a plain
+            // `= {}` keeps the capacity alive until the string is destroyed.
+            std::string {}.swap(func.source_code);
+        }
+        func.label_table = {};
+        decltype(func.label_table) {}.swap(func.label_table);
+        if (func.metadata) {
+            func.metadata->ReleaseData();
         }
     }
+
+    for (auto &[name, record] : prog.record_table) {
+        if (!record.source_file.empty()) {
+            prog.record_source_files.emplace(name, std::move(record.source_file));
+        }
+    }
+    prog.record_table.clear();
+}
+
+bool AsmEmitter::MakeDebugInfoAndReleasePrograms(panda_file::ItemContainer &items, const std::vector<Program *> &progs,
+                                                 const AsmEmitter::AsmEntityCollections &entities, bool emit_debug_info)
+{
+    panda::Timer::ScopeTimer timer(panda::EVENT_MAKE_FUNC_DEBUGINFO_AND_ANNOTATIONS);
+    for (auto *prog : progs) {
+        if (!MakeFunctionDebugInfoAndAnnotations(&items, *prog, entities, emit_debug_info)) {
+            return false;
+        }
+        prog->function_synonyms.clear();
+        ReleaseProgramDataForEmission(*prog);
+    }
+    return true;
+}
+
+void AsmEmitter::ReleaseProgramsAndEntities(const std::vector<Program *> &progs,
+                                            AsmEmitter::AsmEntityCollections &entities)
+{
+    for (auto *prog : progs) {
+        prog->function_table.clear();
+        decltype(prog->record_source_files) {}.swap(prog->record_source_files);
+    }
+    // The entity lookup maps are unordered: `= {}` frees the nodes but keeps the
+    // O(function-count) bucket arrays alive, so swap with empty maps to release
+    // the buckets as well.
+    decltype(entities.method_items) {}.swap(entities.method_items);
+    decltype(entities.field_items) {}.swap(entities.field_items);
 }
 
 bool AsmEmitter::EmitPrograms(const std::string &filename, const std::vector<Program *> &progs, bool emit_debug_info,
@@ -1534,33 +1617,20 @@ bool AsmEmitter::EmitPrograms(const std::string &filename, const std::vector<Pro
     auto primitive_types = CreatePrimitiveTypes(&items);
     auto entities = AsmEmitter::AsmEntityCollections {};
     SetLastError("");
-    // Deduplicate identical literal arrays across the merged programs before building ItemContainer
-    // items so the merged abc carries one LiteralArrayItem per unique content. Only in release mode —
-    // debug builds keep all arrays for faithful round-trip disassembly.
     if (!emitterConfig.isDebug) {
         EliminateCrossModuleHoleChecks(progs, emitterConfig.fileThreadCount);
-        DeduplicateLiteralArrays(progs);
     }
-    {
-        panda::Timer::ScopeTimer timer(panda::EVENT_MAKE_ITEMS_FOR_SINGLE_PROGRAM);
-        for (auto *prog : progs) {
-            if (!MakeItemsForSingleProgram(&items, *prog, emit_debug_info, entities, primitive_types)) {
-                return false;
-            }
-            prog->strings.clear();
-            prog->literalarray_table.clear();
-            prog->array_types.clear();
-        }
+    // Deduplicate identical literal arrays across the merged programs before building ItemContainer
+    // items so the merged abc carries one LiteralArrayItem per unique content. Runs in both release
+    // and debug mode to keep the peak footprint down; it only re-points buffer instructions at
+    // content-equal canonical arrays, so debug info and indexes are not affected.
+    DeduplicateLiteralArrays(progs);
+    if (!CollectProgramItems(items, progs, emit_debug_info, entities, primitive_types)) {
+        return false;
     }
 
-    {
-        panda::Timer::ScopeTimer timer(panda::EVENT_MAKE_FUNC_DEBUGINFO_AND_ANNOTATIONS);
-        for (auto *prog : progs) {
-            if (!MakeFunctionDebugInfoAndAnnotations(&items, *prog, entities, emit_debug_info)) {
-                return false;
-            }
-            prog->function_synonyms.clear();
-        }
+    if (!MakeDebugInfoAndReleasePrograms(items, progs, entities, emit_debug_info)) {
+        return false;
     }
 
     if (!emitterConfig.isDebug) {
@@ -1573,7 +1643,11 @@ bool AsmEmitter::EmitPrograms(const std::string &filename, const std::vector<Pro
         items.ComputeLayoutForReferencedItems();
     }
 
-    EmitFunctionsParallel(items, entities, progs, emitterConfig.fileThreadCount, emit_debug_info);
+    if (!EmitFunctionsParallel(items, entities, progs, emitterConfig.fileThreadCount, emit_debug_info)) {
+        return false;
+    }
+
+    ReleaseProgramsAndEntities(progs, entities);
 
     if (!emitterConfig.isDebug) {
         panda::Timer::ScopeTimer timer(panda::EVENT_DEDUPLICATE_ITEMS);
@@ -1804,7 +1878,7 @@ void Function::EmitLocalVariable(panda_file::LineNumberProgramItem *program, con
     ASSERT(!IsParameter(v.reg));
     if (context.instruction_number == v.start) {
         TryEmitPc(program, constant_pool, context.pc_inc);
-        StringItem *variable_name = container->GetStringItem(v.name);
+        StringItem *variable_name = container->GetStringItem(v.Name());
         ASSERT(variable_name->GetOffset() != 0);
         StringItem *variable_type = container->GetStringItem("any");
         ASSERT(variable_type->GetOffset() != 0);

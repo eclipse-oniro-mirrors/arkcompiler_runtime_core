@@ -505,7 +505,7 @@ void panda::guard::Function::UpdateDefine() const
                                      defineIns.ins_->GetOpcode() != pandasm::Opcode::DEFINEMETHOD,
                                  TAG, ErrorCode::GENERIC_ERROR, "get bad ins type");
 
-        defineIns.ins_->GetId(0) = this->obfIdx_;
+        defineIns.ins_->SetId(0, this->obfIdx_);
         obfuscated = true;
     }
 

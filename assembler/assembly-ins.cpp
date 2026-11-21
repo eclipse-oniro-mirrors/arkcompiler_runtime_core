@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2022 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -13,11 +13,66 @@
  * limitations under the License.
  */
 
+#include <array>
+#include <string_view>
+
 #include "assembly-ins.h"
+#include "assembly-string-pool.h"
+
+#include "utils/thread_safe_hashset.h"
 
 namespace panda::pandasm {
 
 const std::string Ins::EMPTY_STRING = "";
+
+// Interned strings are looked up on every Type / LocalVariable construction, so the
+// hot path is served by a thread-local direct-mapped cache: the entry is validated
+// by both the full hash and the string content, a conflict simply falls through to
+// the pool path. The cache is bounded (128 KiB per thread) and the memory saving
+// of the pool itself is unaffected. The pool is a sharded ThreadSafeHashset:
+// writers on distinct buckets (16384 buckets masked by hash) proceed concurrently,
+// replacing the single global std::set + mutex whose O(log n) comparisons and
+// lock contention dominated the cold (first-intern) path.
+namespace {
+
+constexpr size_t INTERN_CACHE_SIZE = 8192;
+
+struct InternCacheEntry {
+    size_t hash {0};
+    const std::string *value {nullptr};
+};
+
+}  // namespace
+
+const std::string *InternString(std::string_view s)
+{
+    static panda::ThreadSafeHashset<std::string> pool;
+
+    thread_local std::array<InternCacheEntry, INTERN_CACHE_SIZE> cache {};
+
+    const size_t h = std::hash<std::string_view> {}(s);
+    InternCacheEntry &entry = cache[h % INTERN_CACHE_SIZE];
+    if (entry.value != nullptr && entry.hash == h && std::string_view(*entry.value) == s) {
+        return entry.value;
+    }
+
+    const std::string *value = pool.InsertOrGet(std::string(s));
+    entry.hash = h;
+    entry.value = value;
+    return value;
+}
+
+// Process-wide string intern pool for pandasm::Ins id strings. Returns a stable
+// const std::string* (pool node) so identical names share storage. The pool
+// is never freed during the process (reaped at exit by the OS); it is bounded by
+// the distinct-name vocabulary (not the Ins count), so its footprint is small for
+// build tools. Ins subclasses store the returned pointer (no per-Ins std::string
+// copy), and ~Ins does not dereference it, so there is no use-after-free against
+// pool destruction order.
+const std::string* Ins::Intern(std::string_view s)
+{
+    return InternString(s);
+}
 
 std::string panda::pandasm::Ins::RegsToString(bool &first, bool print_args, size_t first_arg_idx) const
 {

@@ -1,18 +1,18 @@
 # source binary: dedup_class_buffer.abc
 
-0 0x407 { 1 [ i32:0, ]}
-1 0x3d6 { 1 [ i32:0, ]}
+0 0x3ae 
+2 0x3d6 { 1 [ i32:0, ]}
 3 0x3df 
-5 0x3ae 
-2 0x3e3 { 1 [
-	MODULE_REQUEST_ARRAY: {
-	};
-	ModuleTag: LOCAL_EXPORT, local_name: C2, export_name: C2;
-]}
-4 0x3b2 { 1 [
+5 0x407 { 1 [ i32:0, ]}
+1 0x3b2 { 1 [
 	MODULE_REQUEST_ARRAY: {
 	};
 	ModuleTag: LOCAL_EXPORT, local_name: C1, export_name: C1;
+]}
+4 0x3e3 { 1 [
+	MODULE_REQUEST_ARRAY: {
+	};
+	ModuleTag: LOCAL_EXPORT, local_name: C2, export_name: C2;
 ]}
 
 .language ECMAScript

@@ -518,7 +518,7 @@ void PandasmProgramDumper::DumpFunctionDebugInfo(std::ostream &os, const pandasm
            << DUMP_CONTENT_TRIPLE_SPACES;
         os << std::setw(END_WIDTH) << std::right << variable_info.length << DUMP_CONTENT_DOUBLE_SPACES;
         os << std::setw(REG_WIDTH) << std::right << variable_info.reg << DUMP_CONTENT_DOUBLE_SPACES;
-        os << std::setw(NAME_WIDTH) << std::right << variable_info.name << DUMP_CONTENT_NONUPLE_SPACES << "any";
+        os << std::setw(NAME_WIDTH) << std::right << variable_info.Name() << DUMP_CONTENT_NONUPLE_SPACES << "any";
         os << DUMP_CONTENT_SINGLE_ENDL;
     }
 }
@@ -531,8 +531,11 @@ void PandasmProgramDumper::UpdateLocalVarMap(const pandasm::Function &function,
         uint32_t original_end = variable_info.length + variable_info.start;
         uint32_t new_start = original_to_final_index_map_[original_start];
         uint32_t new_length = original_to_final_index_map_[original_end] - new_start;
-        panda::pandasm::debuginfo::LocalVariable local_var = {variable_info.name, variable_info.reg, new_start,
-                                                              new_length};
+        panda::pandasm::debuginfo::LocalVariable local_var;
+        local_var.SetName(variable_info.Name());
+        local_var.reg = variable_info.reg;
+        local_var.start = new_start;
+        local_var.length = new_length;
         local_variable_table[variable_info.reg] = local_var;
     }
 }

@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2024-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -22,6 +22,7 @@
 #include <set>
 #include <cstdint>
 #include <string_view>
+#include <unordered_set>
 
 namespace panda::abc2program {
 class Abc2ProgramTestUtils {
@@ -33,8 +34,8 @@ public:
     static bool ValidateDumpResult(const std::string &result_file_name, const std::string &expected_file_name);
     static void RemoveDumpResultFile(const std::string &file_name);
 private:
-    template <typename T>
-    static bool ValidateStrings(const T &strings, const T &expected_strings);
+    template <typename T, typename U>
+    static bool ValidateStrings(const T &strings, const U &expected_strings);
     static bool ValidateLine(const std::string &result_line, const std::string &expected_line);
     static bool ValidateLiteralArrayName(const std::string &result, const std::string &expected);
     static std::set<std::string> helloworld_expected_program_strings_;

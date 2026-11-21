@@ -18,7 +18,10 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <cstdint>
+
+#include "assembly-string-pool.h"
 
 namespace panda::pandasm::debuginfo {
 
@@ -43,11 +46,25 @@ struct Ins {
     }
 };
 
+// The variable name is interned in the process-wide string pool: local variable
+// names repeat heavily across functions, so every entry stores only a stable
+// pointer to the shared copy instead of its own std::string.
 struct LocalVariable {
-    std::string name;
+    const std::string *name = nullptr;
     int32_t reg = 0;
     uint32_t start = 0;
     uint32_t length = 0;
+
+    const std::string &Name() const
+    {
+        static const std::string EMPTY;
+        return name != nullptr ? *name : EMPTY;
+    }
+
+    void SetName(std::string_view n)
+    {
+        name = InternString(n);
+    }
 };
 
 }  // namespace panda::pandasm::debuginfo

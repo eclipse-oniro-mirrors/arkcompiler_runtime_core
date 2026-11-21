@@ -117,6 +117,7 @@ if (is_mingw) {
     "$ark_root/libpandabase/utils/type_converter.cpp",
     "$ark_root/libpandabase/utils/utf.cpp",
     "$ark_root/libpandabase/utils/workerQueue.cpp",
+    "$ark_root/libpandabase/utils/thread_safe_hashset.cpp",
     "$ark_root/platforms/windows/libpandabase/error.cpp",
     "$ark_root/platforms/windows/libpandabase/file.cpp",
     "$ark_root/platforms/windows/libpandabase/filesystem.cpp",

@@ -1,115 +1,12 @@
-% def get_node_kind(mnemonic)
-%   return "#{mnemonic.gsub('.', '_').upcase}"
-% end
+% # Per-(mnemonic, format) subclass helpers live in asm_isapi.rb (shared with
+% # ins_create_api.h.erb and the Ins::CreateIns factory):
+% #   insn_class_name(insn)        -> "<Node>_<FmtPretty>" subclass name
+% #   insn_ctor_info(insn)         -> members/ctor/init metadata (narrow types)
+% #   format_fit_condition(insn)   -> C++ bool expr for the resolver chain
+% #   operand_storage_type(op, insn) -> narrowest C++ type for an operand
 %
-% def get_format_name(mnemonic)
-%   return "#{mnemonic.gsub('.', '_').upcase}" + "_FORMATS"
-% end
-%
-% def insn2node(insn)
-%   mnemonic = insn.mnemonic.split('.')
-%   return mnemonic.map{|el| el == '64' ? 'Wide' : el.capitalize}.join()
-% end
-%
-% def is_VReg(name)
-%     if name ==  :v
-%        return true
-%     end
-% end
-%
-% def is_Acc(name)
-%    if name ==  :acc
-%        return true
-%     end
-% end
-%
-% def is_Imm(name)
-%    if name ==  :imm
-%        return true
-%     end
-% end
-%
-% def is_Id(name)
-%     if %i[method_id type_id field_id string_id stringId callsite_id literalarray_id].include?(name)
-%        return true
-%     end
-% end
-%
-% def get_operand_type(name, name_tmp, insn)
-%   if is_VReg (name_tmp)
-%     return 'uint16_t'
-%   elsif is_Imm(name_tmp)
-%     if insn.properties.include? 'jump'
-%       return "std::string"
-%     end
-%     if insn.sig.include? 'imm:f64'
-%       return 'double'
-%     end
-%       return 'int64_t'
-%   elsif is_Id(name_tmp)
-%     return 'std::string'
-%   else
-%     return nil
-%   end
-% end
-%
-% def get_operands(sig)
-%     return [] unless sig.include? ' '
-%     _, operands = sig.match(/(\S+) (.+)/).captures
-%     operands = operands.split(', ')
-% end
-%
-% def get_ctor_args(insn)
-%     operands = get_operands(insn.sig)
-%     ops = Array.new
-%     ctor_args = Array.new
-%     imms = Array.new
-%     imm_members = Array.new
-%     ids = Array.new
-%     id_members = Array.new
-%     regs = Array.new
-%     reg_members = Array.new
-%     id_count = 0
-%     operands.map do |operand|
-%     operand_parts = operand.split(':')
-%       case operand_parts.size
-%       when 1
-%         name = operand_parts[0]
-%       when 2
-%         name, _ = operand_parts
-%       when 3
-%         name, _, _ = operand_parts
-%       else
-%         raise 'Unexpected operand string'
-%       end
-%
-%       name_tmp = name.to_s.gsub(/[0-9]/, '').to_sym;
-%
-%       if is_Id(name_tmp)
-%           name = "stringId_"
-%           name.concat(id_count.to_s)
-%           id_count = id_count + 1
-%       end
-%       type = get_operand_type(name, name_tmp, insn)
-%       if type == "std::string"
-%           ids.push(name)
-%           id_members.push("#{type} #{name}")
-%       elsif type == "uint16_t"
-%           regs.push(name)
-%           reg_members.push("#{type} #{name}")
-%       else
-%           imms.push(name)
-%           imm_members.push("#{type} #{name}")
-%       end
-%       ctor_args.push("#{type} #{name}")
-%     end
-%     ops = regs + imms + ids
-%     members = reg_members + imm_members + id_members
-%     return ops,ctor_args,members,ids,imms,regs
-% end
-%
-/*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2025-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -312,12 +209,11 @@ public:
 % max_reg_cnt = 0
 % max_imm_cnt = 0
 % max_id_cnt = 0
-% Panda::instructions.group_by(&:mnemonic).each do |mnemonic, group|
-% insn = group.first
-% ops_list,ctor_arg_list,member_list,id_list,imm_list,reg_list = get_ctor_args(insn)
-% max_reg_cnt = max_reg_cnt > reg_list.length ? max_reg_cnt : reg_list.length
-% max_imm_cnt = max_imm_cnt > imm_list.length ? max_imm_cnt : imm_list.length
-% max_id_cnt = max_id_cnt > id_list.length ? max_id_cnt : id_list.length
+% Panda::instructions.each do |insn|
+%   info = insn_ctor_info(insn)
+%   max_reg_cnt = max_reg_cnt > info[:reg_count] ? max_reg_cnt : info[:reg_count]
+%   max_imm_cnt = max_imm_cnt > info[:imm_count] ? max_imm_cnt : info[:imm_count]
+%   max_id_cnt = max_id_cnt > info[:id_count] ? max_id_cnt : info[:id_count]
 % end
     std::string &GetId(size_t idx)
     {
@@ -422,6 +318,54 @@ public:
     template <typename... Args>
     static Ins *CreateIns(Opcode opcode, Args &&... args);
 
+    // String interning: dedup Ins id strings into a process-wide stable pool.
+    // Ins subclasses store const std::string* into the pool (set nodes are stable),
+    // so identical names share storage instead of each Ins owning a std::string
+    // copy. The pool is reaped at process exit (bounded by the distinct-name
+    // vocabulary, not the Ins count). ~Ins does not dereference the pointer, so
+    // there is no use-after-free vs pool destruction order. Cross-thread safe.
+    static const std::string* Intern(std::string_view s);
+
+    // Reassign an owning InsPtr to a freshly built instance, propagating the
+    // non-operand payload (debug info). Used by call sites that mutate an
+    // operand value after creation: when the new value no longer fits the
+    // current subclass' narrow storage, the owner rebuilds a (wider) subclass
+    // via Ins::CreateIns and hands the result here so that the narrowest
+    // fitting format is re-selected.
+    static void Reassign(InsPtr &holder, Ins *new_ins)
+    {
+        ASSERT(new_ins != nullptr);
+        new_ins->ins_debug = holder->ins_debug;
+        holder.reset(new_ins);
+    }
+
+    // --- Format-selection predicates used by Ins::CreateIns to pick the
+    // smallest fitting (mnemonic, format) subclass. Each compares the supplied
+    // operand value against the encoding width of a candidate format so that
+    // the chosen subclass can store the value without truncation while keeping
+    // its members as narrow as possible.
+    static bool FitsReg(std::uint16_t v, int width)
+    {
+        if (width >= 16) {
+            return true;
+        }
+        return v < (1U << width);
+    }
+    static bool FitsUInt(std::int64_t v, int width)
+    {
+        if (width >= 64) {
+            return true;
+        }
+        return v >= 0 && static_cast<std::uint64_t>(v) < (1ULL << width);
+    }
+    static bool FitsInt(std::int64_t v, int width)
+    {
+        if (width >= 64) {
+            return true;
+        }
+        return v >= -(1LL << (width - 1)) && v < (1LL << (width - 1));
+    }
+
     virtual ~Ins() = default;
 
     virtual Opcode GetOpcode() const = 0;
@@ -474,6 +418,12 @@ private:
     }
 
 % end
+    // Non-template factory that performs the per-opcode (mnemonic, format)
+    // subclass selection against the supplied operand values. Ins::CreateIns
+    // (the public variadic template) forwards to this so the conditions can
+    // reference the operand vectors by name.
+    static Ins *CreateInsImpl(Opcode opcode, const std::vector<std::uint16_t> &regs, const std::vector<IType> &imms,
+                              const std::vector<std::string> &ids);
     static const std::string EMPTY_STRING;
     std::string OperandsToString(bool print_args = false, size_t first_arg_idx = 0) const;
     std::string RegsToString(bool &first, bool print_args = false, size_t first_arg_idx = 0) const;
@@ -513,44 +463,59 @@ private:
     std::string label_;
 };
 
-% Panda::instructions.group_by(&:mnemonic).each do |mnemonic, group|
-% insn = group.first
-% node_kind = get_node_kind(mnemonic)
-% class_name = insn2node(insn)
-% base_class = "Ins"
-% ops_list,ctor_arg_list,member_list,id_list,imm_list,reg_list = get_ctor_args(insn)
-% ctor_args = ctor_arg_list.map {|arg| "#{arg}"}.join(", ")
-% members = member_list.map {|member| "#{member}_;"}.join("\n    ")
-% ids = id_list.map{|id| "#{id}_"}.join(", ")
-% imms = imm_list.map{|imm| "#{imm}_"}.join(", ")
-% regs = reg_list.map{|reg| "#{reg}_"}.join(", ")
-% id_index = imm_index = reg_index = -1
-% init = ""
-% if id_list.length != 0
-%   init += "\n        " + id_list.map {|id| id_index+=1; "#{id}_ = ids[#{id_index}];"}.join("\n        ")
-% end
-% if imm_list.length != 0
-%   init += "\n        " + imm_list.map {|imm| imm_index+=1; "#{imm}_ = std::holds_alternative<int64_t>(imms[#{imm_index}]) ? std::get<int64_t>(imms[#{imm_index}]) : std::get<double>(imms[#{imm_index}]);"}.join("\n        ")
-% end
-% if reg_list.length != 0
-%   init += "\n        " + reg_list.map {|reg| reg_index+=1; "#{reg}_ = regs[#{reg_index}];"}.join("\n        ")
-% end
-% ops = (ops_list.length == 0 ? "" : ", ") + ops_list.map { |op| "#{op}_(#{op})"}.join(", ")
+% # ---------------------------------------------------------------------------
+% # Per-(mnemonic, format) subclasses.
+% #
+% # Non-jump mnemonics get one subclass per format so every member can be typed
+% # with the narrowest C++ integral type that still holds the operand's
+% # encoding width for that format -- a 4-/8-bit register uses uint8_t instead
+% # of uint16_t, and an 8-/16-bit immediate uses int8_t/int16_t/uint8_t/uint16_t
+% # instead of int64_t, shrinking the per-instruction object footprint.
+% #
+% # Jump mnemonics keep a single subclass per mnemonic: their immediate is a
+% # branch label stored as std::string, so all formats share identical storage
+% # (and the actual jump format is re-selected by the emitter at emit time).
+% # Ins::CreateIns unconditionally instantiates that single jump subclass.
+% # -------------------------------------------------------------------------
+% emitted_jump = {}
+% Panda::instructions.each do |insn_origin|
+%   insn = insn_origin
+%   if insn.jump?
+%     next if emitted_jump[insn.mnemonic]
+%     emitted_jump[insn.mnemonic] = true
+%     insn = Panda.instructions.select { |i| i.mnemonic == insn.mnemonic }.min_by { |i| i.format.size }
+%   end
+%   class_name = insn_class_name(insn)
+%   base_class = "Ins"
+%   info = insn_ctor_info(insn)
+%   members = info[:members].map { |m| "#{m};" }.join("\n    ")
+%   ctor_args = info[:ctor_args].join(", ")
+%   id_names = info[:id_info].map { |n, _| n }
+%   init_pairs = info[:members].map do |m|
+%     member = m.split(' ').last   # e.g. "imm_", "stringId_0_"
+%     param = member[0..-2]          # e.g. "imm",   "stringId_0"
+%     if id_names.include?(param)
+%       "#{member}(Ins::Intern(#{param}))"
+%     else
+%       "#{member}(#{param})"
+%     end
+%   end
+%   ops = init_pairs.empty? ? "" : ", " + init_pairs.join(", ")
+%   init = info[:init]
+%   reg_count = info[:reg_count]
+%   imm_count = info[:imm_count]
+%   id_count = info[:id_count]
+%   regs = info[:regs_init]
+%   imms = info[:imms_init]
+%   ids = info[:ids_init]
 class <%= class_name %> : public <%= base_class %> {
 public:
     <%= class_name %>(<%= ctor_args %>) : <%= base_class %>()<%= ops %> {}
-    <%= class_name %>(std::vector<std::uint16_t> &regs, std::vector<IType> &imms, std::vector<std::string> &ids) : <%= base_class %>()
+    <%= class_name %>(const std::vector<std::uint16_t> &regs, const std::vector<IType> &imms, const std::vector<const std::string*> &ids) : <%= base_class %>()
     {
-        ASSERT(regs.size() >= <%= reg_index + 1 %>);
-        ASSERT(ids.size() >= <%= id_index + 1 %>);
-        ASSERT(imms.size() >= <%= imm_index + 1 %>);
-        <%= init %>
-    }
-    <%= class_name %>(std::vector<std::uint16_t> &&regs, std::vector<IType> &&imms, std::vector<std::string> &&ids) : <%= base_class %>()
-    {
-        ASSERT(regs.size() >= <%= reg_index + 1 %>);
-        ASSERT(ids.size() >= <%= id_index + 1 %>);
-        ASSERT(imms.size() >= <%= imm_index + 1 %>);
+        ASSERT(regs.size() >= <%= reg_count %>);
+        ASSERT(ids.size() >= <%= id_count %>);
+        ASSERT(imms.size() >= <%= imm_count %>);
         <%= init %>
     }
 
@@ -579,54 +544,74 @@ public:
         return {<%=ids %>};
     }
 
-% if ops_list.length != 0
+% if !info[:members].empty?
 private:
     <%= members %>
 % idx = 0
-% reg_list.each do |reg|
+% info[:reg_info].each do |reg_name, reg_type|
     void SetReg<%= idx %>(const uint16_t reg) override
     {
-        <%= reg %>_ = reg;
+        // The reg storage of this format is narrower than uint16_t: in-repo writers
+        // rebuild the instruction via CreateIns + Reassign when a new value may
+        // overflow. Keep a debug assertion so out-of-tree writers that pass a
+        // wider value get a diagnosis instead of a silent truncation.
+        ASSERT(static_cast<uint16_t>(static_cast<<%= reg_type %>>(reg)) == reg);
+        <%= reg_name %>_ = static_cast<<%= reg_type %>>(reg);
     }
 
     std::uint16_t GetReg<%= idx %>() const override
     {
-        return <%= reg %>_;
+        return <%= reg_name %>_;
     }
 
 % idx += 1
 % end
 %
 % idx = 0
-% imm_list.each do |imm|
+% info[:imm_info].each do |imm_name, imm_type|
     void SetImm<%= idx %>(const IType &imm) override
     {
-        <%= imm %>_ = std::holds_alternative<int64_t>(imm) ? std::get<int64_t>(imm) : std::get<double>(imm);
+%   if imm_type == 'double'
+        <%= imm_name %>_ = std::holds_alternative<double>(imm) ? std::get<double>(imm) : static_cast<double>(std::get<int64_t>(imm));
+%   else
+        // The imm storage of this format is narrower than int64_t: in-repo writers
+        // rebuild the instruction via CreateIns + Reassign when a new value may
+        // overflow. Keep a debug assertion so out-of-tree writers that pass a
+        // wider value get a diagnosis instead of a silent truncation.
+        ASSERT(!std::holds_alternative<int64_t>(imm) ||
+               static_cast<std::int64_t>(static_cast<<%= imm_type %>>(std::get<int64_t>(imm))) ==
+                   std::get<int64_t>(imm));
+        <%= imm_name %>_ = std::holds_alternative<int64_t>(imm) ? static_cast<<%= imm_type %>>(std::get<int64_t>(imm)) : static_cast<<%= imm_type %>>(std::get<double>(imm));
+%   end
     }
 
     IType GetImm<%= idx %>() const override
     {
-        return <%= imm %>_;
+%   if imm_type == 'double'
+        return IType(<%= imm_name %>_);
+%   else
+        return IType(int64_t(<%= imm_name %>_));
+%   end
     }
 
 % idx += 1
 % end
 %
 % idx = 0
-% id_list.each do |id|
+% info[:id_info].each do |id_name, _|
     void SetId<%= idx %>(const std::string &id) override
     {
-        <%= id %>_ = id;
+        <%= id_name %>_ = Ins::Intern(id);
     }
 
     std::string &GetId<%= idx %>() override
     {
-        return <%= id %>_;
+        return const_cast<std::string &>(*<%= id_name %>_);
     }
 
     const std::string &GetId<%= idx %>() const override
     {
-        return <%= id %>_;
+        return *<%= id_name %>_;
     }
 
 % idx += 1
@@ -638,13 +623,48 @@ private:
 template <typename... Args>
 Ins *Ins::CreateIns(Opcode opcode, Args &&... args)
 {
+    return Ins::CreateInsImpl(opcode, std::forward<Args>(args)...);
+}
+
+// For each opcode, select the narrowest (mnemonic, format) subclass whose
+// encoding widths accommodate the supplied operand values. This keeps the
+// in-memory representation as small as possible while never truncating --
+// values that overflow the narrow formats fall through to the widest format,
+// matching the emitter's own smallest-fitting selection.
+inline Ins *Ins::CreateInsImpl(Opcode opcode, const std::vector<std::uint16_t> &regs, const std::vector<IType> &imms,
+                               const std::vector<std::string> &ids)
+{
+    std::vector<const std::string*> interned;
+    interned.reserve(ids.size());
+    for (const auto &id : ids) {
+        interned.push_back(Ins::Intern(id));
+    }
     switch(opcode) {
 % Panda::instructions.group_by(&:mnemonic).each do |mnemonic, group|
-% insn = group.first
-% class_name = insn2node(insn)
+%   if group.first.jump?
+%     insn = group.min_by { |i| i.format.size }
+%     # A single subclass serves the whole mnemonic, so every register operand must
+%     # share one storage width across all jump formats. Fail at generation time if
+%     # a future ISA adds a jump variant with a wider register operand, otherwise
+%     # the narrow member below would silently truncate it.
+%     reg_widths = group.flat_map { |i| i.operands.select(&:reg?).map(&:width) }.uniq
+%     raise "jump '#{mnemonic}' has mixed register widths #{reg_widths}" if reg_widths.size > 1
+%     class_name = insn_class_name(insn)
         case Opcode::<%= insn.asm_token %>: {
-            return new <%= class_name %>(std::forward<Args>(args)...);
+            return new <%= class_name %>(regs, imms, interned);
         }
+%   else
+%     sorted = group.sort_by { |i| i.format.size }
+        case Opcode::<%= group.first.asm_token %>: {
+%     sorted[0..-2].each do |i|
+%       cond = format_fit_condition(i)
+            if (<%= cond %>) {
+                return new <%= insn_class_name(i) %>(regs, imms, interned);
+            }
+%     end
+            return new <%= insn_class_name(sorted[-1]) %>(regs, imms, interned);
+        }
+%   end
 % end
         default:
             UNREACHABLE();

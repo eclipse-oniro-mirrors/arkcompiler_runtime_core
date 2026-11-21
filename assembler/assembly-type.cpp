@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2022 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -26,13 +26,16 @@ static std::unordered_map<std::string_view, std::string_view> primitive_types = 
 std::string Type::GetDescriptor(bool ignore_primitive) const
 {
     if (!ignore_primitive) {
-        auto it = primitive_types.find(component_name_);
+        auto it = primitive_types.find(ComponentNameView());
         if (it != primitive_types.cend()) {
             return std::string(rank_, '[') + it->second.data();
         }
     }
 
-    std::string res = std::string(rank_, '[') + "L" + component_name_ + ";";
+    std::string res(rank_, '[');
+    res += "L";
+    res += ComponentNameView();
+    res += ";";
     return res;
 }
 
