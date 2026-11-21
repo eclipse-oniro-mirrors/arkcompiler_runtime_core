@@ -180,6 +180,7 @@ export class Declgen {
     // Prevent the noemit of the passed compilerOptions from being true
     this.compilerOptions.noEmit = false;
     this.compilerOptions.experimentalDecorators = true;
+    this.compilerOptions.etsAnnotationsEnable = true;
 
     this.compiler = new Compiler(this.rootFiles, this.libFiles, this.compilerOptions, customResolveModuleNames);
 
