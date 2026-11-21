@@ -21,6 +21,11 @@
 #include "plugins/ets/runtime/ets_platform_types.h"
 #include "plugins/ets/runtime/ets_exceptions.h"
 #include "plugins/ets/runtime/ets_panda_file_items.h"
+#ifdef PANDA_ETS_INTEROP_JS
+#include "plugins/ets/runtime/interop_js/interop_context.h"
+#include "plugins/ets/runtime/interop_js/tooling/internal_api.h"
+#include "hybrid/hybrid_frame_info.h"
+#endif /* PANDA_ETS_INTEROP_JS */
 
 #include "runtime/include/stack_walker.h"
 #include "runtime/interpreter/runtime_interface.h"
@@ -69,8 +74,78 @@ EtsStackTraceElement *CreateStackTraceElement(StackWalker *stack)
     }
     element->SetSourceFileName(sourceFileName);
     element->SetLineNumber(info.lineNumber);
+    element->SetIsStaticFrame(static_cast<EtsBoolean>(true));
     return element.GetPtr();
 }
+
+#ifdef PANDA_ETS_INTEROP_JS
+void CreateDynamicStaticStackTraceElement(PandaVector<EtsHandle<EtsStackTraceElement>> &stackTraceElements)
+{
+    auto executionCtx = EtsExecutionContext::GetCurrent();
+
+    auto *ctx = interop::js::InteropCtx::Current(executionCtx);
+    if (UNLIKELY(ctx == nullptr)) {
+        ASSERT(executionCtx->GetMT()->HasPendingException());
+        return;
+    }
+
+    auto *ecmaInterface = ctx->GetECMAInterface();
+    if (UNLIKELY(ecmaInterface == nullptr)) {
+        ASSERT(executionCtx->GetMT()->HasPendingException());
+        return;
+    }
+
+    ctx->GetOrCreateCallStack().ForEachInteropFrame(
+        [executionCtx, ecmaInterface, &stackTraceElements](const void *frame, bool isStaticFrame) {
+            arkplatform::HybridFrameInfo info;
+            bool success = false;
+
+            if (isStaticFrame) {
+                success = ark::ets::interop::js::GetStaticFrameInfo(frame, info);
+                if (!success) {
+                    LOG(ERROR, STDLIB) << "GetStaticFrameInfo failed: method from stack is nullptr.";
+                    return;
+                }
+            } else {
+                success = ecmaInterface->GetSourceMappedFrameInfo(frame, info);
+                if (!success) {
+                    LOG(ERROR, STDLIB) << "GetSourceMappedFrameInfo failed: method from stack is nullptr.";
+                    return;
+                }
+            }
+
+            auto *stackTraceElement = EtsStackTraceElement::Create(executionCtx);
+            if (UNLIKELY(stackTraceElement == nullptr)) {
+                ASSERT(executionCtx->GetMT()->HasPendingException());
+                return;
+            }
+            auto element = EtsHandle<EtsStackTraceElement>(executionCtx, stackTraceElement);
+            EtsHandle<EtsString> className(executionCtx, EtsString::CreateFromMUtf8(info.GetClassName().data()));
+            if (UNLIKELY(className.GetPtr() == nullptr)) {
+                ASSERT(executionCtx->GetMT()->HasPendingException());
+                return;
+            }
+            EtsHandle<EtsString> functionName(executionCtx, EtsString::CreateFromMUtf8(info.GetFunctionName().data()));
+            if (UNLIKELY(functionName.GetPtr() == nullptr)) {
+                ASSERT(executionCtx->GetMT()->HasPendingException());
+                return;
+            };
+            EtsString *sourceFileName =
+                EtsString::CreateFromMUtf8(info.GetUrl().empty() ? "<unknown>" : info.GetUrl().data());
+            if (UNLIKELY(sourceFileName == nullptr)) {
+                ASSERT(executionCtx->GetMT()->HasPendingException());
+                return;
+            }
+            element->SetClassName(className.GetPtr());
+            element->SetMethodName(functionName.GetPtr());
+            element->SetSourceFileName(sourceFileName);
+            element->SetLineNumber(info.lineNumber);
+            element->SetColNumber(isStaticFrame ? 0 : info.columnNumber);
+            element->SetIsStaticFrame(static_cast<EtsBoolean>(isStaticFrame));
+            stackTraceElements.push_back(element);
+        });
+}
+#endif /* PANDA_ETS_INTEROP_JS */
 
 extern "C" EtsObjectArray *ArkRuntimeStackTraceProvisionStackTrace()
 {
@@ -85,10 +160,35 @@ extern "C" EtsObjectArray *ArkRuntimeStackTraceProvisionStackTrace()
             EtsObjectArray::FromCoreType(executionCtx->GetPandaVM()->GetGlobalObjectStorage()->Get(stackTraceRef)));
     }
 
-    uint32_t linesSize = 0;
-    for (auto stack = StackWalker::Create(executionCtx->GetMT()); stack.HasFrame(); stack.NextFrame()) {
-        linesSize++;
+    PandaVector<EtsHandle<EtsStackTraceElement>> stackTraceElements;
+#ifdef PANDA_ETS_INTEROP_JS
+    bool isEmpty = true;
+    interop::js::UnionStackIsEmpty(&isEmpty);
+    if (!isEmpty) {
+        CreateDynamicStaticStackTraceElement(stackTraceElements);
+    } else {
+        for (auto stack = StackWalker::Create(executionCtx->GetMT()); stack.HasFrame(); stack.NextFrame()) {
+            auto element = EtsHandle<EtsStackTraceElement>(executionCtx, CreateStackTraceElement(&stack));
+            if (UNLIKELY(element.GetPtr() == nullptr)) {
+                ASSERT(executionCtx->GetMT()->HasPendingException());
+                return nullptr;
+            }
+            stackTraceElements.push_back(element);
+        }
     }
+#else
+    for (auto stack = StackWalker::Create(executionCtx->GetMT()); stack.HasFrame(); stack.NextFrame()) {
+        auto element = EtsHandle<EtsStackTraceElement>(executionCtx, CreateStackTraceElement(&stack));
+        if (UNLIKELY(element.GetPtr() == nullptr)) {
+            ASSERT(executionCtx->GetMT()->HasPendingException());
+            return nullptr;
+        }
+        stackTraceElements.push_back(element);
+    }
+#endif /* PANDA_ETS_INTEROP_JS */
+
+    auto linesSize = static_cast<uint32_t>(stackTraceElements.size());
+
     uint32_t requesterLinesSize =
         requesterStackTrace.GetPtr() != nullptr ? static_cast<uint32_t>(requesterStackTrace->GetLength()) : 0U;
 
@@ -99,15 +199,8 @@ extern "C" EtsObjectArray *ArkRuntimeStackTraceProvisionStackTrace()
     }
     EtsHandle<EtsObjectArray> resultArrayHandle(executionCtx, resultArray);
     uint32_t i = 0;
-    for (auto stack = StackWalker::Create(executionCtx->GetMT()); stack.HasFrame() && i < linesSize;
-         stack.NextFrame()) {
-        auto element = CreateStackTraceElement(&stack);
-        if (UNLIKELY(element == nullptr)) {
-            ASSERT(executionCtx->GetMT()->HasPendingException());
-            return nullptr;
-        }
-        resultArrayHandle.GetPtr()->Set(i, element->AsObject());
-        i++;
+    for (; i < linesSize; i++) {
+        resultArrayHandle.GetPtr()->Set(i, stackTraceElements[i]->AsObject());
     }
     for (uint32_t requesterIndex = 0U; requesterIndex < requesterLinesSize; ++requesterIndex) {
         resultArrayHandle.GetPtr()->Set(i, requesterStackTrace->Get(requesterIndex));

@@ -29,7 +29,8 @@ public:
                                              MIRROR_FIELD_INFO(EtsStackTraceElement, methodName_, "methodName"),
                                              MIRROR_FIELD_INFO(EtsStackTraceElement, sourceFileName_, "sourceFileName"),
                                              MIRROR_FIELD_INFO(EtsStackTraceElement, lineNumber_, "lineNumber"),
-                                             MIRROR_FIELD_INFO(EtsStackTraceElement, colNumber_, "colNumber")};
+                                             MIRROR_FIELD_INFO(EtsStackTraceElement, colNumber_, "colNumber"),
+                                             MIRROR_FIELD_INFO(EtsStackTraceElement, isStaticFrame_, "isStaticFrame")};
     }
 };
 

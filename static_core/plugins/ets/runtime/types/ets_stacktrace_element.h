@@ -80,12 +80,24 @@ public:
         return reinterpret_cast<EtsStackTraceElement *>(etsObject);
     }
 
+    inline void SetColNumber(EtsInt colNumber)
+    {
+        ObjectAccessor::SetPrimitive(this, MEMBER_OFFSET(EtsStackTraceElement, colNumber_), colNumber);
+    }
+
+    inline void SetIsStaticFrame(EtsBoolean isStaticFrame)
+    {
+        ObjectAccessor::SetPrimitive<EtsBoolean, true>(this, MEMBER_OFFSET(EtsStackTraceElement, isStaticFrame_),
+                                                       isStaticFrame);
+    }
+
 private:
     ObjectPointer<EtsString> className_;
     ObjectPointer<EtsString> methodName_;
     ObjectPointer<EtsString> sourceFileName_;
     FIELD_UNUSED EtsInt lineNumber_;  // note alignment
     FIELD_UNUSED EtsInt colNumber_;
+    FIELD_UNUSED EtsBoolean isStaticFrame_;
 
     friend class test::EtsStackTraceElementTest;
 };
