@@ -125,9 +125,10 @@ private:
     }
 
     template <typename ConvTag>
-    EtsObject *BuiltinConvert(InteropCtx *inCtx, napi_env env, napi_value jsValue)
+    EtsObject *BuiltinConvert(InteropCtx *inCtx, napi_env env, napi_value jsValue,
+                              std::optional<napi_valuetype> knownType = std::nullopt)
     {
-        auto res = ConvTag::UnwrapImpl(inCtx, env, jsValue);
+        auto res = ConvTag::UnwrapImpl(inCtx, env, jsValue, knownType);
         if (UNLIKELY(!res.has_value())) {
             return nullptr;
         }
@@ -433,17 +434,17 @@ private:
         napi_valuetype jsType = GetValueType<true>(env, jsValue);
         switch (jsType) {
             case napi_boolean:
-                return BuiltinConvert<JSConvertStdlibBoolean>(ctxx, env, jsValue);
+                return BuiltinConvert<JSConvertStdlibBoolean>(ctxx, env, jsValue, jsType);
             case napi_number:
-                return BuiltinConvert<JSConvertStdlibDouble>(ctxx, env, jsValue);
+                return BuiltinConvert<JSConvertStdlibDouble>(ctxx, env, jsValue, jsType);
             case napi_string:
-                return BuiltinConvert<JSConvertString>(ctxx, env, jsValue);
+                return BuiltinConvert<JSConvertString>(ctxx, env, jsValue, jsType);
             case napi_object:
                 return MObjectObject(ctx_, jsValue);
             case napi_null:
                 return ctx_->GetNullValue();
             case napi_bigint:
-                return BuiltinConvert<JSConvertBigInt>(ctxx, env, jsValue);
+                return BuiltinConvert<JSConvertBigInt>(ctxx, env, jsValue, jsType);
             case napi_symbol:
                 [[fallthrough]];
             case napi_external:

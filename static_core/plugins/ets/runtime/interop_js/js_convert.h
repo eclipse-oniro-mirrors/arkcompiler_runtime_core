@@ -44,18 +44,17 @@ struct JSConvertNumeric : public JSConvertBase<JSConvertNumeric<Cpptype>, Cpptyp
     }
 
     template <typename P = Cpptype>
-    static std::enable_if_t<std::is_integral_v<P>, std::optional<Cpptype>> UnwrapImpl([[maybe_unused]] InteropCtx *ctx,
-                                                                                      napi_env env, napi_value jsVal)
+    static std::enable_if_t<std::is_integral_v<P>, std::optional<Cpptype>> ExtractImpl(napi_env env, napi_value jsVal)
     {
-        ScopedNativeCodeThread nativeScope(ManagedThread::GetCurrent());
         napi_valuetype valueType = GetValueType(env, jsVal);
         napi_value result = jsVal;
-        if (valueType == napi_object && !GetValueByValueOf(env, jsVal, CONSTRUCTOR_NAME_NUMBER, &result)) {
-            JSConvertNumeric::TypeCheckFailed();
-            return {};
+        if (valueType == napi_object) {
+            if (!GetValueByValueOf(env, jsVal, CONSTRUCTOR_NAME_NUMBER, &result)) {
+                return {};
+            }
+            valueType = GetValueType(env, result);
         }
-        if (UNLIKELY(GetValueType(env, result) != napi_number)) {
-            JSConvertNumeric::TypeCheckFailed();
+        if (UNLIKELY(valueType != napi_number)) {
             return {};
         }
         Cpptype etsVal;
@@ -73,6 +72,18 @@ struct JSConvertNumeric : public JSConvertBase<JSConvertNumeric<Cpptype>, Cpptyp
             etsVal = static_cast<Cpptype>(val);
         }
         return etsVal;
+    }
+
+    template <typename P = Cpptype>
+    static std::enable_if_t<std::is_integral_v<P>, std::optional<Cpptype>> UnwrapImpl([[maybe_unused]] InteropCtx *ctx,
+                                                                                      napi_env env, napi_value jsVal)
+    {
+        ScopedNativeCodeThread nativeScope(ManagedThread::GetCurrent());
+        auto result = ExtractImpl<P>(env, jsVal);
+        if (!result) {
+            JSConvertNumeric::TypeCheckFailed();
+        }
+        return result;
     }
 
     template <typename P = Cpptype>
@@ -103,23 +114,35 @@ struct JSConvertNumeric : public JSConvertBase<JSConvertNumeric<Cpptype>, Cpptyp
     }
 
     template <typename P = Cpptype>
-    static std::enable_if_t<std::is_floating_point_v<P>, std::optional<Cpptype>> UnwrapImpl(
-        [[maybe_unused]] InteropCtx *ctx, napi_env env, napi_value jsVal)
+    static std::enable_if_t<std::is_floating_point_v<P>, std::optional<Cpptype>> ExtractImpl(napi_env env,
+                                                                                             napi_value jsVal)
     {
-        ScopedNativeCodeThread nativeScope(ManagedThread::GetCurrent());
         napi_valuetype valueType = GetValueType(env, jsVal);
         napi_value result = jsVal;
-        if (valueType == napi_object && !GetValueByValueOf(env, jsVal, CONSTRUCTOR_NAME_NUMBER, &result)) {
-            JSConvertNumeric::TypeCheckFailed();
-            return {};
+        if (valueType == napi_object) {
+            if (!GetValueByValueOf(env, jsVal, CONSTRUCTOR_NAME_NUMBER, &result)) {
+                return {};
+            }
+            valueType = GetValueType(env, result);
         }
-        if (UNLIKELY(GetValueType(env, result) != napi_number)) {
-            JSConvertNumeric::TypeCheckFailed();
+        if (UNLIKELY(valueType != napi_number)) {
             return {};
         }
         double val;
         NAPI_CHECK_FATAL(napi_get_value_double(env, result, &val));
         return val;
+    }
+
+    template <typename P = Cpptype>
+    static std::enable_if_t<std::is_floating_point_v<P>, std::optional<Cpptype>> UnwrapImpl(
+        [[maybe_unused]] InteropCtx *ctx, napi_env env, napi_value jsVal)
+    {
+        ScopedNativeCodeThread nativeScope(ManagedThread::GetCurrent());
+        auto result = ExtractImpl<P>(env, jsVal);
+        if (!result) {
+            JSConvertNumeric::TypeCheckFailed();
+        }
+        return result;
     }
 
     template <typename P = Cpptype>
@@ -240,36 +263,62 @@ JSCONVERT_WRAP(String)
     }
     return jsVal;
 }
+// Coerce an object via String.prototype.valueOf; non-objects pass through unchanged.
+inline bool CoerceStringObject(napi_env env, napi_value jsVal, napi_valuetype &valueType, napi_value &result)
+{
+    if (valueType != napi_object) {
+        return true;
+    }
+    if (!GetValueByValueOf(env, jsVal, CONSTRUCTOR_NAME_STRING, &result)) {
+        return false;
+    }
+    valueType = GetValueType(env, result);
+    return true;
+}
+
+// String Pre: typeof + valueOf + GetStringHybrid (caller must be in native scope)
+inline std::optional<std::variant<std::string, std::u16string>> JSConvertStringExtract(
+    napi_env env, napi_value jsVal, std::optional<napi_valuetype> knownType = std::nullopt)
+{
+    napi_valuetype valueType = knownType.has_value() ? *knownType : GetValueType(env, jsVal);
+    napi_value result = jsVal;
+    if (!CoerceStringObject(env, jsVal, valueType, result)) {
+        return {};
+    }
+    if (UNLIKELY(valueType != napi_string)) {
+        return {};
+    }
+    return GetStringHybrid(env, result);
+}
+
+// String Post: EtsString::Create (must be in managed state)
+inline EtsString *JSConvertStringMaterialize(std::variant<std::string, std::u16string> &&value)
+{
+    if (std::holds_alternative<std::string>(value)) {
+        const auto &str = std::get<std::string>(value);
+        auto utf8Data = reinterpret_cast<const uint8_t *>(str.data());
+        auto utf8Length = static_cast<uint32_t>(str.length());
+        return EtsString::CreateFromOneByte(utf8Data, utf8Length);
+    }
+    const auto &str = std::get<std::u16string>(value);
+    auto utf16Data = reinterpret_cast<const uint16_t *>(str.data());
+    auto utf16Length = static_cast<uint32_t>(str.length());
+    return EtsString::CreateFromUtf16UnCompressed(utf16Data, utf16Length);
+}
+
 JSCONVERT_UNWRAP(String)
 {
     std::variant<std::string, std::u16string> value;
     {
         ScopedNativeCodeThread nativeScope(ManagedThread::GetCurrent());
-        napi_value result = jsVal;
-        napi_valuetype valueType = GetValueType(env, jsVal);
-        if (valueType == napi_object && !GetValueByValueOf(env, jsVal, CONSTRUCTOR_NAME_STRING, &result)) {
+        auto raw = JSConvertStringExtract(env, jsVal, knownType);
+        if (!raw) {
             TypeCheckFailed();
             return {};
         }
-        if (UNLIKELY(GetValueType(env, result) != napi_string)) {
-            TypeCheckFailed();
-            return {};
-        }
-        value = GetStringHybrid(env, result);
+        value = std::move(*raw);
     }
-    EtsString *resultEtsString = nullptr;
-    if (std::holds_alternative<std::string>(value)) {
-        const auto &str = std::get<std::string>(value);
-        auto utf8Data = reinterpret_cast<const uint8_t *>(str.data());
-        auto utf8Length = static_cast<uint32_t>(str.length());
-        resultEtsString = EtsString::CreateFromOneByte(utf8Data, utf8Length);
-    } else {
-        const auto &str = std::get<std::u16string>(value);
-        auto utf16Data = reinterpret_cast<const uint16_t *>(str.data());
-        auto utf16Length = static_cast<uint32_t>(str.length());
-        resultEtsString = EtsString::CreateFromUtf16UnCompressed(utf16Data, utf16Length);
-    }
-    return resultEtsString;
+    return JSConvertStringMaterialize(std::move(value));
 }
 JSCONVERT_MATCH_TYPE_IMPL(String)
 {
@@ -305,7 +354,8 @@ JSCONVERT_WRAP(BigInt)
 }
 JSCONVERT_UNWRAP(BigInt)
 {
-    if (UNLIKELY(GetValueType<true>(env, jsVal) != napi_bigint)) {
+    napi_valuetype valueType = knownType.has_value() ? *knownType : GetValueType<true>(env, jsVal);
+    if (UNLIKELY(valueType != napi_bigint)) {
         TypeCheckFailed();
         return {};
     }

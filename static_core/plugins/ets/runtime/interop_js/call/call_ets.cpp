@@ -47,6 +47,38 @@ private:
     ALWAYS_INLINE bool ConvertArgs(Span<Value> etsArgs);
     ALWAYS_INLINE ObjectHeader **ConvertRestParams(Span<napi_value> restArgs);
 
+    // Three-stage arg conversion: CollectArgTypes → ExtractArgs → MaterializeArgs
+    static constexpr uint32_t maxArgSlots = 16;  // NOLINT(readability-identifier-naming)
+    struct ArgTypeInfo {
+        panda_file::Type::TypeId typeId {panda_file::Type::TypeId::INVALID};
+        Class *klass {nullptr};
+    };
+    using ArgValueBox = std::variant<uint64_t, ObjectHeader **>;
+    using StringTemp = std::variant<std::monostate, std::string, std::u16string>;
+
+    // Original per-arg path for methods exceeding maxArgSlots
+    template <bool IS_STATIC, typename CreateRootFn>
+    bool ConvertArgsFallback(Span<Value> etsArgs, Span<ArgValueBox> etsBoxedArgs, uint32_t numArgs, uint32_t numNonRest,
+                             CreateRootFn createRoot);
+
+    void CollectArgTypes(std::array<ArgTypeInfo, maxArgSlots> &typeInfos, uint32_t numNonRest);
+    bool ExtractArgs(const std::array<ArgTypeInfo, maxArgSlots> &typeInfos, uint32_t numNonRest,
+                     Span<ArgValueBox> etsBoxedArgs, std::array<StringTemp, maxArgSlots> &stringTemp,
+                     std::array<bool, maxArgSlots> &extracted);
+    ALWAYS_INLINE inline bool ExtractNumericArg(panda_file::Type::TypeId id, uint32_t argIdx,
+                                                Span<ArgValueBox> etsBoxedArgs,
+                                                std::array<bool, maxArgSlots> &extracted);
+    template <typename T>
+    ALWAYS_INLINE inline bool StoreNumericArg(uint32_t argIdx, Span<ArgValueBox> etsBoxedArgs,
+                                              std::array<bool, maxArgSlots> &extracted);
+    bool MaterializeArgs(const std::array<ArgTypeInfo, maxArgSlots> &typeInfos, uint32_t numNonRest,
+                         Span<ArgValueBox> etsBoxedArgs, std::array<StringTemp, maxArgSlots> &stringTemp,
+                         const std::array<bool, maxArgSlots> &extracted);
+    template <typename CreateRootFn>
+    ALWAYS_INLINE inline static bool MaterializeStringArg(panda_file::Type::TypeId typeId, uint32_t argIdx,
+                                                          StringTemp &stringTemp, Span<ArgValueBox> etsBoxedArgs,
+                                                          CreateRootFn createRoot);
+
     ALWAYS_INLINE bool CheckNumArgs(size_t numArgs) const;
 
     template <bool IS_STATIC>
@@ -89,29 +121,32 @@ ALWAYS_INLINE inline bool CallETSHandler::ConvertArgs(Span<Value> etsArgs)
         thisObjRoot = createRoot(thisObj_->GetCoreType());
     }
 
-    using ArgValueBox = std::variant<uint64_t, ObjectHeader **>;
     auto const numArgs = protoReader_.GetMethod()->GetNumArgs() - !IS_STATIC;
     auto const numNonRest = numArgs - protoReader_.GetMethod()->HasVarArgs();
     auto etsBoxedArgs = ctx_->GetTempArgs<ArgValueBox>(numArgs);
 
-    // Convert and store in root if necessary
-    for (uint32_t argIdx = 0; argIdx < numNonRest; ++argIdx, protoReader_.Advance()) {
-        auto store = [&etsBoxedArgs, &argIdx, createRoot](auto val) {
-            if constexpr (std::is_pointer_v<decltype(val)> || std::is_null_pointer_v<decltype(val)>) {
-                etsBoxedArgs[argIdx] = createRoot(val);
-            } else {
-                etsBoxedArgs[argIdx] = static_cast<uint64_t>(val);
-            }
-        };
+    // Single-arg or too-many-args: original path (no three-stage overhead)
+    if (numNonRest <= 1 || numNonRest > maxArgSlots) {
+        if (!ConvertArgsFallback<IS_STATIC>(etsArgs, *etsBoxedArgs, numArgs, numNonRest, createRoot)) {
+            return false;
+        }
+    } else {
+        // Collect arg type info (managed state, uses member protoReader_)
+        std::array<ArgTypeInfo, maxArgSlots> typeInfos;
+        CollectArgTypes(typeInfos, numNonRest);
 
-        if (argIdx >= jsargv_.size()) {
-            // for the non-present args, set them to nullptr
-            // `nullptr` stand for undefined here
-            store(nullptr);
-        } else {
-            if (UNLIKELY(!ConvertArgToEts(ctx_, protoReader_, store, jsargv_[argIdx]))) {
-                return false;
-            }
+        // Extract args in a single shared ScopedNativeCodeThread:
+        // numeric → write directly to etsBoxedArgs; string → temp; others → skip
+        // NOTE: positional arrays with holes for unused args; fixed size trades memory for time
+        std::array<StringTemp, maxArgSlots> stringTemp;
+        std::array<bool, maxArgSlots> extracted = {};
+        if (!ExtractArgs(typeInfos, numNonRest, *etsBoxedArgs, stringTemp, extracted)) {
+            return false;
+        }
+
+        // Materialize args (managed state, advances protoReader_)
+        if (!MaterializeArgs(typeInfos, numNonRest, *etsBoxedArgs, stringTemp, extracted)) {
+            return false;
         }
     }
 
@@ -128,15 +163,15 @@ ALWAYS_INLINE inline bool CallETSHandler::ConvertArgs(Span<Value> etsArgs)
         ASSERT(thisObjRoot != nullptr);
         etsArgs[0] = Value(*thisObjRoot);
     }
-    static constexpr size_t ETS_ARGS_DISP = IS_STATIC ? 0 : 1;
+    auto const etsArgsDisp = IS_STATIC ? 0U : 1U;
 
     for (size_t i = 0; i < numArgs; ++i) {
         ArgValueBox &box = etsBoxedArgs[i];
         if (std::holds_alternative<ObjectHeader **>(box)) {
             ObjectHeader **slot = std::get<1>(box);
-            etsArgs[ETS_ARGS_DISP + i] = Value(slot != nullptr ? *slot : nullptr);
+            etsArgs[etsArgsDisp + i] = Value(slot != nullptr ? *slot : nullptr);
         } else {
-            etsArgs[ETS_ARGS_DISP + i] = Value(std::get<0>(box));
+            etsArgs[etsArgsDisp + i] = Value(std::get<0>(box));
         }
     }
     return true;
@@ -148,13 +183,185 @@ ObjectHeader **CallETSHandler::ConvertRestParams(Span<napi_value> restArgs)
     return PackRestParameters(executionCtx_, ctx_, protoReader_, restArgs);
 }
 
+template <bool IS_STATIC, typename CreateRootFn>
+bool CallETSHandler::ConvertArgsFallback([[maybe_unused]] Span<Value> etsArgs, Span<ArgValueBox> etsBoxedArgs,
+                                         [[maybe_unused]] uint32_t numArgs, uint32_t numNonRest,
+                                         CreateRootFn createRoot)
+{
+    // Original per-arg path for methods exceeding maxArgSlots
+    for (uint32_t argIdx = 0; argIdx < numNonRest; ++argIdx, protoReader_.Advance()) {
+        auto store = [&etsBoxedArgs, &argIdx, createRoot](auto val) {
+            if constexpr (std::is_pointer_v<decltype(val)> || std::is_null_pointer_v<decltype(val)>) {
+                etsBoxedArgs[argIdx] = createRoot(val);
+            } else {
+                etsBoxedArgs[argIdx] = static_cast<uint64_t>(val);
+            }
+        };
+        if (argIdx >= jsargv_.size()) {
+            store(nullptr);
+        } else {
+            if (UNLIKELY(!ConvertArgToEts(ctx_, protoReader_, store, jsargv_[argIdx]))) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+void CallETSHandler::CollectArgTypes(std::array<ArgTypeInfo, maxArgSlots> &typeInfos, uint32_t numNonRest)
+{
+    // Use member protoReader_ (already at first arg after HandleImpl's Advance)
+    for (uint32_t i = 0; i < numNonRest; ++i, protoReader_.Advance()) {
+        auto type = protoReader_.GetType();
+        typeInfos[i].typeId = type.GetId();
+        if (type.IsReference()) {
+            typeInfos[i].klass = protoReader_.GetClass();
+        }
+    }
+    protoReader_.Reset();
+    protoReader_.Advance();  // back to first arg for MaterializeArgs
+}
+
+// CC-OFFNXT(huge_method) solid logic
+bool CallETSHandler::ExtractArgs(const std::array<ArgTypeInfo, maxArgSlots> &typeInfos, uint32_t numNonRest,
+                                 Span<ArgValueBox> etsBoxedArgs, std::array<StringTemp, maxArgSlots> &stringTemp,
+                                 std::array<bool, maxArgSlots> &extracted)
+{
+    auto env = ctx_->GetJSEnv();
+    ScopedNativeCodeThread sharedNativeScope(executionCtx_->GetMT());
+    for (uint32_t i = 0; i < numNonRest; ++i) {
+        if (i >= jsargv_.size()) {
+            continue;
+        }
+        auto id = typeInfos[i].typeId;
+        napi_value jsVal = jsargv_[i];
+
+        if (id == panda_file::Type::TypeId::REFERENCE) {
+            if (typeInfos[i].klass == nullptr || !typeInfos[i].klass->IsStringClass()) {
+                continue;
+            }
+            if (IsUndefined(env, jsVal) || IsNull(env, jsVal)) {
+                continue;
+            }
+            auto result = JSConvertStringExtract(env, jsVal);
+            if (!result) {
+                JSConvertTypeCheckFailed("String");
+                return false;
+            }
+            std::visit([&](auto &&v) { stringTemp[i] = std::forward<decltype(v)>(v); }, std::move(*result));
+            extracted[i] = true;
+            continue;
+        }
+
+        // Numeric: ExtractImpl → write directly to etsBoxedArgs (no temp needed)
+        if (UNLIKELY(!ExtractNumericArg(id, i, etsBoxedArgs, extracted))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool CallETSHandler::ExtractNumericArg(panda_file::Type::TypeId id, uint32_t argIdx, Span<ArgValueBox> etsBoxedArgs,
+                                       std::array<bool, maxArgSlots> &extracted)
+{
+    switch (id) {
+        case panda_file::Type::TypeId::I8:
+            return StoreNumericArg<int8_t>(argIdx, etsBoxedArgs, extracted);
+        case panda_file::Type::TypeId::U8:
+            return StoreNumericArg<uint8_t>(argIdx, etsBoxedArgs, extracted);
+        case panda_file::Type::TypeId::I16:
+            return StoreNumericArg<int16_t>(argIdx, etsBoxedArgs, extracted);
+        case panda_file::Type::TypeId::I32:
+            return StoreNumericArg<int32_t>(argIdx, etsBoxedArgs, extracted);
+        case panda_file::Type::TypeId::U32:
+            return StoreNumericArg<uint32_t>(argIdx, etsBoxedArgs, extracted);
+        case panda_file::Type::TypeId::I64:
+            return StoreNumericArg<int64_t>(argIdx, etsBoxedArgs, extracted);
+        case panda_file::Type::TypeId::U64:
+            return StoreNumericArg<uint64_t>(argIdx, etsBoxedArgs, extracted);
+        case panda_file::Type::TypeId::F32:
+            return StoreNumericArg<float>(argIdx, etsBoxedArgs, extracted);
+        case panda_file::Type::TypeId::F64:
+            return StoreNumericArg<double>(argIdx, etsBoxedArgs, extracted);
+        default:
+            return true;
+    }
+}
+
+template <typename T>
+bool CallETSHandler::StoreNumericArg(uint32_t argIdx, Span<ArgValueBox> etsBoxedArgs,
+                                     std::array<bool, maxArgSlots> &extracted)
+{
+    auto result = JSConvertNumeric<T>::ExtractImpl(ctx_->GetJSEnv(), jsargv_[argIdx]);
+    if (!result) {
+        JSConvertTypeCheckFailed("number");
+        return false;
+    }
+    etsBoxedArgs[argIdx] = static_cast<uint64_t>(Value(*result).GetAsLong());
+    extracted[argIdx] = true;
+    return true;
+}
+
+bool CallETSHandler::MaterializeArgs(const std::array<ArgTypeInfo, maxArgSlots> &typeInfos, uint32_t numNonRest,
+                                     Span<ArgValueBox> etsBoxedArgs, std::array<StringTemp, maxArgSlots> &stringTemp,
+                                     const std::array<bool, maxArgSlots> &extracted)
+{
+    auto const createRoot = [executionCtx = executionCtx_](ObjectHeader *val) {
+        return reinterpret_cast<ObjectHeader **>(VMHandle<ObjectHeader>(executionCtx->GetMT(), val).GetAddress());
+    };
+    for (uint32_t argIdx = 0; argIdx < numNonRest; ++argIdx, protoReader_.Advance()) {
+        if (extracted[argIdx]) {
+            // Numeric args were already stored by ExtractArgs; only String needs materialization
+            if (UNLIKELY(!MaterializeStringArg(typeInfos[argIdx].typeId, argIdx, stringTemp[argIdx], etsBoxedArgs,
+                                               createRoot))) {
+                return false;
+            }
+            continue;
+        }
+        // Not extracted: original path (ConvertArgToEts with own scope)
+        auto store = [&etsBoxedArgs, &argIdx, createRoot](auto val) {
+            if constexpr (std::is_pointer_v<decltype(val)> || std::is_null_pointer_v<decltype(val)>) {
+                etsBoxedArgs[argIdx] = createRoot(val);
+            } else {
+                etsBoxedArgs[argIdx] = static_cast<uint64_t>(val);
+            }
+        };
+        if (argIdx >= jsargv_.size()) {
+            store(nullptr);
+        } else {
+            if (UNLIKELY(!ConvertArgToEts(ctx_, protoReader_, store, jsargv_[argIdx]))) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+template <typename CreateRootFn>
+bool CallETSHandler::MaterializeStringArg(panda_file::Type::TypeId typeId, uint32_t argIdx, StringTemp &stringTemp,
+                                          Span<ArgValueBox> etsBoxedArgs, CreateRootFn createRoot)
+{
+    // numeric: stored in ExtractArgs; non-string refs: never extracted; only String is materialized here
+    if (typeId != panda_file::Type::TypeId::REFERENCE) {
+        return true;
+    }
+    EtsString *etsStr = nullptr;
+    std::visit(
+        [&](auto &&v) {
+            if constexpr (!std::is_same_v<std::decay_t<decltype(v)>, std::monostate>) {
+                etsStr = JSConvertStringMaterialize(std::forward<decltype(v)>(v));
+            }
+        },
+        std::move(stringTemp));
+    if (UNLIKELY(etsStr == nullptr)) {
+        return false;
+    }
+    etsBoxedArgs[argIdx] = createRoot(etsStr->GetCoreType());
+    return true;
+}
+
 bool CallETSHandler::CheckNumArgs(size_t numArgs) const
 {
-    const auto method = protoReader_.GetMethod();
-    bool const hasRestParams = method->HasVarArgs();
-    auto const numMandatoryParams = EtsMethod::FromRuntimeMethod(const_cast<Method *>(method))->GetNumMandatoryArgs();
-    ASSERT((hasRestParams && numArgs > 0) || !hasRestParams);
-
     // handle fast path: if the js argv of args is equal to numArgs
     // then the check is passed
     if (jsargv_.size() >= numArgs) {
@@ -162,6 +369,10 @@ bool CallETSHandler::CheckNumArgs(size_t numArgs) const
     }
 
     // handle slow path
+    const auto method = protoReader_.GetMethod();
+    bool const hasRestParams = method->HasVarArgs();
+    ASSERT((hasRestParams && numArgs > 0) || !hasRestParams);
+    auto const numMandatoryParams = EtsMethod::FromRuntimeMethod(const_cast<Method *>(method))->GetNumMandatoryArgs();
     if (jsargv_.size() < numMandatoryParams) {
         std::string msg = "CallEtsFunction: wrong argc, ets_argc=" + std::to_string(numArgs) +
                           " js_argc=" + std::to_string(jsargv_.size()) +

@@ -38,12 +38,15 @@ JSCONVERT_UNWRAP(StdlibBoolean)
     {
         ScopedNativeCodeThread nativeScope(executionCtx->GetMT());
         napi_value result = jsVal;
-        napi_valuetype valueType = GetValueType(env, jsVal);
-        if (valueType == napi_object && !GetValueByValueOf(env, jsVal, CONSTRUCTOR_NAME_BOOLEAN, &result)) {
-            TypeCheckFailed();
-            return {};
+        napi_valuetype valueType = knownType.has_value() ? *knownType : GetValueType(env, jsVal);
+        if (valueType == napi_object) {
+            if (!GetValueByValueOf(env, jsVal, CONSTRUCTOR_NAME_BOOLEAN, &result)) {
+                TypeCheckFailed();
+                return {};
+            }
+            valueType = GetValueType(env, result);
         }
-        if (UNLIKELY(GetValueType(env, result) != napi_boolean)) {
+        if (UNLIKELY(valueType != napi_boolean)) {
             TypeCheckFailed();
             return {};
         }
@@ -290,12 +293,15 @@ JSCONVERT_UNWRAP(StdlibDouble)
     {
         ScopedNativeCodeThread nativeScope(executionCtx->GetMT());
         napi_value result = jsVal;
-        napi_valuetype valueType = GetValueType(env, jsVal);
-        if (valueType == napi_object && !GetValueByValueOf(env, jsVal, CONSTRUCTOR_NAME_NUMBER, &result)) {
-            TypeCheckFailed();
-            return {};
+        napi_valuetype valueType = knownType.has_value() ? *knownType : GetValueType(env, jsVal);
+        if (valueType == napi_object) {
+            if (!GetValueByValueOf(env, jsVal, CONSTRUCTOR_NAME_NUMBER, &result)) {
+                TypeCheckFailed();
+                return {};
+            }
+            valueType = GetValueType(env, result);
         }
-        if (UNLIKELY(GetValueType(env, result) != napi_number)) {
+        if (UNLIKELY(valueType != napi_number)) {
             TypeCheckFailed();
             return {};
         }
