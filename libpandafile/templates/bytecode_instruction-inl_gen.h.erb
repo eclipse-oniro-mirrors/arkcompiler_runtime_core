@@ -70,6 +70,62 @@ constexpr bool BytecodeInst<Mode>::HasImm(Format format, size_t idx) {
     UNREACHABLE_CONSTEXPR();
 }
 
+// NOLINTNEXTLINE(readability-function-size)
+template<const BytecodeInstMode Mode>
+inline size_t BytecodeInst<Mode>::GetOperandCount() const {
+    switch (GetOpcode()) {
+% Panda::instructions.each do |inst|
+    case BytecodeInst<Mode>::Opcode::<%= inst.opcode.upcase %>:
+        return static_cast<size_t>(<%= inst.operands.length %>);
+% end
+    default:
+        return 0;
+    }
+}
+
+// NOLINTNEXTLINE(readability-function-size)
+template<const BytecodeInstMode Mode>
+inline BytecodeOperandDescriptor BytecodeInst<Mode>::GetOperandDescriptor(size_t idx) const {
+    size_t operandCount = GetOperandCount();
+    ASSERT_PRINT(idx < operandCount, "Instruction doesn't have operand with such index");
+
+    if (idx >= operandCount) {
+        return {};
+    }
+
+    switch (GetOpcode()) {
+% Panda::instructions.each do |inst|
+%   next if inst.operands.empty?
+%   imm_count = 0
+%   reg_count = 0
+%   id_count = 0
+    case BytecodeInst<Mode>::Opcode::<%= inst.opcode.upcase %>: {
+        constexpr std::array<BytecodeOperandDescriptor, <%= inst.operands.length %>> DESCRIPTORS {{
+%   inst.operands.each do |op|
+%     if op.imm?
+            {BytecodeOperandKind::IMMEDIATE, <%= imm_count %>, 0},
+%       imm_count += 1
+%     elsif op.reg?
+            {BytecodeOperandKind::REGISTER, <%= reg_count %>, 0},
+%       reg_count += 1
+%     elsif op.id?
+            {BytecodeOperandKind::ID, <%= id_count %>, <%= op.width %>},
+%       id_count += 1
+%     else
+%       raise "Incorrect operand type #{op.type}"
+%     end
+%   end
+        }};
+        return DESCRIPTORS[idx];
+    }
+% end
+    default:
+        break;
+    }
+
+    UNREACHABLE();
+}
+
 /* static */
 template<const BytecodeInstMode Mode>
 constexpr size_t BytecodeInst<Mode>::Size(Format format) {  // NOLINTNEXTLINE(readability-function-size)
@@ -331,6 +387,76 @@ inline auto BytecodeInst<Mode>::GetImm64(size_t idx /* = 0 */) const {
 }
 
 template<const BytecodeInstMode Mode>
+inline uint64_t BytecodeInst<Mode>::GetImmRaw(size_t idx /* = 0 */) const {
+    Format format = GetFormat();
+    ASSERT_PRINT(HasImm(format, idx), "Instruction doesn't have imm operand with such index");
+
+    if (!HasImm(format, idx)) {
+        return 0;
+    }
+
+    switch (format) {
+% insns_uniq_sort_fmts.each do |i| # Panda::formats.each do |fmt|
+%   fmt = i.format
+%   n = i.operands.count(&:imm?)
+%   next if n == 0
+%
+%   imm_ops = i.operands.select(&:imm?)
+%   offsets = imm_ops.map(&:offset)
+%   widths = imm_ops.map(&:width)
+%
+    case Format::<%= fmt.pretty.upcase %>: {
+        constexpr std::array<size_t, <%= n %>> OFFSETS{<%= offsets.join(", ") %>};
+        constexpr std::array<size_t, <%= n %>> WIDTHS{<%= widths.join(", ") %>};
+        return Read64<false>(OFFSETS[idx], WIDTHS[idx]);
+    }
+% end
+    default: {
+        break;
+    }
+    }
+
+    UNREACHABLE();
+}
+
+template<const BytecodeInstMode Mode>
+inline BytecodeImmediateType BytecodeInst<Mode>::GetImmType(size_t idx /* = 0 */) const {
+    Format format = GetFormat();
+    ASSERT_PRINT(HasImm(format, idx), "Instruction doesn't have imm operand with such index");
+
+    if (!HasImm(format, idx)) {
+        return {};
+    }
+
+    switch (GetOpcode()) {
+% Panda::instructions.each do |inst|
+%   imm_ops = inst.operands.select(&:imm?)
+%   next if imm_ops.empty?
+    case BytecodeInst<Mode>::Opcode::<%= inst.opcode.upcase %>: {
+        constexpr std::array<BytecodeImmediateType, <%= imm_ops.length %>> TYPES {{
+%   imm_ops.each do |op|
+%     if op.is_float_imm?
+            {BytecodeImmediateKind::FLOAT, <%= op.width %>},
+%     elsif op.is_signed_imm?
+            {BytecodeImmediateKind::SIGNED, <%= op.width %>},
+%     elsif op.is_unsigned_imm?
+            {BytecodeImmediateKind::UNSIGNED, <%= op.width %>},
+%     else
+%       raise "Incorrect imm type #{op.type}"
+%     end
+%   end
+        }};
+        return TYPES[idx];
+    }
+% end
+    default:
+        break;
+    }
+
+    UNREACHABLE();
+}
+
+template<const BytecodeInstMode Mode>
 inline auto BytecodeInst<Mode>::GetImmData(size_t idx /* = 0 */) const {
     Format format = GetFormat();
     ASSERT_PRINT(HasImm(format, idx), "Instruction doesn't have imm operand with such index");
@@ -352,15 +478,15 @@ inline auto BytecodeInst<Mode>::GetImmData(size_t idx /* = 0 */) const {
         if (idx == <%=imm_count%>) {
             // Note: If the immediate value is a floating-point number,
             // converting it to int64_t may result in precision loss.
-            imm = static_cast<int64_t>(GetImm<BytecodeInstruction::Format::<%=inst.format.pretty.upcase%>, <%=imm_count%>, true>());
+            imm = static_cast<int64_t>(GetImm<BytecodeInst<Mode>::Format::<%=inst.format.pretty.upcase%>, <%=imm_count%>, true>());
         }
 %         elsif op.is_signed_imm?
         if (idx == <%=imm_count%>) {
-            imm = static_cast<int64_t>(GetImm<BytecodeInstruction::Format::<%=inst.format.pretty.upcase%>, <%=imm_count%>, true>());
+            imm = static_cast<int64_t>(GetImm<BytecodeInst<Mode>::Format::<%=inst.format.pretty.upcase%>, <%=imm_count%>, true>());
         }
 %         elsif op.is_unsigned_imm?
         if (idx == <%=imm_count%>) {
-            imm = static_cast<int64_t>(GetImm<BytecodeInstruction::Format::<%=inst.format.pretty.upcase%>, <%=imm_count%>, false>());
+            imm = static_cast<int64_t>(GetImm<BytecodeInst<Mode>::Format::<%=inst.format.pretty.upcase%>, <%=imm_count%>, false>());
         }
 %         else
 %            raise "Incorrect imm type #{op.type}"
@@ -570,6 +696,20 @@ inline bool BytecodeInst<Mode>::IsPrimaryOpcodeValid() const
         return false;
     }
     return true;
+}
+
+// NOLINTNEXTLINE(readability-function-size)
+template <const BytecodeInstMode Mode>
+inline bool BytecodeInst<Mode>::IsOpcodeValid() const
+{
+    switch (GetOpcode()) {
+% Panda::instructions.each do |i|
+        case BytecodeInst<Mode>::Opcode::<%= i.opcode.upcase %>:
+            return true;
+% end
+        default:
+            return false;
+    }
 }
 
 // NOLINTNEXTLINE(readability-function-size)

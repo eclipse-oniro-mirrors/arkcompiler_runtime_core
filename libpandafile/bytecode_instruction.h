@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2022 Huawei Device Co., Ltd.
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -31,6 +31,23 @@
 namespace panda {
 
 enum class BytecodeInstMode { FAST, SAFE };
+
+enum class BytecodeImmediateKind { SIGNED, UNSIGNED, FLOAT };
+
+struct BytecodeImmediateType {
+    BytecodeImmediateKind kind {BytecodeImmediateKind::SIGNED};
+
+    // Width of the immediate field in the concrete instruction encoding, in bits.
+    size_t bitWidth {0};
+};
+
+enum class BytecodeOperandKind { REGISTER, IMMEDIATE, ID };
+
+struct BytecodeOperandDescriptor {
+    BytecodeOperandKind kind {BytecodeOperandKind::REGISTER};
+    size_t typedIndex {0};
+    size_t bitWidth {0};
+};
 
 template <const BytecodeInstMode>
 class BytecodeInstBase;
@@ -260,7 +277,17 @@ public:
     // Read imm as actually signed / unsigned and cast it to int64 before return
     auto GetImmData(size_t idx = 0) const;
 
+    // Return the ISA kind and concrete encoded bit width of an immediate operand.
+    BytecodeImmediateType GetImmType(size_t idx = 0) const;
+
+    // Return the immediate field bits zero-extended to uint64_t, without signed or floating-point interpretation.
+    uint64_t GetImmRaw(size_t idx = 0) const;
+
     auto GetImmCount() const;
+
+    size_t GetOperandCount() const;
+
+    BytecodeOperandDescriptor GetOperandDescriptor(size_t idx) const;
 
     /**
      * Primary and Secondary Opcodes are used in interpreter/verifier instruction dispatch
@@ -279,6 +306,11 @@ public:
     }
 
     bool IsPrimaryOpcodeValid() const;
+
+    // Checks that the complete primary/secondary opcode identifies a known
+    // instruction. For a prefixed instruction the caller must first ensure
+    // that the secondary byte is readable.
+    bool IsOpcodeValid() const;
 
     uint8_t GetSecondaryOpcode() const;
 

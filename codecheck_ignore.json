@@ -23,6 +23,7 @@
 	"platforms": "*",
 	"plugins": "*",
 	"scripts": "*",
+	"static_core/assembler": "*",
 	"templates": "*",
 	"tests": "*",
 	"verifier": "*",

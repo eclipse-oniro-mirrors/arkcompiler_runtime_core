@@ -1,0 +1,377 @@
+# Copyright (c) 2026 Huawei Device Co., Ltd.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import("//arkcompiler/runtime_core/ark_config.gni")
+import("$ark_root/tests/test_helper.gni")
+
+config("bytecode_explorer_public_config") {
+  include_dirs = [ "." ]
+  if (is_mingw) {
+    # The bundled MinGW libc++ supplies PMR through its experimental library.
+    libs = [ "c++experimental" ]
+  }
+}
+
+bytecode_explorer_web_asset_header =
+    "$target_gen_dir/bytecode_explorer_web_assets.gen.h"
+
+action("ark_bytecode_explorer_embed_web_assets") {
+  script = "web/tools/embed_web_assets.py"
+  sources = [
+    "web/frontend/index.html",
+    "web/frontend/styles.css",
+    "web/frontend/src/main.js",
+    "web/frontend/src/api-client.js",
+    "web/frontend/src/app-state.js",
+    "web/frontend/src/cfg-view-model.js",
+    "web/frontend/src/cfg-canvas.js",
+    "web/frontend/src/cfg-view.js",
+    "web/frontend/src/tree-model.js",
+    "web/frontend/src/hex-view-model.js",
+    "web/frontend/src/hex-view.js",
+    "web/frontend/src/metadata-view-model.js",
+    "web/frontend/src/metadata-view.js",
+    "web/frontend/src/workbench-layout-model.js",
+    "web/frontend/src/workbench-layout.js",
+    "web/frontend/src/workbench-selection.js",
+    "web/frontend/src/bootstrap.js",
+    "web/frontend/src/session-loading.js",
+    "web/frontend/src/statistics-view.js",
+    "web/frontend/src/tooltip.js",
+    "web/frontend/src/document-switching.js",
+    "web/frontend/src/theme.js",
+    "web/frontend/src/module-statistics-prefetch.js",
+    "web/frontend/src/document-meta.js",
+  ]
+  outputs = [ bytecode_explorer_web_asset_header ]
+  args = [
+    "--output",
+    rebase_path(outputs[0], root_build_dir),
+    "--asset",
+    "/",
+    "text/html; charset=utf-8",
+    rebase_path(sources[0], root_build_dir),
+    "--asset",
+    "/assets/styles.css",
+    "text/css; charset=utf-8",
+    rebase_path(sources[1], root_build_dir),
+    "--asset",
+    "/assets/main.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[2], root_build_dir),
+    "--asset",
+    "/assets/api-client.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[3], root_build_dir),
+    "--asset",
+    "/assets/app-state.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[4], root_build_dir),
+    "--asset",
+    "/assets/tree-model.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[8], root_build_dir),
+    "--asset",
+    "/assets/cfg-view-model.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[5], root_build_dir),
+    "--asset",
+    "/assets/cfg-view.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[7], root_build_dir),
+    "--asset",
+    "/assets/cfg-canvas.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[6], root_build_dir),
+    "--asset",
+    "/assets/hex-view-model.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[9], root_build_dir),
+    "--asset",
+    "/assets/hex-view.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[10], root_build_dir),
+    "--asset",
+    "/assets/metadata-view-model.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[11], root_build_dir),
+    "--asset",
+    "/assets/metadata-view.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[12], root_build_dir),
+    "--asset",
+    "/assets/workbench-layout-model.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[13], root_build_dir),
+    "--asset",
+    "/assets/workbench-layout.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[14], root_build_dir),
+    "--asset",
+    "/assets/workbench-selection.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[15], root_build_dir),
+    "--asset",
+    "/assets/bootstrap.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[16], root_build_dir),
+    "--asset",
+    "/assets/session-loading.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[17], root_build_dir),
+    "--asset",
+    "/assets/statistics-view.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[18], root_build_dir),
+    "--asset",
+    "/assets/module-statistics-prefetch.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[22], root_build_dir),
+    "--asset",
+    "/assets/tooltip.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[19], root_build_dir),
+    "--asset",
+    "/assets/document-switching.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[20], root_build_dir),
+    "--asset",
+    "/assets/theme.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[21], root_build_dir),
+    "--asset",
+    "/assets/document-meta.js",
+    "text/javascript; charset=utf-8",
+    rebase_path(sources[23], root_build_dir),
+  ]
+}
+
+ohos_executable("ark_bytecode_explorer") {
+  sources = [
+    "main.cpp",
+    "web/browser_application.cpp",
+  ]
+
+  configs = [ "$ark_root:ark_config" ]
+  deps = [
+    ":ark_bytecode_explorer_core",
+    ":ark_bytecode_explorer_web_api",
+    ":ark_bytecode_explorer_web_host",
+  ]
+  external_deps = [ sdk_libc_secshared_dep ]
+  libs = [ "pthread" ]
+  if (is_mingw) {
+    ldflags = [ "-municode" ]
+  }
+  if (!is_mingw) {
+    libs += [ "dl" ]
+  }
+
+  install_enable = false
+  part_name = "runtime_core"
+  subsystem_name = "arkcompiler"
+}
+
+ohos_static_library("ark_bytecode_explorer_core") {
+  sources = [
+    "app/command_line.cpp",
+    "app/document_loader.cpp",
+    "core/cfg/cfg_analysis.cpp",
+    "core/cfg/cfg_builder.cpp",
+    "core/cfg/cfg_layout.cpp",
+    "core/common/bounded_memory_resource.cpp",
+    "core/common/task_runner.cpp",
+    "core/statistics/scope_statistics.cpp",
+    "core/document/abc_document.cpp",
+    "core/executable_target_resolver.cpp",
+    "core/function_disassembler.cpp",
+    "core/method_index.cpp",
+    "core/format/disassembly_formatter.cpp",
+    "core/format/structure_formatter.cpp",
+    "core/index/file_range_locator.cpp",
+    "core/index/structure_index.cpp",
+    "core/metadata/metadata_catalog.cpp",
+    "core/metadata/metadata_index_service.cpp",
+    "core/metadata/metadata_model.cpp",
+    "core/metadata/metadata_reference_indexer.cpp",
+    "core/reader/dynamic_name_parser.cpp",
+    "core/reader/dynamic_structure_reader.cpp",
+    "core/reader/annotation_analyzer.cpp",
+    "core/reader/callable_analyzer.cpp",
+    "core/reader/class_definition_analyzer.cpp",
+    "core/reader/debug_build_detector.cpp",
+    "core/reader/enum_analyzer.cpp",
+    "core/reader/hierarchy_builder.cpp",
+    "core/reader/hex_window_reader.cpp",
+    "core/reader/literal_array_reader.cpp",
+    "core/reader/module_binding_analyzer.cpp",
+    "core/reader/physical_fallback_builder.cpp",
+    "core/reader/physical_reader.cpp",
+    "core/reader/property_analyzer.cpp",
+    "core/reader/structure_classifier.cpp",
+  ]
+
+  public_configs = [ ":bytecode_explorer_public_config" ]
+  configs = [
+    "$ark_root:ark_config",
+    "$ark_root/libpandabase:arkbase_public_config",
+    "$ark_root/libpandafile:arkfile_public_config",
+  ]
+
+  deps = [ "$ark_root/libpandafile:libarkfile_frontend_checked_static" ]
+  external_deps = [ sdk_libc_secshared_dep ]
+}
+
+ohos_static_library("ark_bytecode_explorer_web_api") {
+  sources = [
+    "web/api/recent_files.cpp",
+    "web/api/preferences.cpp",
+    "web/api/web_api.cpp",
+    "web/api/web_session.cpp",
+    "web/api/statistics_api.cpp",
+  ]
+
+  public_configs = [ ":bytecode_explorer_public_config" ]
+  configs = [ "$ark_root:ark_config" ]
+  deps = [ ":ark_bytecode_explorer_core" ]
+  external_deps = [ "json:nlohmann_json_static" ]
+}
+
+ohos_static_library("ark_bytecode_explorer_web_host") {
+  sources = [
+    "platform/browser_launcher.cpp",
+    "platform/file_dialog.cpp",
+    "web/assets/web_assets.cpp",
+    "web/host/http_request.cpp",
+    "web/host/loopback_host.cpp",
+    "web/host/pick_controller.cpp",
+    "web/host/request_router.cpp",
+  ]
+
+  public_configs = [ ":bytecode_explorer_public_config" ]
+  configs = [ "$ark_root:ark_config" ]
+  include_dirs = [ target_gen_dir ]
+  if (is_mingw) {
+    # Browser launching, the file dialog and libuv's Windows platform implementation.
+    libs = [
+      "shell32",
+      "ole32",
+      "comdlg32",
+      "dbghelp",
+    ]
+  }
+  deps = [
+    ":ark_bytecode_explorer_embed_web_assets",
+    ":ark_bytecode_explorer_web_api",
+  ]
+  external_deps = [ "json:nlohmann_json_static" ]
+  if (ark_standalone_build) {
+    deps += [ "$ark_third_party_root/libuv:uv_static" ]
+  } else {
+    external_deps += [ "libuv:uv_static" ]
+  }
+}
+
+host_unittest_action("ark_bytecode_explorer_tests") {
+  module_out_path = module_output_path
+
+  sources = [
+    "tests/bounded_memory_resource_test.cpp",
+    "tests/cfg_analysis_test.cpp",
+    "tests/cfg_builder_test.cpp",
+    "tests/cfg_layout_test.cpp",
+    "tests/core_test.cpp",
+    "tests/debug_build_detector_test.cpp",
+    "tests/disassembly_test.cpp",
+    "tests/disassembly_test_utils.cpp",
+    "tests/disassembly_typed_id_test.cpp",
+    "tests/file_range_locator_test.cpp",
+    "tests/hex_window_reader_test.cpp",
+    "tests/metadata_catalog_test.cpp",
+    "tests/metadata_index_service_test.cpp",
+    "tests/metadata_reference_indexer_test.cpp",
+    "tests/pick_controller_test.cpp",
+    "tests/physical_reader_test.cpp",
+    "tests/preferences_test.cpp",
+    "tests/recent_files_test.cpp",
+    "tests/semantic_analyzer_test.cpp",
+    "tests/scope_statistics_test.cpp",
+    "tests/structure_reader_test.cpp",
+    "tests/web_api_test.cpp",
+    "tests/web_http_test.cpp",
+    "tests/web_session_test.cpp",
+  ]
+  test_abc_path = rebase_path("tests/data/router_table.abc", root_build_dir)
+  test_static_abc_path =
+      rebase_path("tests/data/mode_test_static.abc", root_build_dir)
+  build_mode_debug_test_abc_path = rebase_path(
+          "tests/data/compile_mode_sample/compile_mode_debug.abc",
+          root_build_dir)
+  build_mode_release_test_abc_path = rebase_path(
+          "tests/data/compile_mode_sample/compile_mode_release.abc",
+          root_build_dir)
+  structure_test_abc_path = rebase_path(
+          "tests/data/structure_sample/structure_sample.abc",
+          root_build_dir)
+  structure_nonmerge_test_abc_path = rebase_path(
+          "tests/data/structure_sample/structure_alpha_nonmerge.abc",
+          root_build_dir)
+  structure_no_scope_test_abc_path = rebase_path(
+          "tests/data/structure_sample/structure_default_api.abc",
+          root_build_dir)
+  structure_merged_no_scope_test_abc_path = rebase_path(
+          "tests/data/structure_sample/structure_default_api_merged.abc",
+          root_build_dir)
+  structure_script_test_abc_path = rebase_path(
+          "tests/data/structure_sample/structure_script.abc",
+          root_build_dir)
+  defines = [
+    "BYTECODE_EXPLORER_TEST_ABC=\"${test_abc_path}\"",
+    "BYTECODE_EXPLORER_TEST_STATIC_ABC=\"${test_static_abc_path}\"",
+    "BYTECODE_EXPLORER_BUILD_MODE_DEBUG_TEST_ABC=\"${build_mode_debug_test_abc_path}\"",
+    "BYTECODE_EXPLORER_BUILD_MODE_RELEASE_TEST_ABC=\"${build_mode_release_test_abc_path}\"",
+    "BYTECODE_EXPLORER_STRUCTURE_TEST_ABC=\"${structure_test_abc_path}\"",
+    "BYTECODE_EXPLORER_STRUCTURE_NONMERGE_TEST_ABC=\"${structure_nonmerge_test_abc_path}\"",
+    "BYTECODE_EXPLORER_STRUCTURE_NO_SCOPE_TEST_ABC=\"${structure_no_scope_test_abc_path}\"",
+    "BYTECODE_EXPLORER_STRUCTURE_MERGED_NO_SCOPE_TEST_ABC=\"${structure_merged_no_scope_test_abc_path}\"",
+    "BYTECODE_EXPLORER_STRUCTURE_SCRIPT_TEST_ABC=\"${structure_script_test_abc_path}\"",
+  ]
+
+  configs = [
+    "$ark_root:ark_config",
+    "$ark_root/libpandabase:arkbase_public_config",
+    "$ark_root/libpandafile:arkfile_public_config",
+    "$ark_root/libpandafile:arkfile_frontend_public_config",
+    "$ark_root/libpandafile:arkfile_checked_config",
+  ]
+
+  external_deps = [
+    "json:nlohmann_json_static",
+    sdk_libc_secshared_dep,
+  ]
+  if (ark_standalone_build) {
+    deps = [
+      ":ark_bytecode_explorer_core",
+      ":ark_bytecode_explorer_web_api",
+      ":ark_bytecode_explorer_web_host",
+      "$build_root/third_party_gn/googletest:gtest_main",
+    ]
+  } else {
+    deps = [
+      ":ark_bytecode_explorer_core",
+      ":ark_bytecode_explorer_web_api",
+      ":ark_bytecode_explorer_web_host",
+    ]
+    external_deps += [ "googletest:gtest_main" ]
+  }
+}
