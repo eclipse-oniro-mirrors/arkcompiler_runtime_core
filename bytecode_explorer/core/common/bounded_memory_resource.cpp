@@ -31,7 +31,7 @@ BoundedMemoryResource::BoundedMemoryResource(uint64_t limitBytes, pmr::memory_re
     : limitBytes_(limitBytes), upstream_(upstream)
 {
     if (upstream_ == nullptr) {
-        upstream_ = pmr::new_delete_resource();
+        upstream_ = NewDeleteResource();
     }
 }
 

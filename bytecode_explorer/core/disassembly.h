@@ -58,12 +58,12 @@ enum class IdResolutionMode { INDEX, DIRECT_OFFSET };
 enum class ControlFlowKind { NORMAL, CONDITIONAL_JUMP, UNCONDITIONAL_JUMP, RETURN, THROW };
 
 struct IdOperand {
-    explicit IdOperand(pmr::memory_resource *resource = pmr::get_default_resource()) : resolvedText(resource)
+    explicit IdOperand(pmr::memory_resource *resource = NewDeleteResource()) : resolvedText(resource)
     {
     }
 
     IdOperand(IdOperandKind operandKind, IdResolutionMode mode, uint32_t raw, std::optional<uint64_t> offset,
-              std::string_view text, pmr::memory_resource *resource = pmr::get_default_resource())
+              std::string_view text, pmr::memory_resource *resource = NewDeleteResource())
         : kind(operandKind), resolutionMode(mode), rawValue(raw), resolvedOffset(offset), resolvedText(text, resource)
     {
     }
@@ -76,7 +76,7 @@ struct IdOperand {
 };
 
 struct InstructionInfo {
-    explicit InstructionInfo(pmr::memory_resource *resource = pmr::get_default_resource())
+    explicit InstructionInfo(pmr::memory_resource *resource = NewDeleteResource())
         : mnemonic(resource),
           operands(resource),
           bytes(resource),
@@ -110,7 +110,7 @@ struct CatchHandlerInfo {
 };
 
 struct TryRegionInfo {
-    explicit TryRegionInfo(pmr::memory_resource *resource = pmr::get_default_resource()) : handlers(resource)
+    explicit TryRegionInfo(pmr::memory_resource *resource = NewDeleteResource()) : handlers(resource)
     {
     }
 
@@ -125,14 +125,14 @@ private:
     std::shared_ptr<BoundedMemoryResource> ownedResource_;
 
 public:
-    FunctionDisassembly() : tryRegions(pmr::get_default_resource()), instructions(pmr::get_default_resource())
+    FunctionDisassembly() : tryRegions(NewDeleteResource()), instructions(NewDeleteResource())
     {
     }
 
     explicit FunctionDisassembly(std::shared_ptr<BoundedMemoryResource> resource)
         : ownedResource_(std::move(resource)),
-          tryRegions(ownedResource_ != nullptr ? ownedResource_.get() : pmr::get_default_resource()),
-          instructions(ownedResource_ != nullptr ? ownedResource_.get() : pmr::get_default_resource())
+          tryRegions(ownedResource_ != nullptr ? ownedResource_.get() : NewDeleteResource()),
+          instructions(ownedResource_ != nullptr ? ownedResource_.get() : NewDeleteResource())
     {
     }
 

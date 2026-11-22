@@ -37,13 +37,13 @@ private:
         if (failAllocations) {
             throw std::bad_alloc {};
         }
-        return pmr::new_delete_resource()->allocate(bytes, alignment);
+        return NewDeleteResource()->allocate(bytes, alignment);
     }
 
     void do_deallocate(void *memory, size_t bytes, size_t alignment) override
     {
         ++deallocateCalls;
-        pmr::new_delete_resource()->deallocate(memory, bytes, alignment);
+        NewDeleteResource()->deallocate(memory, bytes, alignment);
     }
 
     bool do_is_equal(const pmr::memory_resource &other) const noexcept override

@@ -954,12 +954,13 @@ TextResolution ResolveStringText(const panda_file::File &file, uint32_t offset, 
 {
     const uint64_t fileSize = file.GetHeader()->file_size;
     if (!panda_file::File::EntityId(offset).IsValid() || offset >= fileSize) {
-        return {DisassemblyStatus::MALFORMED_BYTECODE, {}, "String ID resolves outside the ABC file"};
+        return {DisassemblyStatus::MALFORMED_BYTECODE, ModelString(resource),
+                "String ID resolves outside the ABC file"};
     }
     uint64_t cursor = offset;
     uint32_t taggedUtf16Length = 0U;
     if (!ReadUleb32(file.GetBase(), fileSize, &cursor, &taggedUtf16Length)) {
-        return {DisassemblyStatus::MALFORMED_BYTECODE, {}, "String ID has a malformed length"};
+        return {DisassemblyStatus::MALFORMED_BYTECODE, ModelString(resource), "String ID has a malformed length"};
     }
     const auto expectedUtf16Length = taggedUtf16Length >> 1U;
     uint32_t utf16Length = 0U;
@@ -970,12 +971,13 @@ TextResolution ResolveStringText(const panda_file::File &file, uint32_t offset, 
         const auto first = file.GetBase()[static_cast<size_t>(cursor)];
         if (first == 0U) {
             if (utf16Length != expectedUtf16Length) {
-                return {DisassemblyStatus::MALFORMED_BYTECODE, {}, "String ID UTF-16 length does not match its data"};
+                return {DisassemblyStatus::MALFORMED_BYTECODE, ModelString(resource),
+                        "String ID UTF-16 length does not match its data"};
             }
             return {DisassemblyStatus::SUCCESS, std::move(decoded), {}};
         }
         if (encodedBytes >= nextCancellationCheck && cancellation.IsCancellationRequested()) {
-            return {DisassemblyStatus::CANCELLED, {}, "Disassembly was cancelled"};
+            return {DisassemblyStatus::CANCELLED, ModelString(resource), "Disassembly was cancelled"};
         }
         if (encodedBytes >= nextCancellationCheck) {
             nextCancellationCheck = SaturatingAdd(encodedBytes, 1024U);
@@ -983,21 +985,23 @@ TextResolution ResolveStringText(const panda_file::File &file, uint32_t offset, 
 
         auto sequence = DecodeMutf8Sequence(file, cursor, fileSize);
         if (sequence.status != DisassemblyStatus::SUCCESS) {
-            return {sequence.status, {}, std::move(sequence.diagnostic)};
+            return {sequence.status, ModelString(resource), std::move(sequence.diagnostic)};
         }
 
         if (sequence.utf16Units > expectedUtf16Length - std::min(utf16Length, expectedUtf16Length)) {
-            return {DisassemblyStatus::MALFORMED_BYTECODE, {}, "String ID UTF-16 length does not match its data"};
+            return {DisassemblyStatus::MALFORMED_BYTECODE, ModelString(resource),
+                    "String ID UTF-16 length does not match its data"};
         }
         if (!AppendUtf8(sequence.codePoint, maxTextBytes, &decoded)) {
-            return {
-                DisassemblyStatus::RESOURCE_LIMIT_EXCEEDED, {}, "Resolved string text exceeds the configured limit"};
+            return {DisassemblyStatus::RESOURCE_LIMIT_EXCEEDED, ModelString(resource),
+                    "Resolved string text exceeds the configured limit"};
         }
         utf16Length += sequence.utf16Units;
         cursor += sequence.sequenceSize;
         encodedBytes += sequence.sequenceSize;
     }
-    return {DisassemblyStatus::MALFORMED_BYTECODE, {}, "String ID is not terminated inside the ABC file"};
+    return {DisassemblyStatus::MALFORMED_BYTECODE, ModelString(resource),
+            "String ID is not terminated inside the ABC file"};
 }
 
 // Inputs shared by the instruction decode pipeline: the ABC file, the method-index services,
@@ -1158,7 +1162,7 @@ ModelString GetInstructionMnemonic(const BytecodeInstructionSafe &instruction, p
     std::ostream output(&buffer);
     output << instruction;
     if (buffer.Exceeded() || !output) {
-        return {};
+        return ModelString(resource);
     }
     auto mnemonic = buffer.TakeValue();
     const auto separator = mnemonic.find(' ');

@@ -31,6 +31,12 @@
 #include <thread>
 #include <unistd.h>
 #include <vector>
+#if defined(__APPLE__)
+// macOS headers do not declare the POSIX environ table; reach it through the
+// supported crt_externs accessor so posix_spawnp inherits the environment.
+#include <crt_externs.h>
+#define environ (*_NSGetEnviron())
+#endif
 #endif
 
 namespace panda::bytecode_explorer {

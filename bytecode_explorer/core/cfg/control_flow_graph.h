@@ -62,8 +62,8 @@ public:
     ControlFlowGraph(std::shared_ptr<BoundedMemoryResource> resource, FunctionDisassemblyPtr source)
         : ownedResource_(std::move(resource)),
           disassembly(std::move(source)),
-          blocks(ownedResource_ != nullptr ? ownedResource_.get() : pmr::get_default_resource()),
-          edges(ownedResource_ != nullptr ? ownedResource_.get() : pmr::get_default_resource())
+          blocks(ownedResource_ != nullptr ? ownedResource_.get() : NewDeleteResource()),
+          edges(ownedResource_ != nullptr ? ownedResource_.get() : NewDeleteResource())
     {
     }
 
