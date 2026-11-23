@@ -16,8 +16,7 @@ limitations under the License.
 {% for c in cases %}
 /*---
 desc: >-
-    If the default setter is not overridden in a class that implements the interface, InvalidStoreAccessError is
-    thrown at attempt to set value of an optional property.
+    An optional interface property must be explicitly declared by the implementing class.
     {{c.doc}}
 ---*/
 

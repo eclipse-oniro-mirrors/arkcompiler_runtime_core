@@ -17,7 +17,7 @@
 {% for c in cases %}
 /*---
 desc: >-
-      A compile-time error occurs, if an optional property in an interface is implemented as non-optional field
+      An optional interface property is implemented by the class with an explicit declaration
       {{c.doc}}
 tags: []
 ---*/

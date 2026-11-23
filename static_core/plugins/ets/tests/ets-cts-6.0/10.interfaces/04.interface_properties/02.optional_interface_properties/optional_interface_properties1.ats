@@ -22,7 +22,7 @@ interface I {
 }
 
 class A implements I {
-  get a(): int | undefined { return this.a }
+  a?: int
 }
 
 function main() {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Huawei Device Co., Ltd.
+ * Copyright (c) 2025-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -14,9 +14,9 @@
  */
 
 /*---
-desc: Readonly optional property provides default getter that returns undefined
+desc: Readonly optional property declared by the implementing class reads as undefined before initialization
 params: "TEST-UNIT-10-0005; GAP-10-0005; CI-10-04-002-01"
-assertion: "Default getter of a readonly optional property returns undefined"
+assertion: "A declared readonly optional property reads as undefined before initialization"
 test_suffix: "01"
 ---*/
 
@@ -24,10 +24,12 @@ interface WithReadonlyOptional {
   readonly tag?: number
 }
 
-class Holder implements WithReadonlyOptional {}
+class Holder implements WithReadonlyOptional {
+  public tag?: number
+}
 
 function main(): void {
   let holder: WithReadonlyOptional = new Holder()
   arktest.assertEQ(holder.tag, undefined,
-    'default getter of a readonly optional property returns undefined')
+    'a declared readonly optional property reads as undefined before initialization')
 }
