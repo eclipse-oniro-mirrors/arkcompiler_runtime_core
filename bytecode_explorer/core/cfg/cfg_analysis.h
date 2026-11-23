@@ -42,7 +42,7 @@ struct CfgBlockAnalysis {
 };
 
 struct StronglyConnectedComponent {
-    explicit StronglyConnectedComponent(pmr::memory_resource *resource = pmr::get_default_resource())
+    explicit StronglyConnectedComponent(pmr::memory_resource *resource = NewDeleteResource())
         : members(resource), entryBlocks(resource)
     {
     }
@@ -55,7 +55,7 @@ struct StronglyConnectedComponent {
 };
 
 struct NaturalLoop {
-    explicit NaturalLoop(pmr::memory_resource *resource = pmr::get_default_resource())
+    explicit NaturalLoop(pmr::memory_resource *resource = NewDeleteResource())
         : backEdgeSources(resource), members(resource)
     {
     }
@@ -75,10 +75,10 @@ public:
     CfgAnalysis(std::shared_ptr<BoundedMemoryResource> resource, ControlFlowGraphPtr source)
         : ownedResource_(std::move(resource)),
           graph(std::move(source)),
-          blockInfo(ownedResource_ != nullptr ? ownedResource_.get() : pmr::get_default_resource()),
+          blockInfo(ownedResource_ != nullptr ? ownedResource_.get() : NewDeleteResource()),
           stronglyConnectedComponents(ownedResource_ != nullptr ? ownedResource_.get()
-                                                                : pmr::get_default_resource()),
-          naturalLoops(ownedResource_ != nullptr ? ownedResource_.get() : pmr::get_default_resource())
+                                                                : NewDeleteResource()),
+          naturalLoops(ownedResource_ != nullptr ? ownedResource_.get() : NewDeleteResource())
     {
     }
 

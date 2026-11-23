@@ -55,7 +55,7 @@ struct CfgNodeLayout {
 };
 
 struct CfgEdgeLayout {
-    explicit CfgEdgeLayout(pmr::memory_resource *resource = pmr::get_default_resource()) : points(resource) {}
+    explicit CfgEdgeLayout(pmr::memory_resource *resource = NewDeleteResource()) : points(resource) {}
 
     uint32_t edge {0U};
     CfgEdgeKind kind {CfgEdgeKind::FALLTHROUGH};
@@ -74,8 +74,8 @@ public:
     CfgLayout(std::shared_ptr<BoundedMemoryResource> resource, CfgAnalysisPtr source)
         : ownedResource_(std::move(resource)),
           analysis(std::move(source)),
-          nodes(ownedResource_ != nullptr ? ownedResource_.get() : pmr::get_default_resource()),
-          edges(ownedResource_ != nullptr ? ownedResource_.get() : pmr::get_default_resource())
+          nodes(ownedResource_ != nullptr ? ownedResource_.get() : NewDeleteResource()),
+          edges(ownedResource_ != nullptr ? ownedResource_.get() : NewDeleteResource())
     {
     }
 

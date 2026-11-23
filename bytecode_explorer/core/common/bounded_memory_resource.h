@@ -31,7 +31,7 @@ public:
 
 class BoundedMemoryResource final : public pmr::memory_resource {
 public:
-    explicit BoundedMemoryResource(uint64_t limitBytes, pmr::memory_resource *upstream = pmr::new_delete_resource());
+    explicit BoundedMemoryResource(uint64_t limitBytes, pmr::memory_resource *upstream = NewDeleteResource());
 
     BoundedMemoryResource(const BoundedMemoryResource &) = delete;
     BoundedMemoryResource &operator=(const BoundedMemoryResource &) = delete;

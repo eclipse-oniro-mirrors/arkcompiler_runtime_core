@@ -25,10 +25,12 @@ repo forall -c 'git lfs pull'
 ### 构建:
 
 ```sh
-# Linux 平台（在 Linux 上构建）
+# Linux 平台构建
 ./ark.py x64.release ark_bytecode_explorer --gn-args="is_standard_system=true enable_cmc_gc=false"
-# Windows 平台（在 Linux 上交叉构建）
+# Windows 平台构建
 ./ark.py mingw_x86_64.release ark_bytecode_explorer --gn-args="is_standard_system=true enable_cmc_gc=false"
+# Mac 平台构建
+./ark.py mac_arm64.release arkcompiler/runtime_core/ark_bytecode_explorer --gn-args="is_standard_system=true enable_cmc_gc=false"
 ```
 
 产物位于 `out/<target>/arkcompiler/runtime_core/ark_bytecode_explorer`（Windows 下为 `.exe`）。

@@ -60,7 +60,8 @@ inline constexpr std::array<EmbeddedWebAsset, %d> EMBEDDED_WEB_ASSETS {{
 
     output_path = Path(arguments.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(output, encoding="utf-8", newline="\n")
+    with open(output_path, "w", encoding="utf-8", newline="\n") as output_handle:
+        output_handle.write(output)
 
 
 if __name__ == "__main__":

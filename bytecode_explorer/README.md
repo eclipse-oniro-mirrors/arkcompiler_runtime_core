@@ -25,10 +25,12 @@ repo forall -c 'git lfs pull'
 ### Build:
 
 ```sh
-# Linux (build on Linux)
+# Linux Version (build on Linux)
 ./ark.py x64.release ark_bytecode_explorer --gn-args="is_standard_system=true enable_cmc_gc=false"
-# Windows executable (cross-build on Linux)
+# Windows Version (build on Linux)
 ./ark.py mingw_x86_64.release ark_bytecode_explorer --gn-args="is_standard_system=true enable_cmc_gc=false"
+# macOS Version (build on macOS)
+./ark.py mac_arm64.release arkcompiler/runtime_core/ark_bytecode_explorer --gn-args="is_standard_system=true enable_cmc_gc=false"
 ```
 
 The binary is placed at `out/<target>/arkcompiler/runtime_core/ark_bytecode_explorer` (`.exe` on Windows).
