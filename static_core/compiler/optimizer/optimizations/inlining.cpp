@@ -14,6 +14,7 @@
  */
 
 #include "inlining.h"
+#include <algorithm>
 #include <cstddef>
 #include "compiler_logger.h"
 #include "compiler_options.h"
@@ -36,6 +37,17 @@
 
 namespace ark::compiler {
 using MethodPtr = RuntimeInterface::MethodPtr;
+
+static uint32_t GetHotnessBasedInlineLimit(Graph *graph)
+{
+    if (graph->GetRuntime()->IsProfileGuidedCompilation()) {
+        // Both options are fixed after CLI parsing, so the clamp is computed once for the process.
+        static const uint32_t hotLimit =
+            std::max(g_options.GetCompilerInliningMaxInstsHot(), g_options.GetCompilerInliningMaxInsts());
+        return hotLimit;
+    }
+    return g_options.GetCompilerInliningMaxInsts();
+}
 
 // Explicitly instantiate both versions of CheckMethodCanBeInlined since they can be used in subclasses
 template bool Inlining::CheckMethodCanBeInlined<false, true>(const CallInst *, InlineContext *);
@@ -84,7 +96,7 @@ Inlining::Inlining(Graph *graph, uint32_t instructionsCount, uint32_t methodsInl
     : Optimization(graph),
       methodsInlined_(methodsInlined),
       instructionsCount_(instructionsCount != 0 ? instructionsCount : CalculateInstructionsCount(graph)),
-      instructionsLimit_(g_options.GetCompilerInliningMaxInsts()),
+      instructionsLimit_(GetHotnessBasedInlineLimit(graph)),
       returnBlocks_(graph->GetLocalAllocator()->Adapter()),
       blacklist_(graph->GetLocalAllocator()->Adapter()),
       blacklistMethodPtr_(graph->GetLocalAllocator()->Adapter()),

@@ -64,11 +64,27 @@ All regular compiler options are also applicable, for example `--compiler-regex`
 
 ### Method Selection
 
-If no method filter is provided, paoc compiles every method from `--paoc-panda-files`.
+Under the default compilation policy, if no method filter is provided, paoc selects every method from
+`--paoc-panda-files`. Selection does not bypass compilation eligibility checks or time limits.
+
+#### `--paoc-compilation-policy=default|profile-guided`
+
+- Default: `default`. Preserve existing method selection and inline budgets, even when a profile is loaded.
+- `profile-guided`: require a valid `--paoc-use-profile:path=<file>`, select methods with loaded profile data plus
+  allowlisted methods, and enable the profile-based root inline budget.
+- Missing or empty profile paths are rejected before runtime creation. Invalid profiles fail under `profile-guided`
+  even without `force`; the policy never silently falls back to `default`.
+- This policy is independent of `--paoc-mode`, which selects the compiler pipeline.
+- Denylist, regex and range restrictions apply to both policies. Selection controls independent compilation, not
+  whether another selected method may inline a method body.
+
+See [AOT PGO compilation policies](aot_pgo.md#compilation-policies) for combinations and examples.
 
 #### `--paoc-methods-from-file:path=<file>[,iswhite=true|false]`
 
-- Load a white-list or black-list of full method names from a file
+- Load an allowlist or denylist of full method names from a file; `iswhite` defaults to `true`.
+- Under `default`, an allowlist restricts selection to its entries. Under `profile-guided`, it supplements the
+  profile-selected methods. A denylist excludes its entries under either policy.
 
 #### `--paoc-skip-until`
 
@@ -83,6 +99,7 @@ If no method filter is provided, paoc compiles every method from `--paoc-panda-f
 #### `--paoc-use-profile:path=<profile.ap>[,force]`
 
 - Load runtime profile data from a `.ap` file for AOT PGO
+- Loading a profile alone does not enable partial compilation; the default compilation policy remains in effect.
 - `force` makes paoc fail if the profile is missing or invalid
 - `ark_aot` loads `--paoc-panda-files` before applying the profile, so compilation inputs do not need to be mirrored
   through `--panda-files` only for AOT-PGO profile attachment

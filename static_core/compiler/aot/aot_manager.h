@@ -200,6 +200,27 @@ public:
         return profiledMethods_;
     }
 
+    void AddProfileGuidedMethod(const Method *method)
+    {
+        os::memory::LockHolder lock {profileGuidedMethodsLock_};
+        profileGuidedMethods_.insert(method);
+        // Atomic with release order reason: pairs with the acquire load in HasProfileGuidedMethods so a
+        // reader that sees the flag as true also sees the preceding insertion into profileGuidedMethods_.
+        hasProfileGuidedMethods_.store(true, std::memory_order_release);
+    }
+
+    bool IsProfileGuidedMethod(const Method *method) const
+    {
+        return profileGuidedMethods_.find(method) != profileGuidedMethods_.end();
+    }
+
+    bool HasProfileGuidedMethods() const
+    {
+        // Atomic with acquire order reason: pairs with the release store in AddProfileGuidedMethod so the
+        // profileGuidedMethods_ insertions performed before that store are visible to this thread.
+        return hasProfileGuidedMethods_.load(std::memory_order_acquire);
+    }
+
     using ProfilePathEntry = std::pair<PandaString, ProfilePathInfo>;
     void RegisterProfilePaths(PandaVector<ProfilePathEntry> &&entries);
 
@@ -229,6 +250,13 @@ private:
 
     mutable os::memory::Mutex profiledMethodsLock_;
     PandaList<Method *> profiledMethods_ GUARDED_BY(profiledMethodsLock_);
+
+    mutable os::memory::Mutex profileGuidedMethodsLock_;
+    // Populated (under profileGuidedMethodsLock_) from loaded profiles only during profile loading, before
+    // compilation starts; read lock-free during compilation via IsProfileGuidedMethod().
+    PandaUnorderedSet<const Method *> profileGuidedMethods_;
+    // Monotonic flag mirroring "profileGuidedMethods_ is non-empty"; see HasProfileGuidedMethods().
+    std::atomic_bool hasProfileGuidedMethods_ {false};
 
     mutable os::memory::Mutex profiledFilesLock_;
     PandaUnorderedSet<std::string> profiledPandaFiles_ GUARDED_BY(profiledFilesLock_);

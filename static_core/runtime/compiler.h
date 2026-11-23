@@ -22,6 +22,7 @@
 #include "libarkbase/os/mutex.h"
 #include "runtime/entrypoints/entrypoints.h"
 #include "runtime/include/hclass.h"
+#include "runtime/include/class_linker.h"
 #include "runtime/include/compiler_interface.h"
 #include "runtime/include/coretypes/array.h"
 #include "runtime/include/coretypes/tagged_value.h"
@@ -390,6 +391,16 @@ public:
     int64_t GetThrowTakenCounter(MethodPtr method, uint32_t pc) const override
     {
         return MethodCast(method)->GetThrowTakenCounter(pc);
+    }
+
+    bool IsProfileGuidedMethod(MethodPtr method) const override
+    {
+        return Runtime::GetCurrent()->GetClassLinker()->GetAotManager()->IsProfileGuidedMethod(MethodCast(method));
+    }
+
+    bool IsProfileGuidedCompilation() const override
+    {
+        return Runtime::GetCurrent()->GetClassLinker()->GetAotManager()->HasProfileGuidedMethods();
     }
 
     std::string GetMethodFullName(MethodPtr method, bool withSignature) const override

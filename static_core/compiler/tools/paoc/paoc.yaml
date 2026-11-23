@@ -53,6 +53,18 @@ options:
       - osr
     description: Specify compiler mode
 
+  - name: paoc-compilation-policy
+    type: std::string
+    default: default
+    possible_values:
+      - default
+      - profile-guided
+    description: >
+      Compilation policy, independent of paoc-mode. default preserves existing method selection and inline budgets,
+      even when a profile is loaded. profile-guided requires a valid paoc-use-profile:path, selects methods with
+      loaded profile data plus allowlisted methods, and enables the profile-based inline budget.
+      Denylist, regex and range restrictions still apply.
+
   - name: paoc-clusters
     type: std::string
     default: none
@@ -74,7 +86,7 @@ options:
     description: Output boot file path. CHA will not be validated. Incompatible with --paoc-output
 
   - name: paoc-methods-from-file
-    description: Use white or black lists to filter methods to compile
+    description: Use an allowlist or denylist to filter methods to compile
     sub_options:
     - name: path
       type: std::string
@@ -83,7 +95,10 @@ options:
     - name: iswhite
       type: bool
       default: true
-      description: use the file as white or black list
+      description: >
+        true uses an allowlist: only listed methods are selected under the default policy; under profile-guided,
+        listed methods supplement those selected from the profile. false uses a denylist: listed methods are
+        excluded from independent compilation. Regex and range restrictions still apply.
 
   - name: paoc-generate-symbols
     type: bool
