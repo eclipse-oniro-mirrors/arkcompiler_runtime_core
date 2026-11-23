@@ -50,8 +50,8 @@
 #include <unistd.h>
 
 namespace ark::mem {
-uintptr_t RegionDesc::UnitInfo::totalUnitCount = 0;
-uintptr_t RegionDesc::UnitInfo::heapStartAddress = 0;
+size_t RegionDesc::UnitInfo::totalUnitCount = 0;
+HeapAddress RegionDesc::UnitInfo::heapStartAddress = 0;
 }  // namespace ark::mem
 
 namespace ark::common_vm {
@@ -156,18 +156,18 @@ bool RegionDesc::VisitLiveObjectsUntilFalse(const std::function<bool(BaseObject 
 void RegionDesc::VisitRememberSetBeforeMarking(const std::function<void(BaseObject *)> &func)
 {
     uintptr_t end = std::min(GetMarkingLine(), GetRegionAllocPtr());
-    GetRSet()->VisitAllMarkedCardBefore(func, GetRegionBaseFast(), end);
+    GetRSet()->VisitAllMarkedCardBefore(func, GetRegionBase(), end);
 }
 
 void RegionDesc::VisitRememberSetBeforeCopy(const std::function<void(BaseObject *)> &func)
 {
     uintptr_t end = std::min(GetCopyLine(), GetRegionAllocPtr());
-    GetRSet()->VisitAllMarkedCardBefore(func, GetRegionBaseFast(), end);
+    GetRSet()->VisitAllMarkedCardBefore(func, GetRegionBase(), end);
 }
 
 void RegionDesc::VisitRememberSet(const std::function<void(BaseObject *)> &func)
 {
-    GetRSet()->VisitAllMarkedCardBefore(func, GetRegionBaseFast(), GetRegionAllocPtr());
+    GetRSet()->VisitAllMarkedCardBefore(func, GetRegionBase(), GetRegionAllocPtr());
 }
 }  // namespace ark::mem
 
@@ -480,7 +480,7 @@ RegionDesc *RegionManager::TakeRegion(size_t num, RegionDesc::UnitRole type, boo
         return nullptr;
     }
 
-    uintptr_t addr = ToUintPtr(pool.GetMem());
+    HeapAddress addr = ToObjPtrType(pool.GetMem());
 
 #ifndef PANDA_TARGET_32
     size_t totalHeapSize = heapSpace_->GetMaxHeapSize();

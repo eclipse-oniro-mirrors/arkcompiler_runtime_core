@@ -33,6 +33,8 @@
 #include "common_components/base/globals.h"
 #include "common_components/base/mem_utils.h"
 #include "common_components/base/rw_lock.h"
+#include "libarkbase/globals.h"
+#include "libarkbase/mem/mem.h"
 #include "runtime/mem/gc/cmc/heap/collector/copy_data_manager.h"
 #include "runtime/mem/gc/cmc/heap/collector/region_bitmap.h"
 #include "runtime/mem/gc/cmc/heap/collector/region_rset.h"
@@ -116,7 +118,6 @@ public:
         metadata.markingLine = std::numeric_limits<uintptr_t>::max();
         metadata.forwardLine = std::numeric_limits<uintptr_t>::max();
         metadata.freeSlot = nullptr;
-        metadata.regionBase = reinterpret_cast<uintptr_t>(nullptr);
         metadata.regionStart = reinterpret_cast<uintptr_t>(nullptr);
         metadata.regionEnd = reinterpret_cast<uintptr_t>(nullptr);
         metadata.regionRSet_ = nullptr;
@@ -132,7 +133,7 @@ public:
     {
         // Atomic with acquire order reason: data race with markBitmap_ with dependecies on reads after the load
         RegionBitmap *bitmap = __atomic_load_n(&metadata.liveInfo_.markBitmap_, std::memory_order_acquire);
-        if (reinterpret_cast<HeapAddress>(bitmap) == RegionLiveDesc::TEMPORARY_PTR) {
+        if (ToUintPtr(bitmap) == RegionLiveDesc::TEMPORARY_PTR) {
             return nullptr;
         }
         return bitmap;
@@ -173,7 +174,7 @@ public:
     {
         // Atomic with acquire order reason: data race with resurrectBitmap_ with dependecies on reads after the load
         RegionBitmap *bitmap = __atomic_load_n(&metadata.liveInfo_.resurrectBitmap_, std::memory_order_acquire);
-        if (reinterpret_cast<HeapAddress>(bitmap) == RegionLiveDesc::TEMPORARY_PTR) {
+        if (ToUintPtr(bitmap) == RegionLiveDesc::TEMPORARY_PTR) {
             return nullptr;
         }
         return bitmap;
@@ -185,7 +186,7 @@ public:
             // Atomic with acquire order reason: data race with resurrectBitmap_ with dependecies on reads after
             // the load
             RegionBitmap *bitmap = __atomic_load_n(&metadata.liveInfo_.resurrectBitmap_, std::memory_order_acquire);
-            if (UNLIKELY(reinterpret_cast<uintptr_t>(bitmap) == RegionLiveDesc::TEMPORARY_PTR)) {
+            if (UNLIKELY(ToUintPtr(bitmap) == RegionLiveDesc::TEMPORARY_PTR)) {
                 continue;
             }
             if (LIKELY(bitmap != nullptr)) {
@@ -231,7 +232,7 @@ public:
         if (IsLargeRegion()) {
             return MarkObjectForLargeRegion(obj);
         }
-        size_t offset = GetAddressOffset(reinterpret_cast<HeapAddress>(obj));
+        size_t offset = GetAddressOffset(ToObjPtrType(obj));
         bool marked = GetOrAllocMarkBitmap()->MarkBits(offset);
         DCHECK(IsMarkedObject(obj));
         return marked;
@@ -246,7 +247,7 @@ public:
             }
             return true;
         }
-        size_t offset = GetAddressOffset(reinterpret_cast<HeapAddress>(obj));
+        size_t offset = GetAddressOffset(ToObjPtrType(obj));
         bool marked = GetOrAllocResurrectBitmap()->MarkBits(offset);
         CHECK(IsResurrectedObject(obj));
         return marked;
@@ -261,7 +262,7 @@ public:
         if (resurrectBitmap == nullptr) {
             return false;
         }
-        size_t offset = GetAddressOffset(reinterpret_cast<HeapAddress>(obj));
+        size_t offset = GetAddressOffset(ToObjPtrType(obj));
         return resurrectBitmap->IsMarked(offset);
     }
 
@@ -274,7 +275,7 @@ public:
         if (markBitmap == nullptr) {
             return false;
         }
-        size_t offset = GetAddressOffset(reinterpret_cast<HeapAddress>(obj));
+        size_t offset = GetAddressOffset(ToObjPtrType(obj));
         return markBitmap->IsMarked(offset);
     }
 
@@ -290,14 +291,14 @@ public:
 
     bool MarkRSetCardTable(ObjectHeader *obj)
     {
-        size_t offset = GetAddressOffset(reinterpret_cast<HeapAddress>(obj));
+        size_t offset = GetAddressOffset(ToObjPtrType(obj));
         return GetRSet()->MarkCardTable(offset);
     }
 
     ALWAYS_INLINE size_t GetAddressOffset(HeapAddress address)
     {
-        DCHECK(GetRegionBaseFast() <= address);
-        return (address - GetRegionBaseFast());
+        DCHECK(GetRegionBase() <= address);
+        return (address - GetRegionBase());
     }
 
     enum class UnitRole : uint8_t {
@@ -380,8 +381,10 @@ public:
 
     static void Initialize(size_t nUnit, uintptr_t heapAddress)
     {
+        CHECK(IsAddressInObjectsHeap(heapAddress));
+        CHECK(IsAddressInObjectsHeap(heapAddress + nUnit * UNIT_SIZE - 1));
         UnitInfo::totalUnitCount = nUnit;
-        UnitInfo::heapStartAddress = heapAddress;
+        UnitInfo::heapStartAddress = static_cast<HeapAddress>(heapAddress);
     }
 
     static RegionDesc *GetRegionDescAt(const ObjectHeader *obj)
@@ -562,14 +565,7 @@ public:
 
     HeapAddress GetRegionBase() const
     {
-        return RegionDesc::GetUnitAddress(GetUnitIdx());
-    }
-
-    // This could only used to a `RegionDesc` which has been initialized
-    HeapAddress GetRegionBaseFast() const
-    {
-        ASSERT_PRINT(metadata.regionBase == GetRegionBase(), "");
-        return metadata.regionBase;
+        return ToObjPtrType(this);
     }
 
     HeapAddress GetRegionStart() const
@@ -577,26 +573,26 @@ public:
         return metadata.regionStart;
     }
 
-    HeapAddress GetRegionEnd() const
+    uintptr_t GetRegionEnd() const
     {
         return metadata.regionEnd;
     }
 
-    void SetRegionAllocPtr(HeapAddress addr)
+    void SetRegionAllocPtr(uintptr_t addr)
     {
         metadata.allocPtr = addr;
     }
 
-    HeapAddress GetRegionAllocPtr() const
+    uintptr_t GetRegionAllocPtr() const
     {
         return metadata.allocPtr;
     }
 
-    HeapAddress GetMarkingLine() const
+    uintptr_t GetMarkingLine() const
     {
         return metadata.markingLine;
     }
-    HeapAddress GetCopyLine() const
+    uintptr_t GetCopyLine() const
     {
         return metadata.forwardLine;
     }
@@ -604,7 +600,7 @@ public:
     void SetMarkingLine()
     {
         if (metadata.markingLine == std::numeric_limits<uintptr_t>::max()) {
-            uintptr_t line = GetRegionAllocPtr();
+            auto line = GetRegionAllocPtr();
             metadata.markingLine = line;
             LOG(DEBUG, GC) << "set region " << this << "(base="
                            << "0x" << std::hex << GetRegionBase() << ")@0x" << std::hex << GetRegionStart() << "+"
@@ -617,7 +613,7 @@ public:
     void SetCopyLine()
     {
         if (metadata.forwardLine == std::numeric_limits<uintptr_t>::max()) {
-            uintptr_t line = GetRegionAllocPtr();
+            auto line = GetRegionAllocPtr();
             metadata.forwardLine = line;
             LOG(DEBUG, GC) << "set region " << this << "(base="
                            << "0x" << std::hex << GetRegionBase() << ")@0x" << std::hex << GetRegionStart() << "+"
@@ -640,12 +636,12 @@ public:
 
     bool IsNewObjectSinceMarking(const ObjectHeader *obj)
     {
-        return GetMarkingLine() <= reinterpret_cast<uintptr_t>(obj);
+        return GetMarkingLine() <= ToUintPtr(obj);
     }
 
     bool IsNewObjectSinceForward(const BaseObject *obj)
     {
-        return GetCopyLine() <= reinterpret_cast<uintptr_t>(obj);
+        return GetCopyLine() <= ToUintPtr(obj);
     }
 
     bool IsNewRegionSinceForward() const
@@ -683,27 +679,29 @@ public:
         return RegionDesc::IsInOldSpace(type);
     }
 
-    uintptr_t Alloc(size_t size)
+    HeapAddress Alloc(size_t size)
     {
         DCHECK(size > 0);
-        size_t limit = GetRegionEnd();
+        auto limit = GetRegionEnd();
         if (metadata.allocPtr + size <= limit) {
-            uintptr_t addr = metadata.allocPtr;
+            auto addr = metadata.allocPtr;
             metadata.allocPtr += size;
-            return addr;
+            DCHECK(IsAddressInObjectsHeap(addr));
+            return static_cast<HeapAddress>(addr);
         } else {
             return 0;
         }
     }
 
     // for regions shared by multithreads
-    uintptr_t AtomicAlloc(size_t size)
+    HeapAddress AtomicAlloc(size_t size)
     {
         // Atomic with acq_rel order reason: data race with allocPtr during concurrent allocation
-        uintptr_t addr = __atomic_fetch_add(&metadata.allocPtr, size, __ATOMIC_ACQ_REL);
+        auto addr = __atomic_fetch_add(&metadata.allocPtr, size, __ATOMIC_ACQ_REL);
         // should not check allocPtr, because it might be shared
         if ((addr < GetRegionEnd()) && (size <= GetRegionEnd() - addr)) {
-            return addr;
+            DCHECK(IsAddressInObjectsHeap(addr));
+            return static_cast<HeapAddress>(addr);
         }
         if (addr <= GetRegionEnd()) {
             // Atomic with seq_cst order reason: rollback allocPtr on allocation failure, must be visible to all
@@ -769,10 +767,10 @@ public:
             return 0;
         }
         ObjectSlot *res = metadata.freeSlot;
-        metadata.freeSlot = reinterpret_cast<ObjectSlot *>(res->next_);
-        res->next_ = 0;
+        metadata.freeSlot = res->GetNext();
+        res->nextShifted_ = 0;
         res->isFree_ = 0;
-        return reinterpret_cast<HeapAddress>(res);
+        return ToObjPtrType(res);
     }
 
     HeapAddress AllocNonMovableFromFreeList()
@@ -948,27 +946,42 @@ private:
     };
 
     struct ObjectSlot {
-        HeapAddress next_ : 48;
-        HeapAddress isFree_ : 1;
-        HeapAddress padding : 15;
+        // An ObjectSlot is overlaid on the ClassWord of a dead object, but isFree_ is also read
+        // back from live objects (see RegionDesc::VisitAllObjectsBefore, which linearly walks mono-size
+        // non-movable regions). It must therefore alias a bit that is guaranteed 0 in a live object.
+        // ObjectHeader::classWord_ sits at offset 0 and holds a class pointer aligned to at least
+        // (1 << DEFAULT_ALIGNMENT), so its low bits are zero.
+        using SlotWord = ClassHelper::ClassWordSize;
+        static constexpr size_t TOTAL_BITS = sizeof(SlotWord) * BITS_PER_BYTE;
+        static constexpr size_t NEXT_BITS = TOTAL_BITS - 1U;
+
+        SlotWord isFree_ : 1;
+        SlotWord nextShifted_ : NEXT_BITS;
+
+        ObjectSlot *GetNext() const
+        {
+            return reinterpret_cast<ObjectSlot *>(static_cast<uintptr_t>(nextShifted_) << DEFAULT_ALIGNMENT);
+        }
 
         void SetNext(ObjectSlot *slot, size_t size)
         {
-            next_ = reinterpret_cast<HeapAddress>(slot);
+            DCHECK((ToObjPtrType(slot) & ((1U << DEFAULT_ALIGNMENT) - 1U)) == 0);
+            nextShifted_ = ToObjPtrType(slot) >> DEFAULT_ALIGNMENT;
             isFree_ = 1;
             size_t extraSize = size - sizeof(ObjectSlot);
             if (extraSize > 0) {
-                uintptr_t start = reinterpret_cast<uintptr_t>(this) + sizeof(ObjectSlot);
-                LOG_IF((memset_s(reinterpret_cast<void *>(start), extraSize, 0, extraSize) != EOK), ERROR,
-                       MM_OBJECT_EVENTS)
+                uintptr_t start = ToUintPtr(this) + sizeof(ObjectSlot);
+                LOG_IF((memset_s(ToVoidPtr(start), extraSize, 0, extraSize) != EOK), ERROR, MM_OBJECT_EVENTS)
                     << "memset_s fail";
             }
         }
     };
+    static_assert(sizeof(ObjectSlot) == sizeof(ClassHelper::ClassWordSize));
+    static_assert(sizeof(ObjectSlot) <= DEFAULT_ALIGNMENT_IN_BYTES);
 
     class RegionLiveDesc {
     public:
-        static constexpr HeapAddress TEMPORARY_PTR = 0x1234;
+        static constexpr uintptr_t TEMPORARY_PTR = 0x1234;
 
         void Init(RegionDesc *region)
         {
@@ -1000,7 +1013,7 @@ private:
         struct {  // basic data for RegionDesc
             // for fast allocation, always at the start.
             uintptr_t allocPtr;
-            uintptr_t regionEnd;
+            uintptr_t regionEnd;  // region ending exactly at 4 GB doesn't fit uint32_t in case of 32bit refs
 
             // watermark set when gc phase transitions to pre-marking.
             uintptr_t markingLine;
@@ -1014,8 +1027,7 @@ private:
              *   |                       |
              * regionBase            regionStart
              */
-            uintptr_t regionStart;
-            uintptr_t regionBase;
+            HeapAddress regionStart;
 
             uint32_t nextRegionIdx;
             uint32_t prevRegionIdx;  // support fast deletion for region list.
@@ -1062,7 +1074,7 @@ private:
     class UnitInfo {
     public:
         // propgated from RegionManager
-        static uintptr_t heapStartAddress;  // the address of the first region space to allocate objects
+        static HeapAddress heapStartAddress;  // the address of the first region space to allocate objects
         static size_t totalUnitCount;
 
         constexpr static uint32_t INVALID_IDX = std::numeric_limits<uint32_t>::max();
@@ -1157,8 +1169,7 @@ private:
     void InitRegionDesc(size_t nUnit, UnitRole uClass)
     {
         DCHECK(uClass != UnitRole::SUBORDINATE_UNIT);
-        size_t base = GetRegionBase();
-        metadata.regionBase = base;
+        auto base = GetRegionBase();
         metadata.regionStart = base + RegionDesc::GetUnitHeaderSize();
         ASSERT_PRINT(metadata.regionStart % UNIT_BEGIN_ALIGN == 0, "");
         metadata.allocPtr = GetRegionStart();
@@ -1177,9 +1188,8 @@ private:
         SetResurrectedRegionFlag(0);
         SetCollectionSetRegionFlag(false);
 #ifdef USE_HWASAN
-        ASAN_UNPOISON_MEMORY_REGION(reinterpret_cast<const volatile void *>(metadata.regionBase),
-                                    nUnit * RegionDesc::UNIT_SIZE);
-        uintptr_t pAddr = metadata.regionBase;
+        ASAN_UNPOISON_MEMORY_REGION(reinterpret_cast<const volatile void *>(base), nUnit * RegionDesc::UNIT_SIZE);
+        uintptr_t pAddr = base;
         uintptr_t pSz = nUnit * RegionDesc::UNIT_SIZE;
         LOG(DEBUG, COMMON) << std::hex << "set [" << pAddr << std::hex << ", " << (pAddr + pSz) << ") unpoisoned\n";
 #endif

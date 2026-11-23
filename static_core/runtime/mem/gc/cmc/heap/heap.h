@@ -140,22 +140,6 @@ public:
         return GetMaxCapacity();
     }
 
-    static bool IsTaggedObject(HeapAddress addr)
-    {
-        // relies on the definition of ArkTs
-        static constexpr uint64_t TAG_BITS_SHIFT = 48;
-        static constexpr uint64_t TAG_MARK = 0xFFFFULL << TAG_BITS_SHIFT;
-        static constexpr uint64_t TAG_SPECIAL = 0x02ULL;
-        static constexpr uint64_t TAG_BOOLEAN = 0x04ULL;
-        static constexpr uint64_t TAG_HEAP_OBJECT_MASK = TAG_MARK | TAG_SPECIAL | TAG_BOOLEAN;
-
-        if ((addr & TAG_HEAP_OBJECT_MASK) == 0) {
-            return true;
-        }
-
-        return false;
-    }
-
     virtual bool ForEachObject(const std::function<void(BaseObject *)> &, bool safe) = 0;
 
     virtual CollectorResources &GetCollectorResources() = 0;

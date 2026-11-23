@@ -514,11 +514,11 @@ def GenerateCmcReadViaBarrierIrtoc(volatile)
                 Return(old_ref).ref_uint
             }
 
-            mark_word := LoadI(Bitcast(old_ref).ref).Imm(Constants::OBJECT_MARKWORD_OFFSET).u64
-            state := AndI(ShrI(mark_word).Imm(Constants::MARK_WORD_STATUS_SHIFT).u64).Imm(Constants::MARK_WORD_STATUS_MASK).u64
+            mark_word := LoadI(Bitcast(old_ref).ref).Imm(Constants::OBJECT_MARKWORD_OFFSET).mw
+            state := AndI(ShrI(mark_word).Imm(Constants::MARK_WORD_STATUS_SHIFT).mw).Imm(Constants::MARK_WORD_STATUS_MASK).mw
             If(state, Constants::MARK_WORD_STATE_FORWARDED).EQ {
-                fwd_field := AndI(ShrI(mark_word).Imm(Constants::MARK_WORD_FORWARDING_ADDRESS_SHIFT).u64).Imm(Constants::MARK_WORD_FORWARDING_ADDRESS_MASK).u64
-                fwd := ShlI(ShlI(fwd_field).Imm(Constants::MARK_WORD_FORWARDING_ADDRESS_SHIFT).u64).Imm(Constants::MARK_WORD_STATUS_SIZE).u64
+                fwd_field := AndI(ShrI(mark_word).Imm(Constants::MARK_WORD_FORWARDING_ADDRESS_SHIFT).mw).Imm(Constants::MARK_WORD_FORWARDING_ADDRESS_MASK).mw
+                fwd := ShlI(ShlI(fwd_field).Imm(Constants::MARK_WORD_FORWARDING_ADDRESS_SHIFT).mw).Imm(Constants::MARK_WORD_STATUS_SIZE).mw
                 Return(fwd).ref_uint
             }
         end

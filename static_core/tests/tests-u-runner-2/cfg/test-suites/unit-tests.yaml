@@ -94,6 +94,7 @@ collections:
             ark-test-suite-args:
                 - "--coroutine-workers-count=10"
                 - "--run-gc-in-place"
+                - "--gc-trigger-type=debug-never"
             aot-args:
                 - "--compiler-inlining=false"
     ets-common-tests/gc/weak_ref_test_g1.ats:

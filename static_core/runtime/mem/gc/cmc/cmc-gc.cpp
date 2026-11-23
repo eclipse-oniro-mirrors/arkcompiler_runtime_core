@@ -1129,7 +1129,7 @@ ObjectHeader *CmcGC<LanguageConfig>::CopyObjectAfterExclusive(ObjectHeader *obje
 
     // Atomic with release order reason: ensure copied object content is visible before setting forwarding state
     std::atomic_thread_fence(std::memory_order_release);
-    object->SetMark(markWord.DecodeFromForwardingAddress(reinterpret_cast<MarkWord::MarkWordSize>(toAddr)));
+    object->SetMark(markWord.DecodeFromForwardingAddress(static_cast<MarkWord::MarkWordSize>(toAddr)));
     return reinterpret_cast<ObjectHeader *>(toObj);
 }
 

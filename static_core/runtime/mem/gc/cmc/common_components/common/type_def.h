@@ -20,6 +20,8 @@
 #include <cstdint>
 #include <limits>
 
+#include "libarkbase/mem/mem.h"
+
 namespace ark::common_vm {
 class BaseObject;
 }
@@ -28,8 +30,7 @@ class BaseObject;
 //    they're opaque across modules, but we still want it provides a degree
 //    of type safety.
 namespace ark::common_vm {
-// Those are mostly managed pointer types for GC
-using HeapAddress = uint64_t;  // Managed address
+using HeapAddress = ObjectPointerType;  // Managed address
 constexpr uintptr_t NULL_ADDRESS = 0;
 
 // object model related types

@@ -125,7 +125,7 @@ public:
     {
         if constexpr (allocType == AllocBufferType::YOUNG) {
             if (LIKELY(tlRegion_ != RegionDesc::NullRegion())) {
-                return ToUintPtr(tlab_.Alloc(size));
+                return ToObjPtrType(tlab_.Alloc(size));
             }
         } else if constexpr (allocType == AllocBufferType::OLD) {
             if (LIKELY(tlOldRegion_ != RegionDesc::NullRegion())) {

@@ -204,7 +204,7 @@ public:
     }
 
 #ifndef NDEBUG
-    bool IsHeapObject(HeapAddress addr) const override;
+    bool IsHeapObject(uintptr_t addr) const override;
 #endif
 
     size_t ReclaimGarbageMemory(bool releaseAll) override;
