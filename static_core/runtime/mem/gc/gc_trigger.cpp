@@ -127,9 +127,11 @@ void GCTriggerHeap::FinishPostponeGCIfNeeded(GC *gc, size_t bytesInHeap)
 {
     auto initHeapMemSize = gc->GetSmartGCInitHeapMemSize();
     if (bytesInHeap - initHeapMemSize >= POSTPONE_GC_LIMIT) {
+        // The heap has grown too much during the postpone, so the growth is a real memory
+        // pressure: end the postpone. A heap-usage GC is guaranteed to run right away, because
+        // this check is reachable only while a heap-usage task is in flight — the postponed
+        // one is replayed, while a queued or running one is executed as is
         gc->PostponeGCEnd();
-        auto task = MakePandaUnique<GCTask>(GCTaskCause::HEAP_USAGE_THRESHOLD_CAUSE, time::GetCurrentTimeInNanos());
-        gc->Trigger(std::move(task));
         return;
     }
 

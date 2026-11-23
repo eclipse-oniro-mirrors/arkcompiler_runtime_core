@@ -168,10 +168,15 @@ void GCWorker::RunGC(PandaUniquePtr<GCTask> task)
     }
     if (gc_->IsPostponeEnabled() && (task->reason == GCTaskCause::HEAP_USAGE_THRESHOLD_CAUSE)) {
         os::memory::LockHolder lh(postponedTasksMutex_);
-        if (postponedTasks_.empty() || postponedTasks_.back()->reason != task->reason) {
-            postponedTasks_.push(std::move(task));
+        // Re-check under the mutex: PostponeGCEnd disables the postpone before replaying the
+        // postponed tasks, so if the postpone is still enabled here the task is guaranteed to be
+        // re-checked and replayed or discarded by a subsequent OnPostponeGCEnd
+        if (gc_->IsPostponeEnabled()) {
+            if (postponedTasks_.empty() || postponedTasks_.back()->reason != task->reason) {
+                postponedTasks_.push(std::move(task));
+            }
+            return;
         }
-        return;
     }
     LOG(DEBUG, GC) << "Running GC task, reason " << task->reason;
     task->Run(*gc_);
