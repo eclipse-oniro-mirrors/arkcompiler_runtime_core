@@ -3,3 +3,5 @@
 #21869
 obj/arkcompiler/runtime_core/compiler/tests/GraphInterfaceTest
 
+# workitem 54
+obj/arkcompiler/runtime_core/libpandafile/tests/LibPandaFileTest
