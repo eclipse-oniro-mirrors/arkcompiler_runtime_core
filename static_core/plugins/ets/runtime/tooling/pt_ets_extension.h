@@ -32,18 +32,32 @@ public:
         return "=t";
     }
 
-    bool CollectHybridStackFrames(const std::function<void(const void *frame, bool isStaticFrame)> &callback) override;
+    bool CollectHybridStackFrames(void (*callback)(const void *frame, bool isStaticFrame, void *data),
+                                  void *data) override;
 
     size_t GetDynamicFrameInfo(const void *frame, void *buffer, size_t bufferSize, uintptr_t *fileId,
-                               uint32_t *bcOffset) override;
+                               uintptr_t *pandaFilePtr, uint32_t *bcOffset) override;
 
     bool IsSupportHybridStack() override;
 
     bool IsWeakReferentField(ObjectHeader *object, const Field &field) override;
 
+    bool UnionStackIsEmpty(bool *isEmpty) override;
+
+    bool DynamicTopFrameIsValid(void *signalContextPtr) override;
+
+    bool IsJSGCRunning() override;
+
     void PrepareEvaluationClasses(ManagedThread *managedThread, ClassLinker *linker) override;
 
     bool IsNullOrUndefined(const ObjectHeader *object) override;
+
+    // ArkTS-Sta: a raw null reference is `undefined`, `null` is the
+    // std.core.Null singleton (see IsNullOrUndefined).
+    bool IsRawNullUndefined() const override
+    {
+        return true;
+    }
 };
 }  // namespace ark::ets
 

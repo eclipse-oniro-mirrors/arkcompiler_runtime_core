@@ -32,8 +32,10 @@ static bool CaptureUnionStack(std::vector<bool> &frames)
     if (!UnionStackIsEmpty(&isEmpty) || isEmpty) {
         return false;
     }
-    bool res = ForEachFrameInUnionStack(
-        [&frames]([[maybe_unused]] const void *frame, bool isStaticFrame) { frames.push_back(isStaticFrame); });
+    bool res =
+        ForEachFrameInUnionStack([](const void *, bool isStaticFrame,
+                                    void *data) { static_cast<std::vector<bool> *>(data)->push_back(isStaticFrame); },
+                                 &frames);
     return res && !frames.empty();
 }
 

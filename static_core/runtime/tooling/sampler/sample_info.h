@@ -38,6 +38,7 @@ struct SampleInfo {
         uint32_t bcOffset {0};
         void *extFrameData {nullptr};
         uint32_t extFrameDataSize {0};
+        bool isStaticFrame {true};
     };
 
     struct StackInfo {
@@ -66,7 +67,7 @@ struct FileInfo {
     std::string pathname;
 };
 
-enum class FrameKind : uintptr_t { BRIDGE = 1, EXTERNAL_FRAME = 2 };
+enum class FrameKind : uintptr_t { BRIDGE = 1 };
 
 bool operator==(const SampleInfo &lhs, const SampleInfo &rhs);
 bool operator!=(const SampleInfo &lhs, const SampleInfo &rhs);
@@ -102,12 +103,6 @@ inline uint32_t ReadUint32TBitMisaligned(const void *ptr)
 
 inline bool operator==(const SampleInfo::ManagedStackFrameId &lhs, const SampleInfo::ManagedStackFrameId &rhs)
 {
-    if (lhs.pandaFilePtr == helpers::ToUnderlying(FrameKind::EXTERNAL_FRAME)) {
-        return rhs.pandaFilePtr == helpers::ToUnderlying(FrameKind::EXTERNAL_FRAME) &&
-               lhs.extFrameDataSize == rhs.extFrameDataSize &&
-               (lhs.extFrameDataSize == 0 || lhs.extFrameData == rhs.extFrameData ||
-                memcmp(lhs.extFrameData, rhs.extFrameData, lhs.extFrameDataSize) == 0);
-    }
     return lhs.fileId == rhs.fileId && lhs.pandaFilePtr == rhs.pandaFilePtr;
 }
 
@@ -115,25 +110,8 @@ inline bool operator!=(const SampleInfo::ManagedStackFrameId &lhs, const SampleI
 {
     return !(lhs == rhs);
 }
-
-inline bool CompareExternalFrame(const SampleInfo::ManagedStackFrameId &lhs, const SampleInfo::ManagedStackFrameId &rhs)
-{
-    if (lhs.extFrameDataSize != rhs.extFrameDataSize) {
-        return lhs.extFrameDataSize < rhs.extFrameDataSize;
-    }
-    if (lhs.extFrameDataSize == 0) {
-        return false;
-    }
-    auto cmp = memcmp(lhs.extFrameData, rhs.extFrameData, lhs.extFrameDataSize);
-    return cmp < 0;
-}
-
 inline bool operator<(const SampleInfo::ManagedStackFrameId &lhs, const SampleInfo::ManagedStackFrameId &rhs)
 {
-    if (lhs.pandaFilePtr == helpers::ToUnderlying(FrameKind::EXTERNAL_FRAME) &&
-        rhs.pandaFilePtr == helpers::ToUnderlying(FrameKind::EXTERNAL_FRAME)) {
-        return CompareExternalFrame(lhs, rhs);
-    }
     return std::tie(lhs.fileId, lhs.pandaFilePtr) < std::tie(rhs.fileId, rhs.pandaFilePtr);
 }
 
@@ -204,18 +182,7 @@ struct hash<ark::tooling::sampler::SampleInfo> {
         ASSERT(stackInfo.managedStackSize <= ark::tooling::sampler::SampleInfo::StackInfo::MAX_STACK_DEPTH);
         size_t summ = 0;
         for (size_t i = 0; i < stackInfo.managedStackSize; ++i) {
-            const auto &frame = stackInfo.managedStack[i];
-
-            if (frame.pandaFilePtr == ark::helpers::ToUnderlying(ark::tooling::sampler::FrameKind::EXTERNAL_FRAME)) {
-                size_t h = std::hash<uint32_t> {}(frame.extFrameDataSize);
-                auto addr = reinterpret_cast<uintptr_t>(frame.extFrameData);
-                for (uint32_t j = 0; j < frame.extFrameDataSize; ++j, ++addr) {
-                    h ^= static_cast<size_t>(*reinterpret_cast<const uint8_t *>(addr)) << ((j % sizeof(size_t)) * 8);
-                }
-                summ += h;
-            } else {
-                summ += frame.pandaFilePtr ^ frame.fileId;
-            }
+            summ += stackInfo.managedStack[i].pandaFilePtr ^ stackInfo.managedStack[i].fileId;
         }
         constexpr uint32_t THREAD_STATUS_SHIFT = 20;
         return std::hash<size_t>()(

@@ -126,7 +126,7 @@ inline bool SampleReader::GetNextSample(SampleInfo *sampleOut)
     // Null it out so consumers don't dereference invalid memory.
     for (size_t i = 0; i < sampleOut->stackInfo.managedStackSize; ++i) {
         auto &frame = sampleOut->stackInfo.managedStack[i];
-        if (frame.pandaFilePtr == helpers::ToUnderlying(FrameKind::EXTERNAL_FRAME)) {
+        if (!frame.isStaticFrame) {
             frame.extFrameData = nullptr;
             frame.extFrameDataSize = 0;
         }

@@ -86,6 +86,17 @@ public:
         return isSegvHandlerEnable_;
     }
 
+    static ark::mem::GCPhase GetGCPhase()
+    {
+        ASSERT(instance_ != nullptr);
+        return instance_->runtime_->GetPandaVM()->GetGC()->GetGCPhase();
+    }
+
+    static bool IsGCIdle()
+    {
+        return GetGCPhase() == ark::mem::GCPhase::GC_PHASE_IDLE;
+    }
+
     PANDA_PUBLIC_API bool Start(std::unique_ptr<StreamWriter> &&writer);
     PANDA_PUBLIC_API bool Stop();
 

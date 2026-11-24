@@ -22,19 +22,22 @@
 
 namespace ark::ets::interop::js {
 
-PANDA_PUBLIC_API bool ForEachFrameInUnionStack(
-    const std::function<void(const void *frame, bool isStaticFrame)> &callback);
+PANDA_PUBLIC_API bool ForEachFrameInUnionStack(void (*callback)(const void *frame, bool isStaticFrame, void *data),
+                                               void *data);
 
 PANDA_PUBLIC_API bool UnionStackIsEmpty(bool *isEmpty);
+
+PANDA_PUBLIC_API const void *GetEcmaVM();
 
 PANDA_PUBLIC_API bool GetStaticFrameInfo(const void *frame, arkplatform::HybridFrameInfo &frameInfo);
 
 PANDA_PUBLIC_API bool GetDynamicFrameInfo(const void *frame, arkplatform::HybridFrameInfo &frameInfo);
 
+PANDA_PUBLIC_API bool DynamicTopFrameIsValid(void *signalContextPtr);
+
 PANDA_PUBLIC_API bool IsHybridStackEnabled();
 
-PANDA_PUBLIC_API const void *GetEcmaVM();
-
+PANDA_PUBLIC_API bool IsJSGCRunning();
 }  // namespace ark::ets::interop::js
 
 #endif  // !PANDA_PLUGINS_ETS_RUNTIME_INTEROP_JS_INTERNAL_API_H

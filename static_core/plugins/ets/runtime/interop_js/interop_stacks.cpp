@@ -15,11 +15,9 @@
 
 #include "plugins/ets/runtime/interop_js/interop_stacks.h"
 #include "plugins/ets/runtime/interop_js/interop_context.h"
-#include "runtime/execution/job_execution_context.h"
 #include "runtime/include/stack_walker.h"
 #include "runtime/interpreter/frame.h"
 #include "runtime/include/method.h"
-#include "runtime/tooling/debugger.h"
 
 namespace ark::ets::interop::js {
 
@@ -36,11 +34,11 @@ InteropCallStack::InteropCallStack()
 
 void *InteropCallStack::GetStaticTopFrame() const
 {
-    auto *execCtx = JobExecutionContext::GetCurrent();
-    if (UNLIKELY(execCtx == nullptr)) {
+    auto *coro = EtsCoroutine::GetCurrent();
+    if (UNLIKELY(coro == nullptr)) {
         return nullptr;
     }
-    auto stack = StackWalker::Create(execCtx);
+    auto stack = StackWalker::Create(coro);
     if (!stack.HasFrame()) {
         return nullptr;
     }
@@ -62,7 +60,114 @@ void *InteropCallStack::GetDynamicTopFrameSP() const
 }
 
 bool InteropCallStack::ForEachDynamicFrame(void *currFrameSP, void *toFrameSP,
-                                           const std::function<void(const void *frame)> &cb) const
+                                           void (*cb)(const void *frame, void *data), void *data) const
+{
+    if (UNLIKELY(currFrameSP == nullptr)) {
+        return false;
+    }
+    auto *ctx = interop::js::InteropCtx::Current();
+    if (UNLIKELY(ctx == nullptr)) {
+        return false;
+    }
+    auto *ecmaInterface = ctx->GetECMAInterface();
+    if (UNLIKELY(ecmaInterface == nullptr)) {
+        return false;
+    }
+    return ecmaInterface->ForEachDynamicFrame(currFrameSP, toFrameSP, cb, data);
+}
+
+bool InteropCallStack::ForEachStaticFrame(StackWalker *stack, void *toFrame, void (*cb)(const void *frame, void *data),
+                                          void *data) const
+{
+    for (; stack->HasFrame(); stack->NextFrame()) {
+        void *currFrame =
+            stack->IsCFrame() ? static_cast<void *>(&stack->GetCFrame()) : static_cast<void *>(stack->GetIFrame());
+        if (currFrame == toFrame) {
+            break;
+        }
+        Method *method = stack->GetMethod();
+        if (method == nullptr) {
+            continue;
+        }
+        Frame *frame {};
+        if (!stack->IsCFrame()) {
+            frame = stack->GetIFrame();
+        }
+
+        arkplatform::StaticFrameInfo staticFrame {method, frame != nullptr ? frame->GetBytecodeOffset() : 0, frame};
+        cb(&staticFrame, data);
+    }
+    return true;
+}
+
+bool InteropCallStack::ForEachInteropFrame(void (*callback)(const void *frame, bool isStaticFrame, void *data),
+                                           void *data)
+{
+    if (UNLIKELY(!InteropCtx::IsHybridStackEnabled())) {
+        return false;
+    }
+    auto *execCtx = JobExecutionContext::GetCurrent();
+    if (UNLIKELY(execCtx == nullptr)) {
+        return false;
+    }
+
+    // Trampoline helpers: invoke the outer (frame, isStaticFrame, data) callback
+    // from the inner (frame, data) callback, injecting the known isStaticFrame value.
+    struct TrampolineData {
+        void (*callback)(const void *frame, bool isStaticFrame, void *data);
+        void *data;
+    };
+
+    auto staticTrampoline = [](const void *frame, void *userData) {
+        auto *td = static_cast<TrampolineData *>(userData);
+        td->callback(frame, true, td->data);
+    };
+
+    auto dynamicTrampoline = [](const void *frame, void *userData) {
+        auto *td = static_cast<TrampolineData *>(userData);
+        td->callback(frame, false, td->data);
+    };
+
+    // Get the current top stack and traverse the stack between the current node and the recorded node.
+    StackWalker staticStack = StackWalker::Create(execCtx);
+    void *dynamicFrameSP = GetDynamicTopFrameSP();
+
+    auto records = GetRecords();
+    int frameSize = static_cast<int>(records.size());
+    TrampolineData td {callback, data};
+
+    for (int fIdx = frameSize - 1; fIdx >= 0; fIdx--) {
+        if (!ForEachDynamicFrame(dynamicFrameSP, records[fIdx].dynamicSP, dynamicTrampoline, &td)) {
+            return false;
+        }
+        dynamicFrameSP = records[fIdx].dynamicSP;
+        if (!ForEachStaticFrame(&staticStack, records[fIdx].staticEntryFrame, staticTrampoline, &td)) {
+            return false;
+        }
+    }
+
+    if (dynamicFrameSP != nullptr) {
+        if (!ForEachDynamicFrame(dynamicFrameSP, nullptr, dynamicTrampoline, &td)) {
+            return false;
+        }
+    }
+    return ForEachStaticFrame(&staticStack, nullptr, staticTrampoline, &td);
+}
+
+const void *InteropCallStack::GetEcmaVM() const
+{
+    auto *ctx = interop::js::InteropCtx::Current();
+    if (UNLIKELY(ctx == nullptr)) {
+        return nullptr;
+    }
+    auto *ecmaInterface = ctx->GetECMAInterface();
+    if (UNLIKELY(ecmaInterface == nullptr)) {
+        return nullptr;
+    }
+    return ecmaInterface->GetEcmaVM();
+}
+
+bool InteropCallStack::DynamicTopFrameIsValid(void *signalContextPtr)
 {
     auto *ctx = interop::js::InteropCtx::Current();
     if (UNLIKELY(ctx == nullptr)) {
@@ -72,63 +177,7 @@ bool InteropCallStack::ForEachDynamicFrame(void *currFrameSP, void *toFrameSP,
     if (UNLIKELY(ecmaInterface == nullptr)) {
         return false;
     }
-    return ecmaInterface->ForEachDynamicFrame(currFrameSP, toFrameSP, cb);
-}
-
-bool InteropCallStack::ForEachStaticFrame(StackWalker *stack, void *toFrame,
-                                          const std::function<void(const void *frame)> &cb) const
-{
-    for (; stack->HasFrame(); stack->NextFrame()) {
-        void *currFrame =
-            stack->IsCFrame() ? static_cast<void *>(&stack->GetCFrame()) : static_cast<void *>(stack->GetIFrame());
-        if (currFrame == toFrame) {
-            break;
-        }
-        Method *method = stack->GetMethod();
-        Frame *frame {};
-        if (!stack->IsCFrame()) {
-            frame = stack->GetIFrame();
-        }
-
-        tooling::PtDebugFrame debugFrame = tooling::PtDebugFrame(method, frame);
-        cb(&debugFrame);
-    }
-    return true;
-}
-
-bool InteropCallStack::ForEachInteropFrame(const std::function<void(const void *frame, bool isStaticFrame)> &callback)
-{
-    if (UNLIKELY(!InteropCtx::IsHybridStackEnabled())) {
-        return false;
-    }
-    auto *execCtx = JobExecutionContext::GetCurrent();
-    if (UNLIKELY(execCtx == nullptr)) {
-        return false;
-    }
-    StackWalker staticStack = StackWalker::Create(execCtx);
-    void *dynamicFrameSP = GetDynamicTopFrameSP();
-
-    auto records = GetRecords();
-    int frameSize = static_cast<int>(records.size());
-
-    for (int fIdx = frameSize - 1; fIdx >= 0; fIdx--) {
-        if (!ForEachDynamicFrame(dynamicFrameSP, records[fIdx].dynamicSP,
-                                 [&callback](const void *frame) { callback(frame, false); })) {
-            return false;
-        }
-        dynamicFrameSP = records[fIdx].dynamicSP;
-        if (!ForEachStaticFrame(&staticStack, records[fIdx].staticEntryFrame,
-                                [&callback](const void *frame) { callback(frame, true); })) {
-            return false;
-        }
-    }
-
-    if (dynamicFrameSP != nullptr) {
-        if (!ForEachDynamicFrame(dynamicFrameSP, nullptr, [&callback](const void *frame) { callback(frame, false); })) {
-            return false;
-        }
-    }
-    return ForEachStaticFrame(&staticStack, nullptr, [&callback](const void *frame) { callback(frame, true); });
+    return ecmaInterface->DynamicTopFrameIsValid(signalContextPtr);
 }
 
 }  // namespace ark::ets::interop::js

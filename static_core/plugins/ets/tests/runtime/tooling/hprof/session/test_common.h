@@ -361,7 +361,7 @@ public:
         }
         return true;
     }
-    bool ForEachFrameInUnionStack(const std::function<void(const void *, bool)> &) override
+    bool ForEachFrameInUnionStack(void (*)(const void *, bool, void *), void *) override
     {
         return true;
     }

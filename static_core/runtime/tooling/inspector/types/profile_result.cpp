@@ -97,12 +97,12 @@ void Profile::SerializeCallFrame(JsonObjectBuilder &builder, const struct sample
     builder.AddProperty("callFrame", [&codeEntry](JsonObjectBuilder &objBuilder) {
         objBuilder.AddProperty("functionName", codeEntry.functionName);
         objBuilder.AddProperty("moduleName", codeEntry.moduleName);
-        objBuilder.AddProperty("scriptId", std::to_string(codeEntry.scriptId));
+        objBuilder.AddProperty("scriptId", codeEntry.scriptId);
         objBuilder.AddProperty("url", codeEntry.url);
         objBuilder.AddProperty("lineNumber", codeEntry.lineNumber);
         objBuilder.AddProperty("columnNumber", codeEntry.columnNumber);
-        // CDP extension: stack frame type marker to distinguish static frames (ETS) from external frames.
-        objBuilder.AddProperty("frameType", codeEntry.isStaticFrame ? "static" : "external");
+        // Add a stack frame type marker to distinguish static frames (ETS) from dynamic frames (JavaScript).
+        objBuilder.AddProperty("frameType", codeEntry.isStaticFrame ? "static" : "dynamic");
     });
 }
 }  // namespace ark::tooling::inspector

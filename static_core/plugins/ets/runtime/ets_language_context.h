@@ -38,6 +38,8 @@
 #include "runtime/mem/gc/gc_types.h"
 #include "runtime/mem/gc/gc_settings.h"
 #include "runtime/include/mem/allocator.h"
+#include "plugins/ets/runtime/tooling/pt_ets_extension.h"
+
 #include "ets_class_linker_extension.h"
 #include "ets_vm.h"
 
@@ -178,8 +180,7 @@ public:
 
     const uint8_t *GetIOExceptionClassDescriptor() const override
     {
-        UNREACHABLE();
-        return nullptr;
+        return utf::CStringAsMutf8("Lstd/core/IOError;");
     }
 
     const uint8_t *GetIllegalArgumentExceptionClassDescriptor() const override

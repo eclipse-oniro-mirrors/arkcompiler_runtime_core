@@ -17,8 +17,8 @@
 #define PANDA_STS_VM_INTERFACE_H
 
 #include "hybrid/vm_interface.h"
-#include "hybrid/hybrid_heap_snapshot_info.h"
 #include "hybrid/hybrid_frame_info.h"
+#include "hybrid/hybrid_heap_snapshot_info.h"
 #include "profiler/heap_dump.h"
 #include <cstdint>
 #include <cstddef>
@@ -92,6 +92,15 @@ public:
     virtual bool WaitForRemark(const NoWorkPred &func) = 0;
     /// @brief Method waits for all threads would call FinishXGCBarrier
     virtual void FinishXGCBarrier() = 0;
+
+    /** Route a hybrid dump request to the ETS-owned coordinator. */
+    virtual bool ExecuteHeapDump(const common::dump::DumpRequest &request, EcmaVMInterface *ecmaInterface,
+                                 bool dumpStaticHeap) = 0;
+
+    virtual bool UnionStackIsEmpty(bool *isEmpty) = 0;
+    virtual bool ForEachFrameInUnionStack(void (*callback)(const void *frame, bool isStaticFrame, void *data),
+                                          void *data) = 0;
+    virtual bool GetStaticFrameInfo(const void *frame, arkplatform::HybridFrameInfo &frameInfo) = 0;
     /**
      * @brief Request the static (ETS) VM to trigger GC for cross-reference collection.
      * Called from the dynamic (JS) side when memory is critically low.
@@ -103,8 +112,6 @@ public:
      * Used to interrupt the barrier when XGC cannot proceed (e.g. ETS GC task rejected).
      */
     virtual void NotifyWaiters() = 0;
-
-    virtual bool GetStaticFrameInfo(const void *frame, arkplatform::HybridFrameInfo &frameInfo) = 0;
 
     // --- Hybrid Heapdump Methods ---
     /// @brief Trigger XGC and wait for completion
@@ -137,14 +144,6 @@ public:
     virtual bool DetachCurrentThread() = 0;
     /// @brief Check if the current thread is attached to the VM
     virtual bool IsCurrentThreadAttached() = 0;
-
-    /** Route a hybrid dump request to the ETS-owned coordinator. */
-    virtual bool ExecuteHeapDump(const common::dump::DumpRequest &request, EcmaVMInterface *ecmaInterface,
-                                 bool dumpStaticHeap) = 0;
-
-    virtual bool UnionStackIsEmpty(bool *isEmpty) = 0;
-    virtual bool ForEachFrameInUnionStack(
-        const std::function<void(const void *frame, bool isStaticFrame)> &callback) = 0;
 };
 
 }  // namespace arkplatform

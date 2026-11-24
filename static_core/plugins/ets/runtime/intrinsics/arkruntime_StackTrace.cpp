@@ -95,8 +95,15 @@ void CreateDynamicStaticStackTraceElement(PandaVector<EtsHandle<EtsStackTraceEle
         return;
     }
 
+    struct StackTraceContext {
+        EtsExecutionContext *executionCtx;
+        arkplatform::EcmaVMInterface *ecmaInterface;
+        PandaVector<EtsHandle<EtsStackTraceElement>> &elements;
+    } stackTraceContext {executionCtx, ecmaInterface, stackTraceElements};
+
     ctx->GetOrCreateCallStack().ForEachInteropFrame(
-        [executionCtx, ecmaInterface, &stackTraceElements](const void *frame, bool isStaticFrame) {
+        [](const void *frame, bool isStaticFrame, void *data) {
+            const auto &context = *static_cast<const StackTraceContext *>(data);
             arkplatform::HybridFrameInfo info;
             bool success = false;
 
@@ -107,33 +114,35 @@ void CreateDynamicStaticStackTraceElement(PandaVector<EtsHandle<EtsStackTraceEle
                     return;
                 }
             } else {
-                success = ecmaInterface->GetSourceMappedFrameInfo(frame, info);
+                success = context.ecmaInterface->GetSourceMappedFrameInfo(frame, info);
                 if (!success) {
                     LOG(ERROR, STDLIB) << "GetSourceMappedFrameInfo failed: method from stack is nullptr.";
                     return;
                 }
             }
 
-            auto *stackTraceElement = EtsStackTraceElement::Create(executionCtx);
+            auto *stackTraceElement = EtsStackTraceElement::Create(context.executionCtx);
             if (UNLIKELY(stackTraceElement == nullptr)) {
-                ASSERT(executionCtx->GetMT()->HasPendingException());
+                ASSERT(context.executionCtx->GetMT()->HasPendingException());
                 return;
             }
-            auto element = EtsHandle<EtsStackTraceElement>(executionCtx, stackTraceElement);
-            EtsHandle<EtsString> className(executionCtx, EtsString::CreateFromMUtf8(info.GetClassName().data()));
+            auto element = EtsHandle<EtsStackTraceElement>(context.executionCtx, stackTraceElement);
+            EtsHandle<EtsString> className(context.executionCtx,
+                                           EtsString::CreateFromMUtf8(info.GetClassName().data()));
             if (UNLIKELY(className.GetPtr() == nullptr)) {
-                ASSERT(executionCtx->GetMT()->HasPendingException());
+                ASSERT(context.executionCtx->GetMT()->HasPendingException());
                 return;
             }
-            EtsHandle<EtsString> functionName(executionCtx, EtsString::CreateFromMUtf8(info.GetFunctionName().data()));
+            EtsHandle<EtsString> functionName(context.executionCtx,
+                                              EtsString::CreateFromMUtf8(info.GetFunctionName().data()));
             if (UNLIKELY(functionName.GetPtr() == nullptr)) {
-                ASSERT(executionCtx->GetMT()->HasPendingException());
+                ASSERT(context.executionCtx->GetMT()->HasPendingException());
                 return;
             };
             EtsString *sourceFileName =
                 EtsString::CreateFromMUtf8(info.GetUrl().empty() ? "<unknown>" : info.GetUrl().data());
             if (UNLIKELY(sourceFileName == nullptr)) {
-                ASSERT(executionCtx->GetMT()->HasPendingException());
+                ASSERT(context.executionCtx->GetMT()->HasPendingException());
                 return;
             }
             element->SetClassName(className.GetPtr());
@@ -142,8 +151,9 @@ void CreateDynamicStaticStackTraceElement(PandaVector<EtsHandle<EtsStackTraceEle
             element->SetLineNumber(info.lineNumber);
             element->SetColNumber(isStaticFrame ? 0 : info.columnNumber);
             element->SetIsStaticFrame(static_cast<EtsBoolean>(isStaticFrame));
-            stackTraceElements.push_back(element);
-        });
+            context.elements.push_back(element);
+        },
+        &stackTraceContext);
 }
 #endif /* PANDA_ETS_INTEROP_JS */
 

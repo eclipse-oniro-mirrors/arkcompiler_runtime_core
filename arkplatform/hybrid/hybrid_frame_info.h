@@ -107,6 +107,13 @@ private:
     }
 };
 
+struct StaticFrameInfo {
+    void *methodPtr = nullptr;
+    uint32_t bcOffset = 0;
+    // Original Frame* (for non-signal-handler consumers only; do NOT dereference in signal handler)
+    void *framePtr = nullptr;
+};
+
 }  // namespace arkplatform
 
 #endif  // PROFILER_HYBRID_FRAME_INFO_H

@@ -18,6 +18,7 @@
 
 #include "libarkbase/macros.h"
 #include "libarkbase/os/thread.h"
+#include "runtime/tooling/debugger.h"
 #include "runtime/tooling/sampler/sampling_profiler.h"
 #include "runtime/include/managed_thread.h"
 #include "runtime/thread_manager.h"
@@ -25,7 +26,7 @@
 #include "runtime/tooling/pt_thread_info.h"
 #include "runtime/signal_handler.h"
 #include "runtime/execution/coroutines/coroutine.h"
-#include "runtime/tooling/debugger.h"
+#include "hybrid/hybrid_frame_info.h"
 
 namespace ark::tooling::sampler {
 
@@ -104,9 +105,9 @@ Sampler *Sampler::Create()
      * If we collect them before add listeners then new thread can be created (or new module can be loaded)
      * so we will lose this thread (or module)
      */
-    instance_->CreatePtLangExt();
     instance_->CollectThreads();
     instance_->CollectModules();
+    instance_->CreatePtLangExt();
 
     return Sampler::instance_;
 }
@@ -141,6 +142,7 @@ void Sampler::CheckHybridStackIsSupported()
 
 /* static */
 NO_THREAD_SAFETY_ANALYSIS Sampler::PluginSlot &Sampler::GetSlotForThread(ManagedThread *mthread)
+
 {
     ASSERT(instance_ != nullptr);
     ASSERT(mthread != nullptr);
@@ -200,7 +202,7 @@ void Sampler::ReleaseSampleSlots(const SampleInfo &sample)
 {
     for (size_t i = 0; i < sample.stackInfo.managedStackSize; i++) {
         const auto &frame = sample.stackInfo.managedStack[i];
-        if (frame.pandaFilePtr == helpers::ToUnderlying(FrameKind::EXTERNAL_FRAME) && frame.extFrameData != nullptr) {
+        if (!frame.isStaticFrame && frame.extFrameData != nullptr) {
             ReleaseSlot(frame.extFrameData);
         }
     }
@@ -343,6 +345,11 @@ bool Sampler::Stop()
     listenerThread_.reset();
     samplerTid_ = 0;
     listenerTid_ = 0;
+
+    // ptLangExt_ is intentionally NOT reset here: it is bound to the runtime
+    // lifetime, not to a single profiling session, and Stop may be called from
+    // a non-managed thread (e.g. inspector server thread) where it cannot be
+    // recreated on the next Start.
 
     LOG(INFO, PROFILER) << "Sampling profiler stopped";
     LogProfilerStats();
@@ -508,34 +515,30 @@ static bool CollectHybridStaticFrame(const void *frame, SampleInfo &sample, size
                                      const LockFreeQueue &pfsQueue)
 {
     if (stackCounter >= SampleInfo::StackInfo::MAX_STACK_DEPTH) {
-        LOG(DEBUG, PROFILER) << "CollectHybridStaticFrame: stack depth limit reached";
         return false;
     }
 
-    auto *debugFrame = static_cast<const ark::tooling::PtDebugFrame *>(frame);
-    if (debugFrame == nullptr) {
-        LOG(DEBUG, PROFILER) << "CollectHybridStaticFrame: debugFrame is null";
+    auto *staticFrame = static_cast<const arkplatform::StaticFrameInfo *>(frame);
+    if (staticFrame == nullptr) {
         g_sLostInvalidSamples++;
         return false;
     }
 
-    auto *method = debugFrame->GetMethod();
+    auto *method = static_cast<Method *>(staticFrame->methodPtr);
     if (method == nullptr || IsInvalidPointer(reinterpret_cast<uintptr_t>(method))) {
-        LOG(DEBUG, PROFILER) << "CollectHybridStaticFrame: method is null or invalid";
         g_sLostInvalidSamples++;
         return false;
     }
 
     auto pfId = reinterpret_cast<uintptr_t>(method->GetPandaFile());
     if (!pfsQueue.FindValue(pfId)) {
-        LOG(DEBUG, PROFILER) << "CollectHybridStaticFrame: panda file not found in queue";
         g_sLostNotFindSamples++;
         return false;
     }
 
     sample.stackInfo.managedStack[stackCounter].pandaFilePtr = pfId;
     sample.stackInfo.managedStack[stackCounter].fileId = method->GetFileId().GetOffset();
-    sample.stackInfo.managedStack[stackCounter].bcOffset = debugFrame->GetBytecodeOffset();
+    sample.stackInfo.managedStack[stackCounter].bcOffset = staticFrame->bcOffset;
     ++stackCounter;
     return true;
 }
@@ -544,12 +547,10 @@ static bool CollectHybridDynamicFrame(const void *frame, SampleInfo &sample, siz
                                       ManagedThread *mthread)
 {
     if (stackCounter >= SampleInfo::StackInfo::MAX_STACK_DEPTH) {
-        LOG(DEBUG, PROFILER) << "CollectHybridDynamicFrame: stack depth limit reached";
         return false;
     }
 
     if (frame == nullptr) {
-        LOG(DEBUG, PROFILER) << "CollectHybridDynamicFrame: frame is null";
         return false;
     }
 
@@ -559,62 +560,72 @@ static bool CollectHybridDynamicFrame(const void *frame, SampleInfo &sample, siz
     auto &frameId = sample.stackInfo.managedStack[stackCounter];
     void *slotBuffer = Sampler::GetSlotBuffer(mthread, stackCounter);
     size_t size = ptLangExt->GetDynamicFrameInfo(frame, slotBuffer, Sampler::PLUGIN_FRAME_DATA_MAX_SIZE,
-                                                 &frameId.fileId, &frameId.bcOffset);
+                                                 &frameId.fileId, &frameId.pandaFilePtr, &frameId.bcOffset);
     if (size == 0) {
-        LOG(DEBUG, PROFILER) << "CollectHybridDynamicFrame: failed to get dynamic frame info";
         return false;
     }
-    frameId.pandaFilePtr = helpers::ToUnderlying(FrameKind::EXTERNAL_FRAME);
     frameId.extFrameData = slotBuffer;
     frameId.extFrameDataSize = size;
+    frameId.isStaticFrame = false;
     ++stackCounter;
     return true;
 }
 
-// NOLINTBEGIN(misc-non-private-member-variables-in-classes)
-struct HybridFrameCollector {
-    void operator()(const void *frame, bool isStaticFrame)
-    {
-        if (isStaticFrame) {
-            if (CollectHybridStaticFrame(frame, sample, stackCounter, pfsQueue)) {
-                hasValidFrames = true;
-            }
-            return;
-        }
-
-        if (CollectHybridDynamicFrame(frame, sample, stackCounter, mthread)) {
-            hasValidFrames = true;
-        }
-    }
-
+// Data struct for HybridFrameCollector trampoline — avoids std::function (not async-signal-safe).
+struct HybridFrameCollectorData {
     SampleInfo &sample;
     size_t &stackCounter;
     const LockFreeQueue &pfsQueue;
     bool &hasValidFrames;
     ManagedThread *mthread;
 };
-// NOLINTEND(misc-non-private-member-variables-in-classes)
+
+static void HybridFrameCollectorTrampoline(const void *frame, bool isStaticFrame, void *data)
+{
+    auto *d = static_cast<HybridFrameCollectorData *>(data);
+    if (isStaticFrame) {
+        if (CollectHybridStaticFrame(frame, d->sample, d->stackCounter, d->pfsQueue)) {
+            d->hasValidFrames = true;
+        }
+        return;
+    }
+    if (CollectHybridDynamicFrame(frame, d->sample, d->stackCounter, d->mthread)) {
+        d->hasValidFrames = true;
+    }
+}
 
 /**
- * @brief Implement hybrid stack collection function.
- *        Called immediately after setjmp to detect and collect hybrid stack frames.
+ * @brief Optimized hybrid stack collection function.
+ * Called immediately after setjmp to detect and collect hybrid stack frames.
  * @return true if hybrid stack frames were successfully collected, false otherwise.
  */
-static bool CollectHybridStackFramesOptimized(SampleInfo &sample, size_t &stackCounter, ManagedThread *mthread)
+static bool CollectHybridStackFramesOptimized(SampleInfo &sample, size_t &stackCounter, ManagedThread *mthread,
+                                              void *signalContextPtr)
 {
     auto ptLangExt = Sampler::GetSamplePtLangExt();
-    if (ptLangExt == nullptr) {
+    if (ptLangExt == nullptr || ptLangExt->IsJSGCRunning() || !Sampler::IsGCIdle()) {
         return false;
     }
 
+    // Step 1: Call interop interface to check if it's a hybrid scenario
+    // Check if it's an ETS coroutine
+    // Use UnionStackIsEmpty to determine if it's a hybrid stack scenario
+    auto thread = ManagedThread::GetCurrent();
+    bool isEmpty = true;
+    ptLangExt->UnionStackIsEmpty(&isEmpty);
+    if (thread == nullptr || !Coroutine::MutatorIsCoroutine(thread) || isEmpty) {
+        return false;
+    }
+
+    if (!ptLangExt->DynamicTopFrameIsValid(signalContextPtr)) {
+        return false;
+    }
+
+    // Step 2: Call interop interface to walk the stack
     const LockFreeQueue &pfsQueue = Sampler::GetSampleQueuePF();
     bool hasValidFrames = false;
-    HybridFrameCollector collector {sample, stackCounter, pfsQueue, hasValidFrames, mthread};
-    bool rst = ptLangExt->CollectHybridStackFrames(collector);
-
-    if (hasValidFrames) {
-        LOG(DEBUG, PROFILER) << "CollectHybridStackFramesOptimized: collected " << stackCounter << " hybrid frames";
-    }
+    HybridFrameCollectorData collectorData {sample, stackCounter, pfsQueue, hasValidFrames, mthread};
+    bool rst = ptLangExt->CollectHybridStackFrames(HybridFrameCollectorTrampoline, &collectorData);
 
     return rst && hasValidFrames;
 }
@@ -668,17 +679,17 @@ static void SendHybridSampleIfPresent(SampleInfo &sample, size_t stackCounter)
     sample.timeStamp = Sampler::GetMicrosecondsTimeStamp();
     const ThreadCommunicator &communicator = Sampler::GetSampleCommunicator();
     communicator.SendSample(sample);
-    LOG(DEBUG, PROFILER) << "Hybrid stack sample sent with " << stackCounter << " frames";
 }
 
-static bool TryCollectForeignFrames(SampleInfo &sample, size_t &stackCounter, ManagedThread *mthread)
+static bool TryCollectForeignFrames(SampleInfo &sample, size_t &stackCounter, ManagedThread *mthread,
+                                    void *signalContextPtr)
 {
     if (!Sampler::IsHybridStackEnable()) {
         return false;
     }
     // Call interop interface to check if it’s a hybrid scenario,
     // call interop interface to walk the stack, and finally send data to ListenerThread.
-    if (!CollectHybridStackFramesOptimized(sample, stackCounter, mthread)) {
+    if (!CollectHybridStackFramesOptimized(sample, stackCounter, mthread, signalContextPtr)) {
         return false;
     }
     SendHybridSampleIfPresent(sample, stackCounter);
@@ -763,7 +774,9 @@ void SigProfSamplingProfilerHandler([[maybe_unused]] int signum, [[maybe_unused]
     }
 
     ManagedThread *mthread = coro == nullptr ? ManagedThread::GetCurrent() : coro;
-    ASSERT(mthread != nullptr);
+    if (mthread == nullptr) {
+        return;
+    }
 
     // Checking that code is being executed
     auto *framePtr = reinterpret_cast<CFrame::SlotType *>(mthread->GetCurrentFrame());
@@ -804,7 +817,7 @@ void SigProfSamplingProfilerHandler([[maybe_unused]] int signum, [[maybe_unused]
     // or the thread has no slot, skip hybrid collection for this sample.
     bool slotAcquired = TryAcquirePluginSlot(mthread);
     if (slotAcquired) {
-        if (TryCollectForeignFrames(sample, stackCounter, mthread)) {
+        if (TryCollectForeignFrames(sample, stackCounter, mthread, ptr)) {
             return;  // sample sent via pipe; slot stays READY until listener consumes it
         }
         // No hybrid frames collected, release slot immediately

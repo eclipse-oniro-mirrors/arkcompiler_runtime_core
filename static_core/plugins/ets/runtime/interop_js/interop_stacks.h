@@ -61,10 +61,12 @@ public:
         return {startAddr_, (ToUintPtr(curAddr_) - ToUintPtr(startAddr_)) / sizeof(Record)};
     }
 
-    bool ForEachInteropFrame(const std::function<void(const void *frame, bool isStaticFrame)> &callback);
+    bool ForEachInteropFrame(void (*callback)(const void *frame, bool isStaticFrame, void *data), void *data);
 
     void *GetStaticTopFrame() const;
     void *GetDynamicTopFrameSP() const;
+    const void *GetEcmaVM() const;
+    bool DynamicTopFrameIsValid(void *signalContextPtr);
 
 private:
     NO_COPY_SEMANTIC(InteropCallStack);
@@ -81,9 +83,10 @@ private:
         InteropFatal("InteropCallStack overflow");
     }
 
-    bool ForEachDynamicFrame(void *currFrameSP, void *toFrameSP,
-                             const std::function<void(const void *frame)> &cb) const;
-    bool ForEachStaticFrame(StackWalker *stack, void *toFrame, const std::function<void(const void *frame)> &cb) const;
+    bool ForEachDynamicFrame(void *currFrameSP, void *toFrameSP, void (*cb)(const void *frame, void *data),
+                             void *data) const;
+    bool ForEachStaticFrame(StackWalker *stack, void *toFrame, void (*cb)(const void *frame, void *data),
+                            void *data) const;
 
     static constexpr uint32_t MAX_FRAMES = 1024;
     static constexpr size_t POOL_SIZE = MAX_FRAMES * sizeof(Record);
