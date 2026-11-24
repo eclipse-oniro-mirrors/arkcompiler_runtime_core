@@ -953,7 +953,7 @@ TEST_F(AptoolDumpTest, KeepsPandaFileWhenAbsolutePathProvided)
 
 namespace {
 
-constexpr const char *INTEGRATION_TEST_ETS_PATH = "plugins/ets/tests/compiler/aptool/integration_test.ets";
+constexpr const char *INTEGRATION_TEST_ETS_PATH = "plugins/ets/tests/compiler/aptool/integration_test.ats";
 
 std::string FindEs2pandaBinary()
 {
@@ -1056,7 +1056,7 @@ TEST_F(AptoolDumpTest, IntegrationTestFullPgoWorkflow)
     // Check all required binaries exist
     auto ctx = GetIntegrationTestContext();
     if (!ctx.IsValid()) {
-        GTEST_SKIP() << "Required binaries not found (es2panda, ark, etsstdlib.abc, or integration_test.ets), "
+        GTEST_SKIP() << "Required binaries not found (es2panda, ark, etsstdlib.abc, or integration_test.ats), "
                      << "skipping integration test. Run full build to enable this test.";
     }
 

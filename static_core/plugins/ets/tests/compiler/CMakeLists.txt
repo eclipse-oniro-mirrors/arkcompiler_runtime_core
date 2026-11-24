@@ -25,15 +25,15 @@ set(HOST_AOT_SCRIPT ${PANDA_ROOT}/compiler/tools/paoc/host_aot_compile.py)
 set(HOST_AOT_TEST_WORKDIR ${HOST_AOT_TEST_BINARY_DIR}/host_aot_workdir)
 set(HOST_AOT_TEST_STAMP ${HOST_AOT_TEST_BINARY_DIR}/host_aot_test.stamp)
 
-set(HOST_AOT_SINGLE_ETS ${HOST_AOT_TEST_SOURCE_DIR}/single_case.ets)
+set(HOST_AOT_SINGLE_ETS ${HOST_AOT_TEST_SOURCE_DIR}/single_case.ats)
 set(HOST_AOT_SINGLE_CONFIG ${HOST_AOT_TEST_SOURCE_DIR}/single_case_config.txt)
 
-set(HOST_AOT_MULTI_FIRST_ETS ${HOST_AOT_TEST_SOURCE_DIR}/multi_first.ets)
+set(HOST_AOT_MULTI_FIRST_ETS ${HOST_AOT_TEST_SOURCE_DIR}/multi_first.ats)
 set(HOST_AOT_MULTI_FIRST_CONFIG ${HOST_AOT_TEST_SOURCE_DIR}/multi_first_config.txt)
-set(HOST_AOT_MULTI_SECOND_ETS ${HOST_AOT_TEST_SOURCE_DIR}/multi_second.ets)
+set(HOST_AOT_MULTI_SECOND_ETS ${HOST_AOT_TEST_SOURCE_DIR}/multi_second.ats)
 set(HOST_AOT_MULTI_SECOND_CONFIG ${HOST_AOT_TEST_SOURCE_DIR}/multi_second_config.txt)
 
-set(HOST_AOT_OVERLOAD_ETS ${HOST_AOT_TEST_SOURCE_DIR}/overload_case.ets)
+set(HOST_AOT_OVERLOAD_ETS ${HOST_AOT_TEST_SOURCE_DIR}/overload_case.ats)
 set(HOST_AOT_OVERLOAD_CONFIG ${HOST_AOT_TEST_SOURCE_DIR}/overload_case_config.txt)
 
 string(REPLACE ";" " " HOST_AOT_RUN_PREFIX "${PANDA_RUN_PREFIX}")
