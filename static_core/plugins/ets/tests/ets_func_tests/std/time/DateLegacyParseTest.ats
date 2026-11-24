@@ -1,0 +1,213 @@
+/*
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+function main(): int {
+    const suite = new arktest.ArkTestsuite('DateLegacyParse')
+
+    suite.addTest('Test setDayValue path F: YYYY Mon DD', testSetDayValuePathF)
+    suite.addTest('Test setDayValue path G: Mon DD no year', testSetDayValuePathG)
+    suite.addTest('Test setDayValue path D: month + 3 numbers error', testSetDayValuePathD)
+    suite.addTest('Test GMT+hhmm 4-digit timezone', testGmtPlusHhmm)
+    suite.addTest('Test GMT+hh 2-digit timezone exact', testGmtPlusHh)
+    suite.addTest('Test bad timezone sign lengths', testBadTimezoneSignLengths)
+    suite.addTest('Test sign without trailing number', testSignWithoutNumber)
+    suite.addTest('Test dot without digit after seconds', testDotWithoutDigit)
+    suite.addTest('Test invalid finally-time after milliseconds', testInvalidFinallyTimeAfterMs)
+    suite.addTest('Test invalid finally-time after plain number', testInvalidFinallyTimeAfterNumber)
+    suite.addTest('Test DayValue overflow 4th number', testDayValueOverflow)
+    suite.addTest('Test T-flag before number', testTFlagBeforeNumber)
+    suite.addTest('Test invalid word before number', testInvalidWordBeforeNumber)
+    suite.addTest('Test sign ignored without time', testSignIgnoredWithoutTime)
+    suite.addTest('Test normMilliSecond 1-digit padding', testNormMilliSecond1Digit)
+    suite.addTest('Test normMilliSecond 2-digit padding', testNormMilliSecond2Digit)
+    suite.addTest('Test normMilliSecond 4-digit truncation', testNormMilliSecond4Digit)
+    suite.addTest('Test sign colon but minute not number', testSignColonMinuteNotNumber)
+    suite.addTest('Test local timezone path', testLocalTimezonePath)
+    suite.addTest('Test year boundary via legacy', testYearBoundaryLegacy)
+
+    return suite.run()
+}
+
+function testSetDayValuePathF(): void {
+    const date = new Date('2024 Jun 15 GMT')
+    arktest.assertEQ(date.getUTCFullYear(), 2024)
+    arktest.assertEQ(date.getUTCMonth(), 5)
+    arktest.assertEQ(date.getUTCDate(), 15)
+
+    const date2 = new Date('1999 Mar 20 GMT')
+    arktest.assertEQ(date2.getUTCFullYear(), 1999)
+    arktest.assertEQ(date2.getUTCMonth(), 2)
+    arktest.assertEQ(date2.getUTCDate(), 20)
+}
+
+function testSetDayValuePathG(): void {
+    const date = new Date('Jun 15 GMT')
+    arktest.assertEQ(date.getUTCFullYear(), 2001)
+    arktest.assertEQ(date.getUTCMonth(), 5)
+    arktest.assertEQ(date.getUTCDate(), 15)
+
+    const date2 = new Date('Jan 1 GMT')
+    arktest.assertEQ(date2.getUTCFullYear(), 2001)
+    arktest.assertEQ(date2.getUTCMonth(), 0)
+    arktest.assertEQ(date2.getUTCDate(), 1)
+}
+
+function testSetDayValuePathD(): void {
+    arktest.expectError(() => { new Date('15 2024 2024 Jun') },
+        'Invalid time value: \'15 2024 2024 Jun\'')
+}
+
+function testGmtPlusHhmm(): void {
+    const gmtPlus0800 = new Date('15 Jun 2024 12:30:45 GMT+0800')
+    const explicit = new Date('15 Jun 2024 12:30:45 +08:00')
+    arktest.assertEQ(gmtPlus0800.getTime(), explicit.getTime())
+    arktest.assertEQ(gmtPlus0800.getUTCHours(), 4)
+    arktest.assertEQ(gmtPlus0800.getUTCMinutes(), 30)
+
+    const gmtMinus0530 = new Date('15 Jun 2024 12:30:45 GMT-0530')
+    const explicitMinus = new Date('15 Jun 2024 12:30:45 -05:30')
+    arktest.assertEQ(gmtMinus0530.getTime(), explicitMinus.getTime())
+}
+
+function testGmtPlusHh(): void {
+    const gmtPlus08 = new Date('15 Jun 2024 12:30:45 GMT+08')
+    const explicit = new Date('15 Jun 2024 12:30:45 +08:00')
+    arktest.assertEQ(gmtPlus08.getTime(), explicit.getTime())
+    arktest.assertEQ(gmtPlus08.getUTCHours(), 4)
+
+    const gmtMinus05 = new Date('15 Jun 2024 12:30:45 GMT-05')
+    const explicitMinus = new Date('15 Jun 2024 12:30:45 -05:00')
+    arktest.assertEQ(gmtMinus05.getTime(), explicitMinus.getTime())
+}
+
+function testBadTimezoneSignLengths(): void {
+    arktest.expectError(() => { new Date('15 Jun 2024 12:30:45 GMT+12345') },
+        'Invalid time value: \'15 Jun 2024 12:30:45 GMT+12345\'')
+
+    arktest.expectError(() => { new Date('15 Jun 2024 12:30:45 GMT+abc') },
+        'Invalid time value: \'15 Jun 2024 12:30:45 GMT+abc\'')
+}
+
+function testSignWithoutNumber(): void {
+    arktest.expectError(() => { new Date('15 Jun 2024 12:30:45 GMT+') },
+        'Invalid time value: \'15 Jun 2024 12:30:45 GMT+\'')
+
+    arktest.expectError(() => { new Date('15 Jun 2024 12:30:45 +') },
+        'Invalid time value: \'15 Jun 2024 12:30:45 +\'')
+}
+
+function testDotWithoutDigit(): void {
+    arktest.expectError(() => { new Date('15 Jun 2024 12:30:45.GMT') },
+        'Invalid time value: \'15 Jun 2024 12:30:45.GMT\'')
+
+    arktest.expectError(() => { new Date('15 Jun 2024 12:30:45.') },
+        'Invalid time value: \'15 Jun 2024 12:30:45.\'')
+}
+
+function testInvalidFinallyTimeAfterMs(): void {
+    arktest.expectError(() => { new Date('15 Jun 2024 12:30:45.123Oct') },
+        'Invalid time value: \'15 Jun 2024 12:30:45.123Oct\'')
+
+    arktest.expectError(() => { new Date('15 Jun 2024 12:30:45.123:99') },
+        'Invalid time value: \'15 Jun 2024 12:30:45.123:99\'')
+}
+
+function testInvalidFinallyTimeAfterNumber(): void {
+    arktest.expectError(() => { new Date('15 Jun 2024 12:30 45abc') },
+        'Invalid time value: \'15 Jun 2024 12:30 45abc\'')
+
+    arktest.expectError(() => { new Date('15 Jun 2024 12:30 45:99') },
+        'Invalid time value: \'15 Jun 2024 12:30 45:99\'')
+}
+
+function testDayValueOverflow(): void {
+    arktest.expectError(() => { new Date('2024 06 15 20') },
+        'Invalid time value: \'2024 06 15 20\'')
+
+    arktest.expectError(() => { new Date('2024 06 15 99') },
+        'Invalid time value: \'2024 06 15 99\'')
+}
+
+function testTFlagBeforeNumber(): void {
+    arktest.expectError(() => { new Date('2024 T 15') },
+        'Invalid time value: \'2024 T 15\'')
+
+    arktest.expectError(() => { new Date('2024 06 15 T') },
+        'Invalid time value: \'2024 06 15 T\'')
+}
+
+function testInvalidWordBeforeNumber(): void {
+    arktest.expectError(() => { new Date('2024 06 15 xyz') },
+        'Invalid time value: \'2024 06 15 xyz\'')
+
+    arktest.expectError(() => { new Date('xyz 15 2024') },
+        'Invalid time value: \'xyz 15 2024\'')
+}
+
+function testSignIgnoredWithoutTime(): void {
+    const date = new Date('+8')
+    arktest.assertEQ(date.getFullYear(), 2008)
+}
+
+function testNormMilliSecond1Digit(): void {
+    const date = new Date('15 Jun 2024 12:30:45.1 GMT')
+    arktest.assertEQ(date.getUTCMilliseconds(), 100)
+    arktest.assertEQ(date.getTime(), 1718454645100)
+}
+
+function testNormMilliSecond2Digit(): void {
+    const date = new Date('15 Jun 2024 12:30:45.12 GMT')
+    arktest.assertEQ(date.getUTCMilliseconds(), 120)
+    arktest.assertEQ(date.getTime(), 1718454645120)
+}
+
+function testNormMilliSecond4Digit(): void {
+    const date = new Date('15 Jun 2024 12:30:45.1234 GMT')
+    arktest.assertEQ(date.getUTCMilliseconds(), 123)
+    arktest.assertEQ(date.getTime(), 1718454645123)
+}
+
+function testSignColonMinuteNotNumber(): void {
+    arktest.expectError(() => { new Date('15 Jun 2024 12:30:45 GMT+08:abc') },
+        'Invalid time value: \'15 Jun 2024 12:30:45 GMT+08:abc\'')
+
+    arktest.expectError(() => { new Date('15 Jun 2024 12:30:45 GMT+08:') },
+        'Invalid time value: \'15 Jun 2024 12:30:45 GMT+08:\'')
+}
+
+function testLocalTimezonePath(): void {
+    const parsed = new Date('06/15/2025')
+    const numeric = new Date(2025, 5, 15)
+    arktest.assertEQ(parsed.valueOf(), numeric.valueOf())
+
+    const parsedWithTime = new Date('06/15/2025 12:30:45')
+    const numericWithTime = new Date(2025, 5, 15, 12, 30, 45)
+    arktest.assertEQ(parsedWithTime.valueOf(), numericWithTime.valueOf())
+}
+
+function testYearBoundaryLegacy(): void {
+    const date = new Date('123')
+    arktest.assertEQ(date.getFullYear(), 123)
+    arktest.assertEQ(date.getMonth(), 0)
+    arktest.assertEQ(date.getDate(), 1)
+
+    const y49 = new Date('49')
+    arktest.assertEQ(y49.getFullYear(), 2049)
+    const y50 = new Date('50')
+    arktest.assertEQ(y50.getFullYear(), 1950)
+
+    arktest.expectError(() => { new Date('300000') },
+        'Invalid time value: \'300000\'')
+}
