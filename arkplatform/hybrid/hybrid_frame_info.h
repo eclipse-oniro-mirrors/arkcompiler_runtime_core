@@ -24,12 +24,14 @@
 namespace arkplatform {
 
 constexpr size_t HYBRID_FRAME_FUNCTION_NAME_SIZE = 100;
+constexpr size_t HYBRID_FRAME_CLASS_NAME_SIZE = 100;
 constexpr size_t HYBRID_FRAME_URL_SIZE = 512;
 constexpr size_t HYBRID_FRAME_MODULE_NAME_SIZE = 512;
 
 struct HybridFrameInfo {
     // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
     std::array<char, HYBRID_FRAME_FUNCTION_NAME_SIZE> functionName {};
+    std::array<char, HYBRID_FRAME_CLASS_NAME_SIZE> className {};
     std::array<char, HYBRID_FRAME_URL_SIZE> url {};
     std::array<char, HYBRID_FRAME_MODULE_NAME_SIZE> moduleName {};
     int32_t scriptId = 0;
@@ -52,6 +54,11 @@ struct HybridFrameInfo {
         CopyToBuffer(url, value);
     }
 
+    void SetClassName(std::string_view name)
+    {
+        CopyToBuffer(className, name);
+    }
+
     void SetModuleName(std::string_view name)
     {
         CopyToBuffer(moduleName, name);
@@ -65,6 +72,11 @@ struct HybridFrameInfo {
     std::string_view GetUrl() const
     {
         return BufferToStringView(url);
+    }
+
+    std::string_view GetClassName() const
+    {
+        return BufferToStringView(className);
     }
 
     std::string_view GetModuleName() const

@@ -34,6 +34,7 @@ export class StackTraceElement {
     private sourceFileName: String = ""
     private lineNumber: int = 0
     private colNumber: int = 0
+    private isStaticFrame: boolean = false
 
     private constructor () {}
 
@@ -45,10 +46,16 @@ export class StackTraceElement {
      * @FaAndStageModel
      */
     public override toString(): String {
-        return "\tat " + this.className + "." + this.methodName +
-             // NOTE(@sandee, #24492): Extraction of column number is not implemented
-             ((this.lineNumber !== StackTraceElement.NATIVE_METHOD_LINE_NUMBER) ?
-             " (" + this.sourceFileName + ":" + this.lineNumber + ":" + this.colNumber + ")" : " (Native Method)")
+        if (this.isStaticFrame) {
+            return "\tat " + this.className + "." + this.methodName +
+                // NOTE(@sandee, #24492): Extraction of column number is not implemented
+                ((this.lineNumber !== StackTraceElement.NATIVE_METHOD_LINE_NUMBER) ?
+                " (" + this.sourceFileName + ":" + this.lineNumber + ":" + this.colNumber + ")" : " (Native Method)")
+        } else {
+            return "\tat " + this.methodName +
+                (this.className === "" ? "" : " " + this.className) +
+                " (" + this.sourceFileName + ":" + this.lineNumber + ":" + this.colNumber + ")"
+        }
     }
 }
 

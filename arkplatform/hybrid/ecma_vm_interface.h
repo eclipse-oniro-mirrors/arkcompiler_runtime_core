@@ -50,6 +50,12 @@ public:
         return false;
     }
 
+    virtual bool GetSourceMappedFrameInfo([[maybe_unused]] const void *dynamicFramePtr,
+                                          [[maybe_unused]] HybridFrameInfo &frameInfo)
+    {
+        return false;
+    }
+
     virtual void NotifyXGCInterruption() {}
 
     virtual bool StartXRefMarking()
