@@ -68,4 +68,40 @@ void EtsFinalizationRegistry::Remove(EtsFinRegNode *node, EtsFinalizationRegistr
     node->SetPrev(nullptr);
     node->SetNext(nullptr);
 }
+
+void EtsFinalizationRegistry::Rehash(EtsTypedObjectArray<EtsFinRegNode> *newMap)
+{
+    auto *oldMap = GetBuckets();
+    ObjectAccessor::SetObject(this, GetBucketsOffset(), newMap->GetCoreType());
+    mapSize_ = 0;
+    for (uint32_t oldMapIdx = 0; oldMapIdx < oldMap->GetLength(); oldMapIdx++) {
+        auto *currNode = oldMap->Get(oldMapIdx);
+        while (currNode != nullptr) {
+            auto *next = currNode->GetNext();
+            auto *token = currNode->GetToken()->GetReferent();
+            currNode->SetPrev(nullptr);
+            EtsFinRegNode *head = nullptr;
+            if (token != nullptr) {
+                uint32_t hash = token->GetHashCode();
+                uint32_t bucketIdx = hash & (newMap->GetLength() - 1U);
+                currNode->SetBucketIdx(static_cast<EtsInt>(bucketIdx));
+                head = newMap->Get(bucketIdx);
+                newMap->Set(bucketIdx, currNode);
+                mapSize_++;
+            } else {
+                currNode->ClearToken();
+                currNode->SetBucketIdx(-1);
+                head = GetNonUnregistrableList();
+                SetNonUnregistrableList(currNode);
+                listSize_++;
+            }
+            currNode->SetNext(head);
+            if (head != nullptr) {
+                head->SetPrev(currNode);
+            }
+            currNode = next;
+        }
+    }
+}
+
 }  // namespace ark::ets

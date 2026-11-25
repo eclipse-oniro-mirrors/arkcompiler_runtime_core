@@ -41,6 +41,13 @@ extern "C" EtsFinalizationRegistry *StdFinalizationRegistryPopFinReg(EtsFinaliza
                                                                                                  finRegHandle);
 }
 
+// Keep rehash native to avoid safepoints: GC could modify node links while they are being rebuilt.
+extern "C" void StdFinalizationRegistryRehash(EtsFinalizationRegistry *finReg,
+                                              EtsTypedObjectArray<EtsFinRegNode> *newMap)
+{
+    finReg->Rehash(newMap);
+}
+
 extern "C" void StdFinalizationRegistryFinishCleanup()
 {
     auto *executionCtx = EtsExecutionContext::GetCurrent();
