@@ -13,5 +13,5 @@
 
 ani_verify_add_gtest(ani_verify_test_functional_object_call
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_functional_object_call_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_functional_object_call_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_functional_object_call_test.ats
 )

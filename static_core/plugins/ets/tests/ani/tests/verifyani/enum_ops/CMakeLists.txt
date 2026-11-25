@@ -13,40 +13,40 @@
 
 ani_verify_add_gtest(ani_verify_test_find_enum
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_find_enum_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_find_enum_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_find_enum_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_enum_get_item_by_name
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_enum_get_item_by_name_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_enum_get_item_by_name_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_enum_get_item_by_name_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_enum_get_item_by_index
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_enum_get_item_by_index_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_enum_get_item_by_index_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_enum_get_item_by_index_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_enum_item_get_enum
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_enum_item_get_enum_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_enum_item_get_enum_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_enum_item_get_enum_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_enum_item_get_value_int
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_enum_item_get_value_int_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_enum_item_get_value_int_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_enum_item_get_value_int_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_enum_item_get_value_string
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_enum_item_get_value_string_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_enum_item_get_value_string_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_enum_item_get_value_string_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_enum_item_get_name
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_enum_item_get_name_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_enum_item_get_name_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_enum_item_get_name_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_enum_item_get_index
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_enum_item_get_index_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_enum_item_get_index_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_enum_item_get_index_test.ats
 )

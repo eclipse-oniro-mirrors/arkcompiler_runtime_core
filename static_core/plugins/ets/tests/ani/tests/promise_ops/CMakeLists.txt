@@ -17,10 +17,10 @@ ani_add_gtest(ani_test_promise_ops_new
 
 ani_add_gtest(ani_test_promise_ops_resolve
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/promise_resolve_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/promise_resolve_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/promise_resolve_test.ats
 )
 
 ani_add_gtest(ani_test_promise_ops_reject
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/promise_reject_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/promise_reject_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/promise_reject_test.ats
 )

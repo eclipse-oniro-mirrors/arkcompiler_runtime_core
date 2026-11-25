@@ -13,12 +13,12 @@
 
 ani_verify_add_gtest(ani_verify_test_object_new
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_new_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_new_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_new_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_object_new_a
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_new_a_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_new_a_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_new_a_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_object_get_type
@@ -31,7 +31,7 @@ ani_verify_add_gtest(ani_verify_test_object_instanceof
 
 ani_verify_add_generated_tests(ani_verify_test_object_get_field
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_get_field_test.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_get_field_test.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_get_field_test.ats.j2
     PARAMS "boolean: Type=Boolean,type=boolean,ret_type=boolean,wrong_ret=int"
            "char: Type=Char,type=char,ret_type=char,wrong_ret=int"
            "byte: Type=Byte,type=byte,ret_type=byte,wrong_ret=int"
@@ -45,7 +45,7 @@ ani_verify_add_generated_tests(ani_verify_test_object_get_field
 
 ani_verify_add_generated_tests(ani_verify_test_object_set_field
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_set_field_test.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_set_field_test.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_set_field_test.ats.j2
     PARAMS "boolean: Type=Boolean,type=boolean,ret_type=boolean,wrong_ret=int"
            "char: Type=Char,type=char,ret_type=char,wrong_ret=int"
            "byte: Type=Byte,type=byte,ret_type=byte,wrong_ret=int"
@@ -58,7 +58,7 @@ ani_verify_add_generated_tests(ani_verify_test_object_set_field
 
 ani_verify_add_generated_tests(ani_verify_test_object_get_property_by_name
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_get_property_by_name_test.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_get_property_by_name_test.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_get_property_by_name_test.ats.j2
     PARAMS "boolean: Type=Boolean,type=boolean,ret_type=boolean,wrong_ret=int"
            "char: Type=Char,type=char,ret_type=char,wrong_ret=int"
            "byte: Type=Byte,type=byte,ret_type=byte,wrong_ret=int"
@@ -72,7 +72,7 @@ ani_verify_add_generated_tests(ani_verify_test_object_get_property_by_name
 
 ani_verify_add_generated_tests(ani_verify_test_object_set_property_by_name
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_set_property_by_name_test.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_set_property_by_name_test.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_set_property_by_name_test.ats.j2
     PARAMS "boolean: Type=Boolean,type=boolean,ret_type=boolean,wrong_ret=int,value=ANI_TRUE"
            "char: Type=Char,type=char,ret_type=char,wrong_ret=int,value='a'"
            "byte: Type=Byte,type=byte,ret_type=byte,wrong_ret=int,value=0x12"
@@ -86,7 +86,7 @@ ani_verify_add_generated_tests(ani_verify_test_object_set_property_by_name
 
 ani_verify_add_generated_tests(ani_verify_test_object_call_method
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_call_method_test.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_call_method_test.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_call_method_test.ats.j2
     PARAMS "boolean: Type=Boolean,type=boolean,ret_type=boolean,ret=z,wrong_ret=int,wrong_ret_short=i,value=true"
            "char: Type=Char,type=char,ret_type=char,ret=c,wrong_ret=int,wrong_ret_short=i,value=c'a'"
            "byte: Type=Byte,type=byte,ret_type=byte,ret=b,wrong_ret=int,wrong_ret_short=i,value=1"
@@ -100,7 +100,7 @@ ani_verify_add_generated_tests(ani_verify_test_object_call_method
 
 ani_verify_add_generated_tests(ani_verify_test_object_call_method_by_name
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_call_method_by_name_test.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_call_method_by_name_test.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_call_method_by_name_test.ats.j2
     PARAMS "boolean: Type=Boolean,type=boolean,ret_type=boolean,ret=z,wrong_ret=int,wrong_ret_short=i,value=true,cpp_value=true"
            "char: Type=Char,type=char,ret_type=char,ret=c,wrong_ret=int,wrong_ret_short=i,value=c'a',cpp_value='a'"
            "byte: Type=Byte,type=byte,ret_type=byte,ret=b,wrong_ret=int,wrong_ret_short=i,value=1,cpp_value=1"
@@ -115,7 +115,7 @@ ani_verify_add_generated_tests(ani_verify_test_object_call_method_by_name
 
 ani_verify_add_generated_tests(ani_verify_test_object_get_field_by_name
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_get_field_by_name_test.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_get_field_by_name_test.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_get_field_by_name_test.ats.j2
     PARAMS "boolean: Type=Boolean,type=boolean,ret_type=boolean,wrong_ret=int"
            "char: Type=Char,type=char,ret_type=char,wrong_ret=int"
            "byte: Type=Byte,type=byte,ret_type=byte,wrong_ret=int"
@@ -129,7 +129,7 @@ ani_verify_add_generated_tests(ani_verify_test_object_get_field_by_name
 
 ani_verify_add_generated_tests(ani_verify_test_object_set_field_by_name
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_set_field_by_name_test.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_set_field_by_name_test.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_object_set_field_by_name_test.ats.j2
     PARAMS "boolean: Type=Boolean,type=boolean,ret_type=boolean,wrong_ret=int"
            "char: Type=Char,type=char,ret_type=char,wrong_ret=int"
            "byte: Type=Byte,type=byte,ret_type=byte,wrong_ret=int"

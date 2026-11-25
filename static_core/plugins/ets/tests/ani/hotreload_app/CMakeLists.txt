@@ -21,11 +21,11 @@ panda_target_link_libraries(ani_hotreload_app arkruntime)
 
 panda_add_sanitizers(TARGET ani_hotreload_app SANITIZERS ${PANDA_SANITIZERS_LIST})
 
-# Target and patch must produce identical module records, so both sources are `t.ets`
+# Target and patch must produce identical module records, so both sources are `t.ats`
 # in separate directories.
-compile_ets_code(${CMAKE_CURRENT_SOURCE_DIR}/target/t.ets ${CMAKE_CURRENT_BINARY_DIR}/target/t.abc
+compile_ets_code(${CMAKE_CURRENT_SOURCE_DIR}/target/t.ats ${CMAKE_CURRENT_BINARY_DIR}/target/t.abc
                  hotreload_app_target)
-compile_ets_code(${CMAKE_CURRENT_SOURCE_DIR}/patch/t.ets ${CMAKE_CURRENT_BINARY_DIR}/patch/t.abc
+compile_ets_code(${CMAKE_CURRENT_SOURCE_DIR}/patch/t.ats ${CMAKE_CURRENT_BINARY_DIR}/patch/t.abc
                  hotreload_app_patch)
 
 # NOTE: enable with asan after fix, same as ani_app

@@ -13,15 +13,15 @@
 
 ani_verify_add_gtest(ani_verify_test_find_module
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_find_module_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_find_module_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_find_module_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_find_namespace
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_find_namespace_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_find_namespace_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_find_namespace_test.ats
 )
 
 ani_verify_add_gtest(ani_verify_test_find_class
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_find_class_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_find_class_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/verify_find_class_test.ats
 )

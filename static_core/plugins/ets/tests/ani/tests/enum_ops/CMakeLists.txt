@@ -13,25 +13,25 @@
 
 ani_add_gtest(ani_test_get_enum_item
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/get_enum_item_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/get_enum_item_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/get_enum_item_test.ats
 )
 
 ani_add_gtest(ani_test_enum_item_get_enum
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/enum_item_get_enum_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/enum_item_get_enum_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/enum_item_get_enum_test.ats
 )
 
 ani_add_gtest(ani_test_enum_item_get_value
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/enum_item_get_value_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/enum_item_get_value_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/enum_item_get_value_test.ats
 )
 
 ani_add_gtest(ani_test_enum_item_get_name
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/enum_item_get_name_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/enum_item_get_name_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/enum_item_get_name_test.ats
 )
 
 ani_add_gtest(ani_test_enum_item_get_index
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/enum_item_get_index_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/enum_item_get_index_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/enum_item_get_index_test.ats
 )

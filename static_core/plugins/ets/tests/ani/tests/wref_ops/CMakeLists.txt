@@ -13,7 +13,7 @@
 
 ani_add_gtest(ani_test_weak_reference_create
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/weak_reference_create_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/weak_reference_create_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/weak_reference_create_test.ats
 )
 
 ani_add_gtest(ani_test_weak_reference_delete

@@ -13,40 +13,40 @@
 
 ani_add_gtest(ani_test_box_unbox_boolean
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_boolean_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_boolean_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_boolean_test.ats
 )
 
 ani_add_gtest(ani_test_box_unbox_char
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_char_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_char_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_char_test.ats
 )
 
 ani_add_gtest(ani_test_box_unbox_byte
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_byte_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_byte_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_byte_test.ats
 )
 
 ani_add_gtest(ani_test_box_unbox_short
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_short_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_short_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_short_test.ats
 )
 
 ani_add_gtest(ani_test_box_unbox_int
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_int_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_int_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_int_test.ats
 )
 
 ani_add_gtest(ani_test_box_unbox_long
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_long_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_long_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_long_test.ats
 )
 
 ani_add_gtest(ani_test_box_unbox_float
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_float_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_float_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_float_test.ats
 )
 
 ani_add_gtest(ani_test_box_unbox_double
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_double_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_double_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/box_unbox_double_test.ats
 )

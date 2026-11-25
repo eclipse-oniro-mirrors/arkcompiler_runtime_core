@@ -14,13 +14,13 @@
 ani_add_gtest(ani_test_module_find_function
     ETS_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/module_find_function_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/module_find_function_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/module_find_function_test.ats
 )
 
 ani_add_gtest(ani_test_module_find_variable
     ETS_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/module_find_variable_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/module_find_variable_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/module_find_variable_test.ats
 )
 
 # NOTE(ypigunova) enable tests. Issue: #23593
@@ -31,5 +31,5 @@ endif()
 ani_add_gtest(ani_test_module_find_combination
     ETS_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/module_find_combination_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/module_find_combination_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/module_find_combination_test.ats
 )

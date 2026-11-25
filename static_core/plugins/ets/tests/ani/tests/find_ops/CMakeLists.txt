@@ -13,24 +13,24 @@
 
 ani_add_gtest(ani_test_find_class
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/find_class_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/find_class_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/find_class_test.ats
 )
 
 ani_add_gtest(ani_test_find_namespace
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/find_namespace_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/find_namespace_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/find_namespace_test.ats
 )
 
 ani_add_gtest(ani_test_find_namespace_combine_scenes
     ETS_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/find_namespace_combine_scenes_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/find_namespace_combine_scenes_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/find_namespace_combine_scenes_test.ats
 )
 
 ani_add_gtest(ani_test_find_module
     ETS_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/find_module_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/find_module_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/find_module_test.ats
 )
 
 # NOTE(ypigunova) enable tests. Issue: #23593
@@ -40,5 +40,5 @@ endif()
 
 ani_add_gtest(ani_test_find_enum
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/find_enum_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/find_enum_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/find_enum_test.ats
 )

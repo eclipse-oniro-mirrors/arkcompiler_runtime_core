@@ -33,9 +33,9 @@ panda_add_sanitizers(TARGET ani_app SANITIZERS ${PANDA_SANITIZERS_LIST})
 panda_add_sanitizers(TARGET ani_app_lib SANITIZERS ${PANDA_SANITIZERS_LIST})
 
 set(ANI_APP_ETS_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/interface/ability.ets
-    ${CMAKE_CURRENT_SOURCE_DIR}/plugin/plugin.ets
-    ${CMAKE_CURRENT_SOURCE_DIR}/app/app.ets
+    ${CMAKE_CURRENT_SOURCE_DIR}/interface/ability.ats
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugin/plugin.ats
+    ${CMAKE_CURRENT_SOURCE_DIR}/app/app.ats
 )
 compile_arktsconfig_unit(ani_app_managed_code APP_ABC_FILES ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
                          "${ANI_APP_ETS_SOURCES}"

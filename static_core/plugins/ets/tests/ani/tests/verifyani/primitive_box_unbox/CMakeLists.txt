@@ -14,7 +14,7 @@
 ani_verify_add_generated_tests(ani_verify_test_primitive_box
     ETS_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_primitive_box_test.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_primitive_box_test.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_primitive_box_test.ats.j2
     PARAMS
         "boolean: type=boolean,Type=Boolean,shorty=z,test_value=ANI_TRUE,ets_value=true"
         "byte: type=byte,Type=Byte,shorty=b,test_value=12,ets_value=12,min_value=INT8_MIN,max_value=INT8_MAX,zero_value=0"
@@ -29,7 +29,7 @@ ani_verify_add_generated_tests(ani_verify_test_primitive_box
 ani_verify_add_generated_tests(ani_verify_test_primitive_unbox
     ETS_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_primitive_unbox_test.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_primitive_unbox_test.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_primitive_unbox_test.ats.j2
     PARAMS
         "boolean: type=boolean,Type=Boolean,shorty=z,test_value=ANI_TRUE,ets_value=true"
         "byte: type=byte,Type=Byte,shorty=b,test_value=12,ets_value=12,min_value=INT8_MIN,max_value=INT8_MAX,zero_value=0"

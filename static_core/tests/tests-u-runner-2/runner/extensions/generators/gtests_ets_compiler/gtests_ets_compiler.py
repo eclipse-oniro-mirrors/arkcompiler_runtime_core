@@ -55,7 +55,8 @@ class GTestEtsCompiler(IGenerator):
         self.config = config
         self.stdlib_path = config.general.static_core_root / 'plugins' / 'ets' / 'stdlib'
         self.steps = config.workflow.steps
-        self.extension = config.workflow.get_parameter("extension")
+        self.extension = cast(str, config.workflow.get_parameter("extension"))
+        self.source_extensions = ("ets", "ats") if self.extension in ("ets", "ats") else (self.extension,)
         self.processes = self.config.general.processes
         self.test_prefix = cast(str, config.test_suite.get_parameter("gtest-zip-prefix"))
 
@@ -106,7 +107,7 @@ class GTestEtsCompiler(IGenerator):
         cmake_current_source_dir = '${CMAKE_CURRENT_SOURCE_DIR}'
         content = Path(path_to_file).read_text(encoding="utf-8")
 
-        pattern = r'J2_ETS_SOURCE\s+(\S+\.ets\.j2)\s*PARAMS\s+((?:"[^"]*"\s*)+)'
+        pattern = r'J2_ETS_SOURCE\s+(\S+\.(?:ets|ats)\.j2)\s*PARAMS\s+((?:"[^"]*"\s*)+)'
 
         results: list[J2TemplateParams] = []
 
@@ -175,7 +176,7 @@ class GTestEtsCompiler(IGenerator):
 
         self._prepare_j2_sources()
 
-        to_compile = self._get_ets_sources() + list(self.gen.rglob(f"**/*.{self.extension}"))
+        to_compile = self._get_ets_sources() + self._get_sources(self.gen)
         failures = self._compile_all(step, to_compile)
 
         if failures:
@@ -259,11 +260,14 @@ class GTestEtsCompiler(IGenerator):
                                    f"for the generator class of the test suite {self.config.test_suite.suite_name}")
 
     def _get_ets_sources(self) -> list[Path]:
-        return list(self._source.resolve().rglob(f"*.{self.extension}"))
+        return self._get_sources(self._source)
 
     def _get_ets_j2_sources(self) -> list[Path]:
-        root = self._source.resolve()
-        return [root / ets_files for ets_files in root.rglob(f"*.{self.extension}.j2") if ets_files.is_file()]
+        return self._get_sources(self._source, suffix=".j2")
+
+    def _get_sources(self, root: Path, suffix: str = "") -> list[Path]:
+        return [path for extension in self.source_extensions
+                for path in root.resolve().rglob(f"*.{extension}{suffix}") if path.is_file()]
 
     def _generate_ets_files(self, templates: list[J2TemplateParams]) -> None:
         for template in templates:
@@ -326,4 +330,5 @@ class GTestEtsCompiler(IGenerator):
 
         output_dir = self.gen / template_path.parent.relative_to(self._source)
 
-        return output_dir / f"{output_filename}_{tmpl_prefix}.ets"
+        source_extension = template_path.with_suffix("").suffix
+        return output_dir / f"{output_filename}_{tmpl_prefix}{source_extension}"

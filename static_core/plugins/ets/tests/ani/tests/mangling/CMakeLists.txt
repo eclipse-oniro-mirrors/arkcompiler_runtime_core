@@ -14,12 +14,12 @@
 ani_add_gtest(ani_test_mangle_descriptor
     ETS_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/mangle_descriptor_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/mangle_descriptor_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/mangle_descriptor_test.ats
 )
 
 ani_add_gtest(ani_test_mangle_signature
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/package/mangle_signature_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/package/mangle_signature_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/package/mangle_signature_test.ats
 )
 
 ani_add_gtest(ani_test_mangle_signature_to_proto

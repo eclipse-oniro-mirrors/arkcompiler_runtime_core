@@ -14,7 +14,7 @@
 ani_verify_add_generated_tests(ani_verify_test_function_call
     ETS_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.json
     J2_CPP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_function_call_test.cpp.j2
-    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_function_call_test.ets.j2
+    J2_ETS_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/verify_function_call_test.ats.j2
     PARAMS "boolean: Type=Boolean,type=boolean,ret_type=boolean,ret=z,wrong_ret=int,wrong_ret_short=i,value=true"
            "char: Type=Char,type=char,ret_type=char,ret=c,wrong_ret=int,wrong_ret_short=i,value=c'a'"
            "byte: Type=Byte,type=byte,ret_type=byte,ret=b,wrong_ret=int,wrong_ret_short=i,value=1"

@@ -23,14 +23,14 @@ endif()
 
 set(J2_files
     ${CMAKE_CURRENT_SOURCE_DIR}/j2/types.cpp.j2
-    ${CMAKE_CURRENT_SOURCE_DIR}/j2/types.ets.j2
+    ${CMAKE_CURRENT_SOURCE_DIR}/j2/types.ats.j2
     ${CMAKE_CURRENT_SOURCE_DIR}/j2/arrays.cpp.j2
-    ${CMAKE_CURRENT_SOURCE_DIR}/j2/arrays.ets.j2
+    ${CMAKE_CURRENT_SOURCE_DIR}/j2/arrays.ats.j2
     ${CMAKE_CURRENT_SOURCE_DIR}/j2/returns.cpp.j2
-    ${CMAKE_CURRENT_SOURCE_DIR}/j2/returns.ets.j2
-    ${CMAKE_CURRENT_SOURCE_DIR}/j2/types_ref.ets.j2
+    ${CMAKE_CURRENT_SOURCE_DIR}/j2/returns.ats.j2
+    ${CMAKE_CURRENT_SOURCE_DIR}/j2/types_ref.ats.j2
     ${CMAKE_CURRENT_SOURCE_DIR}/j2/types_ref.cpp.j2
-    ${CMAKE_CURRENT_SOURCE_DIR}/j2/returns_ref.ets.j2
+    ${CMAKE_CURRENT_SOURCE_DIR}/j2/returns_ref.ats.j2
     ${CMAKE_CURRENT_SOURCE_DIR}/j2/returns_ref.cpp.j2
 )
 
@@ -47,11 +47,11 @@ foreach(pref IN LISTS Prefixes)
         if(pref STREQUAL "types")
             foreach(i RANGE 1 11)
                 list(APPEND FILES ${CMAKE_CURRENT_BINARY_DIR}/tests/${pref}_${type}_${i}/${pref}_${type}_${i}.cpp)
-                list(APPEND FILES ${CMAKE_CURRENT_BINARY_DIR}/tests/${pref}_${type}_${i}/${pref}_${type}_${i}.ets)
+                list(APPEND FILES ${CMAKE_CURRENT_BINARY_DIR}/tests/${pref}_${type}_${i}/${pref}_${type}_${i}.ats)
             endforeach()
         elseif (NOT "${pref}_${type}" STREQUAL "arrays_ref")
             list(APPEND FILES ${CMAKE_CURRENT_BINARY_DIR}/tests/${pref}_${type}/${pref}_${type}.cpp)
-            list(APPEND FILES ${CMAKE_CURRENT_BINARY_DIR}/tests/${pref}_${type}/${pref}_${type}.ets)
+            list(APPEND FILES ${CMAKE_CURRENT_BINARY_DIR}/tests/${pref}_${type}/${pref}_${type}.ats)
         endif()
     endforeach()
 endforeach()
@@ -98,12 +98,12 @@ function(add_tests pref suff)
     # Create targets ani_tests_bridges_${pref}_${suff}-ets-aot, ani_tests_bridges_${pref}_${suff}-ets-jit (etc.)
     # ani_tests_bridges_${pref} target depends on them
     add_ets_test(ani_tests_bridges_${pref}
-        FILE ${test_name}.ets
+        FILE ${test_name}.ats
         TEST_NAME ${suff}
         MODE "INT" "JIT" "AOT" "LLVMAOT" "JITOSR"
         ENTRYPOINT "${test_name}"
         OPTIONS ${RT_OPTION} ${IGNORE_FAILURES} "--compiler-regex='.*ETSGLOBAL::.*'"
-        TEST_PATH ${CMAKE_CURRENT_BINARY_DIR}/tests/${test_name}/${test_name}.ets
+        TEST_PATH ${CMAKE_CURRENT_BINARY_DIR}/tests/${test_name}/${test_name}.ats
     )
 
     if(TARGET ani_tests_bridges_${pref}_${suff}-ets-aot)

@@ -21,10 +21,10 @@ ani_add_gtest(ani_test_fixedarray_new
 
 ani_add_gtest(ani_test_fixedarray_get
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/fixedarray_get_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/fixedarray_get_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/fixedarray_get_test.ats
 )
 
 ani_add_gtest(ani_test_fixedarray_set
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/fixedarray_set_test.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/fixedarray_set_test.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/fixedarray_set_test.ats
 )
