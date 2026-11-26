@@ -16,7 +16,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.in.json ${ETS_CONFIG})
 
 panda_ets_interop_js_gtest(ets_interop_js__esarray
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/esarray.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/esarray_static.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/esarray_static.ats
     TS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/esarray_dynamic.ts
     ETS_CONFIG ${ETS_CONFIG}
 )

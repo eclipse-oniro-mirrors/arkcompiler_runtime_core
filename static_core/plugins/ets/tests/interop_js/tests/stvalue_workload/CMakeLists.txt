@@ -13,6 +13,6 @@
 
 panda_ets_interop_js_gtest(ets_interop_js__test_stvalue_workload
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/stvalue_workload.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/stvalue_workload.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/stvalue_workload.ats
     TS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_stvalue_workload.ts
 )

@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2021-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,14 +20,14 @@ gen_file(TARGET test_number_subtypes_gen_cpp
 )
 
 gen_file(TARGET test_number_subtypes_gen_ets
-    TEMPLATE ${CMAKE_CURRENT_SOURCE_DIR}/number_subtypes.ets.erb
-    OUTPUT ${INTEROP_TESTS_GENERATED_DIR}/number_subtypes.ets
+    TEMPLATE ${CMAKE_CURRENT_SOURCE_DIR}/number_subtypes.ats.erb
+    OUTPUT ${INTEROP_TESTS_GENERATED_DIR}/number_subtypes.ats
     REQUIRES ${CMAKE_CURRENT_SOURCE_DIR}/../number_subtypes.rb
 )
 
 panda_ets_interop_js_gtest(ets_interop_js_test_number_subtypes_ts_to_sts
     CPP_SOURCES ${INTEROP_TESTS_GENERATED_DIR}/number_subtypes.cpp
-    ETS_SOURCES ${INTEROP_TESTS_GENERATED_DIR}/number_subtypes.ets
+    ETS_SOURCES ${INTEROP_TESTS_GENERATED_DIR}/number_subtypes.ats
     TS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/module.ts
 )
 

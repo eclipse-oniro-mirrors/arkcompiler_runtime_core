@@ -18,13 +18,13 @@ add_dependencies(ets_interop_js_tests declgen_ets2ts_test_diff declgen_ets2ts_te
 # Create create_declgen_ets2ts_test test
 #
 # Declgen test consists of files:
-#   ${ROOT_DIR}/*.ets
+#   ${ROOT_DIR}/*.ats
 #   ${ROOT_DIR}/*.ts
 #   ${ROOT_DIR}/*.js
 #   ${ROOT_DIR}/*.expected
 # This function:
 #   1. Compiles 'ets' files with es2panda into 'abc' and decl 'ts':
-#      ${ROOT_DIR}/*.ets -> ${BINARY_ROOT_DIR}/*.abc ${BINARY_ROOT_DIR}/*.ts
+#      ${ROOT_DIR}/*.ats -> ${BINARY_ROOT_DIR}/*.abc ${BINARY_ROOT_DIR}/*.ts
 #   2. Copies ${ROOT_DIR}/*.ts into ${BINARY_ROOT_DIR}/*.ts
 #   3. Compiles 'ts' project with tsc:
 #      ${BINARY_ROOT_DIR}/*.ts -> ${BINARY_ROOT_DIR}/*.js
@@ -47,8 +47,8 @@ add_dependencies(ets_interop_js_tests declgen_ets2ts_test_diff declgen_ets2ts_te
 #       JS_SOURCES
 #           ${CMAKE_CURRENT_SOURCE_DIR}/test_dyn.js
 #       ETS_SOURCES
-#           ${CMAKE_CURRENT_SOURCE_DIR}/lib1.ets
-#           ${CMAKE_CURRENT_SOURCE_DIR}/lib2.ets
+#           ${CMAKE_CURRENT_SOURCE_DIR}/lib1.ats
+#           ${CMAKE_CURRENT_SOURCE_DIR}/lib2.ats
 #       DECLS_EXPECTED
 #           ${CMAKE_CURRENT_SOURCE_DIR}/lib1.expected
 #           ${CMAKE_CURRENT_SOURCE_DIR}/lib2.expected
@@ -132,7 +132,7 @@ function(create_declgen_ets2ts_test TARGET)
     # NOTE(dkofanov): `ImportExportAccessValid` need to be fixed
     # set(ETS_VERIFICATOR_ERRORS "${ETS_VERIFICATOR_ERRORS}:ImportExportAccessValid")
 
-    # Compile source .ets files into .abc and declaration .ts files
+    # Compile source .ats files into .abc and declaration .ts files
     set(ABC_FILES "")
     set(DECL_FILES "")
     set(GLUE_FILES "")

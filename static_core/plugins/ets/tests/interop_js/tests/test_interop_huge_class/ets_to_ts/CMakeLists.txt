@@ -13,6 +13,6 @@
 
 panda_ets_interop_js_gtest(ets_interop_js__interop_huge_class_ets_to_ts
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_interop_huge_class.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_interop_huge_class.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_interop_huge_class.ats
     TS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_interop_huge_class.ts
 )

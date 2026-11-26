@@ -16,7 +16,7 @@ panda_ets_interop_js_gtest(ets_interop_js__interop_isa_optimized
         CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test.cpp
         ASM_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/test.pa
         JS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/index.js
-        ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test.ets
+        ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test.ats
         ASSEMBLER_OPTIONS "--optimize"
         ETS_CONFIG ${ETS_CONFIG}
 )
@@ -25,6 +25,6 @@ panda_ets_interop_js_gtest(ets_interop_js__interop_isa
         CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test.cpp
         ASM_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/test.pa
         JS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/index.js
-        ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test.ets
+        ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test.ats
         ETS_CONFIG ${ETS_CONFIG}
 )

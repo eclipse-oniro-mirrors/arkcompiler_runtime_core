@@ -16,7 +16,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.in.json ${ETS_CONFIG})
 
 panda_ets_interop_js_gtest(ets_interop_js_esvalue_thread_safety
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_esvalue_thread_safety.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/esvalue_thread_safety.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/esvalue_thread_safety.ats
     TS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/esvalue_thread_safety_helpers.ts
     ETS_CONFIG ${ETS_CONFIG}
 )

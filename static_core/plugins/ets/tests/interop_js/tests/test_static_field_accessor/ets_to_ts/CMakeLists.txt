@@ -13,6 +13,6 @@
 
 panda_ets_interop_js_gtest(ets_interop_js_test_static_field_accessor_ets_to_ts
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/static_field_accessor.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/static_field_accessor.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/static_field_accessor.ats
     JS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/static_field_accessor.ts
 )

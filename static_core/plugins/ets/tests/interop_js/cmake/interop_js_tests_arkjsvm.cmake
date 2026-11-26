@@ -83,8 +83,8 @@ endfunction(compile_dynamic_file)
 #       tests/unit1_test.cpp
 #       tests/unit2_test.cpp
 #     ETS_SOURCES
-#       tests/unit1_test.ets
-#       tests/unit2_test.ets
+#       tests/unit1_test.ats
+#       tests/unit2_test.ats
 #     LIBRARIES
 #       lib_target1
 #       lib_target2

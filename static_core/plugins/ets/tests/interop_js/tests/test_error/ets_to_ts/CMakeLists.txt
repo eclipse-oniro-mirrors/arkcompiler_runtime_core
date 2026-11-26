@@ -13,6 +13,6 @@
 
 panda_ets_interop_js_gtest(ets_interop_js__test_error_ets_to_ts
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/error.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_error.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_error.ats
     TS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/error.ts
 )

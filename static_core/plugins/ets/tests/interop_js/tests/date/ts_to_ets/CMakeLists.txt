@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Huawei Device Co., Ltd.
+# Copyright (c) 2025-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,7 +13,7 @@
 
 panda_ets_interop_js_gtest(ets_interop_js__date_ts_to_ets
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/date.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_date.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_date.ats
     JS_SOURCES  ${CMAKE_CURRENT_SOURCE_DIR}/date.ts
                 ${CMAKE_CURRENT_SOURCE_DIR}/disable_date.ts
 )

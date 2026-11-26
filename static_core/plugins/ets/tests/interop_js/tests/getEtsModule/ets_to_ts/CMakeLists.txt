@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Huawei Device Co., Ltd.
+# Copyright (c) 2025-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -15,8 +15,8 @@ panda_ets_interop_js_gtest(ets_interop_js__get_module_exports
     PACKAGE_NAME get_module
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/get_module.cpp
     ETS_SOURCES 
-        ${CMAKE_CURRENT_SOURCE_DIR}/get_module.ets
-        ${CMAKE_CURRENT_SOURCE_DIR}/entry_module.ets
-        ${CMAKE_CURRENT_SOURCE_DIR}/entry_module2.ets
+        ${CMAKE_CURRENT_SOURCE_DIR}/get_module.ats
+        ${CMAKE_CURRENT_SOURCE_DIR}/entry_module.ats
+        ${CMAKE_CURRENT_SOURCE_DIR}/entry_module2.ats
     TS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_get_module.ts
 )

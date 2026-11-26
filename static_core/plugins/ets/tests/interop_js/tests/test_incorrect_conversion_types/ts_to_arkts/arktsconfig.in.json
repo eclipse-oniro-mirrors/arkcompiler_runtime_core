@@ -6,7 +6,7 @@
         "escompat": ["${PANDA_ROOT}/plugins/ets/stdlib/escompat"]
       },
       "dependencies": {
-			  "js_code": { "language": "js", "path": "${CMAKE_CURRENT_SOURCE_DIR}/incorrect_conversion_types.d.ets", "ohmUrl": "${CMAKE_CURRENT_BINARY_DIR}/incorrect_conversion_types" }
+			  "js_code": { "language": "js", "path": "${CMAKE_CURRENT_SOURCE_DIR}/incorrect_conversion_types.d.ats", "ohmUrl": "${CMAKE_CURRENT_BINARY_DIR}/incorrect_conversion_types" }
       }
     }
   }

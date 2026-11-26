@@ -10,7 +10,7 @@
         "dependencies": {
             "@ohos.hilog": {
                 "language": "js",
-                "path": "plugins/ets/tests/interop_js/load_dynamic_sdk/load_sdk_namespace/testDecl.d.ets",
+                "path": "plugins/ets/tests/interop_js/load_dynamic_sdk/load_sdk_namespace/testDecl.d.ats",
                 "ohmUrl": "@ohos:load_dynamic_sdk_namespace_test_module"
             }
         }

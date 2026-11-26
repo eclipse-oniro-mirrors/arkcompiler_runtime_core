@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2024-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -19,21 +19,21 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.in.decl.json ${ETS_CONFIG
 
 panda_ets_interop_js_gtest(ets_interop_js_class_operations
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/class_operations.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/class_operations.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/class_operations.ats
     TS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/module.ts
     ETS_CONFIG ${ETS_CONFIG}
     PACKAGE_NAME "class_operations"
 )
 panda_ets_interop_js_gtest(ets_interop_js_frontend_class_operations
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/class_operations.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/class_operations_frontend.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/class_operations_frontend.ats
     TS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/module.ts
     ETS_CONFIG ${ETS_CONFIG}
     PACKAGE_NAME "class_operations_frontend"
 )
 panda_ets_interop_js_gtest(ets_interop_js_class_operations_decl
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/class_operations.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/class_operations_decl.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/class_operations_decl.ats
     TS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/module.ts
     ETS_CONFIG ${ETS_CONFIG_DECL}
     PACKAGE_NAME "class_operations_decl"

@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2024-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,13 +16,13 @@ function(panda_ets_interop_js_test_timer)
     list(GET ARGV 1 ENTRY_FUNC)
 
     panda_ets_interop_js_test(${TEST_NAME}_internal_timer
-        ETS_SOURCES ${CMAKE_CURRENT_LIST_DIR}/timer_tests.ets
+        ETS_SOURCES ${CMAKE_CURRENT_LIST_DIR}/timer_tests.ats
         JS_LAUNCHER ${CMAKE_CURRENT_LIST_DIR}/run_timer_test.js
         LAUNCHER_ARGS ${ENTRY_FUNC} "false"
     )
 
     panda_ets_interop_js_test(${TEST_NAME}_external_timer
-        ETS_SOURCES ${CMAKE_CURRENT_LIST_DIR}/timer_tests.ets
+        ETS_SOURCES ${CMAKE_CURRENT_LIST_DIR}/timer_tests.ats
         JS_LAUNCHER ${CMAKE_CURRENT_LIST_DIR}/run_timer_test.js
         LAUNCHER_ARGS ${ENTRY_FUNC} "true"
     )

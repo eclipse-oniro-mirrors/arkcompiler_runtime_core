@@ -13,6 +13,6 @@
 
 panda_ets_interop_js_gtest(ets_interop_js_test_to_json_stringify_ets_to_ts
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/to_json_stringify.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/to_json_stringify.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/to_json_stringify.ats
     JS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/to_json_stringify.ts
 )

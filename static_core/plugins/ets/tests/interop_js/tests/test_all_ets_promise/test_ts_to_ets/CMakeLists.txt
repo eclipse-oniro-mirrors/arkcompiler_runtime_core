@@ -99,7 +99,7 @@ add_custom_target(GenerateRunners DEPENDS ${RUNNER_ABC_OUTPUTS})
 
 panda_ets_interop_js_gtest(ets_interop_js__test_all_ets_promise_ts_to_ets
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_ts_to_ets.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_ts_to_ets.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_ts_to_ets.ats
     TS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_ts_to_ets.ts
     ETS_CONFIG ${ETS_CONFIG}
 )

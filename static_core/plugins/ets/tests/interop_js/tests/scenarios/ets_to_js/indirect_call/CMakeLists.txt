@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2024-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -14,7 +14,7 @@
 
 panda_ets_interop_js_gtest(ets_interop_js_scenarios_ets_to_js_indirect_ref
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/package_indirect_ref/indirect_ref.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/package_indirect_ref/indirect_ref.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/package_indirect_ref/indirect_ref.ats
     JS_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/js_suites/type_ref/test_function_type_ref_array_apply.js
         ${CMAKE_CURRENT_SOURCE_DIR}/js_suites/type_ref/test_function_type_ref_array_bind_with_arg.js
@@ -34,7 +34,7 @@ panda_ets_interop_js_gtest(ets_interop_js_scenarios_ets_to_js_indirect_ref
 
 panda_ets_interop_js_gtest(ets_interop_js_scenarios_ets_to_js_indirect_value
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/package_indirect_value/indirect_value.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/package_indirect_value/indirect_value.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/package_indirect_value/indirect_value.ats
     JS_SOURCES  
         ${CMAKE_CURRENT_SOURCE_DIR}/js_suites/type_value/test_function_type_value_boolean_apply.js
         ${CMAKE_CURRENT_SOURCE_DIR}/js_suites/type_value/test_function_type_value_boolean_bind_with_arg.js
@@ -54,7 +54,7 @@ panda_ets_interop_js_gtest(ets_interop_js_scenarios_ets_to_js_indirect_value
 
 panda_ets_interop_js_gtest(ets_interop_js_scenarios_ets_to_js_indirect_union
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/package_indirect_union/indirect_union.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/package_indirect_union/indirect_union.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/package_indirect_union/indirect_union.ats
     JS_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/js_suites/type_union/test_function_arg_type_union_number_apply.js
         ${CMAKE_CURRENT_SOURCE_DIR}/js_suites/type_union/test_function_arg_type_union_number_bind_with_arg.js

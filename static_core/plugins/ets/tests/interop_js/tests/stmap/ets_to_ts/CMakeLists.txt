@@ -13,6 +13,6 @@
 
 panda_ets_interop_js_gtest(ets_interop_js__stmap_ets_to_ts
 	CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_stmap.cpp
-	ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/stmap.ets
+	ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/stmap.ats
 	TS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_stmap.ts
 )

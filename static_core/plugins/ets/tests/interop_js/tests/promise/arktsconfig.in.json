@@ -13,7 +13,7 @@
         "dependencies": {
 			"promiseProxy": {
                 "language": "js",
-                "path": "${CMAKE_CURRENT_SOURCE_DIR}/promise_proxy_test_exports.d.ets",
+                "path": "${CMAKE_CURRENT_SOURCE_DIR}/promise_proxy_test_exports.d.ats",
                 "ohmUrl": "${CMAKE_CURRENT_BINARY_DIR}/promise_proxy_test_exports"
             }
         }

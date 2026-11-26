@@ -13,7 +13,7 @@
 
 panda_ets_interop_js_gtest(ets_interop_js__esvalueloadrte_ts_to_ets
     CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/esvalue_load_rte.cpp
-    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/esvalue_load_rte.ets
+    ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/esvalue_load_rte.ats
     JS_SOURCES  ${CMAKE_CURRENT_SOURCE_DIR}/esvalue_load_rte.ts
     RUN_WITH_JIT
 )

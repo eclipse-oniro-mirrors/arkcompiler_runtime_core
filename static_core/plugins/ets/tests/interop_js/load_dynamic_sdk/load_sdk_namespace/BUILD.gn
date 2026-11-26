@@ -16,7 +16,7 @@ import("$ark_root/plugins/ets/tests/interop_js/interop_tests.gni")
 
 interop_test("load_dynamic_sdk_namespace_test") {
   js = [ "load_native_test.js" ]
-  ets = "esvalue_load_ohos.ets"
+  ets = "esvalue_load_ohos.ats"
   sources = [ "native_module.cpp" ]
   arktsconfig = "arktsconfig.json"
 }

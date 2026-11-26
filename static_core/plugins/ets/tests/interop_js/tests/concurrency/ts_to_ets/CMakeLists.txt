@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Huawei Device Co., Ltd.
+# Copyright (c) 2025-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,8 +18,8 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/arktsconfig.in.json ${ETS_CONFIG})
 if (NOT PANDA_ETS_INTEROP_JS)
     panda_ets_interop_js_gtest(ets_interop_ts_to_ets_concurrency
         CPP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_interop_concurrency.cpp
-        ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/eworker_interop_tests.ets
-                    ${CMAKE_CURRENT_SOURCE_DIR}/taskpool_interop_tests.ets
+        ETS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/eworker_interop_tests.ats
+                    ${CMAKE_CURRENT_SOURCE_DIR}/taskpool_interop_tests.ats
         TS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/../concurrency_helpers.ts
         ETS_CONFIG ${ETS_CONFIG}
         PACKAGE_NAME

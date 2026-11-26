@@ -8,7 +8,7 @@
       "dependencies": {
 			  "js_import": { 
           "language": "js",
-          "path": "${CMAKE_CURRENT_SOURCE_DIR}/passing_optional_type.d.ets",
+          "path": "${CMAKE_CURRENT_SOURCE_DIR}/passing_optional_type.d.ats",
           "ohmUrl": "${CMAKE_CURRENT_BINARY_DIR}/passing_optional_type"
         }
       }
