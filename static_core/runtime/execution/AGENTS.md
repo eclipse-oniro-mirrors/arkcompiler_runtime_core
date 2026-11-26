@@ -1,5 +1,7 @@
 # ArkTS Concurrency - Static Core
 
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
+
 ## 缩写说明
 
 | 缩写 | 全称 | 说明 |

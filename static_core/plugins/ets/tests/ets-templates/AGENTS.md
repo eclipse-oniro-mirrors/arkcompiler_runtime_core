@@ -1,5 +1,7 @@
 # AGENTS.md
 
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
+
 Conventions for the **`ets-templates/`** CTS tree — the primary test tree for the current ArkTS 1.2 (`ets-cts` suite).
 
 **Scope.** Tests in this tree are **language-conformance tests** for the ArkTS specification — they verify that 

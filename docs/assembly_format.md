@@ -1,8 +1,10 @@
 # Assembly File Format Specification
 
+> For ArkTS-Sta, use the [static runtime guide on this topic](../static_core/docs/assembly_format.md).
+
 ## Introduction
 
-This document describes assembly file format for Panda platform. Assembly files are human-readable and human-writeable plain text files, they are supposed to be fed to the Panda assembler, a dedicated tool that translates them to binary files that can be executed by the Panda virtual machine. Please note that this document does not describe bytecode instructions supported by the Panda virtual machine, refer to the [Bytecode ISA Specification](isa/isa.yaml) instead. This document does not specify the binary format of executables supported by the Panda virtual machine, please refer to the [Binary Format Specification](file_format.md) instead.
+This document describes assembly file format for Panda platform. Assembly files are human-readable and human-writeable plain text files, they are supposed to be fed to the Panda assembler, a dedicated tool that translates them to binary files that can be executed by the Panda virtual machine. Please note that this document does not describe bytecode instructions supported by the Panda virtual machine, refer to the [Bytecode ISA Specification](../isa/isa.yaml) instead. This document does not specify the binary format of executables supported by the Panda virtual machine, please refer to the [Binary Format Specification](file_format.md) instead.
 
 ### Requirements
 
@@ -194,7 +196,7 @@ Example:
 
 ## Data Types
 
-Semantics of operations on all data types defined below follows the semantics defined in [Bytecode ISA Specification](isa/isa.yaml).
+Semantics of operations on all data types defined below follows the semantics defined in [Bytecode ISA Specification](../isa/isa.yaml).
 
 ### Primitive Data Types
 
@@ -264,7 +266,7 @@ Whenever a record should incorporate another record, the name of the nested reco
 
 #### Informal Notice
 
-`.record`s are like `struct`s in C, but without support for "by instance" nesting. This is because the result of a field load should be valid for any member, hence a record member should fit the virtusal register. Constraints on register are defined in [Bytecode ISA Specification](isa/isa.yaml).
+`.record`s are like `struct`s in C, but without support for "by instance" nesting. This is because the result of a field load should be valid for any member, hence a record member should fit the virtusal register. Constraints on register are defined in [Bytecode ISA Specification](../isa/isa.yaml).
 
 ### Builtin Aggregate Data Types
 
@@ -312,7 +314,7 @@ By convention, all arguments are named `a0`, ... `aN` and all local variables ar
 
 ### Function Body
 
-If a function has a body, it consists of optionally labeled sequence of bytecode instructions, one instruction defined per line. Instruction opcodes and formats follow [Bytecode ISA Specification](isa/isa.yaml).
+If a function has a body, it consists of optionally labeled sequence of bytecode instructions, one instruction defined per line. Instruction opcodes and formats follow [Bytecode ISA Specification](../isa/isa.yaml).
 
 ### Static and virtual functions
 
@@ -332,7 +334,7 @@ By default all function are static except ones that are binded to record and acc
 
 Assembler relaxes constraints for call instructions:
 
-- If number of arguments is less than specified in [Bytecode ISA Specification](isa/isa.yaml) it passes `v0` instead of unspecified ones.
+- If number of arguments is less than specified in [Bytecode ISA Specification](../isa/isa.yaml) it passes `v0` instead of unspecified ones.
 
 - For non range call instructions assembler chooses optimal encoding according to number of specified arguments.
 

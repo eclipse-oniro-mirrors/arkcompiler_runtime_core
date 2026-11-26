@@ -1,5 +1,7 @@
 # AGENTS.md — declgen_ts2sts
 
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
+
 > Project guide for AI coding agents. Human developers should read [README.md](README.md) first.
 
 ## 1. Project Overview

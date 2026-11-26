@@ -1,6 +1,8 @@
 
 # Ahead Of Time Compilation
 
+> For ArkTS-Sta, use the [static runtime guide on this topic](../static_core/docs/aot.md).
+
 This document describes Ahead Of Time compilation in Ark VM.
 
 ## File format
@@ -9,22 +11,12 @@ AOT file has `.an` extension and it is a valid ELF file.
 
 ### ELF layout
 
-At the current moment it has following segments and sections layout:
+The following sections hold compiled code and runtime metadata:
 
-| Segment | Flags | Sections |
-|---------|-------|----------|
-| LAOD    | R     | .hash .dynstr .dynsym .aot |
-| LAOD    | R-W   | .aot_got |
-| LAOD    | R-E   | .text    |
-| DYNAMIC | R-W   | .dynamic |
-| LAOD    | R-W   | .dynamic |
-
-- `.hash`, `.dynstr`, `.dynsym`, `.dynamic` - Standard ELF sections.
 - `.text` - Contains compiled native code. Code of each compiled method is placed sequentially into this section with
-special alignment, mostly it is 16 bytes (see `CODE_ALIGNMENT` in `libpandabase/utils/arch.h` file).
+special alignment, mostly it is 16 bytes (see `CODE_ALIGNMENT` in the [architecture header](../libpandabase/include/libpandabase/utils/arch.h)).
 - `.aot_got` - Contains table of the runtime's entrypoint handlers. Must be placed right before `.text` section.
-- `.aot` - Contains all information that describes AOT structure. All used structures can be found at
-`compiler/aot/aot_headers.h`.
+- `.aot` - Contains all information that describes AOT structure.
 
 To access to the `.text` and `.aot` sections from AOT loader following symbols are defined:
 - `code` - points to the start of `.text` section
@@ -40,8 +32,6 @@ offsets to other headers, etc.
 - `PandaFileHeader` - Describes corresponding panda file.
 - `ClassHeader` - Describes single class.
 - `MethodHeader` - Describe single method.
-
-More details about AOT headers you can find in `<src>/compiler/aot/aot_headers.h`.
 
 Classes and methods are uniquely identified (inside one file) by their panda file id (`panda_file::File::EntityId`),
 therefore compiled Ark bytecode file must be bit by bit equal to the file loaded in runtime.
@@ -115,17 +105,10 @@ Refer to [doc](../compiler/docs/aot_resolve_string.md) for details.
 `ark_aot` tool aims to compile input panda files into the single AOT file that can be consumed by
 Panda runtime.
 
-ark_aot has following options:
-
-- `--panda-files` - list of input panda files to be compiled
-- `--output` - path to the output AOT file (default is `out.an`)
-- `--location` - path where panda files are actually stored in the device
-- `--arch` - target architecture: arm, arm64, x86, x86_64 (default is arm64)
+See the [dynamic compiler option reference](../compiler/docs/paoc.md) for compilation inputs, output paths, recorded file locations, and target architectures.
 
 Paoc uses Panda runtime inside, thus, runtime's options are also may be specified. If paoc is ran not from the build
 directory then path to `arkstdlib.abc` should be specified via `--boot-panda-files` option.
-
-Additional information could be found [here](../compiler/docs/paoc.md).
 
 #### AOT in Panda
 
@@ -137,23 +120,23 @@ To pass AOT file to the Panda `--aot-file` option should be specified:
 
 Example of usage:
 
-`ark_aot --panda-files=file1.abc:file2.abc --output file.an`
+`ark_aot --paoc-panda-files=file1.abc,file2.abc --paoc-output file.an`
 
 Panda file shall be passed with same name as it was compiled by ark_aot, otherwise AOT loader won't find the file because
-of different names. To avoid this restriction `--location` ark_aot's option may be used.
+of different names. To avoid this restriction `--paoc-location` ark_aot's option may be used.
 
 Example:
 ```
 Good:
-    ark_aot --panda-files file.abc --output file.an
+    ark_aot --paoc-panda-files file.abc --paoc-output file.an
     ark --aot-file file.an file.abc _GLOBAL::main
 
 Bad ("file.abc" != "/local/data/tmp/file.abc"):
-    ark_aot --panda-files file.abc --output file.an
+    ark_aot --paoc-panda-files file.abc --paoc-output file.an
     ark --aot-file file.an /local/data/tmp/file.abc _GLOBAL::main
 
 Solution:
-    ark_aot --panda-files file.abc --output file.an --location /local/data/tmp
+    ark_aot --paoc-panda-files file.abc --paoc-output file.an --paoc-location /local/data/tmp
     ark --aot-file file.an /local/data/tmp/file.abc _GLOBAL::main
 ```
 
@@ -175,7 +158,7 @@ to dump ir only after last (codegen) pass. All of these options are used at comp
 
 Example of usage:
 
-`ark_aot --compiler-disasm-dump --panda-files file.abc --output file.an`
+`ark_aot --compiler-disasm-dump --paoc-panda-files file.abc --paoc-output file.an`
 
 `ark_disasm` prints full IR disassembler.
 

@@ -1,5 +1,7 @@
 # Runtime class
 
+> The examples below describe the Panda class layout. For the ArkTS-Sta class layout, see the [static runtime guide](../static_core/docs/runtime-class.md).
+
 Panda runtime uses `panda::Class` to store all necessary language independent information about class. Virtual table and region for static fields are embedded to the `panda::Class` object so it has variable size. To get fast access to them `Class Word` field of the object header points to the instance of this class. `ClassLinker::GetClass` also return an instance of the `panda::Class`.
 
 Pointer to the managed class object (instance of `panda.Class` or other in case of plugin-related code) can be obtained using `panda::Class::GetManagedObject` method:

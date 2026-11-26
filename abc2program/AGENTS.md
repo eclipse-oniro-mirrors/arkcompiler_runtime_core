@@ -1,5 +1,7 @@
 # abc2program (runtime_core) — Agent Guide
 
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
+
 This document is the **full working guide** for **`arkcompiler/runtime_core/abc2program`** (the **dynamic / runtime_core** abc2program).
 
 There is a **separate** abc2program under **`arkcompiler/runtime_core/static_core/abc2program`** (static / ArkTS). That one has different API (e.g. **FillProgramData(program)** vs **CompileAbcFile()**), different key data (**Abc2ProgramKeyData** vs **Abc2ProgramEntityContainer**), different build targets (**arkts_abc2program**, **arkts_abc2prog** vs **abc2program**, **abc2prog**), and different dependencies (libarktsfile, libarktsassembler vs libpandafile, libarkassembler). Do not confuse the two.

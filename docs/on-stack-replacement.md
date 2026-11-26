@@ -1,5 +1,7 @@
 # On-Stack Replacement
 
+> For ArkTS-Sta, use the [static runtime guide on this topic](../static_core/docs/on-stack-replacement.md).
+
 ### Overview
 
 On-Stack Replacement (OSR) is a technique for switching between different implementations of the same function.
@@ -62,8 +64,8 @@ To ensure all loops in the compiled code may be entered from the interpreter, we
 In OSR-methods special osr-entry flag is added to the loop-header basic blocks and some optimizations have to skip
 such loops.
 
-There are no restrictions for inlining: methods can be inlined in a general way and all loop-optimizations are
-applicable for them, because methods' loop-headers are not marked as osr-entry.
+The [dynamic compiler OSR tests](../compiler/tests/osr_test.cpp) cover entry from a compiled caller
+with inlining enabled. The optimizing test checks both the caller's inline event and successful OSR entry.
 
 New pseudo-instruction is introduced: SaveStateOsr - instruction should be the first one in each loop-header basic block
 with true osr-entry flag.

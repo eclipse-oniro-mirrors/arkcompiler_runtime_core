@@ -1,5 +1,7 @@
 # irtoc Agent Guide
 
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
+
 ## 1. Code Map
 
 This AGENTS.md applies to `static_core/irtoc/`. This directory generates interpreter handlers, runtime/compiler fastpaths, nativeplus boundary code, and selected low-overhead intrinsic entry points.

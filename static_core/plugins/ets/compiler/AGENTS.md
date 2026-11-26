@@ -1,5 +1,7 @@
 # ETS Compiler Plugin Agent Guide
 
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
+
 ## 1. Code Map
 
 This AGENTS.md applies to `static_core/plugins/ets/compiler/`. This directory owns ETS language-plugin extensions to the core compiler, including ETS bytecode lowering, intrinsic recognition, ETS-specific optimization, JS interop, native calls, and fastpath-aware codegen.

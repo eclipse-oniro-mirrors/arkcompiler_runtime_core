@@ -1,5 +1,7 @@
 # Panda Binary File Format
 
+> For ArkTS-Sta, use the [static runtime guide on this topic](../static_core/docs/file_format.md).
+
 This document describes Panda binary file format with the following goals in mind:
 
 * Compactness.
@@ -198,6 +200,10 @@ A file begins with the header which is located at offset 0.
 All other data can be reached from the header.
 
 ### Header
+
+The [dynamic file reader](../libpandafile/file.h) defines the header layout.
+The literal array count and offset below apply to versions that store the literal array index in the header.
+The [header validator](../libpandafile/file.cpp) checks those fields according to the file version.
 
 Alignment: 4 bytes
 

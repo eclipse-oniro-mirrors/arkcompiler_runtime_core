@@ -1,13 +1,12 @@
 # Compiled Code Metainfo
 
+> For ArkTS-Sta, use the [static runtime guide on this topic](../static_core/docs/code_metainfo.md).
+
 ## Overview
 
-Metainfo is an information that aims to provide reg-to-stack mapping for virtual registers. It is needed for stack
-unwinding process to restore CFrame at specific PC.
-
-When native code calls runtime or another code that can call runtime, we must provide approach to restore virtual
-registers which are live during this call instruction. Since all virtual regisetrs should be saved on the stack before
-we call the runtime, we can save information in which stack slot specific vreg is live.
+Compiled code metadata maps a native program counter to the frame state needed to recover live virtual registers.
+The [compiler metadata tests](../compiler/tests/code_info_test.cpp) exercise values held in stack slots,
+general-purpose registers, and floating-point registers.
 
 Metainfo is placed together with compiled code:
 ```
@@ -179,13 +178,13 @@ Holds single column - index of the VReg description in the `VRegs catalogue` tab
 | VALUE | Virtual register value |
 
 Virtual register description has the following fields:
-- **Location** - where vreg is stored: stack slot, CPU register or constant.
+- **Location** - where vreg is stored: stack slot, general-purpose register, floating-point register, or constant.
 - **Type** - type of the value: OBJECT, INT32, INT64, FLOAT32, FLOAT64, BOOL.
 - **IsAccumulator** - whethre vreg is accumulator.
 - **Index** - index of the virtual register.
 
 Value of the `VALUE` field depends on the value of `Location` field:
-- CPU register: number of CPU register
+- register: register number in the corresponding register class
 - stack slot: number of the slot within a frame
 - constant: index of a row within `Constants` table
 

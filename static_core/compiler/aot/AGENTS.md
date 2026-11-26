@@ -1,5 +1,7 @@
 # Compiler AOT Agent Guide
 
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
+
 ## 1. Code Map
 
 This AGENTS.md applies to `static_core/compiler/aot/`. This directory owns the compiler-side model, product description, and runtime-consumable contract for AOT/LLVM AOT products; the broader workflow is routed by `static_core/compiler/AGENTS.md`.

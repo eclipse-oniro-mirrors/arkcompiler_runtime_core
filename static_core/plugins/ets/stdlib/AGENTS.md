@@ -1,5 +1,7 @@
 # ETS Standard Library Guide
 
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
+
 ## Project Overview
 
 This directory contains the ArkTS-Sta standard library within ArkCompiler Runtime Core, located at `static_core/plugins/ets/stdlib/`.

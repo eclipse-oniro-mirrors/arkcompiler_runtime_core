@@ -1,14 +1,16 @@
 # Irtoc tool
 
+For the current build pipeline, DSL syntax, and execution modes, see the [maintained irtoc guide](../static_core/docs/irtoc.md). The examples below illustrate the earlier DSL design.
+
 **Irtoc**(Ir-To-Code) tool is aimed to compile a manually created IR (intermediate representation) to the target code.
 
-Building flow:
+Historical build flow:
 
 ![irtoc_build_flow](images/irtoc_build_flow.png)
 
 ## Irtoc language
 
-> WARNING: this part is still under development. Thus, some things may be changed in the final implementation.
+The following examples show the original DSL notation.
 
 Irtoc DSL is a wrapper above the `IrConstructor`. It reads compiler's `instructions.yaml` file to get information about instructions. As output it generates c++ code, that uses `IrConstructor` to build IR.
 
@@ -114,7 +116,7 @@ function SumSequence(params: {start: u64, end: u64}) {
 
 ## Dedicated registers
 
-Sometimes there will be need to specify target register for the input parameter or other entities within a script.
+A register map binds an input parameter to a target register. The historical example below illustrates that binding. See the [current register maps](../static_core/irtoc/scripts/common.irt) for the definitions used by the tool today.
 
 For such needs, each function takes registers map as an input:
 ```
@@ -126,7 +128,7 @@ function CallEntrypoint(params: {offset: u64, tls: ptr(tr)}, regmap=regmap_tls) 
     Call(entry)
 }
 ```
-It will be transformed to the folloiwng code for Arm64 target:
+In this example the Arm64 parameter is assigned register 28:
 ```
 COMPILE(CallEntrypoint) {
     GRAPH(GetGraph()) {

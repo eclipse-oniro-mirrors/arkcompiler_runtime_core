@@ -1,5 +1,7 @@
 # Interaction of compiled code and the runtime
 
+> For ArkTS-Sta, use the [static runtime guide on this topic](../static_core/docs/runtime-compiled_code-interaction.md).
+
 ## Introduction
 
 During execution compiled code and Panda runtime should interact with each other. This document describes the following aspects interation:  
@@ -387,7 +389,8 @@ For such cases compiled code must call `void Deoptimize()` runtime entrypoint to
 The function reconstructs the interpreter stack frame and calls the interpreter.
 When compiled code is combined from several managed functions (inlined functions) `Deoptimize` reconstructs interpreter stack frame and calls the interpreter for each inlined function too. 
 
-Details in [deoptimization documentation](deoptimization.md)
+For the static runtime, see [how deoptimization rebuilds interpreter frames](../static_core/docs/deoptimization.md).
+
 ## Throwing an exception
 Throwing an exeption from compiled code is performed by calling a runtime entrypoint `void ThrowException(panda::ObjectHeader* exception)`.  
 The function `ThrowException` does the following:  

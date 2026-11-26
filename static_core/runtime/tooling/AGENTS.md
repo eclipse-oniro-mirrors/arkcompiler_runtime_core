@@ -1,5 +1,7 @@
 # AGENTS
 
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
+
 This file provides guidance for AI agents when working with the static-core runtime tooling module.
 
 ## Project Overview

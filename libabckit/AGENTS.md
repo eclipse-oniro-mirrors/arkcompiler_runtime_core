@@ -1,5 +1,7 @@
 # libabckit (AbcKit) — Agent Guide
 
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
+
 This document is the **full working guide** for **`arkcompiler/runtime_core/libabckit`**.
 
 Source-of-truth docs already in repo: **doc/implementation_description.md**, **doc/mini_cookbook.md**, **doc/how_to_build_and_test.md** (and `_zh` variants).
