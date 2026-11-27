@@ -23,6 +23,6 @@ es2panda_options: ['emit-declaration', 'simultaneous']
 
 import {NiceA} from "@panda/lib2/l2"
 
-export let V: NiceA = 1
+export let V: NiceA = 1 as byte
 
 export {NiceA}

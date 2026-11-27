@@ -177,3 +177,19 @@ cases:
 
   - decl: |-
       let foo = (): number|float => { return 1.1 }
+
+  - decl: |-
+      function foo(): byte|long {
+        return 127
+      }
+      function main() {
+        arktest.assertEQ(foo(), 127)
+        arktest.assertTrue(foo() instanceof long)
+      }
+
+  - decl: |-
+      let foo = (): int|long => { return 1 }
+      function main() {
+        arktest.assertEQ(foo(), 1)
+        arktest.assertTrue(foo() instanceof int)
+      }

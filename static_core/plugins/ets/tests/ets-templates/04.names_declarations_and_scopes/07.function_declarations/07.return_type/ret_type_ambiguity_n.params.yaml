@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Huawei Device Co., Ltd.
+# Copyright (c) 2025-2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License")
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -14,38 +14,38 @@
 ---
 cases:
   - decl: |-
-      function foo(): byte|long {
+      function foo(): byte|short {
         return 127
       }
 
   - decl: |-
       class C {
-        foo(): byte|long {
+        foo(): byte|short {
           return 127
         }
       }
 
   - decl: |-
       class C {
-        static foo(): byte|long {
+        static foo(): byte|short {
           return 127
         }
       }
 
   - decl: |-
       abstract class C {
-        foo(): byte|long {
+        foo(): byte|short {
           return 127
         }
       }
 
   - decl: |-
         interface I {
-          foo(): byte|long {
+          foo(): byte|short {
             return 127
           }
         }
         class C implements I {} 
 
   - decl: |-
-      let foo = (): int|long => { return 1 }
+      let foo = (): long|double => { return 1 }

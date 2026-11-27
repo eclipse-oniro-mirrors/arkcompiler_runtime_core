@@ -1539,11 +1539,12 @@ rest 参数 ``FPrest``（若存在）以及返回类型 ``FR``，而函数类型
 
 - **子类型匹配规则**：若字面量的 *默认推断类型* 是 *目标类型* 的子类型（即默认推断类型是联合中某个成员的子类型——数值或非数值），则 *默认推断类型* 即为推断结果；
 - **唯一拓宽规则**：否则，若联合中恰有一个数值成员 ``N``:sub:`i` 可由 *默认推断类型* 经 *拓宽数值转换* （见 :ref:`Widening Numeric Conversions`）到达，则 ``N``:sub:`i` 为推断结果；
+- **可选收窄规则**：否则，若联合恰由一个数值成员 ``N``:sub:`i` 与 ``undefined`` 类型组成，且字面量为整数字面量、其 *默认推断类型* 为 ``int`` 且值落入 ``N``:sub:`i`（``byte`` 或 ``short``）的范围内，则 ``N``:sub:`i` 为推断结果；
 - **拓宽歧义规则**：否则，若联合中有多个数值成员可由 *默认推断类型* 经 *拓宽数值转换* 到达，则因类型推断歧义产生 :index:`compile-time error`；
 - 否则，因字面量无法赋值给联合类型而产生 :index:`compile-time error`。
 
 .. note::
-   与 *Case 1* 不同，将整数值或浮点值落入更小数值类型的范围，在联合目标类型中 **不予考虑**。仅 *子类型匹配规则*、*唯一拓宽规则* 与 *拓宽歧义规则* 被考虑。非数值联合成员（如 ``Object``）参与 *子类型匹配规则* 的子类型检查，但不作为拓宽规则的候选。例如，整数字面量 ``1`` 的默认推断类型为 ``int``，可以赋值给 ``byte | Object``，因为 ``int`` 是 ``Object`` 的子类型（*子类型匹配规则*）；但不能赋值给 ``byte | string``，因为 ``int`` 既不是 ``byte`` 也不是 ``string`` 的子类型，且 ``int`` 到 ``byte`` 不是 *拓宽数值转换*。
+   与 *Case 1* 不同，将整数值或浮点值落入更小数值类型的范围，在联合目标类型中 **不予考虑**，唯一例外是 *可选收窄规则*，它处理 ``byte | undefined`` 与 ``short | undefined`` 这类可选数值情形。仅 *子类型匹配规则*、*唯一拓宽规则*、*可选收窄规则* 与 *拓宽歧义规则* 被考虑。非数值联合成员（如 ``Object``）参与 *子类型匹配规则* 的子类型检查，但不作为拓宽规则的候选；``undefined`` 类型在恰为联合中唯一非数值成员时，额外启用 *可选收窄规则*。例如，整数字面量 ``1`` 的默认推断类型为 ``int``，可以赋值给 ``byte | Object``，因为 ``int`` 是 ``Object`` 的子类型（*子类型匹配规则*）；但不能赋值给 ``byte | string``，因为 ``int`` 既不是 ``byte`` 也不是 ``string`` 的子类型，且 ``int`` 到 ``byte`` 不是 *拓宽数值转换*。
 
 联合目标类型上的推断示例如下：
 
@@ -1592,6 +1593,20 @@ rest 参数 ``FPrest``（若存在）以及返回类型 ``FR``，而函数类型
                                           numeric conversion from 'long' to 'byte'
                                           or 'int' exists
                                        */
+
+        let m: byte | undefined = 12 /* inferred type is 'byte': the union consists of
+                                        the single numeric member 'byte' and 'undefined',
+                                        and the value fits into the 'byte' range
+                                        (Rule Optional-Narrowing)
+                                     */
+        let n: short | undefined = 12 // inferred type is 'short' (Rule Optional-Narrowing)
+
+        let o: byte | undefined = 128 /* Compile-time error: the value does not fit into
+                                         the 'byte' range, so Rule Optional-Narrowing
+                                         does not apply, and no other rule matches
+                                      */
+
+        let p: int | undefined = 12 // inferred type is 'int' (Rule Subtype-Matching)
 
 .. note::
 

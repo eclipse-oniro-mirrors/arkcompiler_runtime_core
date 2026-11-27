@@ -14,9 +14,9 @@
 --- # List of declarations
 nullables:
   # null
-  - {type: "Byte|null", value: "5"}
+  - {type: "Byte|null", value: "5 as byte"}
   - {type: "Byte|null", value: "null"}
-  - {type: "Short|null", value: "5"}
+  - {type: "Short|null", value: "5 as short"}
   - {type: "Short|null", value: "null"}
   - {type: "Int|null", value: "5"}
   - {type: "Int|null", value: "null"}
@@ -32,9 +32,9 @@ nullables:
   - {type: "Boolean|null", value: "null"}
   - {type: "A|null", value: "null"}
   # undefined
-  - {type: "Byte|undefined", value: "5"}
+  - {type: "Byte|undefined", value: "5 as byte"}
   - {type: "Byte|undefined", value: "undefined"}
-  - {type: "Short|undefined", value: "5"}
+  - {type: "Short|undefined", value: "5 as short"}
   - {type: "Short|undefined", value: "undefined"}
   - {type: "Int|undefined", value: "5"}
   - {type: "Int|undefined", value: "undefined"}
@@ -50,9 +50,9 @@ nullables:
   - {type: "Boolean|undefined", value: "undefined"}
   - {type: "A|undefined", value: "undefined"}
   # undefined|null
-  - {type: "Byte|undefined|null", value: "5"}
+  - {type: "Byte|undefined|null", value: "5 as byte"}
   - {type: "Byte|undefined|null", value: "undefined"}
-  - {type: "Short|undefined|null", value: "5"}
+  - {type: "Short|undefined|null", value: "5 as short"}
   - {type: "Short|undefined|null", value: "undefined"}
   - {type: "Int|undefined|null", value: "5"}
   - {type: "Int|undefined|null", value: "undefined"}
@@ -68,7 +68,7 @@ nullables:
   - {type: "Boolean|undefined|null", value: "undefined"}
   - {type: "A|undefined|null", value: "undefined"}
 # redundant nullability
-  - {type: "Byte|null|null", value: "5"}
+  - {type: "Byte|null|null", value: "5 as byte"}
   - {type: "Byte|null|null", value: "null"}
-  - {type: "Byte|undefined|undefined", value: "5"}
+  - {type: "Byte|undefined|undefined", value: "5 as byte"}
   - {type: "Byte|undefined|undefined", value: "undefined"}

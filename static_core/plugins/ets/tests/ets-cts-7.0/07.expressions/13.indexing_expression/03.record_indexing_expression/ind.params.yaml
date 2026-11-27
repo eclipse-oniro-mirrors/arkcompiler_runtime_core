@@ -223,12 +223,12 @@ cases:
     - use: |-
           // key is a union of number and string
           let r: Record<number|string, Number|undefined> = {
-              0: 0,
-              1: 1,
-              2: 2,
-              "0": 10,
-              "1": 11,
-              "2": 12,
+              0.0: new Number(0),
+              1.0: new Number(1),
+              2.0: new Number(2),
+              "0": new Number(10),
+              "1": new Number(11),
+              "2": new Number(12),
           }
           arktest.assertTrue(r[0] == 0 && r[1] == 1 && r[2] == 2 && r["0"] == 10 && r["1"] == 11 && r["2"] == 12 && r[3] == undefined && r["3"] == undefined)
           r[1] = 100

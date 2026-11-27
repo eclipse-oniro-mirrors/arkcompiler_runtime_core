@@ -29,21 +29,8 @@ cases:
   - { use: "-0x8000_0000", use_type: ": short"}
   - { use: "-0x8000_0001", use_type: ": short" }
   - { use: "-0x8000_0000_0000_0000", use_type: ": int" }
-  # value fits within byte
+  # no union member is a supertype of the default type
   - { use: "127", use_type: ": byte | short" }
-  - { use: "127", use_type: ": byte | short | int" }
-  - { use: "127", use_type: ": byte | int" }
-  - { use: "127", use_type: ": byte | int | long" }
-  - { use: "127", use_type: ": byte | int | short | long" }
-  - { use: "127", use_type: ": short | int" }
-  - { use: "127", use_type: ": short | int | long" }
-  - { use: "127", use_type: ": int | long" }
-  # value fits within short
-  - { use: "1023", use_type: ": short | int" }
-  - { use: "1023", use_type: ": hort | int | long" }
-  - { use: "1023", use_type: ": int | long" }
-  # value fits within int
-  - { use: "2000000", use_type: ": int | long" }
   # floating-point literal keeps its default double type without suffix
   - { use: "3.14", use_type: ": float" }
   - { use: "3.4e39", use_type: ": float" }
