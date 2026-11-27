@@ -46,6 +46,9 @@ napi_status __attribute__((weak))  // CC-OFF(G.FMT.07) project code style
 napi_create_xref(napi_env env, napi_value value, uint32_t initial_refcount, napi_ref *result);
 napi_status __attribute__((weak))  // CC-OFF(G.FMT.07) project code style
 napi_register_appstate_callback(napi_env env, void (*f)(int a1, int64_t a2));
+// Reports the ArkTS-Sta background GC start/finish to the freeze coordinator in the NAPI layer
+napi_status __attribute__((weak))  // CC-OFF(G.FMT.07) project code style
+napi_notify_arkts_sta_background_gc(bool gcStarted);
 // Convert JS string to C++ string, selecting std::string or std::u16string based on internal storage
 napi_status __attribute__((weak))  // CC-OFF(G.FMT.07) project code style
 napi_get_value_string_utf8_hybrid(napi_env env, napi_value value, void *string_object);

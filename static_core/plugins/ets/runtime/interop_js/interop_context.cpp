@@ -84,6 +84,25 @@ std::atomic<bool> g_hybridStackEnabled {false};
 }  // namespace
 
 #if defined(PANDA_TARGET_OHOS)
+// A GC task for the background switch; reports its completion to the freeze coordinator
+// (ArkIdleMonitor in the NAPI layer), which notifies the freeze module exactly once after
+// the background GCs of both runtimes have finished.
+class BackgroundGCTask final : public GCTask {
+public:
+    explicit BackgroundGCTask(uint64_t targetTime) : GCTask(GCTaskCause::BACKGROUND_CAUSE, targetTime) {}
+
+    void Run(mem::GC &gc) override
+    {
+        GCTask::Run(gc);
+        if (!gcFinished_.exchange(true, std::memory_order_relaxed)) {
+            napi_notify_arkts_sta_background_gc(false);
+        }
+    }
+
+private:
+    std::atomic<bool> gcFinished_ {false};
+};
+
 static void AppStateCallback(int state, int64_t timeStamp)
 {
     auto appState = AppState(static_cast<AppState::State>(state), timeStamp);
@@ -104,7 +123,10 @@ static void AppStateCallback(int state, int64_t timeStamp)
                 // On the background switch,
                 // GC collects the managed heap to reduce memory usage by backgrounded applications
                 // and avoid memory consumption in kernel compacted RAM
-                gc->Trigger(MakePandaUnique<GCTask>(GCTaskCause::BACKGROUND_CAUSE, time::GetCurrentTimeInNanos()));
+                auto task = MakePandaUnique<BackgroundGCTask>(time::GetCurrentTimeInNanos());
+                if (gc->Trigger(std::move(task))) {
+                    napi_notify_arkts_sta_background_gc(true);
+                }
             }
             break;
         }
