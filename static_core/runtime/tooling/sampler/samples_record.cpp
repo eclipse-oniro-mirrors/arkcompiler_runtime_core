@@ -23,6 +23,8 @@
 #include "runtime/tooling/sampler/sampling_profiler.h"
 #include "runtime/tooling/sampler/stack_walker_base.h"
 #include "runtime/include/tooling/buffer_serializer.h"
+#include "runtime/include/runtime.h"
+#include "runtime/include/class_linker.h"
 
 namespace ark::tooling::sampler {
 static constexpr size_t ROOT_NODE_ID = 1;
@@ -94,7 +96,24 @@ std::string SamplesRecord::GetUrlFromClassData(const panda_file::File *pfId, pan
 
 FrameInfo SamplesRecord::BuildStaticFrameInfo(const SampleInfo::ManagedStackFrameId &frameId)
 {
-    auto pfId = reinterpret_cast<panda_file::File *>(frameId.pandaFilePtr);
+    auto *pfId = reinterpret_cast<panda_file::File *>(frameId.pandaFilePtr);
+    if (pfId == nullptr) {
+        LOG(DEBUG, PROFILER) << "BuildStaticFrameInfol: pandaFilePtr is null, skipping frame";
+        return {};
+    }
+    bool pfValid = false;
+    auto *classLinker = Runtime::GetCurrent()->GetClassLinker();
+    classLinker->EnumeratePandaFiles([&pfValid, pfId](const panda_file::File &pf) {
+        if (&pf == pfId) {
+            pfValid = true;
+            return false;
+        }
+        return true;
+    });
+    if (!pfValid) {
+        LOG(DEBUG, PROFILER) << "BuildStaticFrameInfol: pandaFilePtr is stale, skipping frame";
+        return {};
+    }
     panda_file::File::EntityId fileId(frameId.fileId);
     // Use MethodDataAccessor to access method data and retrieve the module name and function name.
     panda_file::MethodDataAccessor mda(*pfId, fileId);
@@ -162,12 +181,12 @@ void SamplesRecord::BuildStackInfoMap(const SampleInfo &sampleInfo)
         }
         // If frameId's pandaFilePtr is null, the frame is invalid, so skip processing.
         if (frameId.pandaFilePtr == 0) {
-            LOG(DEBUG, PROFILER) << "Profiler collected an invalid pandFilePtr";
+            LOG(DEBUG, PROFILER) << "Profiler collected an invalid pandaFilePtr";
             continue;
         }
 
         FrameInfo frameInfo;
-        if (frameId.pandaFilePtr == helpers::ToUnderlying(FrameKind::EXTERNAL_FRAME)) {
+        if (!frameId.isStaticFrame) {
             if (frameId.extFrameData == nullptr) {
                 LOG(DEBUG, PROFILER) << "Profiler cannot read dynamic frame: extFrameData is null";
                 continue;
@@ -179,6 +198,9 @@ void SamplesRecord::BuildStackInfoMap(const SampleInfo &sampleInfo)
             continue;
         } else {
             frameInfo = BuildStaticFrameInfo(frameId);
+        }
+        if (frameInfo.functionName.empty() && frameInfo.url.empty()) {
+            continue;
         }
         stackInfoMap_.emplace(frameId, frameInfo);
     }

@@ -50,6 +50,11 @@ public:
         return false;
     }
 
+    virtual bool DynamicTopFrameIsValid([[maybe_unused]] void *signalContextPtr)
+    {
+        return false;
+    }
+
     virtual bool GetSourceMappedFrameInfo([[maybe_unused]] const void *dynamicFramePtr,
                                           [[maybe_unused]] HybridFrameInfo &frameInfo)
     {
@@ -69,7 +74,8 @@ public:
     }
 
     virtual bool ForEachDynamicFrame([[maybe_unused]] void *currFrameSP, [[maybe_unused]] void *toFrameSP,
-                                     [[maybe_unused]] const std::function<void(const void *)> &cb) const
+                                     [[maybe_unused]] void (*cb)(const void *frame, void *data),
+                                     [[maybe_unused]] void *data) const
     {
         return false;
     }
@@ -77,6 +83,11 @@ public:
     virtual const void *GetEcmaVM() const
     {
         return nullptr;
+    }
+
+    virtual bool IsJSGCRunning()
+    {
+        return false;
     }
 
     virtual std::string GetArkTSMode() const

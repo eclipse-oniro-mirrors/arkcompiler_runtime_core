@@ -56,18 +56,33 @@ public:
     {
         return "this";
     }
-    virtual bool CollectHybridStackFrames(
-        [[maybe_unused]] const std::function<void(const void *frame, bool isStaticFrame)> &callback)
+    virtual bool CollectHybridStackFrames([[maybe_unused]] void (*callback)(const void *frame, bool isStaticFrame,
+                                                                            void *data),
+                                          [[maybe_unused]] void *data)
     {
         return false;
     }
     virtual size_t GetDynamicFrameInfo([[maybe_unused]] const void *frame, [[maybe_unused]] void *buffer,
                                        [[maybe_unused]] size_t bufferSize, [[maybe_unused]] uintptr_t *fileId,
-                                       [[maybe_unused]] uint32_t *bcOffset)
+                                       [[maybe_unused]] uintptr_t *pandaFilePtr, [[maybe_unused]] uint32_t *bcOffset)
     {
         return 0;
     }
     virtual bool IsSupportHybridStack()
+    {
+        return false;
+    }
+    virtual bool UnionStackIsEmpty(bool *isEmpty)
+    {
+        (void)isEmpty;
+        return false;
+    }
+    virtual bool DynamicTopFrameIsValid(void *signalContextPtr)
+    {
+        (void)signalContextPtr;
+        return false;
+    }
+    virtual bool IsJSGCRunning()
     {
         return false;
     }
@@ -99,6 +114,15 @@ public:
     // (e.g. ETS NullValue). The debugger serializes such objects as CDP null
     // rather than a generic object. The default implementation returns false.
     virtual bool IsNullOrUndefined([[maybe_unused]] const ObjectHeader *object)
+    {
+        return false;
+    }
+
+    // Returns true if a raw null reference (nullptr) denotes `undefined` in
+    // this language rather than `null`. Language-specific: ArkTS-Sta uses a
+    // raw null reference for `undefined` and a singleton object for `null`.
+    // The default implementation returns false.
+    virtual bool IsRawNullUndefined() const
     {
         return false;
     }

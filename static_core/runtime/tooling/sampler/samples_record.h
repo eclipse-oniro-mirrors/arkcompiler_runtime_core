@@ -104,8 +104,7 @@ struct OwnedSampleInfo {
     {
         for (size_t i = 0; i < src.stackInfo.managedStackSize; i++) {
             auto &frame = sample.stackInfo.managedStack[i];
-            if (frame.pandaFilePtr == helpers::ToUnderlying(FrameKind::EXTERNAL_FRAME) &&
-                frame.extFrameData != nullptr && frame.extFrameDataSize > 0) {
+            if (!frame.isStaticFrame && frame.extFrameData != nullptr && frame.extFrameDataSize > 0) {
                 // NOLINTNEXTLINE(modernize-avoid-c-arrays)
                 auto buf = std::make_unique<uint8_t[]>(frame.extFrameDataSize);
                 [[maybe_unused]] int r =

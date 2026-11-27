@@ -39,8 +39,8 @@ bool PtEtsExtension::IsWeakReferentField(ObjectHeader *object, const Field &fiel
 }
 
 // clang-format off
-bool PtEtsExtension::CollectHybridStackFrames([[maybe_unused]] const std::function<
-    void(const void *frame, bool isStaticFrame)> &callback)
+bool PtEtsExtension::CollectHybridStackFrames([[maybe_unused]] void (*callback)(const void *frame,
+    bool isStaticFrame, void *data), [[maybe_unused]] void *data)
 {
 #ifdef PANDA_ETS_INTEROP_JS
     auto thread = ManagedThread::GetCurrent();
@@ -48,8 +48,7 @@ bool PtEtsExtension::CollectHybridStackFrames([[maybe_unused]] const std::functi
         return false;
     }
 
-    // Use ForEachFrameInUnionStack to traverse the hybrid stack
-    ark::ets::interop::js::ForEachFrameInUnionStack(callback);
+    ark::ets::interop::js::ForEachFrameInUnionStack(callback, data);
     return true;
 #else
     return false;
@@ -58,7 +57,7 @@ bool PtEtsExtension::CollectHybridStackFrames([[maybe_unused]] const std::functi
 // clang-format on
 
 size_t PtEtsExtension::GetDynamicFrameInfo(const void *frame, void *buffer, size_t bufferSize, uintptr_t *fileId,
-                                           uint32_t *bcOffset)
+                                           uintptr_t *pandaFilePtr, uint32_t *bcOffset)
 {
 #ifdef PANDA_ETS_INTEROP_JS
     arkplatform::HybridFrameInfo hybridFrameInfo;
@@ -69,6 +68,9 @@ size_t PtEtsExtension::GetDynamicFrameInfo(const void *frame, void *buffer, size
 
     if (fileId != nullptr) {
         *fileId = hybridFrameInfo.fileId;
+    }
+    if (pandaFilePtr != nullptr) {
+        *pandaFilePtr = reinterpret_cast<uintptr_t>(hybridFrameInfo.nativePtr);
     }
     if (bcOffset != nullptr) {
         *bcOffset = hybridFrameInfo.bcOffset;
@@ -84,6 +86,7 @@ size_t PtEtsExtension::GetDynamicFrameInfo(const void *frame, void *buffer, size
     (void)buffer;
     (void)bufferSize;
     (void)fileId;
+    (void)pandaFilePtr;
     (void)bcOffset;
     return 0;
 #endif
@@ -93,6 +96,35 @@ bool PtEtsExtension::IsSupportHybridStack()
 {
 #ifdef PANDA_ETS_INTEROP_JS
     return ark::ets::interop::js::IsHybridStackEnabled();
+#else
+    return false;
+#endif
+}
+
+bool PtEtsExtension::UnionStackIsEmpty(bool *isEmpty)
+{
+#ifdef PANDA_ETS_INTEROP_JS
+    return ark::ets::interop::js::UnionStackIsEmpty(isEmpty);
+#else
+    (void)isEmpty;
+    return false;
+#endif
+}
+
+bool PtEtsExtension::DynamicTopFrameIsValid(void *signalContextPtr)
+{
+#ifdef PANDA_ETS_INTEROP_JS
+    return ark::ets::interop::js::DynamicTopFrameIsValid(signalContextPtr);
+#else
+    (void)signalContextPtr;
+    return false;
+#endif
+}
+
+bool PtEtsExtension::IsJSGCRunning()
+{
+#ifdef PANDA_ETS_INTEROP_JS
+    return ark::ets::interop::js::IsJSGCRunning();
 #else
     return false;
 #endif

@@ -63,8 +63,8 @@ public:
     PANDA_PUBLIC_API void NotifyWaiters() override;
 
     PANDA_PUBLIC_API bool UnionStackIsEmpty(bool *isEmpty) override;
-    PANDA_PUBLIC_API bool ForEachFrameInUnionStack(
-        const std::function<void(const void *frame, bool isStaticFrame)> &callback) override;
+    PANDA_PUBLIC_API bool ForEachFrameInUnionStack(void (*callback)(const void *frame, bool isStaticFrame, void *data),
+                                                   void *data) override;
     PANDA_PUBLIC_API bool GetStaticFrameInfo(const void *frame, arkplatform::HybridFrameInfo &frameInfo) override;
 
     PandaEtsVM *GetVM() const

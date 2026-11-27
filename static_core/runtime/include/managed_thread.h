@@ -216,6 +216,9 @@ public:
     PANDA_PUBLIC_API static ManagedThread *GetCurrent()
     {
         Mutator *mutator = Mutator::GetCurrent();
+        if (mutator == nullptr) {
+            return nullptr;
+        }
         if (MutatorIsManagedThread(mutator)) {
             return CastFromMutator(mutator);
         }

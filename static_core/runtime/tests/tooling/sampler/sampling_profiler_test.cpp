@@ -21,6 +21,7 @@
 #include "libarkfile/file.h"
 #include "libarkbase/trace/trace.h"
 #include "libarkbase/panda_gen_options/generated/logger_options.h"
+#include "libarkbase/utils/type_helpers.h"
 #include "runtime/include/thread_scopes.h"
 #include "runtime/include/runtime.h"
 #include "runtime/tooling/sampler/sampling_profiler.h"
@@ -43,6 +44,22 @@ static const char *g_pandaFileName = "sampling_profiler_test_ark_asm.abc";
 static constexpr size_t TEST_CYCLE_THRESHOLD = 100;
 static const std::shared_ptr<SamplesRecord> G_SAMPLES_RECORD = std::make_shared<SamplesRecord>();
 
+const uint32_t BC_OFFSET_10 = 10;
+const int32_t FILE_ID_100 = 100;
+const int32_t FILE_ID_200 = 200;
+const int32_t NUMBER_2 = 2;
+const int32_t NUMBER_3 = 3;
+const int32_t NUMBER_4 = 4;
+const int32_t NUMBER_5 = 5;
+const int32_t NUMBER_10 = 10;
+
+inline std::string GetPandaFilePath()
+{
+    auto execPath = ark::os::file::File::GetExecutablePath();
+    return execPath.Value() + Separator() + ".." + Separator() + "runtime" + Separator() + "tests" + Separator() +
+           "tooling" + Separator() + "sampler" + Separator() + g_pandaFileName;
+}
+
 // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
 class SamplerTest : public testing::Test {
 public:
@@ -62,8 +79,12 @@ public:
         options.SetBootPandaFiles({pandaStdLib});
         Runtime::Create(options);
 
-        auto pf = panda_file::OpenPandaFileOrZip(g_pandaFileName);
+        auto pf = panda_file::OpenPandaFileOrZip(GetPandaFilePath());
+        if (pf != nullptr) {
+            pfId_ = reinterpret_cast<uintptr_t>(pf.get());
+        }
         Runtime::GetCurrent()->GetClassLinker()->AddPandaFile(std::move(pf));
+        CollectMethodIds();
 
         thread_ = ark::MTManagedThread::GetCurrent();
     }
@@ -73,10 +94,30 @@ public:
         Runtime::Destroy();
     }
 
+    void CollectMethodIds()
+    {
+        if (pfId_ == 0) {
+            return;
+        }
+        auto *pf = reinterpret_cast<const panda_file::File *>(pfId_);
+        auto classes = pf->GetClasses();
+        for (size_t i = 0; i < classes.Size(); ++i) {
+            panda_file::File::EntityId classId(classes[i]);
+            if (pf->IsExternal(classId)) {
+                continue;
+            }
+
+            panda_file::ClassDataAccessor cda(*pf, classId);
+            cda.EnumerateMethods(
+                [this](panda_file::MethodDataAccessor &mda) { methodIds_.push_back(mda.GetMethodId().GetOffset()); });
+        }
+    }
+
     void FullfillFakeSample(SampleInfo *ps)
     {
+        uint32_t methodId = HasTestMethodId() ? GetTestMethodId(0) : 0;
         for (uint32_t i = 0; i < SampleInfo::StackInfo::MAX_STACK_DEPTH; ++i) {
-            ps->stackInfo.managedStack[i] = {i, pfId_};
+            ps->stackInfo.managedStack[i] = {methodId, pfId_};
         }
         ps->threadInfo.threadId = GetThreadId();
         ps->stackInfo.managedStackSize = SampleInfo::StackInfo::MAX_STACK_DEPTH;
@@ -124,10 +165,29 @@ public:
         return os::thread::GetCurrentThreadId();
     }
 
+    uintptr_t GetTestPandaFilePtr() const
+    {
+        return pfId_;
+    }
+
+    uint32_t GetTestMethodId(size_t index = 0) const
+    {
+        if (index < methodIds_.size()) {
+            return methodIds_[index];
+        }
+        return 0;
+    }
+
+    bool HasTestMethodId() const
+    {
+        return !methodIds_.empty();
+    }
+
 protected:
     ark::MTManagedThread *thread_ {nullptr};
     uintptr_t pfId_ {0};
     uint32_t checksum_ {0};
+    std::vector<uint32_t> methodIds_;
 };
 // NOLINTEND(misc-non-private-member-variables-in-classes)
 
@@ -723,6 +783,7 @@ TEST_F(SamplerTest, InspectorStreamWriterReaderTest)
     ASSERT_NE((*allThreadsProfileInfos)[0]->nodeCount, 0);
     ASSERT_EQ((*allThreadsProfileInfos)[0]->startTime, 0);
     ASSERT_EQ((*allThreadsProfileInfos)[0]->stopTime, 0);
+    ASSERT_EQ((*allThreadsProfileInfos)[0]->tid, GetThreadId());
 }
 
 // Testing reader and writer by writing and reading from .aspt lots of samples
@@ -772,6 +833,7 @@ TEST_F(SamplerTest, InspectorStreamWriterReaderLotsSamplesTest)
     ASSERT_NE((*allThreadsProfileInfos)[0]->nodeCount, 0);
     ASSERT_EQ((*allThreadsProfileInfos)[0]->startTime, 0);
     ASSERT_EQ((*allThreadsProfileInfos)[0]->stopTime, 0);
+    ASSERT_EQ((*allThreadsProfileInfos)[0]->tid, GetThreadId());
     ASSERT_EQ((*allThreadsProfileInfos)[0]->timeDeltas.size(), CURRENT_TEST_THRESHOLD);
 }
 
@@ -1017,4 +1079,413 @@ TEST_F(SamplerTest, ProfilerSamplerSignalHandlerTest)
     }
 }
 
+// Testing hybrid stack frame identification
+TEST_F(SamplerTest, HybridStackFrameIdentificationTest)
+{
+    SampleInfo::ManagedStackFrameId staticFrame;
+    staticFrame.pandaFilePtr = 0x1000;  // Actual panda file pointer
+    staticFrame.fileId = FILE_ID_100;
+    staticFrame.bcOffset = BC_OFFSET_10;
+    staticFrame.isStaticFrame = true;
+    staticFrame.extFrameData = nullptr;
+
+    SampleInfo::ManagedStackFrameId dynamicFrame;
+    dynamicFrame.pandaFilePtr = 0x2000;
+    dynamicFrame.fileId = FILE_ID_100;
+    dynamicFrame.bcOffset = 0;
+    dynamicFrame.isStaticFrame = false;
+    dynamicFrame.extFrameData = reinterpret_cast<void *>(0x12345678);
+
+    SampleInfo::ManagedStackFrameId bridgeFrame;
+    bridgeFrame.pandaFilePtr = helpers::ToUnderlying(FrameKind::BRIDGE);
+    bridgeFrame.fileId = 0;
+    bridgeFrame.bcOffset = 0;
+    bridgeFrame.isStaticFrame = true;
+    bridgeFrame.extFrameData = nullptr;
+
+    // Verify frame type identification
+    bool isStatic = (staticFrame.isStaticFrame && staticFrame.pandaFilePtr != helpers::ToUnderlying(FrameKind::BRIDGE));
+    bool isDynamic = (!dynamicFrame.isStaticFrame);
+    bool isBridge = (bridgeFrame.pandaFilePtr == helpers::ToUnderlying(FrameKind::BRIDGE));
+
+    ASSERT_TRUE(isStatic);
+    ASSERT_TRUE(isDynamic);
+    ASSERT_TRUE(isBridge);
+    ASSERT_TRUE(bridgeFrame < staticFrame);
+    ASSERT_TRUE(staticFrame < dynamicFrame);
+}
+
+// Testing ManagedStackFrameId equality operator for static frames
+TEST_F(SamplerTest, ManagedStackFrameIdStaticEqualityTest)
+{
+    SampleInfo::ManagedStackFrameId frame1;
+    frame1.pandaFilePtr = 0x1000;
+    frame1.fileId = FILE_ID_100;
+    frame1.bcOffset = BC_OFFSET_10;
+
+    SampleInfo::ManagedStackFrameId frame2;
+    frame2.pandaFilePtr = 0x1000;
+    frame2.fileId = FILE_ID_100;
+    frame2.bcOffset = BC_OFFSET_10;
+
+    SampleInfo::ManagedStackFrameId frame3;
+    frame3.pandaFilePtr = 0x1000;
+    frame3.fileId = FILE_ID_200;
+    frame3.bcOffset = BC_OFFSET_10;
+
+    ASSERT_EQ(frame1, frame2);
+    ASSERT_NE(frame1, frame3);
+}
+
+// Testing SampleInfo hash function with dynamic frames
+TEST_F(SamplerTest, SampleInfoHashTest)
+{
+    SampleInfo sample1;
+    sample1.threadInfo.threadId = 1;
+    sample1.stackInfo.managedStackSize = 1;
+    sample1.stackInfo.managedStack[0].pandaFilePtr = 0x1000;
+    sample1.stackInfo.managedStack[0].isStaticFrame = true;
+    sample1.stackInfo.managedStack[0].extFrameData = nullptr;
+
+    SampleInfo sample2;
+    sample2.threadInfo.threadId = 1;
+    sample2.stackInfo.managedStackSize = 1;
+    sample2.stackInfo.managedStack[0].pandaFilePtr = 0x1000;
+    sample2.stackInfo.managedStack[0].isStaticFrame = true;
+    sample2.stackInfo.managedStack[0].extFrameData = nullptr;
+
+    std::hash<SampleInfo> hashFunc;
+    size_t hash1 = hashFunc(sample1);
+    size_t hash2 = hashFunc(sample2);
+
+    // Same dynamic frame (both nullptr) should produce same hash
+    ASSERT_EQ(hash1, hash2);
+}
+
+// Testing hybrid stack sample with mixed frames
+TEST_F(SamplerTest, HybridStackMixedFramesTest)
+{
+    uintptr_t testPandaFilePtr = GetTestPandaFilePtr();
+    if (testPandaFilePtr == 0U) {
+        GTEST_SKIP() << "Test panda file not available, skipping test";
+    }
+    ASSERT_TRUE(HasTestMethodId()) << "Failed to get test method ids";
+
+    uint32_t testMethodId = GetTestMethodId(0);
+
+    const std::shared_ptr<SamplesRecord> samplesRecord = std::make_shared<SamplesRecord>();
+    SampleInfo sample;
+    sample.threadInfo.threadId = GetThreadId();
+    sample.stackInfo.managedStackSize = NUMBER_3;
+
+    // Dynamic frame (nullptr is safe, will use default values)
+    sample.stackInfo.managedStack[0].pandaFilePtr = 0x1000;
+    sample.stackInfo.managedStack[0].fileId = 0;
+    sample.stackInfo.managedStack[0].bcOffset = 0;
+    sample.stackInfo.managedStack[0].isStaticFrame = false;
+    sample.stackInfo.managedStack[0].extFrameData = nullptr;
+
+    // Bridge frame (should be skipped in processing)
+    sample.stackInfo.managedStack[1].pandaFilePtr = helpers::ToUnderlying(FrameKind::BRIDGE);
+    sample.stackInfo.managedStack[1].fileId = 0;
+    sample.stackInfo.managedStack[1].bcOffset = 0;
+    sample.stackInfo.managedStack[1].isStaticFrame = true;
+    sample.stackInfo.managedStack[1].extFrameData = nullptr;
+
+    // Static frame (using real panda file pointer)
+    sample.stackInfo.managedStack[NUMBER_2].pandaFilePtr = testPandaFilePtr;
+    sample.stackInfo.managedStack[NUMBER_2].fileId = testMethodId;
+    sample.stackInfo.managedStack[NUMBER_2].bcOffset = BC_OFFSET_10;
+    sample.stackInfo.managedStack[NUMBER_2].isStaticFrame = true;
+    sample.stackInfo.managedStack[NUMBER_2].extFrameData = nullptr;
+
+    InspectorStreamWriter writer(samplesRecord);
+    writer.WriteSample(sample);
+
+    auto allThreadsProfileInfos = samplesRecord->GetAllThreadsProfileInfos();
+    ASSERT_NE(allThreadsProfileInfos, nullptr);
+    ASSERT_EQ(allThreadsProfileInfos->size(), 1);
+    ASSERT_NE((*allThreadsProfileInfos)[0]->nodeCount, 0);
+}
+
+// Testing max stack depth with hybrid frames
+TEST_F(SamplerTest, HybridStackMaxDepthTest)
+{
+    uintptr_t testPandaFilePtr = GetTestPandaFilePtr();
+    if (testPandaFilePtr == 0U) {
+        GTEST_SKIP() << "Failed to get test panda file pointer";
+    }
+    ASSERT_TRUE(HasTestMethodId()) << "Failed to get test method ids";
+
+    uint32_t testMethodId = GetTestMethodId(0);
+
+    SampleInfo sample;
+    sample.threadInfo.threadId = GetThreadId();
+    sample.stackInfo.managedStackSize = SampleInfo::StackInfo::MAX_STACK_DEPTH;
+
+    for (size_t i = 0; i < SampleInfo::StackInfo::MAX_STACK_DEPTH; ++i) {
+        if (i % NUMBER_2 == 0) {
+            // Dynamic frame (nullptr is safe)
+            sample.stackInfo.managedStack[i].pandaFilePtr = 0x1000;
+            sample.stackInfo.managedStack[i].isStaticFrame = false;
+            sample.stackInfo.managedStack[i].extFrameData = nullptr;
+        } else {
+            // Static frame (using real panda file pointer)
+            sample.stackInfo.managedStack[i].pandaFilePtr = testPandaFilePtr;
+            sample.stackInfo.managedStack[i].fileId = testMethodId;
+            sample.stackInfo.managedStack[i].bcOffset = static_cast<uint32_t>(i * NUMBER_10);
+        }
+    }
+
+    const std::shared_ptr<SamplesRecord> samplesRecord = std::make_shared<SamplesRecord>();
+    InspectorStreamWriter writer(samplesRecord);
+    writer.WriteSample(sample);
+
+    auto allThreadsProfileInfos = samplesRecord->GetAllThreadsProfileInfos();
+    ASSERT_NE(allThreadsProfileInfos, nullptr);
+    ASSERT_EQ(allThreadsProfileInfos->size(), 1);
+}
+
+// Testing empty hybrid stack
+TEST_F(SamplerTest, HybridStackEmptyTest)
+{
+    SampleInfo sample;
+    sample.threadInfo.threadId = GetThreadId();
+    sample.stackInfo.managedStackSize = 0;
+
+    const std::shared_ptr<SamplesRecord> samplesRecord = std::make_shared<SamplesRecord>();
+    InspectorStreamWriter writer(samplesRecord);
+    writer.WriteSample(sample);
+
+    auto allThreadsProfileInfos = samplesRecord->GetAllThreadsProfileInfos();
+    ASSERT_NE(allThreadsProfileInfos, nullptr);
+    ASSERT_EQ(allThreadsProfileInfos->size(), 1);
+}
+
+// Testing single dynamic frame
+TEST_F(SamplerTest, HybridStackSingleDynamicFrameTest)
+{
+    SampleInfo sample;
+    sample.threadInfo.threadId = GetThreadId();
+    sample.stackInfo.managedStackSize = 1;
+    sample.stackInfo.managedStack[0].pandaFilePtr = 0x1000;
+    sample.stackInfo.managedStack[0].fileId = 0;
+    sample.stackInfo.managedStack[0].bcOffset = 0;
+    sample.stackInfo.managedStack[0].isStaticFrame = false;
+    sample.stackInfo.managedStack[0].extFrameData = nullptr;
+
+    const std::shared_ptr<SamplesRecord> samplesRecord = std::make_shared<SamplesRecord>();
+    InspectorStreamWriter writer(samplesRecord);
+    writer.WriteSample(sample);
+
+    auto allThreadsProfileInfos = samplesRecord->GetAllThreadsProfileInfos();
+    ASSERT_NE(allThreadsProfileInfos, nullptr);
+    ASSERT_EQ(allThreadsProfileInfos->size(), 1);
+    // 3 default nodes (root, program, idle), dynamic frame skipped due to null extFrameData
+    ASSERT_EQ((*allThreadsProfileInfos)[0]->nodeCount, NUMBER_3);
+}
+
+// Testing single static frame
+TEST_F(SamplerTest, HybridStackSingleStaticFrameTest)
+{
+    uintptr_t testPandaFilePtr = GetTestPandaFilePtr();
+    if (testPandaFilePtr == 0U) {
+        GTEST_SKIP() << "Test panda file not available, skipping test";
+    }
+    ASSERT_TRUE(HasTestMethodId()) << "Failed to get test method ids";
+
+    uint32_t testMethodId = GetTestMethodId(0);
+
+    SampleInfo sample;
+    sample.threadInfo.threadId = GetThreadId();
+    sample.stackInfo.managedStackSize = 1;
+    sample.stackInfo.managedStack[0].pandaFilePtr = testPandaFilePtr;
+    sample.stackInfo.managedStack[0].fileId = testMethodId;
+    sample.stackInfo.managedStack[0].bcOffset = BC_OFFSET_10;
+    sample.stackInfo.managedStack[0].isStaticFrame = true;
+    sample.stackInfo.managedStack[0].extFrameData = nullptr;
+
+    const std::shared_ptr<SamplesRecord> samplesRecord = std::make_shared<SamplesRecord>();
+    InspectorStreamWriter writer(samplesRecord);
+    writer.WriteSample(sample);
+
+    auto allThreadsProfileInfos = samplesRecord->GetAllThreadsProfileInfos();
+    ASSERT_NE(allThreadsProfileInfos, nullptr);
+    ASSERT_EQ(allThreadsProfileInfos->size(), 1);
+    // 3 default nodes (root, program, idle) + 1 static frame
+    ASSERT_EQ((*allThreadsProfileInfos)[0]->nodeCount, NUMBER_4);
+}
+
+// Testing all dynamic frames stack
+TEST_F(SamplerTest, HybridStackAllDynamicFramesTest)
+{
+    constexpr size_t STACK_SIZE = 5;
+    SampleInfo sample;
+    sample.threadInfo.threadId = GetThreadId();
+    sample.stackInfo.managedStackSize = STACK_SIZE;
+
+    for (size_t i = 0; i < STACK_SIZE; ++i) {
+        sample.stackInfo.managedStack[i].pandaFilePtr = 0x1000;
+        sample.stackInfo.managedStack[i].fileId = 0;
+        sample.stackInfo.managedStack[i].bcOffset = 0;
+        sample.stackInfo.managedStack[i].isStaticFrame = false;
+        sample.stackInfo.managedStack[i].extFrameData = nullptr;
+    }
+
+    const std::shared_ptr<SamplesRecord> samplesRecord = std::make_shared<SamplesRecord>();
+    InspectorStreamWriter writer(samplesRecord);
+    writer.WriteSample(sample);
+
+    auto allThreadsProfileInfos = samplesRecord->GetAllThreadsProfileInfos();
+    ASSERT_NE(allThreadsProfileInfos, nullptr);
+    ASSERT_EQ(allThreadsProfileInfos->size(), 1);
+    // 3 default nodes (root, program, idle), dynamic frames skipped due to null extFrameData
+    ASSERT_EQ((*allThreadsProfileInfos)[0]->nodeCount, NUMBER_3);
+}
+
+// Testing all static frames stack
+TEST_F(SamplerTest, HybridStackAllStaticFramesTest)
+{
+    uintptr_t testPandaFilePtr = GetTestPandaFilePtr();
+    if (testPandaFilePtr == 0U) {
+        GTEST_SKIP() << "Test panda file not available, skipping test";
+    }
+    ASSERT_TRUE(HasTestMethodId()) << "Failed to get test method ids";
+
+    constexpr size_t STACK_SIZE = NUMBER_5;
+    SampleInfo sample;
+    sample.threadInfo.threadId = GetThreadId();
+    sample.stackInfo.managedStackSize = STACK_SIZE;
+
+    uint32_t testMethodId = GetTestMethodId(0);
+    for (size_t i = 0; i < STACK_SIZE; ++i) {
+        sample.stackInfo.managedStack[i].pandaFilePtr = testPandaFilePtr;
+        sample.stackInfo.managedStack[i].fileId = testMethodId;
+        sample.stackInfo.managedStack[i].bcOffset = static_cast<uint32_t>(i * NUMBER_10);
+        sample.stackInfo.managedStack[i].isStaticFrame = true;
+        sample.stackInfo.managedStack[i].extFrameData = nullptr;
+    }
+
+    const std::shared_ptr<SamplesRecord> samplesRecord = std::make_shared<SamplesRecord>();
+    InspectorStreamWriter writer(samplesRecord);
+    writer.WriteSample(sample);
+
+    auto allThreadsProfileInfos = samplesRecord->GetAllThreadsProfileInfos();
+    ASSERT_NE(allThreadsProfileInfos, nullptr);
+    ASSERT_EQ(allThreadsProfileInfos->size(), 1);
+}
+
+// Testing bridge frame filtering
+TEST_F(SamplerTest, HybridStackBridgeFrameFilteringTest)
+{
+    uintptr_t testPandaFilePtr = GetTestPandaFilePtr();
+    if (testPandaFilePtr == 0U) {
+        GTEST_SKIP() << "Test panda file not available, skipping test";
+    }
+    ASSERT_TRUE(HasTestMethodId()) << "Failed to get test method ids";
+
+    uint32_t testMethodId = GetTestMethodId(0);
+
+    SampleInfo sample;
+    sample.threadInfo.threadId = GetThreadId();
+    sample.stackInfo.managedStackSize = NUMBER_4;
+
+    // Dynamic frame (extFrameData is null, will be skipped in processing)
+    sample.stackInfo.managedStack[0].pandaFilePtr = 0x1000;
+    sample.stackInfo.managedStack[0].isStaticFrame = false;
+    sample.stackInfo.managedStack[0].extFrameData = nullptr;
+
+    // Bridge frame (should be skipped)
+    sample.stackInfo.managedStack[1].pandaFilePtr = helpers::ToUnderlying(FrameKind::BRIDGE);
+    sample.stackInfo.managedStack[1].isStaticFrame = true;
+    sample.stackInfo.managedStack[1].extFrameData = nullptr;
+
+    // Another bridge frame (should be skipped)
+    sample.stackInfo.managedStack[NUMBER_2].pandaFilePtr = helpers::ToUnderlying(FrameKind::BRIDGE);
+    sample.stackInfo.managedStack[NUMBER_2].isStaticFrame = true;
+    sample.stackInfo.managedStack[NUMBER_2].extFrameData = nullptr;
+
+    // Static frame (using real panda file pointer)
+    sample.stackInfo.managedStack[NUMBER_3].pandaFilePtr = testPandaFilePtr;
+    sample.stackInfo.managedStack[NUMBER_3].fileId = testMethodId;
+    sample.stackInfo.managedStack[NUMBER_3].bcOffset = BC_OFFSET_10;
+
+    const std::shared_ptr<SamplesRecord> samplesRecord = std::make_shared<SamplesRecord>();
+    InspectorStreamWriter writer(samplesRecord);
+    writer.WriteSample(sample);
+
+    auto allThreadsProfileInfos = samplesRecord->GetAllThreadsProfileInfos();
+    ASSERT_NE(allThreadsProfileInfos, nullptr);
+    ASSERT_EQ(allThreadsProfileInfos->size(), 1);
+    // 3 default nodes (root, program, idle) + 1 static frame (dynamic + bridges skipped)
+    ASSERT_EQ((*allThreadsProfileInfos)[0]->nodeCount, NUMBER_4);
+}
+
+// Testing multiple hybrid stack samples
+TEST_F(SamplerTest, MultipleHybridStackSamplesTest)
+{
+    uintptr_t testPandaFilePtr = GetTestPandaFilePtr();
+    if (testPandaFilePtr == 0U) {
+        GTEST_SKIP() << "Test panda file not available, skipping test";
+    }
+    ASSERT_TRUE(HasTestMethodId()) << "Failed to get test method ids";
+
+    constexpr size_t SAMPLES_COUNT = NUMBER_10;
+    const std::shared_ptr<SamplesRecord> samplesRecord = std::make_shared<SamplesRecord>();
+
+    uint32_t testMethodId = GetTestMethodId(0);
+    for (size_t i = 0; i < SAMPLES_COUNT; ++i) {
+        SampleInfo sample;
+        sample.threadInfo.threadId = GetThreadId();
+        sample.stackInfo.managedStackSize = NUMBER_2;
+
+        sample.stackInfo.managedStack[0].pandaFilePtr = 0x1000;
+        sample.stackInfo.managedStack[0].isStaticFrame = false;
+        sample.stackInfo.managedStack[0].extFrameData = nullptr;
+
+        sample.stackInfo.managedStack[1].pandaFilePtr = testPandaFilePtr;
+        sample.stackInfo.managedStack[1].fileId = testMethodId;
+        sample.stackInfo.managedStack[1].bcOffset = static_cast<uint32_t>(i * NUMBER_10);
+
+        InspectorStreamWriter writer(samplesRecord);
+        writer.WriteSample(sample);
+    }
+
+    auto allThreadsProfileInfos = samplesRecord->GetAllThreadsProfileInfos();
+    ASSERT_NE(allThreadsProfileInfos, nullptr);
+    ASSERT_EQ(allThreadsProfileInfos->size(), 1);
+    ASSERT_EQ((*allThreadsProfileInfos)[0]->timeDeltas.size(), SAMPLES_COUNT);
+}
+
+// Testing hybrid stack with different thread IDs
+TEST_F(SamplerTest, HybridStackDifferentThreadIdsTest)
+{
+    const std::shared_ptr<SamplesRecord> samplesRecord = std::make_shared<SamplesRecord>();
+
+    SampleInfo sample1;
+    sample1.threadInfo.threadId = 1;
+    sample1.stackInfo.managedStackSize = 1;
+    sample1.stackInfo.managedStack[0].pandaFilePtr = 0x1000;
+    sample1.stackInfo.managedStack[0].isStaticFrame = false;
+    sample1.stackInfo.managedStack[0].extFrameData = nullptr;
+
+    SampleInfo sample2;
+    sample2.threadInfo.threadId = NUMBER_2;
+    sample2.stackInfo.managedStackSize = 1;
+    sample2.stackInfo.managedStack[0].pandaFilePtr = 0x1000;
+    sample2.stackInfo.managedStack[0].isStaticFrame = false;
+    sample2.stackInfo.managedStack[0].extFrameData = nullptr;
+
+    InspectorStreamWriter writer1(samplesRecord);
+    writer1.WriteSample(sample1);
+
+    InspectorStreamWriter writer2(samplesRecord);
+    writer2.WriteSample(sample2);
+
+    samplesRecord->SetMainThreadIds(1, 1);
+
+    auto allThreadsProfileInfos = samplesRecord->GetAllThreadsProfileInfos();
+    ASSERT_NE(allThreadsProfileInfos, nullptr);
+    ASSERT_EQ(allThreadsProfileInfos->size(), NUMBER_2);
+}
 }  // namespace ark::tooling::sampler::test

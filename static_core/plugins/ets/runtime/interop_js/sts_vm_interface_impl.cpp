@@ -14,11 +14,12 @@
  */
 
 #include "plugins/ets/runtime/interop_js/sts_vm_interface_impl.h"
-#include "plugins/ets/runtime/interop_js/tooling/internal_api.h"
 #include "plugins/ets/runtime/interop_js/xgc/xgc.h"
+#include "plugins/ets/runtime/interop_js/tooling/internal_api.h"
 #include "libarkbase/utils/time.h"
 #include "plugins/ets/runtime/ets_vm.h"
 #include "runtime/mem/gc/gc.h"
+#include "plugins/ets/runtime/ets_coroutine.h"
 #include "plugins/ets/runtime/ets_execution_context.h"
 #include "plugins/ets/runtime/interop_js/interop_context.h"
 #include "plugins/ets/runtime/interop_js/ets_proxy/shared_reference_storage.h"
@@ -114,6 +115,22 @@ void STSVMInterfaceImpl::NotifyWaiters()
     xgcBarrier_.Signal();
 }
 
+bool STSVMInterfaceImpl::UnionStackIsEmpty(bool *isEmpty)
+{
+    return ark::ets::interop::js::UnionStackIsEmpty(isEmpty);
+}
+
+bool STSVMInterfaceImpl::ForEachFrameInUnionStack(void (*callback)(const void *frame, bool isStaticFrame, void *data),
+                                                  void *data)
+{
+    return ark::ets::interop::js::ForEachFrameInUnionStack(callback, data);
+}
+
+bool STSVMInterfaceImpl::GetStaticFrameInfo(const void *frame, arkplatform::HybridFrameInfo &frameInfo)
+{
+    return ark::ets::interop::js::GetStaticFrameInfo(frame, frameInfo);
+}
+
 bool STSVMInterfaceImpl::TriggerXGC()
 {
     if (!XGC::IsEnabled()) {
@@ -129,22 +146,6 @@ bool STSVMInterfaceImpl::TriggerXGC()
     auto task = MakePandaUnique<GCTask>(GCTaskCause::CROSSREF_CAUSE, ark::time::GetCurrentTimeInNanos());
     // isManaged=false since this is called from a JS thread, not an ETS managed thread
     return gc->AddGCTask(false, std::move(task));
-}
-
-bool STSVMInterfaceImpl::UnionStackIsEmpty(bool *isEmpty)
-{
-    return ark::ets::interop::js::UnionStackIsEmpty(isEmpty);
-}
-
-bool STSVMInterfaceImpl::ForEachFrameInUnionStack(
-    const std::function<void(const void *frame, bool isStaticFrame)> &callback)
-{
-    return ark::ets::interop::js::ForEachFrameInUnionStack(callback);
-}
-
-bool STSVMInterfaceImpl::GetStaticFrameInfo(const void *frame, arkplatform::HybridFrameInfo &frameInfo)
-{
-    return ark::ets::interop::js::GetStaticFrameInfo(frame, frameInfo);
 }
 
 STSVMInterfaceImpl::VMBarrier::VMBarrier(size_t vmsCount)

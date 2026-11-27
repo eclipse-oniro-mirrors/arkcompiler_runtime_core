@@ -26,6 +26,12 @@ namespace ark::ets::interop::js::testing {
 
 namespace {
 
+void IsStaticFrameCollector([[maybe_unused]] const void *frame, bool isStaticFrame, void *data)
+{
+    auto *vec = static_cast<std::vector<bool> *>(data);
+    vec->push_back(isStaticFrame);
+}
+
 // Captures the union stack as a vector of frame types (static/dynamic).
 // Returns false when the API itself fails, `isEmpty` mirrors UnionStackIsEmpty.
 bool CaptureUnionStack(std::vector<bool> &isStaticFrameV, bool &isEmpty)
@@ -33,9 +39,7 @@ bool CaptureUnionStack(std::vector<bool> &isStaticFrameV, bool &isEmpty)
     if (!UnionStackIsEmpty(&isEmpty) || isEmpty) {
         return false;
     }
-    return ForEachFrameInUnionStack([&isStaticFrameV]([[maybe_unused]] const void *frame, bool isStaticFrame) {
-        isStaticFrameV.push_back(isStaticFrame);
-    });
+    return ForEachFrameInUnionStack(IsStaticFrameCollector, &isStaticFrameV);
 }
 
 }  // namespace
@@ -61,10 +65,7 @@ static bool TestHybridStack()
     }
     ASSERT(!isEmpty);
     std::vector<bool> isStaticFrameV;
-    [[maybe_unused]] bool res =
-        ForEachFrameInUnionStack([&isStaticFrameV]([[maybe_unused]] const void *frame, bool isStaticFrame) {
-            isStaticFrameV.push_back(isStaticFrame);
-        });
+    [[maybe_unused]] bool res = ForEachFrameInUnionStack(IsStaticFrameCollector, &isStaticFrameV);
     ASSERT(res);
 
     /*
@@ -108,10 +109,7 @@ static bool TestHybridStackLambda()
     }
     ASSERT(!isEmpty);
     std::vector<bool> isStaticFrameV;
-    [[maybe_unused]] bool res =
-        ForEachFrameInUnionStack([&isStaticFrameV]([[maybe_unused]] const void *frame, bool isStaticFrame) {
-            isStaticFrameV.push_back(isStaticFrame);
-        });
+    [[maybe_unused]] bool res = ForEachFrameInUnionStack(IsStaticFrameCollector, &isStaticFrameV);
     ASSERT(res);
 
     /*
@@ -153,10 +151,7 @@ static bool TestHybridStackESValue()
     }
     ASSERT(!isEmpty);
     std::vector<bool> isStaticFrameV;
-    [[maybe_unused]] bool res =
-        ForEachFrameInUnionStack([&isStaticFrameV]([[maybe_unused]] const void *frame, bool isStaticFrame) {
-            isStaticFrameV.push_back(isStaticFrame);
-        });
+    [[maybe_unused]] bool res = ForEachFrameInUnionStack(IsStaticFrameCollector, &isStaticFrameV);
     ASSERT(res);
 
     /*
@@ -197,11 +192,7 @@ static bool TestHybridStackSTValue()
     }
     ASSERT(!isEmpty);
     std::vector<bool> isStaticFrameV;
-    // NOLINTNEXTLINE
-    [[maybe_unused]] bool res =
-        ForEachFrameInUnionStack([&isStaticFrameV]([[maybe_unused]] const void *frame, bool isStaticFrame) {
-            isStaticFrameV.push_back(isStaticFrame);
-        });
+    [[maybe_unused]] bool res = ForEachFrameInUnionStack(IsStaticFrameCollector, &isStaticFrameV);
     ASSERT(res);
 
     /*
