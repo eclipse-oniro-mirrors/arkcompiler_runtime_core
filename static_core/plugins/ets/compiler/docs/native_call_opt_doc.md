@@ -64,9 +64,9 @@ Typical IR shapes after `NativeCallOptimization`:
 
 ## Validation
 
-- `plugins/ets/tests/checked/ani/direct_native.ets`
-- `plugins/ets/tests/checked/ani/quick_native.ets`
-- `plugins/ets/tests/checked/ani/unsafe_memory.ets`
+- `plugins/ets/tests/checked/ani/direct_native.ats`
+- `plugins/ets/tests/checked/ani/quick_native.ats`
+- `plugins/ets/tests/checked/ani/unsafe_memory.ats`
 - use compiler IR/disasm dumps to verify `CallNative`, `WrapObjectNative`, and begin/end-native entrypoints
 
 ## Links

@@ -85,7 +85,7 @@ panda_add_gtest_with_ani(ets_vm_oom_runtime_test
 if (NOT PANDA_QEMU_BUILD)
     panda_add_gtest_with_ani(ets_vm_postfork_aot_load_runtime_test
         CPP_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/runtime/ets_vm_postfork_aot_load_test.cpp
-        ETS_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/runtime/ets_vm_postfork_aot_load_test.ets
+        ETS_SOURCES ${PANDA_ETS_PLUGIN_SOURCE}/tests/runtime/ets_vm_postfork_aot_load_test.ats
         INCLUDE_DIRS ${PANDA_ETS_PLUGIN_SOURCE}/runtime
         LIBRARIES arkbase arkfile arkruntime
         TEST_GROUP ets_tests_runtime_gtests
