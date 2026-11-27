@@ -1,5 +1,7 @@
 # bytecode_optimizer (runtime_core) — Agent Guide
 
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
+
 This document is the **full working guide** for **`arkcompiler/runtime_core/bytecode_optimizer`** (the **dynamic / runtime_core** bytecode optimizer).
 
 There is a **separate** bytecode optimizer under **`arkcompiler/runtime_core/static_core/bytecode_optimizer`** (static / ArkTS). That one has a different pass pipeline (e.g. CheckResolver, Canonicalization, BytecodeOptPeepholes, ConstArrayResolver, CallDevirtualization), **no** `AnalysisBytecode`/`BytecodeAnalysisResults`, plugin-based codegen/runtime_adapter, and different build targets (`libarktsbytecodeopt`). Do not confuse the two.

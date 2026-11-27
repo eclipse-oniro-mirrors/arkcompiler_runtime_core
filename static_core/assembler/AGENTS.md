@@ -1,5 +1,7 @@
 # Assembler Component
 
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
+
 ## Core Metadata
 
 | Attribute | Value |

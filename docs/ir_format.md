@@ -1,5 +1,7 @@
 # Panda Intermediate representation(IR) design
 
+> For ArkTS-Sta, use the [static runtime guide on this topic](../static_core/docs/ir_format.md).
+
 This document describes Panda IR design with the following goals  
 * Possibility to implement various optimizations and analyses  
 * Support all the features and instructions of Panda bytecode
@@ -17,17 +19,16 @@ Second, we need to support the transfer of information between optimizations.
 ### List of the optimizations
 
 * [IrBuilder](../compiler/docs/ir_builder.md)
-* [BranchElimination](../compiler/docs/branch_elimination_doc.md)
-* [ChecksElimination](../compiler/docs/check_elimination_doc.md)
+* [BranchElimination](../compiler/optimizer/optimizations/branch_elimination.cpp)
+* ChecksElimination ([static compiler reference](../static_core/compiler/docs/check_elimination_doc.md))
 * [Cleanup](../compiler/docs/cleanup_doc.md)
-* [Constant Folding](../compiler/docs/constant_folding_doc.md)
-* [Inlining](../compiler/docs/inlining.md)
-* Inlining
-* [LICM](../compiler/docs/licm_doc.md)
+* Constant Folding ([static compiler reference](../static_core/compiler/docs/constant_folding_doc.md))
+* Inlining ([static compiler reference](../static_core/compiler/docs/inlining.md))
+* LICM ([static compiler reference](../static_core/compiler/docs/licm_doc.md))
 * [Lowering](../compiler/docs/lowering_doc.md)
-* [Load Store Elimination (LSE)](../compiler/docs/lse_doc.md)
-* [Memory Coalescing](../compiler/docs/memory_coalescing_doc.md)
-* [Peepholes](../compiler/docs/peephole_doc.md)
+* Load Store Elimination (LSE) ([static compiler reference](../static_core/compiler/docs/lse_doc.md))
+* Memory Coalescing ([static compiler reference](../static_core/compiler/docs/memory_coalescing_doc.md))
+* Peepholes ([static compiler reference](../static_core/compiler/docs/peephole_doc.md))
 * [Value Numbering](../compiler/docs/vn_doc.md)
 
 ### Analyses

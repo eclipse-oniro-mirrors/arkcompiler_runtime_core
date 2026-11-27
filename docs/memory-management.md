@@ -1,5 +1,7 @@
 # Memory management and object layout. Design.
 
+> For ArkTS-Sta, use the [static runtime guide on this topic](../static_core/docs/memory-management.md).
+
 ## Overview
 
 Panda Runtime should be scalable onto different devices/OSes. So we need some abstraction level for the OS memory management.
@@ -33,8 +35,6 @@ There are several modes for memory management:
 Mode are chosen at the startup time (we'll use profile info from cloud for that).
 
 ## Object header
-
-Rationale see [here](memory-management-overview.md).
 
 ### Requirements
 
@@ -214,9 +214,6 @@ String:
 +------------------------------------------------+
 ```
 
-See research [here](./memory-management-overview.md#possible-string-objects-size-reduction).
-About JS strings and arrays see [here](./memory-management-overview.md#js-strings-and-arrays).
-
 ## Allocators
 
 Requirements:
@@ -349,7 +346,7 @@ Garbage collector(GC) automatically recycles memory that it can prove will never
 GC development will be iterative process.
 
 Common requirements:
-- precise GC (see [glossary](./glossary.md#memory-management-terms))
+- precise GC (see [glossary](../static_core/docs/glossary.md#memory-management-terms))
 - GC should support various [modes](#overview)(performance, power-saving mode, normal mode);
 - GC suitable for each mode he shouldn't violate requirements for this mode(see [here](#overview))
 
@@ -485,7 +482,7 @@ Major GC
 
 Note: good choice for the applications with big heap or for applications when it is hard to provide stable low pause with Region based GC.
 
-Note: compaction is target and mode dependent, so for low-memory devices we can consider [semi-space compaction](./glossary.md#memory-management-terms).
+Note: compaction is target and mode dependent, so for low-memory devices we can consider [semi-space compaction](../static_core/docs/glossary.md#memory-management-terms).
 For straight-forward approach we can consider some support from OS to minimize overlapping of semi-space compaction phases between applications.
 
 ### GC: interaction with Interpreter, JIT and AOT
@@ -594,7 +591,7 @@ It is critical to make compiler to encode barriers very optimally. At least fast
 There are several approaches for that:
  1. To describe barrier use some meta-language or IR which can be interpreted/encoded by all compilers compatible with runtime (it is currently not applicable for the runtime)
  1. (a lot of open questions here, so consider this as an idea) One compiler knows how to encode barrier using runtime interfaces (see next item) and could provide some more compiler-friendly interface to the other compilers to encode GC barriers.
- 1. The compiler knows for each barrier type how it should be encoded (see pseudocode in `libpandabase/mem/gc_barrier.h`). And could use the runtime to get all required operands to do this.
+ 1. The compiler knows for each barrier type how it should be encoded (see the [dynamic barrier definitions](../libpandabase/include/libpandabase/mem/gc_barrier.h)). And could use the runtime to get all required operands to do this.
 Let's consider below encoding of PRE_ barrier:
    - get barrier type via RuntimeInterface: `BarrierType GetPreType() const`
    - for this barrier type get all needed operands provided by Runtime via

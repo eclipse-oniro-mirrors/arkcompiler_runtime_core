@@ -1,5 +1,7 @@
 # VerifyANI Agent Guide
 
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
+
 ## Code Map
 
 This AGENTS.md applies to `runtime_core/static_core/plugins/ets/runtime/ani/verify/`. It adds VerifyANI-specific rules on top of `../AGENTS.md`.

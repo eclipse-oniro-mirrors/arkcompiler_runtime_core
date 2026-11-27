@@ -1,5 +1,7 @@
 # disassembler (runtime_core) — Agent Guide
 
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
+
 This document is the **full working guide** for **`arkcompiler/runtime_core/disassembler`** (the **dynamic / runtime_core** disassembler).
 
 There is a **separate** disassembler under **`arkcompiler/runtime_core/static_core/disassembler`** (static / ArkTS). That one uses namespace **ark::disasm**, different build targets (**arktsdisassembler**, **arkts_disasm**), adds **DisasmBackedDebugInfoExtractor** and profiling support, and uses libarktsfile/libarktsassembler. Do not confuse the two.

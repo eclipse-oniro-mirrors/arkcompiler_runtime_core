@@ -1,5 +1,7 @@
 # ISA Module AGENTS.md
 
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
+
 > Verified on commit: f965a250e9a4ad664a282f7e220a42a744964a5a
 > Last updated: 2026-02-13
 > Assumed workspace: arkcompiler/runtime_core/isa

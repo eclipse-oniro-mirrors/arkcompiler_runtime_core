@@ -1,5 +1,7 @@
 # verifier (runtime_core) — Agent Guide
 
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
+
 This document is the **full working guide** for **`arkcompiler/runtime_core/verifier`** (the **runtime_core** / structural verifier).
 
 There is a **separate** verification framework under **`arkcompiler/runtime_core/static_core/verification`** (static / ArkTS). That one performs **semantic and type verification** (control flow, type resolution, abstract interpretation). The **runtime_core verifier** does **not** do that; it focuses on **structural and referential integrity** of `.abc` files (checksum, constant pool, literal arrays, register indices, instructions). Do not confuse the two.

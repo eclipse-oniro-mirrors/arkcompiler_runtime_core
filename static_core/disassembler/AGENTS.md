@@ -1,5 +1,7 @@
 # disassembler (static_core) — Agent Guide
 
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
+
 This document is the **full working guide** for **`arkcompiler/runtime_core/static_core/disassembler`**.
 
 ---

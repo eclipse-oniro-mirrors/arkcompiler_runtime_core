@@ -1,9 +1,11 @@
 # Panda Tracing
 
+> For ArkTS-Sta, use the [static runtime guide on this topic](../static_core/docs/tracing.md).
+
 This document describes **Panda trace** subsystem. The subsystem provides API for creating *tracepoints* to track key points in the runtime. The subsystem uses the `ftrace` ring buffer to record the trace.
 
 ## API
-Trace API is described in libpandabase/trace/trace.h file. It supports tracing a scope execution time and tracking a parameter value.
+The [Panda tracing header](../libpandabase/include/libpandabase/trace/trace.h) defines the tracing API. It supports tracing a scope execution time and tracking a parameter value.
 ### Usage examples:
 ```cpp
 ...

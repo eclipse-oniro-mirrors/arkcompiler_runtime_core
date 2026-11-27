@@ -1,5 +1,7 @@
 # Ark Compiler Agent Guide
 
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
+
 ## 1. Code Map
 
 This AGENTS.md applies to `static_core/compiler/`, the **language-agnostic** optimizing compiler. It turns Panda

@@ -1,4 +1,6 @@
 # AGENTS
+
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
 **name**:interop
 **path**:/arkcompiler/runtime_core/static_core/plugins/ets/runtime/interop_js
 **Purpose**:This is the **interop_js** component of the ArkCompiler runtime, enabling interoperability between ETS (Extended TypeScript/ArkTS) and JavaScript environments. It sits within the larger ArkCompiler runtime at `runtime_core/static_core/plugins/ets/runtime/`.

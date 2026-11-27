@@ -1,15 +1,28 @@
+---
+repo_path: arkcompiler/runtime_core
+subsystem: arkcompiler
+primary_language: C++
+last_updated: 2026-11-25
+---
+
 # Entry of ArkTS runtime for AI-Based tools
+
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
 ## 1. Code map
 
 This repository is the runtime implementation of OpenHarmony's ArkCompiler. There are two basic components in the runtime: the dynamic runtime for ArkTS-Dyn, and the static runtime for ArkTS-Sta (see below).
 
 This AGENTS.md provides guidance to AI coding agents working in this repository. It helps understand main concepts, code structure and how to get further instructions to work with the repo.
 
-Key areas:
-- Directory `static_core/`: for static runtime
-- Rest of the directory: for dynamic runtime
+| Directory | Responsibility | Risk |
+|---|---|---|
+| `static_core/` | Static VM, compiler and language plugins | Keep language policy in its plugin. |
+| `compiler/`, `isa/` | Dynamic compiler and instruction definitions | Coordinate opcode changes with bytecode consumers. |
+| `assembler/`, `disassembler/`, `libpandafile/` | Dynamic bytecode encoding and decoding | Preserve compatibility with existing ABC files. |
+| `arkplatform/`, `platforms/`, `libpandabase/` | VM interfaces and platform support | Check ABI, ownership and platform-specific behavior. |
+| `docs/`, `static_core/docs/` | Architecture references | For static work use the static document when names coincide. |
 
-### Key Concepts
+### 1.1 Key Concepts
 
 - `ArkTS-Dyn`: Traditional ArkTS programming model, with dynamic typing at runtime.
 - `ArkTS-Sta`: Variant of ArkTS with static typing at runtime.
@@ -29,8 +42,9 @@ Key areas:
 
   Located at `static_core/plugins/ets/stdlib/`.
 
-### File formats
+### 1.2 File formats
 - `ets`: `ArkTS-Dyn` or `ArkTS-Sta` sources.
+- `ats`: ArkTS-Sta source file compiled to ABC bytecode by the static frontend.
 - `abc`: ArkTS bytecode.
 - `an`: Posix ELF or Darwin Mach-O file generated from AOT compiler.
 
@@ -38,55 +52,103 @@ Key areas:
 
 Before planning or editing, classify the task and read the matching documents.
 
-### Task-based routing
-- working with dynamic runtime -> read `AGENTS_dyn.md`
-- working with static runtime -> read `static_core/AGENTS.md`
+### 2.1 Task-based routing
 
-### Path-based routing
-- `assembler/`      -> read `assembler/AGENTS.md`
-- `disassembler/`   -> read `disassembler/AGENTS.md`
-- `bytecode_optimizer/` -> read `bytecode_optimizer/AGENTS.md`
-- `bytecode_explorer/` -> read `bytecode_explorer/AGENTS.md`
-- `libpandabase/`   -> read `libpandabase/AGENTS.md`
-- `libpandafile/`   -> read `libpandafile/AGENTS.md`
-- `abc2program/`    -> read `abc2program/AGENTS.md`
-- `libabckit/`      -> read `libabckit/AGENTS.md`
-- `verifier/`       -> read `verifier/AGENTS.md`
-- `pandastdlib/`    -> read `pandastdlib/AGENTS.md`
-- `libziparchive/`  -> read `libziparchive/AGENTS.md`
-- `platforms/`      -> read `platforms/AGENTS.md`
-- `panda/`          -> read `panda/AGENTS.md`
-- `arkplatform/`   -> read `arkplatform/AGENTS.md`
-- `ark_guard/`      -> read `ark_guard/AGENTS.md`
-- `static_core/`    -> read `static_core/AGENTS.md`
-- `static_core/assembler/` -> read `static_core/assembler/AGENTS.md`
-- `static_core/plugins/ets/stdlib/` -> read `static_core/plugins/ets/stdlib/AGENTS.md`
-- `static_core/compiler/` -> read `static_core/compiler/AGENTS.md`
-- `static_core/irtoc/` -> read `static_core/irtoc/AGENTS.md`
-- `static_core/plugins/ets/runtime/ani/` -> read `static_core/plugins/ets/runtime/ani/AGENTS.md`
-- `static_core/plugins/ets/runtime/interop_js/` -> read `static_core/plugins/ets/runtime/interop_js/AGENTS.md`
-- `static_core/libarkbase/` -> read `static_core/libarkbase/AGENTS.md`
-- `static_core/libarkfile/` -> read `static_core/libarkfile/AGENTS.md`
-- `static_core/verification/` -> read `static_core/verification/AGENTS.md`
+| Task | Read first |
+|---|---|
+| Classify dynamic VM work | [AGENTS_dyn.md](AGENTS_dyn.md) |
+| Classify static VM work | [static_core/AGENTS.md](static_core/AGENTS.md) |
+| Assemble dynamic bytecode | [assembler/AGENTS.md](assembler/AGENTS.md) |
+| Decode dynamic bytecode | [disassembler/AGENTS.md](disassembler/AGENTS.md) |
+| Change dynamic file encoding | [libpandafile/AGENTS.md](libpandafile/AGENTS.md) |
+| Verify dynamic bytecode | [verifier/AGENTS.md](verifier/AGENTS.md) |
+| Change VM platform interfaces | [arkplatform/AGENTS.md](arkplatform/AGENTS.md) |
+| Optimize static IR | [static_core/compiler/AGENTS.md](static_core/compiler/AGENTS.md) |
+| Change static scheduling | [static_core/runtime/execution/AGENTS.md](static_core/runtime/execution/AGENTS.md) |
+| Implement a static builtin | [static_core/plugins/ets/stdlib/AGENTS.md](static_core/plugins/ets/stdlib/AGENTS.md) |
+| Change JS interop | [static_core/plugins/ets/runtime/interop_js/AGENTS.md](static_core/plugins/ets/runtime/interop_js/AGENTS.md) |
+| Run static checked tests | [static_core/tests/AGENTS.md](static_core/tests/AGENTS.md) |
 
-### Vocabulary-based routing
+### 2.2 Nested guidance by path
+
+Read the guide for the closest enclosing directory. Paths are relative to the repository root.
+
+| Directory scope | Nested guidance |
+|---|---|
+| abc2program/ | [abc2program/AGENTS.md](abc2program/AGENTS.md) · [abc2program/CLAUDE.md](abc2program/CLAUDE.md) |
+| ark_guard/ | [ark_guard/AGENTS.md](ark_guard/AGENTS.md) · [ark_guard/CLAUDE.md](ark_guard/CLAUDE.md) |
+| arkplatform/ | [arkplatform/AGENTS.md](arkplatform/AGENTS.md) |
+| assembler/ | [assembler/AGENTS.md](assembler/AGENTS.md) |
+| bytecode_explorer/ | [bytecode_explorer/AGENTS.md](bytecode_explorer/AGENTS.md) |
+| bytecode_optimizer/ | [bytecode_optimizer/AGENTS.md](bytecode_optimizer/AGENTS.md) · [bytecode_optimizer/CLAUDE.md](bytecode_optimizer/CLAUDE.md) |
+| cmake/ | [cmake/AGENTS.md](cmake/AGENTS.md) |
+| disassembler/ | [disassembler/AGENTS.md](disassembler/AGENTS.md) · [disassembler/CLAUDE.md](disassembler/CLAUDE.md) |
+| gn/ | [gn/AGENTS.md](gn/AGENTS.md) |
+| isa/ | [isa/AGENTS.md](isa/AGENTS.md) |
+| ldscripts/ | [ldscripts/AGENTS.md](ldscripts/AGENTS.md) |
+| libabckit/ | [libabckit/AGENTS.md](libabckit/AGENTS.md) · [libabckit/CLAUDE.md](libabckit/CLAUDE.md) |
+| libpandabase/ | [libpandabase/AGENTS.md](libpandabase/AGENTS.md) |
+| libpandafile/ | [libpandafile/AGENTS.md](libpandafile/AGENTS.md) |
+| libziparchive/ | [libziparchive/AGENTS.md](libziparchive/AGENTS.md) |
+| panda/ | [panda/AGENTS.md](panda/AGENTS.md) |
+| panda_guard/ | [panda_guard/AGENTS.md](panda_guard/AGENTS.md) · [panda_guard/CLAUDE.md](panda_guard/CLAUDE.md) |
+| pandastdlib/ | [pandastdlib/AGENTS.md](pandastdlib/AGENTS.md) |
+| platforms/ | [platforms/AGENTS.md](platforms/AGENTS.md) |
+| plugins/ | [plugins/AGENTS.md](plugins/AGENTS.md) |
+| scripts/ | [scripts/AGENTS.md](scripts/AGENTS.md) |
+| static_core/ | [static_core/AGENTS.md](static_core/AGENTS.md) |
+| static_core/abc2program/ | [static_core/abc2program/AGENTS.md](static_core/abc2program/AGENTS.md) · [static_core/abc2program/CLAUDE.md](static_core/abc2program/CLAUDE.md) |
+| static_core/assembler/ | [static_core/assembler/AGENTS.md](static_core/assembler/AGENTS.md) · [static_core/assembler/CLAUDE.md](static_core/assembler/CLAUDE.md) |
+| static_core/bytecode_optimizer/ | [static_core/bytecode_optimizer/AGENTS.md](static_core/bytecode_optimizer/AGENTS.md) · [static_core/bytecode_optimizer/CLAUDE.md](static_core/bytecode_optimizer/CLAUDE.md) |
+| static_core/compiler/ | [static_core/compiler/AGENTS.md](static_core/compiler/AGENTS.md) |
+| static_core/compiler/aot/ | [static_core/compiler/aot/AGENTS.md](static_core/compiler/aot/AGENTS.md) |
+| static_core/disassembler/ | [static_core/disassembler/AGENTS.md](static_core/disassembler/AGENTS.md) · [static_core/disassembler/CLAUDE.md](static_core/disassembler/CLAUDE.md) |
+| static_core/irtoc/ | [static_core/irtoc/AGENTS.md](static_core/irtoc/AGENTS.md) |
+| static_core/libarkbase/ | [static_core/libarkbase/AGENTS.md](static_core/libarkbase/AGENTS.md) |
+| static_core/libarkfile/ | [static_core/libarkfile/AGENTS.md](static_core/libarkfile/AGENTS.md) |
+| static_core/platforms/ | [static_core/platforms/AGENTS.md](static_core/platforms/AGENTS.md) |
+| static_core/plugins/ | [static_core/plugins/AGENTS.md](static_core/plugins/AGENTS.md) |
+| static_core/plugins/ets/ | [static_core/plugins/ets/AGENTS.md](static_core/plugins/ets/AGENTS.md) |
+| static_core/plugins/ets/compiler/ | [static_core/plugins/ets/compiler/AGENTS.md](static_core/plugins/ets/compiler/AGENTS.md) |
+| static_core/plugins/ets/playground/ | [static_core/plugins/ets/playground/AGENTS.md](static_core/plugins/ets/playground/AGENTS.md) · [static_core/plugins/ets/playground/CLAUDE.md](static_core/plugins/ets/playground/CLAUDE.md) |
+| static_core/plugins/ets/runtime/ | [static_core/plugins/ets/runtime/AGENTS.md](static_core/plugins/ets/runtime/AGENTS.md) |
+| static_core/plugins/ets/runtime/ani/ | [static_core/plugins/ets/runtime/ani/AGENTS.md](static_core/plugins/ets/runtime/ani/AGENTS.md) |
+| static_core/plugins/ets/runtime/ani/verify/ | [static_core/plugins/ets/runtime/ani/verify/AGENTS.md](static_core/plugins/ets/runtime/ani/verify/AGENTS.md) |
+| static_core/plugins/ets/runtime/interop_js/ | [static_core/plugins/ets/runtime/interop_js/AGENTS.md](static_core/plugins/ets/runtime/interop_js/AGENTS.md) |
+| static_core/plugins/ets/sdk/ | [static_core/plugins/ets/sdk/AGENTS.md](static_core/plugins/ets/sdk/AGENTS.md) · [static_core/plugins/ets/sdk/CLAUDE.md](static_core/plugins/ets/sdk/CLAUDE.md) |
+| static_core/plugins/ets/stdlib/ | [static_core/plugins/ets/stdlib/AGENTS.md](static_core/plugins/ets/stdlib/AGENTS.md) · [static_core/plugins/ets/stdlib/CLAUDE.md](static_core/plugins/ets/stdlib/CLAUDE.md) |
+| static_core/plugins/ets/tests/ets-templates/ | [static_core/plugins/ets/tests/ets-templates/AGENTS.md](static_core/plugins/ets/tests/ets-templates/AGENTS.md) |
+| static_core/plugins/ets/tools/declgen_ts2sts/ | [static_core/plugins/ets/tools/declgen_ts2sts/AGENTS.md](static_core/plugins/ets/tools/declgen_ts2sts/AGENTS.md) |
+| static_core/runtime/ | [static_core/runtime/AGENTS.md](static_core/runtime/AGENTS.md) |
+| static_core/runtime/execution/ | [static_core/runtime/execution/AGENTS.md](static_core/runtime/execution/AGENTS.md) |
+| static_core/runtime/jit/ | [static_core/runtime/jit/AGENTS.md](static_core/runtime/jit/AGENTS.md) |
+| static_core/runtime/mem/gc/ | [static_core/runtime/mem/gc/AGENTS.md](static_core/runtime/mem/gc/AGENTS.md) |
+| static_core/runtime/tooling/ | [static_core/runtime/tooling/AGENTS.md](static_core/runtime/tooling/AGENTS.md) |
+| static_core/static_linker/ | [static_core/static_linker/AGENTS.md](static_core/static_linker/AGENTS.md) · [static_core/static_linker/CLAUDE.md](static_core/static_linker/CLAUDE.md) |
+| static_core/tests/ | [static_core/tests/AGENTS.md](static_core/tests/AGENTS.md) |
+| static_core/verification/ | [static_core/verification/AGENTS.md](static_core/verification/AGENTS.md) · [static_core/verification/CLAUDE.md](static_core/verification/CLAUDE.md) |
+| templates/ | [templates/AGENTS.md](templates/AGENTS.md) |
+| tests/ | [tests/AGENTS.md](tests/AGENTS.md) |
+| verifier/ | [verifier/AGENTS.md](verifier/AGENTS.md) · [verifier/CLAUDE.md](verifier/CLAUDE.md) |
+
+### 2.3 Vocabulary-based routing
 | Term | Risk hint | Read |
 |------|-----------|------|
-| pandaasm,es2abc |  | `assembler/AGENTS.md` |
-| ark_disasm |  | `disassembler/AGENTS.md` |
-| vm interface,interop,xgc  |  | `ark_platform/AGENTS.md`, `static_core/plugins/ets/runtime/interop_js/AGENTS.md` |
-| ArkTS-Dyn os,fd,memory,thread,signal,mutex |  | `libpandabase/AGENTS.md`, `platforms/AGENTS.md` |
-| ArkTS-Dyn abc file format,loader,reader,writer     |   | `libpandafile/AGENTS.md`, `abc2program/AGENTS.md` |
-| validate, modify abc files |  | `libabckit/AGENTS.md`, `verifier/AGENTS.md` |
-| ArkTS-Dyn ets stdlib |  | `pandastdlib/AGENTS.md` |
-| zip,hap |   | `libziparchive/AGENTS.md` |
-| ets2abc |   | `static_core/assembler/AGENTS.md` |
-| builtin,stdlib |  | `static_core/plugins/ets/stdlib/AGENTS.md` |
-| ArkTS-Sta aot/jit |  | `static_core/compiler/AGENTS.md` |
-| irtoc,codegen,interpreter |  | `static_core/irtoc/AGENTS.md` |
-| ani,native,intrinsic,interop |  | `static_core/plugins/ets/runtime/ani/AGENTS.md` |
-| ArkTS-Sta memory,file,thread,mutex |  | `static_core/libarkbase/AGENTS.md` |
-| ArkTS-Sta abc file format,reader,writer |  | `static_core/libarkfile/AGENTS.md` |
+| pandaasm,es2abc | pandaasm consumes assembly. For source compilation in es2abc, start in the frontend. | `assembler/AGENTS.md` |
+| ark_disasm | Disassembly decodes existing ABC instructions. The assembler encodes operands. | `disassembler/AGENTS.md` |
+| vm interface,interop,xgc  | Use arkplatform for VM interfaces and the ETS interop guide for JS object lifetimes. | `arkplatform/AGENTS.md`, `static_core/plugins/ets/runtime/interop_js/AGENTS.md` |
+| ArkTS-Dyn os,fd,memory,thread,signal,mutex | Use libpandabase for shared OS APIs and platforms for target-specific behavior. | `libpandabase/AGENTS.md`, `platforms/AGENTS.md` |
+| ArkTS-Dyn abc file format,loader,reader,writer     | libpandafile owns binary layout. abc2program reconstructs an assembly program from decoded data. | `libpandafile/AGENTS.md`, `abc2program/AGENTS.md` |
+| validate, modify abc files | Use libabckit for transformations and the verifier for rejected bytecode. | `libabckit/AGENTS.md`, `verifier/AGENTS.md` |
+| ArkTS-Dyn ets stdlib | The top-level pandastdlib serves the dynamic tree. Static ETS builtins live under static_core. | `pandastdlib/AGENTS.md` |
+| zip,hap | Use the ZIP reader for the HAP container and the ABC reader for bytecode inside it. | `libziparchive/AGENTS.md` |
+| ets2abc | The static assembler accepts assembly. Source-language parsing belongs to the frontend. | `static_core/assembler/AGENTS.md` |
+| builtin,stdlib | For static ETS builtins, use the ETS plugin. The root pandastdlib serves the dynamic tree. | `static_core/plugins/ets/stdlib/AGENTS.md` |
+| ArkTS-Sta aot/jit | Distinguish offline file generation from compilation inside a running VM when choosing a compiler workflow. | `static_core/compiler/AGENTS.md` |
+| irtoc,codegen,interpreter | Find the irtoc input for a generated handler before changing interpreter code. | `static_core/irtoc/AGENTS.md` |
+| ani,native,intrinsic,interop | Use ANI for native bindings and the JS interop guide for JavaScript references. | `static_core/plugins/ets/runtime/ani/AGENTS.md` |
+| ArkTS-Sta memory,file,thread,mutex | Use libarkbase for platform primitives. VM scheduling and heap policy belong to the runtime. | `static_core/libarkbase/AGENTS.md` |
+| ArkTS-Sta abc file format,reader,writer | Use libarkfile for static ABC layout. The root libpandafile reader serves the dynamic tree. | `static_core/libarkfile/AGENTS.md` |
 
 In the plan, state:
 - task category
@@ -96,24 +158,24 @@ In the plan, state:
 
 ## 3. Constraints and boundaries
 
-### Architecture/domain invariants
+### 3.1 Architecture/domain invariants
 
 List of runtime invariants that shall not be touched unless explicitly requested and  manually confirmed:
 
-- Layout of ABC file, including data structure, encoding scheme of constants / classes.
-- Opcode of Instructions and their data layout.
-- Memory layout of objects / heap regions.
-- Thread models and atomic operation semantics.
+1. Layout of ABC file, including data structure, encoding scheme of constants / classes.
+2. Opcode of Instructions and their data layout.
+3. Memory layout of objects / heap regions.
+4. Thread models and atomic operation semantics.
 
 
-### Do not
+### 3.2 Do not
 - Do not introduce new production dependencies without explicit approval.
 - Do not change public API signatures, error codes, permission behavior, or lifecycle semantics unless the task explicitly requires it.
 - Do not modify generated files directly; update the source spec and regenerate.
 - Do not introduce thread safety issues.
 - Do not break the fidelity of the runtime
 
-### Ask before
+### 3.3 Ask before
 - Adding dependencies.
 - Changing public API semantics.
 - Changing permission model or trust boundary.
@@ -123,14 +185,64 @@ List of runtime invariants that shall not be touched unless explicitly requested
 
 ## 4. Verification
 
-### Lint & Code formatting
+### 4.1 Lint & Code formatting
 - Formatting/lint: `clang-format <file>`
 
-### Build & Run Tests
+### 4.2 Build & Run Tests
+From a full OpenHarmony checkout root, build the Linux host tools and host unit-test target:
+
+```sh
+./build.sh --product-name rk3568 --build-target arkcompiler/runtime_core:ark_host_linux_tools_packages
+./build.sh --product-name rk3568 --build-target arkcompiler/runtime_core:runtime_core_host_unittest
+```
+
+For a standalone static build with CMake, run from `static_core/` after installing the prerequisites in [the build guide](static_core/README.md):
+
+```sh
+cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/host_clang_14.cmake
+cmake --build build --target ark ark_aot es2panda
+```
+
+For a standalone GN build on Linux, run the bootstrap script from the repository root:
+
+```sh
+cd static_core
+./scripts/build-panda-with-gn
+```
+
+The script generates Ninja build files in `static_core/out/` and runs Ninja. See [Building with GN](static_core/README.md#building-with-gn) for manual setup.
+
+Never fabricate commands, logs, or passing results. Report which commands actually ran, their outcomes, and any skipped validation.
+
 Look into component-level `AGENTS.md` files for specific build and test commands.
 
-### Done definition
+### 4.3 Done definition
 A task is done only when:
-- behavior is implemented
+- the changed files and implemented behavior match the requested scope
+- affected error paths, interface compatibility, and build dependencies have been checked
 - relevant validation is run or limitation is explained
 - final response includes summary, files changed, validation result, and risks
+
+## 5. Repository skills
+
+| Task | Workflow |
+|---|---|
+| Investigate AOT profile use | [static_core/SKILLS/ark-aot-pgo/SKILL.md](static_core/SKILLS/ark-aot-pgo/SKILL.md) |
+| Reproduce a checked test or URunner failure | [static_core/SKILLS/ark-checked-urunner-repro/SKILL.md](static_core/SKILLS/ark-checked-urunner-repro/SKILL.md) |
+| Inspect IR and machine code | [static_core/SKILLS/ark-ir-disasm-triage/SKILL.md](static_core/SKILLS/ark-ir-disasm-triage/SKILL.md) |
+| Reproduce JIT or AOT behavior | [static_core/SKILLS/ark-jit-aot-repro/SKILL.md](static_core/SKILLS/ark-jit-aot-repro/SKILL.md) |
+| Measure static VM performance | [static_core/SKILLS/ark-perf-lab/SKILL.md](static_core/SKILLS/ark-perf-lab/SKILL.md) |
+| Write standard-library API tests | [static_core/plugins/ets/stdlib/SKILLS/arktest-generator/SKILL.md](static_core/plugins/ets/stdlib/SKILLS/arktest-generator/SKILL.md) |
+| Build the static standard library | [static_core/plugins/ets/stdlib/SKILLS/build-stdlib/SKILL.md](static_core/plugins/ets/stdlib/SKILLS/build-stdlib/SKILL.md) |
+| Update source copyright notices | [static_core/plugins/ets/stdlib/SKILLS/copyright/SKILL.md](static_core/plugins/ets/stdlib/SKILLS/copyright/SKILL.md) |
+| Change Unicode or ICU handling | [static_core/plugins/ets/stdlib/SKILLS/internationalization/SKILL.md](static_core/plugins/ets/stdlib/SKILLS/internationalization/SKILL.md) |
+| Connect standard-library code to native implementations | [static_core/plugins/ets/stdlib/SKILLS/native-integration/SKILL.md](static_core/plugins/ets/stdlib/SKILLS/native-integration/SKILL.md) |
+| Work on the PCRE2 binding | [static_core/plugins/ets/stdlib/SKILLS/pcre2-integration/SKILL.md](static_core/plugins/ets/stdlib/SKILLS/pcre2-integration/SKILL.md) |
+| Implement regular expressions | [static_core/plugins/ets/stdlib/SKILLS/regexp-implementation/SKILL.md](static_core/plugins/ets/stdlib/SKILLS/regexp-implementation/SKILL.md) |
+| Run standard-library functional tests | [static_core/plugins/ets/stdlib/SKILLS/urunner-stdlib/SKILL.md](static_core/plugins/ets/stdlib/SKILLS/urunner-stdlib/SKILL.md) |
+
+## 6. Changelog
+
+| Version | Date | Change | Author |
+|---|---|---|---|
+| 1 | 2026-11-25 | Expanded task routing, nested guidance, and verification instructions. | Codex (AI-assisted) |

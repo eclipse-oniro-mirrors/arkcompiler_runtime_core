@@ -1,5 +1,7 @@
 # Runtime JIT Profile Agent Guide
 
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
+
 ## 1. Code Map
 
 This AGENTS.md applies to `static_core/runtime/jit/`. This directory owns runtime profile data structures, `.ap` profile save/load, and the profile representation consumed by AOT PGO; it does not own JIT queues, workers, OSR entry, or compiled-code installation.

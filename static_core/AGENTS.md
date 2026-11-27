@@ -1,5 +1,7 @@
 # AGENTS.md
 
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
+
 Guidance for AI agents working in `static_core/`. This is the routing hub for the whole subtree: it fixes the
 project's shape, terminology, and source-of-truth files, then hands off to the nearest specialized `AGENTS.md`.
 

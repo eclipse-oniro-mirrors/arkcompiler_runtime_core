@@ -1,5 +1,7 @@
 # AGENTS.md — `runtime/mem/gc`
 
+> When an agent adds or changes code structure, features, or architectural boundaries in this scope, it MUST update this guide in the same change.
+
 Garbage collectors for the VM. Read `../../AGENTS.md` (runtime) first for the runtime↔GC boundary;
 this file covers only what is specific to editing collector code.
 
