@@ -70,6 +70,11 @@ const AotPandaFile *AotManager::FindPandaFile(const std::string &fileName)
     return nullptr;
 }
 
+// NOTE: mixed dedup keys: `fileName` is a load path, while GetFileName() returns
+// the compile-time output name (ark_aot's --paoc-output). When they differ, the
+// same file is opened twice and the loader reuses the same mapping, so
+// InitializeGot() re-walks GOT slots already patched with runtime pointers and
+// reads a pointer as a slot type. Keep --paoc-output equal to the final load path.
 const AotFile *AotManager::GetFile(const std::string &fileName) const
 {
     auto res = std::find_if(aotFiles_.begin(), aotFiles_.end(),

@@ -23,6 +23,7 @@
 #include "compiler_logger.h"
 #include "libarkbase/events/events.h"
 #include "include/runtime.h"
+#include "libarkbase/utils/utf.h"
 #include "mem/gc/gc_types.h"
 #include "optimizer_run.h"
 #include "optimizer/ir_builder/ir_builder.h"
@@ -350,7 +351,24 @@ private:
         paoc_->aotBuilder_->SetGenerateSymbols(true);
 #else
         paoc_->aotBuilder_->SetGenerateSymbols(paoc_->paocOptions_->IsPaocGenerateSymbols());
+        if (paoc_->paocOptions_->WasSetPaocCompressSymbols() && paoc_->paocOptions_->IsPaocCompressSymbols() &&
+            !paoc_->paocOptions_->IsPaocGenerateSymbols()) {
+            LOG_PAOC(WARNING) << "--paoc-compress-symbols is ignored unless its pre-condition "
+                                 "--paoc-generate-symbols is enabled";
+        }
 #endif
+        // The compression option defaults to ON for 64-bit targets (arm64,
+        // x86_64) and OFF for 32-bit targets; an explicit user flag always
+        // wins. The symbols option keeps its original semantics (default off
+        // in release builds, forced on in debug builds).
+        bool is64BitTarget = Is64BitsArch(paoc_->aotBuilder_->GetArch());
+        bool compressSymbols = paoc_->paocOptions_->IsPaocCompressSymbols();
+        if (is64BitTarget) {
+            if (!paoc_->paocOptions_->WasSetPaocCompressSymbols()) {
+                compressSymbols = true;
+            }
+        }
+        paoc_->aotBuilder_->SetCompressSymbols(compressSymbols);
 #ifdef PANDA_COMPILER_DEBUG_INFO
         paoc_->aotBuilder_->SetEmitDebugInfo(ark::compiler::g_options.IsCompilerEmitDebugInfo());
 #endif
@@ -390,6 +408,7 @@ int Paoc::Run(const ark::Span<const char *> &args)
     }
     aotBuilder_->SetRuntime(runtime_);
     slowPathData_ = allocator->New<compiler::SharedSlowPathData>();
+    pltData_ = allocator->New<compiler::SharedPltData>();
 
     if (!LoadPandaFiles()) {
         LOG_PAOC(FATAL) << "Can not load panda files";
@@ -482,6 +501,7 @@ void Paoc::Clear(ark::mem::InternalAllocatorPtr allocator)
     delete codeAllocator_;
     codeAllocator_ = nullptr;
     allocator->Delete(slowPathData_);
+    allocator->Delete(pltData_);
     methodsList_.clear();
     ark::Runtime::Destroy();
 }
@@ -1155,12 +1175,15 @@ void Paoc::MakeAotData(CompilingContext *ctx, uintptr_t codeAddress)
     auto *aotData = ctx->graph->GetAllocator()->New<AotData>(
         AotData::AotDataArgs {ctx->method->GetPandaFile(),
                               ctx->graph,
-                              slowPathData_,
                               codeAddress,
                               aotBuilder_->GetIntfInlineCacheIndex(),
                               {aotBuilder_->GetGotPlt(), aotBuilder_->GetGotVirtIndexes(), aotBuilder_->GetGotClass(),
                                aotBuilder_->GetGotString()},
                               {aotBuilder_->GetGotIntfInlineCache(), aotBuilder_->GetGotCommon()}});
+    // Backend-specific stub registries: injected via setters (the LLVM backend
+    // constructs AotData without them and never dereferences them).
+    aotData->SetSharedSlowPathData(slowPathData_);
+    aotData->SetPltData(pltData_);
 
     ASSERT(aotData != nullptr);
     aotData->SetUseCha(paocOptions_->IsPaocUseCha());
@@ -1192,12 +1215,15 @@ void Paoc::PrintUsage(const ark::PandArgParser &paParser)
     std::cerr << "    --paoc-location             location path of the input panda file, that will be written into"
                  " the AOT file\n";
     std::cerr << "    --paoc-skip-until           first method to compile, skip all previous\n";
+    std::cerr << "    --paoc-skip-cctor           skip AOT compilation of class constructors (interpreter fallback)\n";
     std::cerr << "    --paoc-compile-until        last method to compile, skip all following\n";
     std::cerr << "    --paoc-methods-from-file    use an allowlist or denylist to filter methods to compile\n";
     std::cerr << "    --paoc-compilation-policy  default or profile-guided (requires --paoc-use-profile:path)\n";
 #ifndef NDEBUG
     std::cerr << "    --paoc-generate-symbols     generate symbols for compiled methods, disabled by default\n";
 #endif
+    std::cerr << "    --paoc-compress-symbols     pack method symbols into an xz-compressed mini ELF in .gnu_debugdata"
+                 " (64-bit targets)\n";
     std::cerr << "    --compiler-ignore-failures  ignore failures in methods/classes/files compilation\n";
     std::cerr << " You can also use other Ark compiler options\n";
 
@@ -1256,6 +1282,25 @@ bool Paoc::Skip(Method *method)
     }
     if (paocOptions_->WasSetPaocCompileUntil() && methodName == paocOptions_->GetPaocCompileUntil()) {
         skipInfo_.isLastCompiled = true;
+    }
+
+    // Class constructors are not AOT-compiled when --paoc-skip-cctor is set:
+    // the runtime executes them via the interpreter fallback on first class
+    // initialization (one-time cost per class). The cctor name is taken from
+    // the method's LanguageContext, so the check is language-agnostic.
+    // This filter runs after the skip-until/compile-until state machine so
+    // that a cctor at the window boundary does not suppress the boundary
+    // transition (the boundary itself still takes effect; only the cctor is
+    // skipped).
+    if (paocOptions_->IsPaocSkipCctor()) {
+        auto ctx = Runtime::GetCurrent()->GetLanguageContext(*method);
+        const auto *cctorName = ctx.GetCctorName();
+        if (cctorName != nullptr) {
+            auto nameData = method->GetName();
+            if (utf::IsEqual(nameData.data, cctorName)) {
+                return true;
+            }
+        }
     }
     return false;
 }

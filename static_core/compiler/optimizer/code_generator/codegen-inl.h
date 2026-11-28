@@ -150,6 +150,36 @@ void Codegen::CallRuntime(Inst *inst, EntrypointId id, Reg dstReg, RegMask prese
 }
 
 template <typename... Args>
+void Codegen::CreateJumpToSharedSlowPath(Inst *inst, RuntimeInterface::EntrypointId id, Args &&...params)
+{
+    ASSERT(inst != nullptr);
+    CHECK_EQ(sizeof...(Args), GetRuntime()->GetEntrypointArgsNum(id));
+    CHECK(GetGraph()->IsAotMode());
+    CHECK(GetRuntime()->IsEntrypointNoreturn(id));
+    SCOPED_DISASM_STR(this, std::string("CreateJumpToSharedSlowPath: ") + GetRuntime()->GetEntrypointName(id));
+    // Mirror CallEntrypoint's pre-call sequence for a non-returning entry:
+    // live caller-saved registers (including GC-visible references) must be
+    // spilled to the frame BEFORE the call, so the stack map created at the
+    // call describes valid slots — required by GC root scanning and by
+    // deoptimization frame reconstruction. No restore follows: the entry
+    // never returns to this code.
+    RegMask liveRegs {GetLiveRegisters(inst).first};
+    FillOnlyParameters(&liveRegs, sizeof...(Args), false);
+    SaveCallerRegisters(liveRegs, VRegMask(), true);
+    if constexpr (sizeof...(Args) != 0) {
+        FillCallParams(std::forward<Args>(params)...);
+    }
+    GetOrCreateSharedStub(inst, id, Reg(GetEncoder()->GetTarget().GetTempRegsMask().GetMinRegister(), INT64_TYPE),
+                          INVALID_REGISTER);
+    CreateStackMap(inst);
+    // Trap right after a non-returning call so a mis-declared entrypoint
+    // fails loudly in debug builds instead of running into subsequent code.
+    if constexpr (DEBUG_BUILD) {  // NOLINT
+        GetEncoder()->EncodeAbort();
+    }
+}
+
+template <typename... Args>
 void Codegen::CallFastPath(Inst *inst, EntrypointId id, Reg dstReg, RegMask preservedRegs, Args &&...params)
 {
 #ifdef SAFEPOINT_TIME_CHECKER_ENABLED

@@ -105,6 +105,16 @@ options:
     default: false
     description: Generate symbols for compiled methods (always true in debug builds)
 
+  - name: paoc-compress-symbols
+    type: bool
+    default: false
+    description: "Pack all method symbols (full names) into an xz-compressed mini ELF stored in the non-ALLOC .gnu_debugdata section; .dynsym keeps only the 4 section-marker symbols. Full names remain available offline via llvm-symbolizer after extracting .gnu_debugdata. Defaults to true for 64-bit targets (arm64, x86_64) and false for 32-bit targets (which fall back to full symbols with a warning anyway); an explicit flag always overrides. Pre-condition --paoc-generate-symbols must be enabled; in release builds it defaults to off (forced on in debug builds), so on 64-bit release targets pass --paoc-generate-symbols to make the compression effective. If runtime compression fails, the mini ELF is stored uncompressed instead of being dropped. Requires a compression backend at build time: the 7-Zip SDK (configure PANDA_LZMA_SDK_ROOT). If it is not available, this option is a no-op (ark_aot falls back to full symbols with a warning and the product has no .gnu_debugdata section)"
+
+  - name: paoc-skip-cctor
+    type: bool
+    default: false
+    description: "Skip AOT compilation of class constructors (<cctor>). Semantics are preserved: the runtime falls back to the interpreter for class initialization (one-time cost per class). Saves the native code of all cctors (~170 KB for etsstdlib). With --paoc-skip-until or --paoc-compile-until, a cctor at the boundary is itself skipped but the boundary still takes effect"
+
   - name: paoc-use-cha
     type: bool
     default: true

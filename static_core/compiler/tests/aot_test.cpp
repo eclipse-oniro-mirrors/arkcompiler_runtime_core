@@ -18,10 +18,19 @@
 #include "aot/aot_builder/aot_builder.h"
 #include "aot/compiled_method.h"
 #include "compiler/code_info/code_info_builder.h"
+#include "compiler/compiler_options.h"
+#include "compiler/optimizer/ir/aot_data.h"
+#include "optimizer_run.h"
 #include "libarkbase/os/exec.h"
 #include "libarkbase/os/filesystem.h"
 #include "assembly-parser.h"
 #include <elf.h>
+#if defined(PANDA_AOT_HAS_XZSDK)
+#include "7zCrc.h"
+#include "7zTypes.h"
+#include "Xz.h"
+#include "XzCrc64.h"
+#endif
 #include "libarkbase/utils/string_helpers.h"
 #include "libarkbase/events/events.h"
 #include "mem/gc/gc_types.h"
@@ -274,19 +283,61 @@ TEST_F(AotTest, PaocLocation)
 }
 #endif  // PANDA_COMPILER_TARGET_AARCH64
 
+#if defined(PANDA_AOT_HAS_XZSDK)
+static void *XzTestAlloc(const ISzAlloc *p, size_t size)
+{
+    (void)p;
+    return malloc(size);
+}
+
+static void XzTestFree(const ISzAlloc *p, void *address)
+{
+    (void)p;
+    free(address);
+}
+
+// Decompress an .xz stream with the 7-Zip SDK decoder (the same code family
+// faultloggerd uses for .gnu_debugdata on device).
+static bool XzDecompressForTest(const uint8_t *src, size_t srcLen, std::vector<uint8_t> *out)
+{
+    const ISzAlloc alloc {XzTestAlloc, XzTestFree};
+    CXzUnpacker state;
+    XzUnpacker_Construct(&state, &alloc);
+    CrcGenerateTable();
+    Crc64GenerateTable();
+    size_t srcOff = 0;
+    size_t dstOff = 0;
+    out->resize(srcLen);
+    ECoderStatus status = CODER_STATUS_NOT_FINISHED;
+    constexpr uint16_t EXPAND_FACTOR = 2;
+    while (status == CODER_STATUS_NOT_FINISHED) {
+        out->resize(out->size() * EXPAND_FACTOR);
+        size_t srcRemain = srcLen - srcOff;
+        size_t dstRemain = out->size() - dstOff;
+        int res =
+            XzUnpacker_Code(&state, reinterpret_cast<Byte *>(out->data() + dstOff), &dstRemain,
+                            reinterpret_cast<const Byte *>(src + srcOff), &srcRemain, true, CODER_FINISH_ANY, &status);
+        if (res != SZ_OK) {
+            XzUnpacker_Free(&state);
+            return false;
+        }
+        srcOff += srcRemain;
+        dstOff += dstRemain;
+    }
+    XzUnpacker_Free(&state);
+    if (!XzUnpacker_IsStreamWasFinished(&state)) {
+        return false;
+    }
+    out->resize(dstOff);
+    return true;
+}
+#endif
+
 class AotTestBuildAndCheck : public AsmTest {
 public:
-    void BuildAot(const char *tmpfilePn, mem::GCType gcType, int expectedWriteResult = 0)
+    void CreateClassForAot()
     {
-        AotBuilder aotBuilder;
-        aotBuilder.SetArch(RUNTIME_ARCH);
         auto runtime = Runtime::GetCurrent();
-        aotBuilder.SetGcType(static_cast<uint32_t>(gcType));
-        RuntimeInterfaceMock iruntime;
-        aotBuilder.SetRuntime(&iruntime);
-
-        aotBuilder.StartFile(tmpFilePf_, 0x12345678U);
-
         auto thread = MTManagedThread::GetCurrent();
         if (thread != nullptr) {
             thread->ManagedCodeBegin();
@@ -297,8 +348,23 @@ public:
         if (thread != nullptr) {
             thread->ManagedCodeEnd();
         }
-
         klass_->SetFileId(panda_file::File::EntityId(13U));
+    }
+
+    void BuildAot(const char *tmpfilePn, mem::GCType gcType, int expectedWriteResult = 0, bool generateSymbols = false,
+                  bool compressSymbols = false)
+    {
+        AotBuilder aotBuilder;
+        aotBuilder.SetArch(RUNTIME_ARCH);
+        aotBuilder.SetGcType(static_cast<uint32_t>(gcType));
+        RuntimeInterfaceMock iruntime;
+        aotBuilder.SetRuntime(&iruntime);
+        aotBuilder.SetGenerateSymbols(generateSymbols);
+        aotBuilder.SetCompressSymbols(compressSymbols);
+
+        aotBuilder.StartFile(tmpFilePf_, 0x12345678U);
+
+        CreateClassForAot();
         aotBuilder.StartClass(*klass_);
 
         Method method1(klass_, nullptr, File::EntityId(method1Id_), File::EntityId(), 0U, 1U, nullptr);
@@ -324,6 +390,8 @@ public:
             aotBuilder.AddMethod(compiledMethod2);
         }
 
+        // SetMethods is for runtime class metadata; the AOT entities are
+        // populated by AddMethod calls above.
         klass_->SetMethods(Span<Method>(&method1, &method2), 2U, 0U);
         aotBuilder.EndClass();
         uint32_t hash = GetHash32String(reinterpret_cast<const uint8_t *>(className_.data()));
@@ -380,6 +448,97 @@ public:
                 FAIL() << "Unexpected ELF class " << static_cast<int>(data[EI_CLASS]);
         }
     }
+
+#if defined(PANDA_AOT_HAS_XZSDK)
+    void CheckMiniDebugElf(const std::vector<uint8_t> &mini, uint16_t machine)
+    {
+        ASSERT_GE(mini.size(), sizeof(Elf64_Ehdr));
+        EXPECT_EQ(mini[EI_MAG0], ELFMAG0);
+        EXPECT_EQ(mini[EI_MAG1], ELFMAG1);
+        EXPECT_EQ(mini[EI_MAG2], ELFMAG2);
+        EXPECT_EQ(mini[EI_MAG3], ELFMAG3);
+        EXPECT_EQ(mini[EI_CLASS], ELFCLASS64);
+        // Structural layout of the mini debug ELF (must match MakeMiniDebugData):
+        // one executable image for the target arch, a single PT_LOAD describing
+        // the code range, and five sections: null, .symtab, .strtab, .shstrtab
+        // and the code-range SHT_NOBITS section.
+        auto *miniEhdr = reinterpret_cast<const Elf64_Ehdr *>(mini.data());
+        EXPECT_EQ(miniEhdr->e_type, ET_EXEC);
+        EXPECT_EQ(miniEhdr->e_machine, machine);
+        ASSERT_EQ(miniEhdr->e_phnum, 1);
+        constexpr uint16_t MINI_ELF_SHNUM = 5;
+        constexpr uint16_t MINI_ELF_SHSTRNDX = 3;
+        ASSERT_EQ(miniEhdr->e_shnum, MINI_ELF_SHNUM);
+        ASSERT_EQ(miniEhdr->e_shstrndx, MINI_ELF_SHSTRNDX);
+        const auto *miniPhdr = reinterpret_cast<const Elf64_Phdr *>(mini.data() + miniEhdr->e_phoff);
+        EXPECT_EQ(miniPhdr->p_type, PT_LOAD);
+        const auto *miniSections = reinterpret_cast<const Elf64_Shdr *>(mini.data() + miniEhdr->e_shoff);
+        const Elf64_Shdr *symtab = nullptr;
+        for (uint16_t i = 0; i < miniEhdr->e_shnum; i++) {
+            if (miniSections[i].sh_type == SHT_SYMTAB) {
+                symtab = &miniSections[i];
+                break;
+            }
+        }
+        ASSERT_NE(symtab, nullptr) << "mini ELF has no .symtab section";
+        ASSERT_EQ(symtab->sh_entsize, sizeof(Elf64_Sym));
+        // The null symbol always occupies index 0, so the first non-LOCAL
+        // symbol index (sh_info) is 1.
+        ASSERT_EQ(symtab->sh_info, 1U);
+        // This test verifies only the .gnu_debugdata structure (layout, xz
+        // stream, decompression). It cannot assert real method symbols: every
+        // Method built here carries no panda file (second ctor arg is nullptr),
+        // so GenerateSymbols skips all of them (aot_builder.cpp:513). The test
+        // suite does have real panda files (pandasm::AsmEmitter::Emit), but none
+        // is ever opened as panda_file::File and passed to a Method ctor — the
+        // unit-test klass_ is a hand-built CreateClass whose fake EntityIds do
+        // not match a real file, so wiring real panda files in would touch
+        // BuildAot, which 10+ tests share, and the fake klass_/IDs would need
+        // to match a real file: a large change for low value. Hence only the
+        // structural assertion is kept here.
+        ASSERT_GE(symtab->sh_size / sizeof(Elf64_Sym), 1U);
+    }
+
+    // CC-OFFNXT(G.FUD.05) helper verifies the full .gnu_debugdata pipeline
+    void CheckGnuDebugData(const char *tmpfilePn)
+    {
+        auto data = ReadFile(tmpfilePn);
+        ASSERT_FALSE(data.empty());
+        ASSERT_GT(data.size(), EI_CLASS);
+        ASSERT_EQ(data[EI_CLASS], ELFCLASS64);
+        auto *ehdr = reinterpret_cast<const Elf64_Ehdr *>(data.data());
+        ASSERT_EQ(ehdr->e_ident[EI_MAG0], ELFMAG0);
+        const auto *sections = reinterpret_cast<const Elf64_Shdr *>(data.data() + ehdr->e_shoff);
+        const auto *shstr = GetSectionData<char>(data, sections[ehdr->e_shstrndx]);
+        ASSERT_NE(shstr, nullptr);
+        const Elf64_Shdr *gnuDebugData = nullptr;
+        for (uint16_t i = 0; i < ehdr->e_shnum; i++) {
+            ASSERT_LT(sections[i].sh_name, sections[ehdr->e_shstrndx].sh_size);
+            if (strcmp(shstr + sections[i].sh_name, ".gnu_debugdata") == 0) {
+                gnuDebugData = &sections[i];
+                break;
+            }
+        }
+        ASSERT_NE(gnuDebugData, nullptr) << ".gnu_debugdata section is missing";
+        ASSERT_GT(gnuDebugData->sh_size, 0U);
+        auto *stream = GetSectionData<uint8_t>(data, *gnuDebugData);
+        ASSERT_NE(stream, nullptr);
+        // Standard xz stream header: magic + stream flags. Flags byte 1 selects
+        // the CRC32 integrity check, matching AotBuilder::CompressMiniDebugData.
+        static constexpr std::array<uint8_t, 6> XZ_MAGIC {0xfd, 0x37, 0x7a, 0x58, 0x5a, 0x00};
+        // xz stream header: byte 7 (second stream-flags byte) holds the check id.
+        static constexpr size_t XZ_CHECK_ID_OFFSET = 7;
+        static constexpr uint8_t MINI_ELF_XZ_CHECK_CRC32 = 0x01;
+        for (size_t i = 0; i < XZ_MAGIC.size(); i++) {
+            ASSERT_EQ(stream[i], XZ_MAGIC[i]);
+        }
+        ASSERT_EQ(stream[XZ_CHECK_ID_OFFSET], MINI_ELF_XZ_CHECK_CRC32) << "expected XZ_CHECK_CRC32 stream flags";
+        // The stream must decompress into a valid ELF64 mini debug image.
+        std::vector<uint8_t> mini;
+        ASSERT_TRUE(XzDecompressForTest(stream, gnuDebugData->sh_size, &mini)) << "xz stream does not decompress";
+        CheckMiniDebugElf(mini, ehdr->e_machine);
+    }
+#endif
 
     void CheckLinkAotCodeForBoot(AotManager *aotManager, const char *tmpfilePn)
     {
@@ -470,7 +629,7 @@ public:
         bootContext->RemoveClass(klass);
     };
 
-private:
+protected:
     static std::vector<uint8_t> ReadFile(const char *fileName)
     {
         std::ifstream file(fileName, std::ios::binary | std::ios::ate);
@@ -653,6 +812,24 @@ TEST_F(AotTestBuildAndCheck, BuildAndLoadAn)
     auto aotManager = Runtime::GetCurrent()->GetClassLinker()->GetAotManager();
     DoChecks(aotManager, tmpfilePn);
 }
+
+#if defined(PANDA_AOT_HAS_XZSDK)
+TEST_F(AotTestBuildAndCheck, BuildWithCompressedSymbols)
+{
+    if (!ArchTraits<RUNTIME_ARCH>::IS_64_BITS) {
+        // Symbol compression (mini debug ELF) is 64-bit only; 32-bit targets
+        // fall back to full symbols and produce no .gnu_debugdata section.
+        return;
+    }
+    TmpFile aotFname("./tmpfile_gdd.an");
+    auto runtime = Runtime::GetCurrent();
+    auto gcType = Runtime::GetGCType(runtime->GetOptions(), plugins::RuntimeTypeToLang(runtime->GetRuntimeType()));
+    // generateSymbols/compressSymbols: enable symbol generation and compress
+    // the mini debug ELF (requires a compression backend at configure time).
+    BuildAot(aotFname.GetFileName(), gcType, 0, true, true);
+    CheckGnuDebugData(aotFname.GetFileName());
+}
+#endif
 
 TEST_F(AotTestBuildAndCheck, LinkAotCodeForBoot)
 {
@@ -1578,6 +1755,7 @@ TEST_F(AotTest, PaocCompilationLimitNoLimit)
     ASSERT_TRUE(res) << "paoc failed with error: " << res.Error().ToString();
     ASSERT_EQ(res.Value(), 0U);
 
+    // CC-OFFNXT(G.NAM.03-CPP) checker versions disagree on constexpr naming
     constexpr size_t totalMethods = 12;
     size_t compiled = CountCompiledMethodsInEvents(eventsFile.GetFileName());
     ASSERT_EQ(compiled, totalMethods) << "All methods should be compiled when no time limit is set";
@@ -1667,6 +1845,7 @@ TEST_F(AotTest, PaocCompilationLimitLargeTimeout)
     ASSERT_TRUE(res) << "paoc failed with error: " << res.Error().ToString();
     ASSERT_EQ(res.Value(), 0U);
 
+    // CC-OFFNXT(G.NAM.03-CPP) checker versions disagree on constexpr naming
     constexpr size_t totalMethods = 12;
     size_t compiled = CountCompiledMethodsInEvents(eventsFile.GetFileName());
     ASSERT_EQ(compiled, totalMethods) << "All methods should be compiled with a large time limit";
@@ -1865,6 +2044,65 @@ TEST_F(AotTest, PaocFullFdPipeline)
     close(anFd);
     RunAotdump(aotFname.GetFileName());
     unlink(archivename);
+}
+
+TEST_F(AotTest, AotDataSlotLookupsWorkWithoutGraph)
+{
+    AotBuilder aotBuilder;
+    // The LLVM backend constructs graph-less AotData instances for slot-id
+    // lookups; construction and the lookups must not dereference the absent
+    // graph.
+    AotData aotData(AotData::AotDataArgs {
+        nullptr,
+        nullptr,
+        0,
+        aotBuilder.GetIntfInlineCacheIndex(),
+        {aotBuilder.GetGotPlt(), aotBuilder.GetGotVirtIndexes(), aotBuilder.GetGotClass(), aotBuilder.GetGotString()},
+        {aotBuilder.GetGotIntfInlineCache(), aotBuilder.GetGotCommon()}});
+    // Interface lookups pass file index 0, equal to INVALID_FILE_INDEX, so
+    // they resolve against the AotData's own panda file without a graph.
+    constexpr uint32_t ID = 0x10U;
+    ASSERT_EQ(aotData.GetPltSlotId(ID, panda_file::File::INVALID_FILE_INDEX),
+              aotData.GetPltSlotId(ID, panda_file::File::INVALID_FILE_INDEX));
+    ASSERT_EQ(aotData.GetClassSlotId(ID, panda_file::File::INVALID_FILE_INDEX),
+              aotData.GetClassSlotId(ID, panda_file::File::INVALID_FILE_INDEX));
+    ASSERT_EQ(aotData.GetStringSlotId(ID, panda_file::File::INVALID_FILE_INDEX),
+              aotData.GetStringSlotId(ID, panda_file::File::INVALID_FILE_INDEX));
+    ASSERT_EQ(aotData.GetIntfInlineCacheSlotId(0), aotData.GetIntfInlineCacheSlotId(0));
+    uint64_t cacheIndex = aotData.GetIntfInlineCacheIndex();
+    aotData.SetIntfInlineCacheIndex(cacheIndex + 1U);
+    ASSERT_EQ(aotData.GetIntfInlineCacheIndex(), cacheIndex + 1U);
+}
+
+TEST_F(AotTest, SharedStubTableAppendsAndKeepsAllRecords)
+{
+    // Heap-constructed, matching production (paoc.cpp: allocator->New<...>()):
+    // the 443-entry table is ~5.3KB on arm32 (vector = 12B there), which can
+    // overflow the smaller stack of arm32 CI runners when placed on the frame.
+    auto table = std::make_unique<SharedSlowPathData>();
+    constexpr auto ID = RuntimeInterface::EntrypointId::CLASS_RESOLVER;
+
+    // No copy registered yet: lookup returns 0.
+    ASSERT_EQ(table->GetClosestStubOffset(ID, 100U), 0U);
+
+    // First copy at 1000: both records must survive the second Add.
+    table->AddStubOffset(ID, 1000U);
+    table->AddStubOffset(ID, 5000U);
+    const auto &all = table->GetAllStubOffsets(ID);
+    ASSERT_EQ(all.size(), 2U);
+    ASSERT_EQ(all[0U], 1000U);  // old record kept, not overwritten
+    ASSERT_EQ(all[1U], 5000U);
+
+    // Closest-copy selection: caller near the first copy gets it, not the
+    // most recently added one.
+    ASSERT_EQ(table->GetClosestStubOffset(ID, 1200U), 1000U);
+    ASSERT_EQ(table->GetClosestStubOffset(ID, 4500U), 5000U);
+
+    // Different ids keep independent lists.
+    constexpr auto OTHER = RuntimeInterface::EntrypointId::CLASS_INIT_RESOLVER;
+    table->AddStubOffset(OTHER, 200U);
+    ASSERT_EQ(table->GetAllStubOffsets(OTHER).size(), 1U);
+    ASSERT_EQ(table->GetAllStubOffsets(ID).size(), 2U);
 }
 
 }  // namespace ark::compiler

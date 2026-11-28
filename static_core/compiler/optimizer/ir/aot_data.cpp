@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+/**
+ * Copyright (c) 2021-2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -17,6 +17,20 @@
 #include "code_info/code_info.h"
 
 namespace ark::compiler {
+AotData::AotData(const AotDataArgs &args)
+    : pfile_(args.pfile),
+      graph_(args.graph),
+      codeAddress_(args.codeAddr),
+      intfInlineCacheIndex_(args.intfInlineCacheIndex),
+      gotPlt_(args.mapArgs32[0U]),
+      gotVirtIndexes_(args.mapArgs32[1U]),
+      gotClass_(args.mapArgs32[2U]),
+      gotString_(args.mapArgs32[3U]),
+      gotIntfInlineCache_(args.mapArgs64[0U]),
+      gotCommon_(args.mapArgs64[1U])
+{
+}
+
 intptr_t AotData::GetEpTableOffset() const
 {
     return -(static_cast<size_t>(RuntimeInterface::IntrinsicId::COUNT) * PointerSize(graph_->GetArch()));
@@ -24,7 +38,9 @@ intptr_t AotData::GetEpTableOffset() const
 
 intptr_t AotData::GetSharedSlowPathOffset(RuntimeInterface::EntrypointId id, uintptr_t pc) const
 {
-    auto offset = slowPathData_->GetSharedSlowPathOffset(id);
+    ASSERT(slowPathData_ != nullptr);
+    auto offset =
+        slowPathData_->GetClosestStubOffset(id, codeAddress_ + pc + CodeInfo::GetCodeOffset(graph_->GetArch()));
     if (offset == 0) {
         return 0;
     }
@@ -33,7 +49,8 @@ intptr_t AotData::GetSharedSlowPathOffset(RuntimeInterface::EntrypointId id, uin
 
 void AotData::SetSharedSlowPathOffset(RuntimeInterface::EntrypointId id, uintptr_t pc)
 {
-    slowPathData_->SetSharedSlowPathOffset(id, codeAddress_ + pc + CodeInfo::GetCodeOffset(graph_->GetArch()));
+    ASSERT(slowPathData_ != nullptr);
+    slowPathData_->AddStubOffset(id, codeAddress_ + pc + CodeInfo::GetCodeOffset(graph_->GetArch()));
 }
 
 intptr_t AotData::GetEntrypointOffset(uint64_t pc, int32_t slotId) const
@@ -159,6 +176,22 @@ uint32_t AotData::FindOrInsertSlotId(
         gotTable->insert({{pfile, id}, {slotId, isExternal}});
     }
     return slotId;
+}
+
+intptr_t AotData::GetPltStubOffset(RuntimeInterface::EntrypointId id, uintptr_t pc) const
+{
+    ASSERT(pltData_ != nullptr);
+    auto offset = pltData_->GetClosestStubOffset(id, codeAddress_ + pc + CodeInfo::GetCodeOffset(graph_->GetArch()));
+    if (offset == 0) {
+        return 0;
+    }
+    return offset - codeAddress_ - pc - CodeInfo::GetCodeOffset(graph_->GetArch());
+}
+
+void AotData::SetPltStubOffset(RuntimeInterface::EntrypointId id, uintptr_t pc)
+{
+    ASSERT(pltData_ != nullptr);
+    pltData_->AddStubOffset(id, codeAddress_ + pc + CodeInfo::GetCodeOffset(graph_->GetArch()));
 }
 
 }  // namespace ark::compiler

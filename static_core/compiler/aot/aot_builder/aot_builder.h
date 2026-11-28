@@ -114,6 +114,11 @@ public:
         generateSymbols_ = generateSymbols;
     }
 
+    void SetCompressSymbols(bool compressSymbols)
+    {
+        compressSymbols_ = compressSymbols;
+    }
+
     void AddClassHashTable(const panda_file::File &pandaFile);
 
     void InsertEntityPairHeader(uint32_t classHash, uint32_t classId)
@@ -150,6 +155,13 @@ private:
     template <Arch ARCH>
     void GenerateSymbols(ElfBuilder<ARCH> &builder);
 
+#if defined(PANDA_AOT_HAS_XZSDK)
+    template <Arch ARCH>
+    std::vector<uint8_t> MakeMiniDebugData(ElfBuilder<ARCH> &builder);
+
+    std::vector<uint8_t> CompressMiniDebugData(const std::vector<uint8_t> &mini, size_t symbols);
+#endif
+
     template <Arch ARCH>
     void EmitPlt(Span<typename ArchTraits<ARCH>::WordType> ptrView, size_t gotDataSize);
 
@@ -173,6 +185,7 @@ private:
     bool bootAot_ {false};
     bool withCha_ {true};
     bool generateSymbols_ {false};
+    bool compressSymbols_ {false};
 
     std::vector<panda_file::EntityPairHeader> entityPairHeaders_;
     std::vector<uint32_t> classHashTablesSize_;

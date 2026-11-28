@@ -514,8 +514,12 @@ void Aarch64Encoder::MakeCallAot(intptr_t offset)
 
 bool Aarch64Encoder::CanMakeCallByOffset(intptr_t offset)
 {
+    // Signed check: the offset may legitimately be negative (calling a
+    // trampoline emitted earlier in .text, e.g. a shared slow-path stub).
+    // Casting to uintptr_t first would turn negative offsets into huge
+    // unsigned values and always fail IsIntN.
     // NOLINTNEXTLINE(hicpp-signed-bitwise)
-    auto off = (static_cast<uintptr_t>(offset) >> vixl::aarch64::kInstructionSizeLog2);
+    auto off = static_cast<int64_t>(offset) >> vixl::aarch64::kInstructionSizeLog2;
     return vixl::aarch64::Instruction::IsValidImmPCOffset(vixl::aarch64::ImmBranchType::UncondBranchType, off);
 }
 

@@ -39,6 +39,7 @@ AOT compiles before execution so runtime can reuse compiled code. It reduces run
 ## Boundaries
 
 - Do not treat AOT output as a generic cache independent of input context.
+- Do not run single-argument `objcopy`/`llvm-objcopy`/`strip` on `.an` files: with no output file these tools rewrite the input in place, and GNU objcopy drops the generated `.gnu.hash`, after which marker lookup via `dlsym` fails. Inspect products with `readelf`/`dd`, or copy the file first.
 - Do not claim AOT success from `ark_aot` success alone; runtime load and use must be proven.
 - Do not weaken matching rules to make an output load if the application context is inconsistent.
 - AOT/AOT-PGO changes must prove class context, panda file set, locations, checksums, and profile context match or reject clearly.

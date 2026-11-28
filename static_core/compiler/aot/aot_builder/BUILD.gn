@@ -49,7 +49,35 @@ ohos_static_library("aotbuilder") {
     "$ark_root/libarkfile:isa_gen_libarkfile_bytecode_instruction_enum_gen_h",
   ]
 
+  # `.gnu_debugdata` compression backend (7-Zip SDK / xz), wired via the lzma
+  # external_deps below and via the CMake PANDA_LZMA_SDK_ROOT path.
   external_deps = [ sdk_libc_secshared_dep ]
+  # `global_parts_info` is provided by the OpenHarmony product build and maps
+  # each registered component to its enabled state. Reference the lzma
+  # component in external_deps only when the building product registers it:
+  # resolution of an unregistered component fails during gn gen (seen on
+  # ohos_mini, whose parts list has no lzma).
+  _lzma_provisioned = defined(global_parts_info) && defined(global_parts_info.thirdparty_lzma) &&
+                       global_parts_info.thirdparty_lzma
+  # The joint build has no parts registry: its build root resolves
+  # external_deps through its own handler. `ark_standalone_build` marks that
+  # flow (it imports $build_root/ark.gni); `ark_static_standalone_build`
+  # excludes the vendored static_core configs, which drop external_deps and
+  # provide no lzma, so the backend must not be compiled there.
+  _joint_build = defined(ark_standalone_build) && ark_standalone_build &&
+                 !defined(ark_static_standalone_build)
+  # Compile the compression backend only where the lzma external_deps can be
+  # resolved. The toolchain split below only selects static vs shared linkage;
+  # both toolchains get the backend whenever this condition holds.
+  if (_lzma_provisioned || _joint_build) {
+    defines = [ "PANDA_AOT_HAS_XZSDK=1" ]
+    sources += [ "symbol_compression.cpp" ]
+    if (current_toolchain == host_toolchain) {
+      external_deps += [ "lzma:lzma_static" ]
+    } else {
+      external_deps += [ "lzma:lzma_shared" ]
+    }
+  }
 
   part_name = ark_part_name
   subsystem_name = ark_subsystem_name

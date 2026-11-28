@@ -68,6 +68,11 @@ public:
 
     virtual void GenerateImpl(Codegen *codegen) = 0;
 
+    virtual bool IsPltMode() const
+    {
+        return false;
+    }
+
 private:
     LabelHolder::LabelId label_ {LabelHolder::INVALID_LABEL};
     LabelHolder::LabelId labelBack_ {LabelHolder::INVALID_LABEL};
@@ -156,6 +161,21 @@ public:
     {
         tmpReg_ = reg;
     }
+
+    void SetScratchReg(Reg reg)
+    {
+        scratchReg_ = reg;
+    }
+
+    void SetPltMode()
+    {
+        isPltMode_ = true;
+    }
+
+    bool IsPltMode() const override
+    {
+        return isPltMode_;
+    }
     Reg GetTmpReg() const
     {
         return tmpReg_;
@@ -163,6 +183,8 @@ public:
 
 private:
     Reg tmpReg_ {INVALID_REGISTER};
+    Reg scratchReg_ {INVALID_REGISTER};
+    bool isPltMode_ {false};
 };
 
 class SlowPathResolveStringAot : public SlowPathEntrypoint {

@@ -129,6 +129,9 @@ public:
         return reinterpret_cast<const AotHeader *>(aotData_.data());
     }
 
+    // Returns the name recorded in the AOT header at compilation time (the value of
+    // ark_aot's --paoc-output), not the path this file was loaded from. Do not use
+    // it as a load-path identity key; see AotManager::GetFile for the consequences.
     const char *GetFileName() const
     {
         return GetString(GetAotHeader()->fileNameStr);
