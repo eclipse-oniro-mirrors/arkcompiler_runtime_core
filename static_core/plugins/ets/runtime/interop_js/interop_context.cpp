@@ -132,6 +132,8 @@ static void AppStateCallback(int state, int64_t timeStamp)
         }
         case AppState::State::COLD_START_FINISHED:
             LOG(INFO, RUNTIME) << "Application cold start finished";
+            // Advance the startup GC restrain state machine (no-op if already advanced by the fallback timer)
+            etsVm->NotifyColdStartJustFinish();
             [[fallthrough]];
         case AppState::State::SENSITIVE_END:
             if (!etsVm->IsPostFork()) {

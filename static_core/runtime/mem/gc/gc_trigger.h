@@ -20,6 +20,7 @@
 #include <string_view>
 
 #include "libarkbase/macros.h"
+#include "libarkbase/os/mutex.h"
 #include "libarkbase/utils/ring_buffer.h"
 #include "libarkbase/utils/time.h"
 #include "runtime/mem/gc/gc.h"
@@ -126,6 +127,9 @@ public:
     virtual void TriggerGcIfNeeded(GC *gc) = 0;
     virtual GCTriggerType GetType() const = 0;
     virtual void SetMinTargetFootprint([[maybe_unused]] size_t heapSize) {}
+    virtual void BeginStartupRestrain() {}
+    virtual void JustFinishStartupRestrain([[maybe_unused]] size_t heapSize) {}
+    virtual void FinishStartupRestrain() {}
     virtual void RestoreMinTargetFootprint() {}
 
 private:
@@ -148,6 +152,9 @@ public:
     void GCStarted(const GCTask &task, size_t heapSize) override;
     void GCFinished(const GCTask &task, size_t heapSizeBeforeGc, size_t heapSize) override;
     void SetMinTargetFootprint(size_t targetSize) override;
+    void BeginStartupRestrain() override;
+    void JustFinishStartupRestrain(size_t targetSize) override;
+    void FinishStartupRestrain() override;
     void RestoreMinTargetFootprint() override;
     void ComputeNewTargetFootprint(const GCTask &task, size_t heapSizeBeforeGc, size_t heapSize);
 
@@ -178,8 +185,22 @@ private:
 
     static constexpr size_t POSTPONE_GC_LIMIT = 80_MB;
 
+    // Tracks the app startup timeline for the GC target footprint floor
+    enum class StartupRestrainPhase : uint8_t {
+        BEFORE_STARTUP,
+        ON_STARTUP,
+        JUST_FINISH_STARTUP,
+        STARTUP_FINISHED,
+    };
+
     HeapSpace *heapSpace_ {nullptr};
-    size_t minTargetFootprint_ {DEFAULT_MIN_TARGET_FOOTPRINT};
+    // Serializes the stateful target computation (ComputeTarget and its overrides, e.g. the adaptive
+    // ring buffer) and the startup restrain phase transitions
+    os::memory::Mutex targetComputeMutex_;
+    // Atomic with relaxed order reason: data race with min_target_footprint_ with no synchronization or ordering
+    // constraints imposed on other reads or writes
+    std::atomic<size_t> minTargetFootprint_ {DEFAULT_MIN_TARGET_FOOTPRINT};
+    StartupRestrainPhase startupRestrainPhase_ {StartupRestrainPhase::BEFORE_STARTUP};
     MemStatsType *memStats_;
     std::atomic<uint8_t> skipGcCount_ {0};
     uint32_t gcPostponeCount_ {0};

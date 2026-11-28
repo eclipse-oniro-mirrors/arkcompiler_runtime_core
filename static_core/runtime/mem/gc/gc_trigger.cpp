@@ -79,7 +79,9 @@ GCTriggerHeap::GCTriggerHeap(MemStatsType *memStats, HeapSpace *heapSpace, size_
 void GCTriggerHeap::SetMinTargetFootprint(size_t targetSize)
 {
     LOG(DEBUG, GC_TRIGGER) << "SetTempTargetFootprint target_footprint = " << targetSize;
-    minTargetFootprint_ = targetSize;
+    // Atomic with relaxed order reason: data race with min_target_footprint_ with no synchronization or ordering
+    // constraints imposed on other reads or writes
+    minTargetFootprint_.store(targetSize, std::memory_order_relaxed);
     // Atomic with relaxed order reason: data race with target_footprint_ with no synchronization or ordering
     // constraints imposed on other reads or writes
     targetFootprint_.store(targetSize, std::memory_order_relaxed);
@@ -87,7 +89,50 @@ void GCTriggerHeap::SetMinTargetFootprint(size_t targetSize)
 
 void GCTriggerHeap::RestoreMinTargetFootprint()
 {
-    minTargetFootprint_ = DEFAULT_MIN_TARGET_FOOTPRINT;
+    // Atomic with relaxed order reason: data race with min_target_footprint_ with no synchronization or ordering
+    // constraints imposed on other reads or writes
+    minTargetFootprint_.store(DEFAULT_MIN_TARGET_FOOTPRINT, std::memory_order_relaxed);
+}
+
+void GCTriggerHeap::BeginStartupRestrain()
+{
+    os::memory::LockHolder hold(targetComputeMutex_);
+    startupRestrainPhase_ = StartupRestrainPhase::ON_STARTUP;
+}
+
+void GCTriggerHeap::JustFinishStartupRestrain(size_t targetSize)
+{
+    os::memory::LockHolder hold(targetComputeMutex_);
+    if (startupRestrainPhase_ != StartupRestrainPhase::ON_STARTUP) {
+        return;
+    }
+    startupRestrainPhase_ = StartupRestrainPhase::JUST_FINISH_STARTUP;
+    // Atomic with relaxed order reason: data race with min_target_footprint_ with no synchronization or ordering
+    // constraints imposed on other reads or writes
+    minTargetFootprint_.store(targetSize, std::memory_order_relaxed);
+    // Atomic with relaxed order reason: data race with target_footprint_ with no synchronization or ordering
+    // constraints imposed on other reads or writes
+    targetFootprint_.store(targetSize, std::memory_order_relaxed);
+}
+
+void GCTriggerHeap::FinishStartupRestrain()
+{
+    os::memory::LockHolder hold(targetComputeMutex_);
+    auto phase = startupRestrainPhase_;
+    if (phase == StartupRestrainPhase::BEFORE_STARTUP || phase == StartupRestrainPhase::STARTUP_FINISHED) {
+        return;
+    }
+    LOG(INFO, GC) << "Startup GC restrain finished";
+    // Re-evaluate the target footprint from the current heap size as if a GC just finished
+    startupRestrainPhase_ = StartupRestrainPhase::STARTUP_FINISHED;
+    // Atomic with relaxed order reason: data race with min_target_footprint_ with no synchronization or ordering
+    // constraints imposed on other reads or writes
+    minTargetFootprint_.store(DEFAULT_MIN_TARGET_FOOTPRINT, std::memory_order_relaxed);
+    size_t bytesInHeap = memStats_->GetFootprintHeap();
+    size_t target = ComputeTarget(bytesInHeap, bytesInHeap);
+    // Atomic with relaxed order reason: data race with target_footprint_ with no synchronization or ordering
+    // constraints imposed on other reads or writes
+    targetFootprint_.store(std::max(target, DEFAULT_MIN_TARGET_FOOTPRINT), std::memory_order_relaxed);
 }
 
 void GCTriggerHeap::ComputeNewTargetFootprint(const GCTask &task, size_t heapSizeBeforeGc, size_t heapSize)
@@ -99,7 +144,11 @@ void GCTriggerHeap::ComputeNewTargetFootprint(const GCTask &task, size_t heapSiz
         return;
     }
 
+    os::memory::LockHolder hold(targetComputeMutex_);
     size_t target = this->ComputeTarget(heapSizeBeforeGc, heapSize);
+    // Atomic with relaxed order reason: data race with min_target_footprint_ with no synchronization or ordering
+    // constraints imposed on other reads or writes
+    target = std::max(target, minTargetFootprint_.load(std::memory_order_relaxed));
 
     // Atomic with relaxed order reason: data race with target_footprint_ with no synchronization or ordering
     // constraints imposed on other reads or writes
@@ -135,10 +184,14 @@ void GCTriggerHeap::FinishPostponeGCIfNeeded(GC *gc, size_t bytesInHeap)
         return;
     }
 
+    os::memory::LockHolder hold(targetComputeMutex_);
     // Atomic with relaxed order reason: data race with target_footprint_ with no synchronization or ordering
     // constraints imposed on other reads or writes
     if (bytesInHeap >= targetFootprint_.load(std::memory_order_relaxed)) {
         size_t target = this->ComputeTarget(bytesInHeap, bytesInHeap);
+        // Atomic with relaxed order reason: data race with min_target_footprint_ with no synchronization or
+        // ordering constraints imposed on other reads or writes
+        target = std::max(target, minTargetFootprint_.load(std::memory_order_relaxed));
 
         // Atomic with relaxed order reason: data race with target_footprint_ with no synchronization or ordering
         // constraints imposed on other reads or writes

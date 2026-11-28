@@ -14,12 +14,16 @@
  */
 
 #include <gtest/gtest.h>
+#include <thread>
+#include <vector>
 #include "runtime/include/runtime.h"
 #include "runtime/include/panda_vm.h"
 #include "runtime/include/coretypes/line_string.h"
 #include "runtime/include/thread_scopes.h"
 #include "runtime/mem/gc/gc.h"
 #include "runtime/mem/gc/gc_trigger.h"
+#include "runtime/mem/mem_stats_default.h"
+#include "runtime/mem/mem_stats_additional_info.h"
 #include "runtime/handle_scope-inl.h"
 #include "test_utils.h"
 
@@ -54,10 +58,46 @@ public:
                                               DEFAULT_INCREASE_MULTIPLIER, MIN_EXTRA_HEAP_SIZE, MAX_EXTRA_HEAP_SIZE);
     }
 
+    [[nodiscard]] mem::GCTriggerHeap *CreateHeapTriggerWithMemStats(mem::MemStatsType *memStats) const
+    {
+        return new mem::GCTriggerHeap(memStats, nullptr, MIN_HEAP_SIZE,
+                                      mem::GCTriggerHeap::DEFAULT_PERCENTAGE_THRESHOLD, MIN_EXTRA_HEAP_SIZE,
+                                      MAX_EXTRA_HEAP_SIZE);
+    }
+
+    [[nodiscard]] mem::GCAdaptiveTriggerHeap *CreateAdaptiveTriggerWithMemStats(mem::MemStatsType *memStats) const
+    {
+        return new mem::GCAdaptiveTriggerHeap(memStats, nullptr, MIN_HEAP_SIZE,
+                                              mem::GCTriggerHeap::DEFAULT_PERCENTAGE_THRESHOLD,
+                                              DEFAULT_INCREASE_MULTIPLIER, MIN_EXTRA_HEAP_SIZE, MAX_EXTRA_HEAP_SIZE);
+    }
+
     static size_t GetTargetFootprint(const mem::GCAdaptiveTriggerHeap *trigger)
     {
         // Atomic with relaxed order reason: simple getter for test
         return trigger->targetFootprint_.load(std::memory_order_relaxed);
+    }
+
+    static size_t GetTargetFootprint(const mem::GCTriggerHeap *trigger)
+    {
+        // Atomic with relaxed order reason: simple getter for test
+        return trigger->targetFootprint_.load(std::memory_order_relaxed);
+    }
+
+    static size_t GetMinTargetFootprint(const mem::GCTriggerHeap *trigger)
+    {
+        // Atomic with relaxed order reason: simple getter for test
+        return trigger->minTargetFootprint_.load(std::memory_order_relaxed);
+    }
+
+    static constexpr size_t GetDefaultMinTargetFootprint()
+    {
+        return mem::GCTriggerHeap::DEFAULT_MIN_TARGET_FOOTPRINT;
+    }
+
+    static void FinishPostponeGCIfNeeded(mem::GCTriggerHeap *trigger, mem::GC *gc, size_t bytesInHeap)
+    {
+        trigger->FinishPostponeGCIfNeeded(gc, bytesInHeap);
     }
 
 protected:
@@ -93,6 +133,227 @@ TEST_F(GCTriggerTest, ThresholdTest)
 
     // Check that we could to avoid locale triggering
     ASSERT_EQ(GetTargetFootprint(trigger), FIRST_THRESHOLD);
+
+    delete trigger;
+}
+
+static constexpr size_t STARTUP_TEST_HEAP_FOOTPRINT = 1_MB;
+static constexpr size_t STARTUP_TEST_HIGH_FOOTPRINT = 50_MB;
+static constexpr size_t STARTUP_TEST_JUST_FINISH_FOOTPRINT = STARTUP_TEST_HIGH_FOOTPRINT / 2U;
+static constexpr size_t STARTUP_TEST_POSTPONE_HEAP_FOOTPRINT = 60_MB;
+static constexpr size_t STARTUP_TEST_EXPIRY_ITERATION_COUNT = 500;
+static constexpr size_t PERCENT_100 = 100U;
+
+TEST_F(GCTriggerTest, MinTargetFootprintFloorTest)
+{
+    mem::MemStatsType memStats;
+    memStats.RecordAllocateObject(STARTUP_TEST_HEAP_FOOTPRINT, SpaceType::SPACE_TYPE_OBJECT);
+    auto *trigger = CreateHeapTriggerWithMemStats(&memStats);
+    GCTask task(GCTaskCause::HEAP_USAGE_THRESHOLD_CAUSE);
+
+    trigger->SetMinTargetFootprint(STARTUP_TEST_HIGH_FOOTPRINT);
+    trigger->ComputeNewTargetFootprint(task, STARTUP_TEST_HEAP_FOOTPRINT, STARTUP_TEST_HEAP_FOOTPRINT);
+
+    EXPECT_EQ(GetMinTargetFootprint(trigger), STARTUP_TEST_HIGH_FOOTPRINT);
+    EXPECT_EQ(GetTargetFootprint(trigger), STARTUP_TEST_HIGH_FOOTPRINT);
+
+    delete trigger;
+}
+
+TEST_F(GCTriggerTest, MinTargetFootprintDuringStartupTest)
+{
+    mem::MemStatsType memStats;
+    memStats.RecordAllocateObject(STARTUP_TEST_HEAP_FOOTPRINT, SpaceType::SPACE_TYPE_OBJECT);
+    auto *trigger = CreateHeapTriggerWithMemStats(&memStats);
+    GCTask task(GCTaskCause::HEAP_USAGE_THRESHOLD_CAUSE);
+
+    trigger->SetMinTargetFootprint(STARTUP_TEST_HIGH_FOOTPRINT);
+    trigger->BeginStartupRestrain();
+    trigger->ComputeNewTargetFootprint(task, STARTUP_TEST_HEAP_FOOTPRINT, STARTUP_TEST_HEAP_FOOTPRINT);
+
+    EXPECT_EQ(GetMinTargetFootprint(trigger), STARTUP_TEST_HIGH_FOOTPRINT);
+    EXPECT_EQ(GetTargetFootprint(trigger), STARTUP_TEST_HIGH_FOOTPRINT);
+
+    delete trigger;
+}
+
+TEST_F(GCTriggerTest, FinishStartupRestrainTest)
+{
+    mem::MemStatsType memStats;
+    memStats.RecordAllocateObject(STARTUP_TEST_HEAP_FOOTPRINT, SpaceType::SPACE_TYPE_OBJECT);
+    auto *trigger = CreateHeapTriggerWithMemStats(&memStats);
+    GCTask task(GCTaskCause::HEAP_USAGE_THRESHOLD_CAUSE);
+
+    trigger->SetMinTargetFootprint(STARTUP_TEST_HIGH_FOOTPRINT);
+    trigger->BeginStartupRestrain();
+
+    trigger->FinishStartupRestrain();
+
+    EXPECT_EQ(GetMinTargetFootprint(trigger), GetDefaultMinTargetFootprint());
+    size_t expectedDelta =
+        std::max((STARTUP_TEST_HEAP_FOOTPRINT / PERCENT_100) * mem::GCTriggerHeap::DEFAULT_PERCENTAGE_THRESHOLD,
+                 MIN_EXTRA_HEAP_SIZE);
+    size_t expectedTarget = std::max(STARTUP_TEST_HEAP_FOOTPRINT + expectedDelta, GetDefaultMinTargetFootprint());
+    EXPECT_EQ(GetTargetFootprint(trigger), expectedTarget);
+
+    trigger->FinishStartupRestrain();
+    EXPECT_EQ(GetTargetFootprint(trigger), expectedTarget);
+
+    trigger->ComputeNewTargetFootprint(task, STARTUP_TEST_HEAP_FOOTPRINT, STARTUP_TEST_HEAP_FOOTPRINT);
+    EXPECT_EQ(GetTargetFootprint(trigger), expectedTarget);
+
+    delete trigger;
+}
+
+TEST_F(GCTriggerTest, ConcurrentMinTargetFootprintTest)
+{
+    mem::MemStatsType memStats;
+    auto *trigger = CreateHeapTriggerWithMemStats(&memStats);
+
+    constexpr size_t SMALL_FOOTPRINT = 10_MB;
+    constexpr size_t LARGE_FOOTPRINT = 20_MB;
+    constexpr size_t ITERATION_COUNT = 1000;
+    constexpr size_t THREAD_COUNT = 4;
+    std::vector<std::thread> threads;
+    for (size_t i = 0; i < THREAD_COUNT; i++) {
+        threads.emplace_back([trigger]() {
+            for (size_t j = 0; j < ITERATION_COUNT; j++) {
+                trigger->SetMinTargetFootprint(SMALL_FOOTPRINT);
+                trigger->BeginStartupRestrain();
+                trigger->RestoreMinTargetFootprint();
+                trigger->SetMinTargetFootprint(LARGE_FOOTPRINT);
+            }
+        });
+    }
+    for (auto &thread : threads) {
+        thread.join();
+    }
+    size_t result = GetMinTargetFootprint(trigger);
+    EXPECT_TRUE(result == SMALL_FOOTPRINT || result == LARGE_FOOTPRINT || result == GetDefaultMinTargetFootprint());
+
+    delete trigger;
+}
+
+TEST_F(GCTriggerTest, JustFinishStartupRestrainOnStartupTest)
+{
+    mem::MemStatsType memStats;
+    memStats.RecordAllocateObject(STARTUP_TEST_HEAP_FOOTPRINT, SpaceType::SPACE_TYPE_OBJECT);
+    auto *trigger = CreateHeapTriggerWithMemStats(&memStats);
+
+    trigger->SetMinTargetFootprint(STARTUP_TEST_HIGH_FOOTPRINT);
+    trigger->BeginStartupRestrain();
+    trigger->JustFinishStartupRestrain(STARTUP_TEST_JUST_FINISH_FOOTPRINT);
+    EXPECT_EQ(GetMinTargetFootprint(trigger), STARTUP_TEST_JUST_FINISH_FOOTPRINT);
+    EXPECT_EQ(GetTargetFootprint(trigger), STARTUP_TEST_JUST_FINISH_FOOTPRINT);
+
+    trigger->FinishStartupRestrain();
+    EXPECT_EQ(GetMinTargetFootprint(trigger), GetDefaultMinTargetFootprint());
+
+    delete trigger;
+}
+
+TEST_F(GCTriggerTest, JustFinishStartupRestrainAfterFinishedTest)
+{
+    mem::MemStatsType memStats;
+    memStats.RecordAllocateObject(STARTUP_TEST_HEAP_FOOTPRINT, SpaceType::SPACE_TYPE_OBJECT);
+    auto *trigger = CreateHeapTriggerWithMemStats(&memStats);
+
+    trigger->SetMinTargetFootprint(STARTUP_TEST_HIGH_FOOTPRINT);
+    trigger->BeginStartupRestrain();
+    trigger->FinishStartupRestrain();
+
+    trigger->JustFinishStartupRestrain(STARTUP_TEST_JUST_FINISH_FOOTPRINT);
+    EXPECT_EQ(GetMinTargetFootprint(trigger), GetDefaultMinTargetFootprint());
+
+    delete trigger;
+}
+
+TEST_F(GCTriggerTest, JustFinishStartupRestrainWithoutBeginTest)
+{
+    mem::MemStatsType memStats;
+    memStats.RecordAllocateObject(STARTUP_TEST_HEAP_FOOTPRINT, SpaceType::SPACE_TYPE_OBJECT);
+    auto *trigger = CreateHeapTriggerWithMemStats(&memStats);
+
+    trigger->JustFinishStartupRestrain(STARTUP_TEST_JUST_FINISH_FOOTPRINT);
+    EXPECT_EQ(GetMinTargetFootprint(trigger), GetDefaultMinTargetFootprint());
+
+    delete trigger;
+}
+
+static void HammerStartupRestrainFinish(mem::GCTriggerHeap *trigger, size_t threadIndex)
+{
+    for (size_t j = 0; j < STARTUP_TEST_EXPIRY_ITERATION_COUNT; j++) {
+        trigger->FinishStartupRestrain();
+        if ((threadIndex + j) % 2U == 0U) {
+            trigger->JustFinishStartupRestrain(STARTUP_TEST_JUST_FINISH_FOOTPRINT);
+        }
+    }
+}
+
+TEST_F(GCTriggerTest, ConcurrentStartupRestrainFinishTest)
+{
+    mem::MemStatsType memStats;
+    memStats.RecordAllocateObject(STARTUP_TEST_HEAP_FOOTPRINT, SpaceType::SPACE_TYPE_OBJECT);
+    auto *trigger = CreateAdaptiveTriggerWithMemStats(&memStats);
+    GCTask task(GCTaskCause::HEAP_USAGE_THRESHOLD_CAUSE);
+
+    trigger->SetMinTargetFootprint(STARTUP_TEST_HIGH_FOOTPRINT);
+    trigger->BeginStartupRestrain();
+
+    constexpr size_t THREAD_COUNT = 3;
+    std::vector<std::thread> threads;
+    for (size_t i = 0; i < THREAD_COUNT; i++) {
+        threads.emplace_back([trigger, i]() { HammerStartupRestrainFinish(trigger, i); });
+    }
+    for (size_t j = 0; j < STARTUP_TEST_EXPIRY_ITERATION_COUNT; j++) {
+        trigger->ComputeNewTargetFootprint(task, STARTUP_TEST_HEAP_FOOTPRINT, STARTUP_TEST_HEAP_FOOTPRINT);
+    }
+    for (auto &thread : threads) {
+        thread.join();
+    }
+
+    EXPECT_EQ(GetMinTargetFootprint(trigger), GetDefaultMinTargetFootprint());
+
+    delete trigger;
+}
+
+static void HammerPostponeAndFinish(mem::GCTriggerHeap *trigger, mem::GC *gc, size_t threadIndex)
+{
+    for (size_t j = 0; j < STARTUP_TEST_EXPIRY_ITERATION_COUNT; j++) {
+        GCTriggerTest::FinishPostponeGCIfNeeded(trigger, gc, STARTUP_TEST_POSTPONE_HEAP_FOOTPRINT);
+        if ((threadIndex + j) % 2U == 0U) {
+            trigger->FinishStartupRestrain();
+        } else {
+            trigger->JustFinishStartupRestrain(STARTUP_TEST_JUST_FINISH_FOOTPRINT);
+        }
+    }
+}
+
+TEST_F(GCTriggerTest, ConcurrentPostponeAndExpiryTest)
+{
+    mem::MemStatsType memStats;
+    memStats.RecordAllocateObject(STARTUP_TEST_HEAP_FOOTPRINT, SpaceType::SPACE_TYPE_OBJECT);
+    auto *trigger = CreateAdaptiveTriggerWithMemStats(&memStats);
+    GCTask task(GCTaskCause::HEAP_USAGE_THRESHOLD_CAUSE);
+    auto *gc = Runtime::GetCurrent()->GetPandaVM()->GetGC();
+
+    trigger->SetMinTargetFootprint(STARTUP_TEST_HIGH_FOOTPRINT);
+    trigger->BeginStartupRestrain();
+
+    constexpr size_t THREAD_COUNT = 3;
+    std::vector<std::thread> threads;
+    for (size_t i = 0; i < THREAD_COUNT; i++) {
+        threads.emplace_back([trigger, gc, i]() { HammerPostponeAndFinish(trigger, gc, i); });
+    }
+    for (size_t j = 0; j < STARTUP_TEST_EXPIRY_ITERATION_COUNT; j++) {
+        trigger->ComputeNewTargetFootprint(task, STARTUP_TEST_HEAP_FOOTPRINT, STARTUP_TEST_HEAP_FOOTPRINT);
+    }
+    for (auto &thread : threads) {
+        thread.join();
+    }
+
+    EXPECT_EQ(GetMinTargetFootprint(trigger), GetDefaultMinTargetFootprint());
+    EXPECT_GE(GetTargetFootprint(trigger), GetDefaultMinTargetFootprint());
 
     delete trigger;
 }
